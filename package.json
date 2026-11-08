@@ -1,0 +1,53 @@
+{
+  "name": "make-pictures-studio",
+  "version": "1.0.0",
+  "description": "make.pictures — Open-Source Video-as-Code Studio built with Remotion, Three.js, TypeScript, and ElevenLabs for Google Antigravity & Claude Code",
+  "homepage": "https://make.pictures",
+  "license": "MIT",
+  "keywords": [
+    "video-as-code",
+    "remotion",
+    "threejs",
+    "elevenlabs",
+    "make-pictures",
+    "antigravity",
+    "claude-code",
+    "animation"
+  ],
+  "scripts": {
+    "onboard": "node scripts/onboard.mjs",
+    "doctor": "tsx scripts/doctor.ts",
+    "setup": "tsx scripts/doctor.ts --setup",
+    "voiceover": "tsx scripts/generate-voiceover.ts",
+    "studio": "remotion studio src/index.ts",
+    "render": "remotion render src/index.ts StarterStory out/starter-story.mp4 --fps=60",
+    "render:vertical": "remotion render src/index.ts StarterStoryVertical out/starter-story-vertical.mp4 --fps=60",
+    "render:diorama": "remotion render src/index.ts PaperDioramaDemo out/paper-diorama-demo.mp4 --fps=60 --gl=angle",
+    "render:diagrams": "remotion render src/index.ts ArchitectureDemo out/architecture-demo.mp4 --fps=60",
+    "render:iso": "remotion render src/index.ts IsometricDialogueDemo out/isometric-3d-dialogue.mp4 --fps=60 --gl=angle",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@elevenlabs/elevenlabs-js": "^2.76.0",
+    "@react-three/drei": "^9.122.0",
+    "@react-three/fiber": "^8.18.0",
+    "@remotion/cli": "4.0.276",
+    "@remotion/google-fonts": "4.0.276",
+    "@remotion/media-utils": "4.0.276",
+    "@remotion/three": "^4.0.276",
+    "@types/three": "^0.187.0",
+    "dotenv": "^16.4.7",
+    "lucide-react": "^0.475.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "remotion": "4.0.276",
+    "three": "^0.187.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.4",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}

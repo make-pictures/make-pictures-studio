@@ -1,0 +1,90 @@
+{
+  "project": {
+    "title": "make.pictures — Video-as-Code Studio",
+    "fps": 60,
+    "defaultResolution": {
+      "width": 1920,
+      "height": 1080
+    },
+    "uhdResolution": {
+      "width": 3840,
+      "height": 2160
+    }
+  },
+  "scenes": [
+    {
+      "id": "starter-story",
+      "title": "Starter Story — Video-as-Code Pipeline (make.pictures)",
+      "component": "StarterStory",
+      "durationInSeconds": 11,
+      "durationInFrames": 660,
+      "voiceId": "TX3LPaxmHKxFdv7VOQHJ",
+      "speaker": "Narrator (make.pictures)",
+      "text": "Zamiast kleić klatki ręcznie, opisz swój pomysł agentowi AI! Skrypt wygeneruje głos z ElevenLabs, dobierze styl wizualny z kodu i wyrenderuje płynną animację w sześćdziesięciu klatkach na sekundę! Twórz z mejk kropka pikczers!"
+    },
+    {
+      "id": "intro",
+      "title": "Intro — Aether Engine",
+      "component": "IntroScene",
+      "durationInSeconds": 4,
+      "durationInFrames": 240,
+      "text": "Poznaj Aether Engine. Nowoczesną architekturę aplikacji natywnie zintegrowaną z agentami sztucznej inteligencji."
+    },
+    {
+      "id": "ui-showcase",
+      "title": "Prezentacja UI — Interfejs Produkcyjny",
+      "component": "UIShowcaseScene",
+      "durationInSeconds": 6,
+      "durationInFrames": 360,
+      "recordingFile": "recordings/sample-ui.mp4",
+      "windowTitle": "Aether Console — Production Telemetry (eu-central-1)",
+      "text": "Każda interakcja w interfejsie użytkownika uruchamia kaskadę procesów w tle z opóźnieniem poniżej pięćdziesięciu milisekund."
+    },
+    {
+      "id": "architecture-demo",
+      "title": "Diagram Architektury i Integracji (PoC)",
+      "component": "ArchitectureDemoScene",
+      "durationInSeconds": 10,
+      "durationInFrames": 600,
+      "text": "Moja Aplikacja wysyła ustrukturyzowany kontekst zapytania bezpośrednio do węzła AI Agent API. Po błyskawicznej inferencji wynik zostaje trwale zapisany w bazie PostgreSQL."
+    },
+    {
+      "id": "outro",
+      "title": "Outro — Podsumowanie",
+      "component": "OutroScene",
+      "durationInSeconds": 4,
+      "durationInFrames": 240,
+      "text": "Buduj szybciej, skaluj bez kompromisów. Aether Engine — gotowy na produkcję."
+    },
+    {
+      "id": "iso-line-1",
+      "title": "Dialog Izometryczny 3D — Kwestia 1 (Postać A)",
+      "component": "IsometricDialogueDemo",
+      "durationInSeconds": 4,
+      "durationInFrames": 240,
+      "voiceId": "TX3LPaxmHKxFdv7VOQHJ",
+      "speaker": "Alex",
+      "text": "Widziałeś ile czasu zajmuje ręczne klejenie prezentacji wideo?"
+    },
+    {
+      "id": "iso-line-2",
+      "title": "Dialog Izometryczny 3D — Kwestia 2 (Postać B)",
+      "component": "IsometricDialogueDemo",
+      "durationInSeconds": 4.5,
+      "durationInFrames": 270,
+      "voiceId": "CLuTGacrAhcIhaJslbXt",
+      "speaker": "Max",
+      "text": "Dlatego tutaj cały świat trójwymiarowy generujemy bezpośrednio z kodu."
+    },
+    {
+      "id": "iso-line-3",
+      "title": "Dialog Izometryczny 3D — Kwestia 3 (Postać A)",
+      "component": "IsometricDialogueDemo",
+      "durationInSeconds": 4.5,
+      "durationInFrames": 270,
+      "voiceId": "TX3LPaxmHKxFdv7VOQHJ",
+      "speaker": "Alex",
+      "text": "Jeden skrypt, dwa głosy i pełna animacja w sześćdziesięciu klatkach na sekundę!"
+    }
+  ]
+}
