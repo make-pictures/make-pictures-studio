@@ -8,7 +8,14 @@
     "url": "git+https://github.com/make-pictures/make-pictures-studio.git",
     "directory": "packages/create-make-pictures"
   },
+  "bugs": {
+    "url": "https://github.com/make-pictures/make-pictures-studio/issues"
+  },
+  "author": "make.pictures <pawel@make.pictures>",
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "bin": {
     "create-make-pictures": "dist/index.mjs"
