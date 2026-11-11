@@ -1,0 +1,15 @@
+{
+  "promptTitle": "JSON Scene Script",
+  "promptSubtitle": "Antigravity + Claude Code",
+  "voiceTitle": "ElevenLabs Voice",
+  "outputTitle": "60 FPS Final Video",
+  "outputSubtitle": "Landscape 16:9 & Shorts 9:16",
+  "primaryAccent": "#2563EB",
+  "secondaryAccent": "#FF2A85",
+  "outputAccent": "#0096C7",
+  "voiceoverVolume": 1,
+  "sfxVolume": 0.35,
+  "overviewZoom": 0.72,
+  "cameraOffsetX": 0,
+  "cameraOffsetY": 0
+}

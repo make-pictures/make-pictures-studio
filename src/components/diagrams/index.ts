@@ -1,1 +1,1 @@
-export * from '../../kits/motion-diagrams-2d';
+export * from '@make-pictures/kits/motion-diagrams-2d';

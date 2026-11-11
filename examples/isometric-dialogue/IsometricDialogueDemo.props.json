@@ -1,0 +1,13 @@
+{
+  "alexName": "Alex",
+  "alexRole": "VOICE 1 • CREATOR",
+  "alexColor": "#2563EB",
+  "maxName": "Max",
+  "maxRole": "VOICE 2 • 3D ARCHITECT",
+  "maxColor": "#059669",
+  "showHudCards": true,
+  "cameraZoom": 162,
+  "cameraHeightOffset": 0,
+  "voiceoverVolume": 1,
+  "sfxVolume": 0.35
+}

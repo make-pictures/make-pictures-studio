@@ -1,0 +1,90 @@
+{
+  "name": "@make-pictures/kits",
+  "version": "2.0.0",
+  "description": "60 FPS Visual Kits for make.pictures — Paper Diorama 3D, Isometric 3D Dialogue, Motion Diagrams 2D, Kinetic Typography, Data Storytelling, Optical VFX, and Product Frames (BrowserFrame, PhoneFrame, ScreenSpotlightOverlay).",
+  "homepage": "https://make.pictures",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/make-pictures/make-pictures-studio.git",
+    "directory": "packages/kits"
+  },
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs"
+    },
+    "./paper-diorama-3d": {
+      "types": "./dist/paper-diorama-3d/index.d.ts",
+      "import": "./dist/paper-diorama-3d/index.mjs",
+      "require": "./dist/paper-diorama-3d/index.cjs"
+    },
+    "./isometric-3d": {
+      "types": "./dist/isometric-3d/index.d.ts",
+      "import": "./dist/isometric-3d/index.mjs",
+      "require": "./dist/isometric-3d/index.cjs"
+    },
+    "./motion-diagrams-2d": {
+      "types": "./dist/motion-diagrams-2d/index.d.ts",
+      "import": "./dist/motion-diagrams-2d/index.mjs",
+      "require": "./dist/motion-diagrams-2d/index.cjs"
+    },
+    "./vfx": {
+      "types": "./dist/vfx/index.d.ts",
+      "import": "./dist/vfx/index.mjs",
+      "require": "./dist/vfx/index.cjs"
+    },
+    "./kinetic-typography": {
+      "types": "./dist/kinetic-typography/index.d.ts",
+      "import": "./dist/kinetic-typography/index.mjs",
+      "require": "./dist/kinetic-typography/index.cjs"
+    },
+    "./data-storytelling": {
+      "types": "./dist/data-storytelling/index.d.ts",
+      "import": "./dist/data-storytelling/index.mjs",
+      "require": "./dist/data-storytelling/index.cjs"
+    },
+    "./product-frames": {
+      "types": "./dist/product-frames/index.d.ts",
+      "import": "./dist/product-frames/index.mjs",
+      "require": "./dist/product-frames/index.cjs"
+    }
+  },
+  "peerDependencies": {
+    "@make-pictures/core": "^2.0.0",
+    "@react-three/drei": "^9.0.0 || ^10.0.0",
+    "@react-three/fiber": "^8.0.0 || ^9.0.0",
+    "@remotion/three": "^4.0.0",
+    "lucide-react": ">=0.300.0",
+    "react": "^18.0.0 || ^19.0.0",
+    "react-dom": "^18.0.0 || ^19.0.0",
+    "remotion": "^4.0.0",
+    "three": ">=0.160.0",
+    "zod": "^3.22.0"
+  },
+  "peerDependenciesMeta": {
+    "@react-three/drei": {
+      "optional": true
+    },
+    "@react-three/fiber": {
+      "optional": true
+    },
+    "@remotion/three": {
+      "optional": true
+    },
+    "three": {
+      "optional": true
+    }
+  }
+}

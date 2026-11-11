@@ -1,0 +1,20 @@
+{
+  "name": "make-pictures",
+  "version": "2.0.0",
+  "description": "60 FPS Video-as-Code Studio: modular 2D/3D visual kits, Shot DSL camera, deterministic VFX, ElevenLabs TTS/Music/SFX auto-ducking, and Contact-Sheet QA.",
+  "author": {
+    "name": "make.pictures",
+    "url": "https://make.pictures"
+  },
+  "homepage": "https://make.pictures",
+  "repository": "https://github.com/make-pictures/make-pictures-studio",
+  "license": "MIT",
+  "keywords": [
+    "remotion",
+    "video-as-code",
+    "threejs",
+    "elevenlabs",
+    "animation",
+    "60fps"
+  ]
+}

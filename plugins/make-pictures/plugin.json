@@ -1,0 +1,20 @@
+{
+  "name": "make-pictures",
+  "displayName": "make.pictures Studio",
+  "version": "2.0.0",
+  "description": "60 FPS Video-as-Code Studio: modular 2D/3D visual kits, Shot DSL camera, deterministic VFX, ElevenLabs TTS/Music/SFX auto-ducking, and Contact-Sheet QA.",
+  "author": {
+    "name": "make.pictures",
+    "url": "https://make.pictures"
+  },
+  "homepage": "https://make.pictures",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/make-pictures/make-pictures-studio"
+  },
+  "suggestedPrompts": [
+    "Set up make.pictures studio: run `npm run onboard` and follow what it prints.",
+    "Create a new 60 FPS animated story in productions/ using the paper-diorama-3d kit.",
+    "Generate a 12-frame Contact-Sheet QA report for my composition and verify 9:16 safe zones."
+  ]
+}

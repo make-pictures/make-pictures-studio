@@ -1,0 +1,16 @@
+{
+  "heroHeadline": "DIRECTOR CAMERA 3D",
+  "heroSublabel": "Shot DSL • Auto-Ducking Score • Optical VFX",
+  "eyebrowBadge": "MAKE.PICTURES",
+  "accentColor": "#FF2A85",
+  "secondaryColor": "#10B981",
+  "skyBackground": "#0F172A",
+  "handheldIntensity": 0.14,
+  "vignetteIntensity": 0.34,
+  "warmLightLeak": 0.16,
+  "showWordStage": false,
+  "voiceoverVolume": 1,
+  "musicBaseVolume": 0.24,
+  "musicDuckedVolume": 0.08,
+  "sfxVolume": 0.34
+}

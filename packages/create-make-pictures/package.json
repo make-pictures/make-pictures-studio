@@ -1,0 +1,43 @@
+{
+  "name": "create-make-pictures",
+  "version": "2.0.0",
+  "description": "Scaffold a 60 FPS Video-as-Code Studio project powered by @make-pictures/core, @make-pictures/kits, @make-pictures/studio, and ElevenLabs AI Audio.",
+  "homepage": "https://make.pictures",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/make-pictures/make-pictures-studio.git",
+    "directory": "packages/create-make-pictures"
+  },
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "create-make-pictures": "dist/index.mjs"
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist",
+    "assets",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "create-make-pictures",
+    "make-pictures",
+    "remotion",
+    "video-as-code",
+    "elevenlabs",
+    "60fps"
+  ]
+}

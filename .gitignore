@@ -1,7 +1,20 @@
 node_modules/
 out/
+dist/
 .env
 .env.local
 /.env.local
 .DS_Store
 *.log
+
+# Built npm workspace artifacts & packed tarballs
+packages/*/dist/
+packages/*/LICENSE
+packages/*/assets/
+*.tgz
+
+# Isolated user film capsules & public asset mirror
+productions/*
+!productions/.gitkeep
+!productions/README.md
+public/_productions/

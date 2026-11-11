@@ -10,52 +10,87 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from 'remotion';
+import { z } from 'zod';
+import {
+  AmbientBackground,
+  FONTS,
+  getWordTriggerFrame,
+  SPRING_PRESETS,
+  THEME,
+  useStudioFontsReady,
+  VoiceoverCaptionBar,
+} from '@make-pictures/core';
 import {
   CodePayloadToast,
   DataFlowEdge,
   SystemNode,
-} from '../components/diagrams';
-import {
-  AmbientBackground,
-  FONTS,
-  SPRING_PRESETS,
-  THEME,
-  VoiceoverCaptionBar,
-} from '../theme';
-import { getWordTriggerFrame } from '../utils/timestamps';
+} from '@make-pictures/kits/motion-diagrams-2d';
+import architectureDefaults from '../../examples/aether-promo/ArchitectureDemo.props.json';
 
-export interface ArchitectureDemoSceneProps {
+export const architectureDemoSchema = z.object({
+  headline: z.string().describe('Text & Labels :: Section Headline'),
+  appNodeTitle: z.string().describe('Text & Labels :: Node 1 (Client App)'),
+  agentNodeTitle: z.string().describe('Text & Labels :: Node 2 (AI Agent)'),
+  dbNodeTitle: z.string().describe('Text & Labels :: Node 3 (Database)'),
+  primaryGlowColor: z.string().describe('Colors & Style :: Ingress Accent'),
+  secondaryGlowColor: z
+    .string()
+    .describe('Colors & Style :: Orchestrator Accent'),
+  tertiaryGlowColor: z.string().describe('Colors & Style :: Storage Accent'),
+  showCaptions: z.boolean().describe('Captions :: Show Voiceover Subtitles'),
+  voiceoverVolume: z
+    .number()
+    .min(0)
+    .max(1.5)
+    .describe('Audio :: Voiceover Volume'),
+  sfxVolume: z.number().min(0).max(1).describe('Audio :: SFX Volume'),
+});
+
+export type ArchitectureDemoProps = z.infer<typeof architectureDemoSchema>;
+
+export interface ArchitectureDemoSceneProps
+  extends Partial<ArchitectureDemoProps> {
   /** Whether to include scene-level voiceover audio (true when rendered standalone) */
   includeAudio?: boolean;
 }
 
 export const ArchitectureDemoScene: React.FC<ArchitectureDemoSceneProps> = ({
   includeAudio = false,
+  ...rawProps
 }) => {
+  const props: ArchitectureDemoProps = {
+    ...architectureDefaults,
+    ...rawProps,
+  };
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
+  useStudioFontsReady();
 
   // Synchronize key timeline triggers with word timestamps from /public/voiceovers/architecture-demo.json
   const requestTriggerFrame = getWordTriggerFrame(
     'architecture-demo',
-    'wysyła',
-    68
+    'sends',
+    46
   );
   const dbTriggerFrame = getWordTriggerFrame(
     'architecture-demo',
-    'błyskawicznej',
-    310
+    'After',
+    309
   );
 
-  // Packet traversal duration along each Bézier edge (in frames @ 60fps)
-  const edge1TraverseFrames = 56;
-  const edge2TraverseFrames = 56;
+  // Calm packet traversal duration along each Bézier edge (96 frames = 1.6s @ 60 FPS per AGENTS.md Section 4)
+  const edge1TraverseFrames = 96;
+  const edge2TraverseFrames = 96;
 
   // Exact frame when the first packet arrives at "AI Agent / API"
   const agentArrivalFrame = requestTriggerFrame + edge1TraverseFrames;
   // Exact frame when the first packet arrives at "PostgreSQL"
   const postgresArrivalFrame = dbTriggerFrame + edge2TraverseFrames;
-  const allSyncedFrame = 485;
+  const allSyncedFrame = getWordTriggerFrame(
+    'architecture-demo',
+    'PostgreSQL',
+    525
+  );
 
   // Node center coordinates on the 1920x1080 canvas
   const nodeWidth = 350;
@@ -65,9 +100,9 @@ export const ArchitectureDemoScene: React.FC<ArchitectureDemoSceneProps> = ({
   const agentNodePos = { x: 960, y: 350 };
   const dbNodePos = { x: 1590, y: 470 };
 
-  // Header entrance animation
+  // Header entrance animation (starts at frame - 2 so frame 0 is a clean background)
   const headerProgress = spring({
-    frame: frame - 4,
+    frame: frame - 2,
     fps,
     config: SPRING_PRESETS.snappy,
   });
@@ -84,17 +119,17 @@ export const ArchitectureDemoScene: React.FC<ArchitectureDemoSceneProps> = ({
     frame >= postgresArrivalFrame
       ? {
           label: 'STATE: PERSISTED IN POSTGRESQL',
-          color: THEME.colors.accents.emerald,
+          color: props.tertiaryGlowColor,
         }
       : frame >= agentArrivalFrame
       ? {
           label: 'STATE: AI AGENT INFERENCE',
-          color: THEME.colors.accents.violet,
+          color: props.secondaryGlowColor,
         }
       : frame >= requestTriggerFrame
       ? {
           label: 'STATE: DISPATCHING PAYLOAD',
-          color: THEME.colors.accents.cyan,
+          color: props.primaryGlowColor,
         }
       : {
           label: 'STATE: ARCHITECTURE READY',
@@ -104,126 +139,142 @@ export const ArchitectureDemoScene: React.FC<ArchitectureDemoSceneProps> = ({
   return (
     <AbsoluteFill style={{ opacity: sceneExitOpacity }}>
       <AmbientBackground
-        primaryGlowColor={THEME.colors.accents.cyan}
-        secondaryGlowColor={THEME.colors.accents.violet}
-        tertiaryGlowColor={THEME.colors.accents.emerald}
+        primaryGlowColor={props.primaryGlowColor}
+        secondaryGlowColor={props.secondaryGlowColor}
+        tertiaryGlowColor={props.tertiaryGlowColor}
       />
 
       {/* Optional standalone audio when previewing ArchitectureDemo directly */}
       {includeAudio && (
-        <Audio src={staticFile('voiceovers/architecture-demo.mp3')} />
+        <Audio
+          src={staticFile('voiceovers/architecture-demo.mp3')}
+          volume={props.voiceoverVolume}
+        />
       )}
 
       {/* Subtle SFX synchronized with packet dispatch & node arrival */}
       <Sequence from={requestTriggerFrame} durationInFrames={30}>
-        <Audio src={staticFile('sfx/whoosh.wav')} volume={0.35} />
+        <Audio
+          src={staticFile('sfx/whoosh.wav')}
+          volume={props.sfxVolume * 0.88}
+        />
       </Sequence>
       <Sequence from={agentArrivalFrame} durationInFrames={20}>
-        <Audio src={staticFile('sfx/pop.wav')} volume={0.45} />
+        <Audio
+          src={staticFile('sfx/pop.wav')}
+          volume={Math.min(1, props.sfxVolume * 1.1)}
+        />
       </Sequence>
       <Sequence from={dbTriggerFrame} durationInFrames={30}>
-        <Audio src={staticFile('sfx/whoosh.wav')} volume={0.35} />
+        <Audio
+          src={staticFile('sfx/whoosh.wav')}
+          volume={props.sfxVolume * 0.88}
+        />
       </Sequence>
       <Sequence from={postgresArrivalFrame} durationInFrames={20}>
-        <Audio src={staticFile('sfx/pop.wav')} volume={0.45} />
+        <Audio
+          src={staticFile('sfx/pop.wav')}
+          volume={Math.min(1, props.sfxVolume * 1.1)}
+        />
       </Sequence>
 
       {/* Top Section Header */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 56,
-          left: 96,
-          right: 96,
-          display: 'flex',
-          alignItems: 'flex-start',
-          justifyContent: 'space-between',
-          opacity: headerProgress,
-          transform: `translateY(${interpolate(
-            headerProgress,
-            [0, 1],
-            [18, 0]
-          )}px)`,
-        }}
-      >
-        <div>
+      {headerProgress > 0.002 && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 56,
+            left: 96,
+            right: 96,
+            display: 'flex',
+            alignItems: 'flex-start',
+            justifyContent: 'space-between',
+            opacity: headerProgress,
+            transform: `translate3d(0, ${interpolate(
+              headerProgress,
+              [0, 1],
+              [18, 0]
+            )}px, 0)`,
+          }}
+        >
+          <div>
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '5px 12px',
+                borderRadius: THEME.radii.pill,
+                backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                border: THEME.borders.thin,
+                fontFamily: FONTS.mono,
+                fontSize: 11.5,
+                color: THEME.colors.accents.cyan,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+              }}
+            >
+              <span>ARCHITECTURE & DATA FLOW</span>
+              <span style={{ color: THEME.colors.textMuted }}>•</span>
+              <span style={{ color: THEME.colors.textSecondary }}>60 FPS</span>
+            </div>
+            <h2
+              style={{
+                margin: '12px 0 0 0',
+                fontFamily: FONTS.sans,
+                fontSize: 38,
+                fontWeight: 700,
+                letterSpacing: '-0.03em',
+                color: THEME.colors.textPrimary,
+              }}
+            >
+              {props.headline}
+            </h2>
+          </div>
+
+          {/* Live Telemetry Pill */}
           <div
             style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 8,
-              padding: '5px 12px',
+              padding: '10px 18px',
               borderRadius: THEME.radii.pill,
-              backgroundColor: 'rgba(255, 255, 255, 0.04)',
-              border: THEME.borders.thin,
+              backgroundColor: 'rgba(15, 18, 29, 0.94)',
+              border: `1px solid ${pipelinePhase.color}55`,
+              boxShadow: `0 0 24px ${pipelinePhase.color}22`,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
               fontFamily: FONTS.mono,
-              fontSize: 11.5,
-              color: THEME.colors.accents.cyan,
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase',
-            }}
-          >
-            <span>ARCHITECTURE & DATA FLOW</span>
-            <span style={{ color: THEME.colors.textMuted }}>•</span>
-            <span style={{ color: THEME.colors.textSecondary }}>60 FPS</span>
-          </div>
-          <h2
-            style={{
-              margin: '12px 0 0 0',
-              fontFamily: FONTS.sans,
-              fontSize: 38,
-              fontWeight: 700,
-              letterSpacing: '-0.03em',
+              fontSize: 12,
+              fontWeight: 600,
               color: THEME.colors.textPrimary,
             }}
           >
-            Przepływ kontekstu i zapisu w czasie rzeczywistym
-          </h2>
+            <span
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                backgroundColor: pipelinePhase.color,
+                boxShadow: `0 0 12px ${pipelinePhase.color}`,
+              }}
+            />
+            <span>{pipelinePhase.label}</span>
+          </div>
         </div>
+      )}
 
-        {/* Live Telemetry Pill */}
-        <div
-          style={{
-            padding: '10px 18px',
-            borderRadius: THEME.radii.pill,
-            backgroundColor: 'rgba(15, 18, 29, 0.82)',
-            backdropFilter: 'blur(16px)',
-            border: `1px solid ${pipelinePhase.color}55`,
-            boxShadow: `0 0 24px ${pipelinePhase.color}22`,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            fontFamily: FONTS.mono,
-            fontSize: 12,
-            fontWeight: 600,
-            color: THEME.colors.textPrimary,
-          }}
-        >
-          <span
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: '50%',
-              backgroundColor: pipelinePhase.color,
-              boxShadow: `0 0 12px ${pipelinePhase.color}`,
-            }}
-          />
-          <span>{pipelinePhase.label}</span>
-        </div>
-      </div>
-
-      {/* SVG Bézier Edge 1: Moja Aplikacja -> AI Agent / API */}
+      {/* SVG Bézier Edge 1: Web Client App -> AI Agent / API */}
       <DataFlowEdge
         id="app-to-agent"
         from={{ x: appNodePos.x + nodeWidth / 2, y: appNodePos.y - 10 }}
         to={{ x: agentNodePos.x - nodeWidth / 2, y: agentNodePos.y }}
         curveOffsetY={-75}
-        color={THEME.colors.accents.cyan}
-        secondaryColor={THEME.colors.accents.violet}
-        drawStartFrame={28}
+        color={props.primaryGlowColor}
+        secondaryColor={props.secondaryGlowColor}
+        drawStartFrame={24}
         flowStartFrame={requestTriggerFrame}
         flowEndFrame={durationInFrames - 25}
-        packetCount={3}
+        packetCount={2}
         traverseFrames={edge1TraverseFrames}
         direction="forward"
         label="POST /v1/agent/analyze"
@@ -236,22 +287,22 @@ export const ArchitectureDemoScene: React.FC<ArchitectureDemoSceneProps> = ({
         from={{ x: agentNodePos.x + nodeWidth / 2, y: agentNodePos.y }}
         to={{ x: dbNodePos.x - nodeWidth / 2, y: dbNodePos.y - 10 }}
         curveOffsetY={-75}
-        color={THEME.colors.accents.violet}
-        secondaryColor={THEME.colors.accents.emerald}
-        drawStartFrame={46}
+        color={props.secondaryGlowColor}
+        secondaryColor={props.tertiaryGlowColor}
+        drawStartFrame={42}
         flowStartFrame={dbTriggerFrame}
         flowEndFrame={durationInFrames - 25}
-        packetCount={3}
+        packetCount={2}
         traverseFrames={edge2TraverseFrames}
         direction="forward"
         label="INSERT INTO insights"
         subLabel="pgvector TLS"
       />
 
-      {/* Node 1: Moja Aplikacja */}
+      {/* Node 1: Web Client App */}
       <SystemNode
-        id="my-app"
-        title="Moja Aplikacja"
+        id="web-client"
+        title={props.appNodeTitle}
         subtitle="Next.js Edge Runtime • Client Gateway"
         badge="APP CORE"
         statusText="IDLE • READY"
@@ -261,10 +312,10 @@ export const ArchitectureDemoScene: React.FC<ArchitectureDemoSceneProps> = ({
         y={appNodePos.y}
         width={nodeWidth}
         height={nodeHeight}
-        accentColor={THEME.colors.accents.cyan}
-        enterFrame={10}
+        accentColor={props.primaryGlowColor}
+        enterFrame={8}
         activeRanges={[
-          [requestTriggerFrame - 6, agentArrivalFrame + 55],
+          [requestTriggerFrame - 6, agentArrivalFrame + 40],
           [allSyncedFrame, durationInFrames - 20],
         ]}
         metricsLabel="RPS"
@@ -274,7 +325,7 @@ export const ArchitectureDemoScene: React.FC<ArchitectureDemoSceneProps> = ({
       {/* Node 2: AI Agent / API */}
       <SystemNode
         id="ai-agent"
-        title="AI Agent / API"
+        title={props.agentNodeTitle}
         subtitle="Orchestrator • Structured Tool Calling"
         badge="LLM ENGINE"
         statusText="STANDBY • WARM"
@@ -284,10 +335,10 @@ export const ArchitectureDemoScene: React.FC<ArchitectureDemoSceneProps> = ({
         y={agentNodePos.y}
         width={nodeWidth}
         height={nodeHeight}
-        accentColor={THEME.colors.accents.violet}
-        enterFrame={18}
+        accentColor={props.secondaryGlowColor}
+        enterFrame={16}
         activeRanges={[
-          [agentArrivalFrame, postgresArrivalFrame + 35],
+          [agentArrivalFrame, postgresArrivalFrame + 30],
           [allSyncedFrame, durationInFrames - 20],
         ]}
         metricsLabel="TOKENS"
@@ -297,7 +348,7 @@ export const ArchitectureDemoScene: React.FC<ArchitectureDemoSceneProps> = ({
       {/* Node 3: PostgreSQL */}
       <SystemNode
         id="postgresql"
-        title="PostgreSQL"
+        title={props.dbNodeTitle}
         subtitle="Primary Cluster + pgvector HNSW Index"
         badge="STORAGE"
         statusText="LISTENING :5432"
@@ -307,14 +358,14 @@ export const ArchitectureDemoScene: React.FC<ArchitectureDemoSceneProps> = ({
         y={dbNodePos.y}
         width={nodeWidth}
         height={nodeHeight}
-        accentColor={THEME.colors.accents.emerald}
-        enterFrame={26}
+        accentColor={props.tertiaryGlowColor}
+        enterFrame={24}
         activeRanges={[[postgresArrivalFrame, durationInFrames - 20]]}
         metricsLabel="COMMIT"
         metricsValue="4.2ms"
       />
 
-      {/* Code Payload Toast 1: Request Payload from App to AI Agent */}
+      {/* Code Payload Toast 1: Request Payload from Web Client to AI Agent */}
       <CodePayloadToast
         x={580}
         y={650}
@@ -324,10 +375,10 @@ export const ArchitectureDemoScene: React.FC<ArchitectureDemoSceneProps> = ({
         latencyText="TLS 1.3 • 14ms"
         accentColor={THEME.colors.accents.cyan}
         startFrame={requestTriggerFrame + 14}
-        endFrame={dbTriggerFrame + 40}
+        endFrame={dbTriggerFrame + 35}
         code={`{
   "requestId": "req_99f2a8c",
-  "source": "moja-aplikacja",
+  "source": "web-client",
   "intent": "architecture_audit",
   "stream": true
 }`}
@@ -352,17 +403,19 @@ export const ArchitectureDemoScene: React.FC<ArchitectureDemoSceneProps> = ({
 }`}
       />
 
-      {/* Synchronized Word-by-Word Voiceover Subtitles */}
-      <VoiceoverCaptionBar
-        sceneId="architecture-demo"
-        accentColor={
-          frame >= postgresArrivalFrame
-            ? THEME.colors.accents.emerald
-            : frame >= agentArrivalFrame
-            ? THEME.colors.accents.violet
-            : THEME.colors.accents.cyan
-        }
-      />
+      {/* Optional Word-by-Word Voiceover Subtitles */}
+      {props.showCaptions && (
+        <VoiceoverCaptionBar
+          sceneId="architecture-demo"
+          accentColor={
+            frame >= postgresArrivalFrame
+              ? props.tertiaryGlowColor
+              : frame >= agentArrivalFrame
+              ? props.secondaryGlowColor
+              : props.primaryGlowColor
+          }
+        />
+      )}
     </AbsoluteFill>
   );
 };

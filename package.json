@@ -1,9 +1,13 @@
 {
   "name": "make-pictures-studio",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "private": true,
   "description": "make.pictures — Open-Source Video-as-Code Studio built with Remotion, Three.js, TypeScript, and ElevenLabs for Google Antigravity & Claude Code",
   "homepage": "https://make.pictures",
   "license": "MIT",
+  "workspaces": [
+    "packages/*"
+  ],
   "keywords": [
     "video-as-code",
     "remotion",
@@ -15,16 +19,29 @@
     "animation"
   ],
   "scripts": {
-    "onboard": "node scripts/onboard.mjs",
-    "doctor": "tsx scripts/doctor.ts",
-    "setup": "tsx scripts/doctor.ts --setup",
-    "voiceover": "tsx scripts/generate-voiceover.ts",
-    "studio": "remotion studio src/index.ts",
-    "render": "remotion render src/index.ts StarterStory out/starter-story.mp4 --fps=60",
+    "onboard": "tsx packages/cli/src/index.ts onboard",
+    "doctor": "tsx packages/cli/src/index.ts doctor",
+    "setup": "tsx packages/cli/src/index.ts doctor --setup",
+    "new": "tsx packages/cli/src/index.ts new",
+    "audio": "tsx packages/cli/src/index.ts audio",
+    "music": "tsx packages/cli/src/index.ts music",
+    "sfx": "tsx packages/cli/src/index.ts sfx",
+    "qa": "tsx packages/cli/src/index.ts qa",
+    "image": "tsx packages/cli/src/index.ts image",
+    "voiceover": "tsx packages/cli/src/index.ts audio",
+    "studio": "vite --host 127.0.0.1 --port 3000",
+    "studio:remotion": "remotion studio src/index.ts",
+    "render": "tsx packages/cli/src/index.ts render",
+    "render:starter": "remotion render src/index.ts StarterStory out/starter-story.mp4 --fps=60",
     "render:vertical": "remotion render src/index.ts StarterStoryVertical out/starter-story-vertical.mp4 --fps=60",
     "render:diorama": "remotion render src/index.ts PaperDioramaDemo out/paper-diorama-demo.mp4 --fps=60 --gl=angle",
     "render:diagrams": "remotion render src/index.ts ArchitectureDemo out/architecture-demo.mp4 --fps=60",
     "render:iso": "remotion render src/index.ts IsometricDialogueDemo out/isometric-3d-dialogue.mp4 --fps=60 --gl=angle",
+    "render:showcase": "remotion render src/index.ts DirectorShowcase out/director-showcase.mp4 --fps=60 --gl=angle",
+    "build:packages": "tsx scripts/build-packages.ts",
+    "pack:verify": "tsx scripts/verify-npm-pack.ts",
+    "release": "tsx scripts/publish-packages.ts",
+    "release:dry-run": "tsx scripts/publish-packages.ts --dry-run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -34,6 +51,7 @@
     "@remotion/cli": "4.0.276",
     "@remotion/google-fonts": "4.0.276",
     "@remotion/media-utils": "4.0.276",
+    "@remotion/player": "4.0.276",
     "@remotion/three": "^4.0.276",
     "@types/three": "^0.187.0",
     "dotenv": "^16.4.7",
@@ -41,13 +59,16 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "remotion": "4.0.276",
-    "three": "^0.187.0"
+    "three": "^0.187.0",
+    "zod": "^3.24.2"
   },
   "devDependencies": {
     "@types/node": "^22.13.4",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "vite": "^6.1.0"
   }
 }

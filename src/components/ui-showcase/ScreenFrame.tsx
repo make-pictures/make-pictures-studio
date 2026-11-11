@@ -1,16 +1,16 @@
 import React from 'react';
 import {
   interpolate,
-  OffthreadVideo,
   spring,
   staticFile,
   useCurrentFrame,
   useVideoConfig,
+  Video,
 } from 'remotion';
 import { FONTS, SPRING_PRESETS, THEME } from '../../theme';
 
 export interface ScreenFrameProps {
-  /** Relative path under /public, e.g. 'recordings/sample-ui.mp4' */
+  /** Optional relative path under /public, e.g. 'recordings/custom-ui.mp4'. When omitted, renders a native 60 FPS GPU telemetry canvas. */
   videoSrc?: string;
   windowTitle?: string;
   urlBadge?: string;
@@ -22,10 +22,15 @@ export interface ScreenFrameProps {
   showLiveTelemetryOverlay?: boolean;
 }
 
+const TELEMETRY_BARS = [
+  0.42, 0.56, 0.48, 0.68, 0.62, 0.78, 0.72, 0.86, 0.66, 0.91, 0.82, 0.94, 0.76,
+  0.88, 0.79, 0.95, 0.84, 0.9,
+];
+
 export const ScreenFrame: React.FC<ScreenFrameProps> = ({
-  videoSrc = 'recordings/sample-ui.mp4',
-  windowTitle = 'Aether Console — Production Telemetry',
-  urlBadge = 'app.aether.dev/clusters/eu-central-1',
+  videoSrc,
+  windowTitle = 'make.pictures — Production Telemetry',
+  urlBadge = 'app.make.pictures/telemetry',
   width = 1340,
   height = 760,
   enterFrame = 0,
@@ -51,19 +56,22 @@ export const ScreenFrame: React.FC<ScreenFrameProps> = ({
   });
 
   const visibility = Math.max(0, enterProgress - exitProgress);
+  if (visibility <= 0.002) {
+    return null;
+  }
 
-  // Subtle 3D perspective camera drift (Screen Studio / Linear hero style)
+  // Smooth 3D perspective camera drift (Screen Studio / Linear hero style)
   const rotateX =
-    interpolate(enterProgress, [0, 1], [16, 5]) +
-    interpolate(Math.sin(frame / 55), [-1, 1], [-1.2, 1.2]);
+    interpolate(enterProgress, [0, 1], [15, 4.8]) +
+    interpolate(Math.sin(frame * 0.018), [-1, 1], [-1.1, 1.1]);
   const rotateY =
-    interpolate(enterProgress, [0, 1], [-10, -3.5]) +
-    interpolate(frame, [0, durationInFrames], [-2, 3.5]);
+    interpolate(enterProgress, [0, 1], [-9.5, -3.2]) +
+    interpolate(frame, [0, durationInFrames], [-1.8, 3.2]);
   const translateY =
-    interpolate(enterProgress, [0, 1], [70, 0]) +
-    interpolate(exitProgress, [0, 1], [0, -45]);
+    interpolate(enterProgress, [0, 1], [64, 0]) +
+    interpolate(exitProgress, [0, 1], [0, -42]);
   const scale =
-    interpolate(enterProgress, [0, 1], [0.88, 1]) -
+    interpolate(enterProgress, [0, 1], [0.89, 1]) -
     interpolate(exitProgress, [0, 1], [0, 0.06]);
 
   return (
@@ -83,8 +91,8 @@ export const ScreenFrame: React.FC<ScreenFrameProps> = ({
           width,
           height,
           opacity: visibility,
-          transform: `translateY(${translateY}px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale(${scale})`,
-          transformStyle: 'preserve-3d',
+          willChange: 'transform, opacity',
+          transform: `translate3d(0, ${translateY}px, 0) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale(${scale})`,
           borderRadius: 20,
           backgroundColor: '#0B0E17',
           border: '1px solid rgba(255, 255, 255, 0.12)',
@@ -113,7 +121,7 @@ export const ScreenFrame: React.FC<ScreenFrameProps> = ({
           style={{
             height: 48,
             padding: '0 20px',
-            backgroundColor: 'rgba(15, 18, 29, 0.95)',
+            backgroundColor: '#0F131E',
             borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
             display: 'flex',
             alignItems: 'center',
@@ -123,7 +131,14 @@ export const ScreenFrame: React.FC<ScreenFrameProps> = ({
           }}
         >
           {/* Traffic Lights */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 260 }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              minWidth: 260,
+            }}
+          >
             <span
               style={{
                 width: 12,
@@ -208,11 +223,11 @@ export const ScreenFrame: React.FC<ScreenFrameProps> = ({
               color: accentColor,
             }}
           >
-            <span>60 FPS • REC</span>
+            <span>60 FPS • LIVE</span>
           </div>
         </div>
 
-        {/* Screen Studio Video Area */}
+        {/* Screen Studio Surface Area */}
         <div
           style={{
             position: 'relative',
@@ -221,8 +236,8 @@ export const ScreenFrame: React.FC<ScreenFrameProps> = ({
             overflow: 'hidden',
           }}
         >
-          {videoSrc && (
-            <OffthreadVideo
+          {videoSrc ? (
+            <Video
               src={staticFile(videoSrc)}
               muted
               style={{
@@ -231,20 +246,33 @@ export const ScreenFrame: React.FC<ScreenFrameProps> = ({
                 objectFit: 'cover',
               }}
             />
+          ) : (
+            /* Native 60 FPS GPU-Composited Console Surface (zero video-decoding stalls in <Player />) */
+            <div
+              style={{
+                position: 'absolute',
+                inset: 0,
+                backgroundImage: `
+                  linear-gradient(to right, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+                  linear-gradient(to bottom, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+                  radial-gradient(circle at 72% 45%, ${accentColor}16 0%, transparent 58%)
+                `,
+                backgroundSize: '56px 56px, 56px 56px, 100% 100%',
+              }}
+            />
           )}
 
-          {/* Optional Crisp UI Telemetry Overlay (enhances placeholder recordings) */}
+          {/* Crisp UI Telemetry Overlay */}
           {showLiveTelemetryOverlay && (
             <div
               style={{
                 position: 'absolute',
                 inset: 0,
-                padding: 36,
+                padding: 32,
                 display: 'flex',
                 flexDirection: 'column',
                 justifyContent: 'space-between',
-                background:
-                  'linear-gradient(180deg, rgba(9,10,15,0.2) 0%, rgba(9,10,15,0.55) 100%)',
+                gap: 20,
               }}
             >
               {/* Top Metric Strip */}
@@ -259,7 +287,7 @@ export const ScreenFrame: React.FC<ScreenFrameProps> = ({
                   {
                     label: 'ACTIVE AGENT STREAMS',
                     value: '12,840 / s',
-                    delta: '+99.98% SLA',
+                    delta: '99.98% SLA',
                     color: THEME.colors.accents.violet,
                   },
                   {
@@ -270,7 +298,7 @@ export const ScreenFrame: React.FC<ScreenFrameProps> = ({
                   },
                 ].map((metric, idx) => {
                   const cardProgress = spring({
-                    frame: frame - enterFrame - 12 - idx * 7,
+                    frame: frame - enterFrame - 10 - idx * 6,
                     fps,
                     config: SPRING_PRESETS.snappy,
                   });
@@ -281,15 +309,14 @@ export const ScreenFrame: React.FC<ScreenFrameProps> = ({
                         flex: 1,
                         padding: '18px 22px',
                         borderRadius: 14,
-                        backgroundColor: 'rgba(15, 18, 29, 0.84)',
-                        backdropFilter: 'blur(18px)',
-                        border: '1px solid rgba(255,255,255,0.08)',
+                        backgroundColor: 'rgba(15, 18, 29, 0.94)',
+                        border: '1px solid rgba(255,255,255,0.09)',
                         opacity: cardProgress,
-                        transform: `translateY(${interpolate(
+                        transform: `translate3d(0, ${interpolate(
                           cardProgress,
                           [0, 1],
                           [16, 0]
-                        )}px)`,
+                        )}px, 0)`,
                       }}
                     >
                       <div
@@ -339,13 +366,151 @@ export const ScreenFrame: React.FC<ScreenFrameProps> = ({
                 })}
               </div>
 
+              {/* Middle Live Throughput Graph & Cluster Panel */}
+              <div
+                style={{
+                  flex: 1,
+                  display: 'flex',
+                  gap: 18,
+                  minHeight: 0,
+                }}
+              >
+                {/* Live Throughput Waveform Card */}
+                <div
+                  style={{
+                    flex: 1.65,
+                    padding: '20px 24px',
+                    borderRadius: 16,
+                    backgroundColor: 'rgba(13, 17, 27, 0.92)',
+                    border: '1px solid rgba(255,255,255,0.08)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      fontFamily: FONTS.mono,
+                      fontSize: 11.5,
+                      color: THEME.colors.textSecondary,
+                    }}
+                  >
+                    <span>REAL-TIME AGENT PIPELINE THROUGHPUT</span>
+                    <span style={{ color: accentColor }}>SUB-50MS SLA</span>
+                  </div>
+
+                  <div
+                    style={{
+                      flex: 1,
+                      display: 'flex',
+                      alignItems: 'flex-end',
+                      gap: 10,
+                      paddingTop: 18,
+                    }}
+                  >
+                    {TELEMETRY_BARS.map((baseRatio, bIdx) => {
+                      const barEnter = spring({
+                        frame: frame - enterFrame - 16 - bIdx * 2,
+                        fps,
+                        config: SPRING_PRESETS.smooth,
+                      });
+                      const wave =
+                        Math.sin(frame * 0.045 + bIdx * 0.48) * 0.085;
+                      const heightPct = Math.max(
+                        14,
+                        Math.min(98, (baseRatio + wave) * 100 * barEnter)
+                      );
+                      return (
+                        <div
+                          key={bIdx}
+                          style={{
+                            flex: 1,
+                            height: `${heightPct}%`,
+                            borderRadius: '6px 6px 3px 3px',
+                            background:
+                              bIdx >= TELEMETRY_BARS.length - 4
+                                ? `linear-gradient(180deg, ${accentColor} 0%, ${THEME.colors.accents.violet}88 100%)`
+                                : 'linear-gradient(180deg, rgba(56, 189, 248, 0.62) 0%, rgba(99, 102, 241, 0.22) 100%)',
+                          }}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Right Active Workers Status Card */}
+                <div
+                  style={{
+                    flex: 1,
+                    padding: '20px 24px',
+                    borderRadius: 16,
+                    backgroundColor: 'rgba(13, 17, 27, 0.92)',
+                    border: '1px solid rgba(255,255,255,0.08)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                  }}
+                >
+                  <div
+                    style={{
+                      fontFamily: FONTS.mono,
+                      fontSize: 11.5,
+                      color: THEME.colors.textSecondary,
+                      letterSpacing: '0.05em',
+                    }}
+                  >
+                    EDGE WORKER SHARDS
+                  </div>
+
+                  {[
+                    {
+                      region: 'eu-central-1',
+                      load: '18.2 ms',
+                      color: THEME.colors.accents.emerald,
+                    },
+                    {
+                      region: 'us-east-1',
+                      load: '24.6 ms',
+                      color: THEME.colors.accents.cyan,
+                    },
+                    {
+                      region: 'ap-northeast-1',
+                      load: '31.4 ms',
+                      color: THEME.colors.accents.violet,
+                    },
+                  ].map((shard) => (
+                    <div
+                      key={shard.region}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '10px 14px',
+                        borderRadius: 10,
+                        backgroundColor: 'rgba(255,255,255,0.03)',
+                        border: '1px solid rgba(255,255,255,0.06)',
+                        fontFamily: FONTS.mono,
+                        fontSize: 12,
+                      }}
+                    >
+                      <span style={{ color: '#E2E8F0' }}>{shard.region}</span>
+                      <span style={{ color: shard.color, fontWeight: 600 }}>
+                        ● {shard.load}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               {/* Bottom Live Event Stream Console */}
               <div
                 style={{
-                  padding: '20px 24px',
+                  padding: '18px 24px',
                   borderRadius: 16,
-                  backgroundColor: 'rgba(11, 14, 23, 0.88)',
-                  backdropFilter: 'blur(20px)',
+                  backgroundColor: 'rgba(11, 14, 23, 0.95)',
                   border: '1px solid rgba(255,255,255,0.09)',
                   fontFamily: FONTS.mono,
                   fontSize: 13,

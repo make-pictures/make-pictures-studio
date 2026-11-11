@@ -16,75 +16,75 @@
       "id": "starter-story",
       "title": "Starter Story — Video-as-Code Pipeline (make.pictures)",
       "component": "StarterStory",
-      "durationInSeconds": 11,
-      "durationInFrames": 660,
+      "durationInSeconds": 14.5,
+      "durationInFrames": 870,
       "voiceId": "TX3LPaxmHKxFdv7VOQHJ",
       "speaker": "Narrator (make.pictures)",
-      "text": "Zamiast kleić klatki ręcznie, opisz swój pomysł agentowi AI! Skrypt wygeneruje głos z ElevenLabs, dobierze styl wizualny z kodu i wyrenderuje płynną animację w sześćdziesięciu klatkach na sekundę! Twórz z mejk kropka pikczers!"
+      "text": "Instead of keyframing by hand, describe your vision to an AI agent! It generates ElevenLabs voiceovers, selects a visual kit from code, and renders silky sixty frames per second animation! Create with make dot pictures!"
     },
     {
       "id": "intro",
       "title": "Intro — Aether Engine",
       "component": "IntroScene",
-      "durationInSeconds": 4,
-      "durationInFrames": 240,
-      "text": "Poznaj Aether Engine. Nowoczesną architekturę aplikacji natywnie zintegrowaną z agentami sztucznej inteligencji."
+      "durationInSeconds": 6.2,
+      "durationInFrames": 372,
+      "text": "Meet Aether Engine. A modern application architecture natively built for real-time AI agents."
     },
     {
       "id": "ui-showcase",
-      "title": "Prezentacja UI — Interfejs Produkcyjny",
+      "title": "UI Showcase — Production Telemetry",
       "component": "UIShowcaseScene",
-      "durationInSeconds": 6,
-      "durationInFrames": 360,
+      "durationInSeconds": 6.2,
+      "durationInFrames": 372,
       "recordingFile": "recordings/sample-ui.mp4",
       "windowTitle": "Aether Console — Production Telemetry (eu-central-1)",
-      "text": "Każda interakcja w interfejsie użytkownika uruchamia kaskadę procesów w tle z opóźnieniem poniżej pięćdziesięciu milisekund."
+      "text": "Every user interaction triggers a background agent pipeline with sub-fifty millisecond latency."
     },
     {
       "id": "architecture-demo",
-      "title": "Diagram Architektury i Integracji (PoC)",
+      "title": "Architecture & Data Flow Telemetry",
       "component": "ArchitectureDemoScene",
-      "durationInSeconds": 10,
-      "durationInFrames": 600,
-      "text": "Moja Aplikacja wysyła ustrukturyzowany kontekst zapytania bezpośrednio do węzła AI Agent API. Po błyskawicznej inferencji wynik zostaje trwale zapisany w bazie PostgreSQL."
+      "durationInSeconds": 10.8,
+      "durationInFrames": 648,
+      "text": "The web client sends structured request context directly to the AI Agent API. After ultra-fast inference, insights are durably persisted in PostgreSQL."
     },
     {
       "id": "outro",
-      "title": "Outro — Podsumowanie",
+      "title": "Outro — Production Ready",
       "component": "OutroScene",
-      "durationInSeconds": 4,
-      "durationInFrames": 240,
-      "text": "Buduj szybciej, skaluj bez kompromisów. Aether Engine — gotowy na produkcję."
+      "durationInSeconds": 5.6,
+      "durationInFrames": 336,
+      "text": "Ship faster and scale without compromise. Aether Engine — ready for production."
     },
     {
       "id": "iso-line-1",
-      "title": "Dialog Izometryczny 3D — Kwestia 1 (Postać A)",
+      "title": "Isometric 3D Dialogue — Line 1 (Alex)",
       "component": "IsometricDialogueDemo",
-      "durationInSeconds": 4,
-      "durationInFrames": 240,
+      "durationInSeconds": 4.1,
+      "durationInFrames": 246,
       "voiceId": "TX3LPaxmHKxFdv7VOQHJ",
       "speaker": "Alex",
-      "text": "Widziałeś ile czasu zajmuje ręczne klejenie prezentacji wideo?"
+      "text": "Have you seen how long it takes to edit product videos frame by frame?"
     },
     {
       "id": "iso-line-2",
-      "title": "Dialog Izometryczny 3D — Kwestia 2 (Postać B)",
+      "title": "Isometric 3D Dialogue — Line 2 (Max)",
       "component": "IsometricDialogueDemo",
-      "durationInSeconds": 4.5,
-      "durationInFrames": 270,
+      "durationInSeconds": 4,
+      "durationInFrames": 240,
       "voiceId": "CLuTGacrAhcIhaJslbXt",
       "speaker": "Max",
-      "text": "Dlatego tutaj cały świat trójwymiarowy generujemy bezpośrednio z kodu."
+      "text": "That is why we generate this entire three-dimensional studio directly from code."
     },
     {
       "id": "iso-line-3",
-      "title": "Dialog Izometryczny 3D — Kwestia 3 (Postać A)",
+      "title": "Isometric 3D Dialogue — Line 3 (Alex)",
       "component": "IsometricDialogueDemo",
-      "durationInSeconds": 4.5,
-      "durationInFrames": 270,
+      "durationInSeconds": 5.5,
+      "durationInFrames": 330,
       "voiceId": "TX3LPaxmHKxFdv7VOQHJ",
       "speaker": "Alex",
-      "text": "Jeden skrypt, dwa głosy i pełna animacja w sześćdziesięciu klatkach na sekundę!"
+      "text": "One TypeScript project, two voices, and smooth animation at sixty frames per second!"
     }
   ]
 }

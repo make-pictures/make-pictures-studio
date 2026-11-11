@@ -1,0 +1,25 @@
+---
+description: Core 60 FPS Video-as-Code & Studio Web production rules for make.pictures
+globs: "**/*"
+alwaysApply: true
+---
+
+# make.pictures — Cursor Agent Rules
+
+Always read and follow [`AGENTS.md`](../../AGENTS.md) when creating or editing animations in this repository.
+
+## Key Engineering & Director Contracts
+
+1. **Props Inspector (`zod` + `*.props.json` + `registry.ts`):**
+   - Every composition in `src/compositions/` MUST export a `zod` `z.object({ ... })` schema using `.describe('Section :: Label')` for editable texts, hex colors (`#RRGGBB`), audio volumes (`0..1`), and camera parameters.
+   - Store default values in `src/compositions/<CompositionId>.props.json` and register the composition in `src/compositions/registry.ts` (`STUDIO_COMPOSITIONS`).
+   - Before editing an existing composition, read its `*.props.json` so you never overwrite parameter tweaks saved by the creator in **Studio Web** (`npm run studio`).
+
+2. **Vertical `9:16` (`1080×1920`) Golden Safe Box:**
+   - Never shrink a `16:9` layout into `9:16`; build a dedicated vertical layout.
+   - Keep all essential titles, cards, and details inside **`x ∈ [40, 910]`, `y ∈ [220, 1380]`** to avoid YouTube Shorts / Reels / TikTok UI dead zones (`y < 220`, `y > 1440`, and `x > 910` for `y > 900`).
+
+3. **Determinism & `PaperCutout3D` VRAM Safety:**
+   - Never use `Math.random()`; use `createSeededRandom(seed)` from `src/utils/prng.ts`.
+   - Pass `cacheDeps={[...]}` to `PaperCutout3D` whenever `draw(ctx)` references props or closure variables so Vite HMR and slider tweaks rebuild WebGL textures in `0 ms`.
+   - Keep `frame = 0` clean (`spring({ frame: frame - 2, fps, config: { damping: 200 } })`), verify key frames via `npx remotion still`, and listen/inspect generated `/public/voiceovers/*.mp3` files after `npm run voiceover`.

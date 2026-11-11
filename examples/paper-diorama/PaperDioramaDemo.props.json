@@ -1,0 +1,15 @@
+{
+  "bannerTitle": "2.5D PAPER DIORAMA KIT",
+  "bannerSubtitle": "Pop-Up Cutouts & Real 3D Shadows",
+  "skyBackground": "#FAFAFA",
+  "leftCloudTint": "#FCE7F3",
+  "rightCloudTint": "#E0F2FE",
+  "bannerBorderColor": "#78350F",
+  "lightingPreset": "daylight",
+  "initialFloorTheme": "mint-plains",
+  "nextFloorTheme": "checkerboard-tile",
+  "cameraFov": 32.5,
+  "cameraDistanceZ": 9.85,
+  "cameraHeightY": 3.85,
+  "voiceoverVolume": 1
+}

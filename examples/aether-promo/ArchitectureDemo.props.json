@@ -1,0 +1,12 @@
+{
+  "headline": "Real-time context streaming & persistence",
+  "appNodeTitle": "Web Client App",
+  "agentNodeTitle": "AI Agent / API",
+  "dbNodeTitle": "PostgreSQL",
+  "primaryGlowColor": "#00F0FF",
+  "secondaryGlowColor": "#8DF75F",
+  "tertiaryGlowColor": "#00FFAA",
+  "showCaptions": false,
+  "voiceoverVolume": 1,
+  "sfxVolume": 0.4
+}
