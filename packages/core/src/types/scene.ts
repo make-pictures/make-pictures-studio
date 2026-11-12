@@ -20,6 +20,7 @@ export type MusicMoodPreset =
   | 'warm-story'
   | 'news-pulse'
   | 'cinematic-drone'
+  | 'cinematic-epic'
   | 'paper-expedition'
   | 'upbeat-launch';
 

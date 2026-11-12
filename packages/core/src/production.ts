@@ -9,6 +9,8 @@ import type {
 import { registerVoiceoverManifest } from './utils/timestamps';
 
 export type BuiltinVisualKitId =
+  | 'editorial-collage'
+  | 'vector-scene-2d'
   | 'motion-diagrams-2d'
   | 'paper-diorama-3d'
   | 'isometric-3d'

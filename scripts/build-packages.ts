@@ -42,6 +42,8 @@ function mapOtherPackageToPublicSpecifier(
       'kinetic-typography',
       'data-storytelling',
       'product-frames',
+      'editorial-collage',
+      'vector-scene-2d',
     ];
     for (const sub of knownKitSubpaths) {
       if (normalizedSub === sub || normalizedSub.startsWith(`${sub}/`)) {
@@ -438,6 +440,11 @@ async function main(): Promise<void> {
           platform: 'browser',
         },
         {
+          outSubpath: 'style/index',
+          srcRelPath: 'src/style/index.ts',
+          platform: 'browser',
+        },
+        {
           outSubpath: 'theme/index',
           srcRelPath: 'src/theme/index.ts',
           platform: 'browser',
@@ -492,6 +499,16 @@ async function main(): Promise<void> {
         {
           outSubpath: 'product-frames/index',
           srcRelPath: 'src/product-frames/index.ts',
+          platform: 'browser',
+        },
+        {
+          outSubpath: 'editorial-collage/index',
+          srcRelPath: 'src/editorial-collage/index.ts',
+          platform: 'browser',
+        },
+        {
+          outSubpath: 'vector-scene-2d/index',
+          srcRelPath: 'src/vector-scene-2d/index.ts',
           platform: 'browser',
         },
       ],

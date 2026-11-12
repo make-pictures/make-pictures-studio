@@ -74,6 +74,15 @@ const MOOD_PRESET_FILTERS: Record<
       `afade=t=out:st=${fadeOutStart}:d=0.6`,
     ].join(',');
   },
+  'cinematic-epic': (d) => {
+    const fadeOutStart = Math.max(0.2, d - 0.55).toFixed(2);
+    return [
+      `aevalsrc='0.064*(sin(2*PI*65.41*t)+0.7*sin(2*PI*130.81*t)+0.52*sin(2*PI*196.00*t)*exp(-1.5*mod(t\\,1.0))+0.42*sin(2*PI*261.63*t)*exp(-1.8*mod(t+0.5\\,1.0)))|0.064*(sin(2*PI*65.41*t)+0.7*sin(2*PI*130.81*t)+0.52*sin(2*PI*246.94*t)*exp(-1.5*mod(t+0.25\\,1.0))+0.42*sin(2*PI*329.63*t)*exp(-1.8*mod(t+0.75\\,1.0)))':s=44100:d=${d}`,
+      'lowpass=f=1750',
+      'afade=t=in:st=0:d=0.55',
+      `afade=t=out:st=${fadeOutStart}:d=0.55`,
+    ].join(',');
+  },
   'paper-expedition': (d) => {
     const fadeOutStart = Math.max(0.2, d - 0.35).toFixed(2);
     return [
