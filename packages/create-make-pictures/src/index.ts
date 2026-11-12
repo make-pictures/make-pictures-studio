@@ -255,10 +255,10 @@ function buildPackageJson(projectName: string): Record<string, unknown> {
       typecheck: 'tsc --noEmit',
     },
     dependencies: {
-      '@make-pictures/core': '^2.0.2',
-      '@make-pictures/kits': '^2.0.2',
-      '@make-pictures/studio': '^2.0.2',
-      '@make-pictures/cli': '^2.0.2',
+      '@make-pictures/core': '^2.0.3',
+      '@make-pictures/kits': '^2.0.3',
+      '@make-pictures/studio': '^2.0.3',
+      '@make-pictures/cli': '^2.0.3',
       remotion: '^4.0.276',
       '@remotion/cli': '^4.0.276',
       '@remotion/bundler': '^4.0.276',
@@ -488,6 +488,7 @@ Uniwersalne niezmienniki studia **make.pictures** (\`60 FPS\` Video-as-Code). Sz
 - **Czysta klatka \`0\`:** Pierwsza klatka to puste tło; animacje wejścia startuj od \`frame - 2\`.
 - **Sprężyny i determinizm:** Używaj \`SPRING_PRESETS\` (\`damping: 200\`) oraz \`createSeededRandom(seed)\` z \`@make-pictures/core\`. Całkowity **zakaz \`Math.random()\`** i akumulacji stanu w \`useRef\` między klatkami (\`--concurrency=100%\`).
 - **Props Inspector:** Eksportuj \`z.object\` z opisami \`.describe('Sekcja :: Etykieta')\` i trzymaj wartości domyślne w \`<CompositionId>.props.json\`. **Zawsze odczytaj \`*.props.json\` z dysku przed edycją**, by zachować zmiany z \`Studio Web\`.
+- **Higiena puli \`<Audio />\`:** Używaj \`<VoiceoverTrack />\` i \`<SoundCue />\` z \`@make-pictures/core\`; **zakaz** montowania \`<Audio />\` wewnątrz \`<Sequence>\` bez jawnego \`durationInFrames\`.
 - **Typografia:** Domyślnie bez dolnych napisów; karty *Ikona + 2–3 słowa*; po polsku *Sentence case* (bez *Title Case*).
 
 ## 4. Obowiązkowe Bramki Jakości przed Renderem
@@ -504,13 +505,13 @@ Uniwersalne niezmienniki studia **make.pictures** (\`60 FPS\` Video-as-Code). Sz
 | Nagrania ekranu SaaS \`.mp4\` (screencasty) | \`kit-motion-diagrams-2d\` + \`make-pictures-director\` | \`@make-pictures/kits/product-frames\`: \`BrowserFrame\`, \`PhoneFrame\`, \`ScreenSpotlightOverlay\` (\`<OffthreadVideo />\`, \`assets/videos/\`) |
 | Izometryczne studio 3D i dialogi | \`kit-isometric-3d\` | \`Stylized3DCharacter\`, \`speakingWeight\` vs \`speechEnergy\` |
 | Kinetyczna typografia i wykresy | \`kit-kinetic-and-data\` | \`WordByWordStage\`, \`AnimatedBarRace\`, \`TimelineTrack\`, \`MetricComparisonCard\` |
-| Lektor, fonetyka, muzyka AI i SFX | \`sound-and-music-design\` | \`SmartMusicBed\`, \`SoundCue\`, \`VoiceAcousticPreset\`, \`-14 LUFS\` |
+| Lektor, fonetyka, muzyka AI i SFX | \`sound-and-music-design\` | \`VoiceoverTrack\`, \`SmartMusicBed\`, \`SoundCue\`, \`VoiceAcousticPreset\`, \`-14 LUFS\` |
 | Kamera Shot DSL (2D/3D) i VFX | \`cinematography-and-vfx\` | \`DirectorCamera3D/2D\`, \`9:16\` Safe Box, \`CinematicLensOverlay\`, \`ParticleField\`, \`SceneTransition\` |
 `;
 
 const EMBEDDED_PLUGIN_JSON = {
   name: 'make-pictures',
-  version: '2.0.2',
+  version: '2.0.3',
   description:
     'make.pictures Studio — 60 FPS Video-as-Code skills, visual kits, camera Shot DSL, and ElevenLabs AI Audio Studio.',
   author: {
@@ -527,9 +528,7 @@ function buildHelloStudioCompositionTsx(kit: StarterKitId): string {
 import React from 'react';
 import {
   AbsoluteFill,
-  Audio,
   interpolate,
-  Sequence,
   spring,
   staticFile,
   useCurrentFrame,
@@ -540,6 +539,7 @@ import {
   SPRING_PRESETS,
   SmartMusicBed,
   SoundCue,
+  VoiceoverTrack,
 } from '@make-pictures/core';
 import {
   PaperCameraRig3D,
@@ -612,22 +612,23 @@ export const HelloStudio: React.FC<HelloStudioProps> = (props) => {
         />
       ) : null}
 
-      {introVo?.audioFile ? (
-        <Sequence from={12} durationInFrames={300} layout="none">
-          <Audio src={staticFile(introVo.audioFile)} volume={props.voiceoverVolume} />
-        </Sequence>
-      ) : null}
+      <VoiceoverTrack
+        voiceover={introVo}
+        fromFrame={12}
+        volume={props.voiceoverVolume}
+      />
 
-      {payoffVo?.audioFile ? (
-        <Sequence from={324} durationInFrames={306} layout="none">
-          <Audio src={staticFile(payoffVo.audioFile)} volume={props.voiceoverVolume} />
-        </Sequence>
-      ) : null}
+      <VoiceoverTrack
+        voiceover={payoffVo}
+        fromFrame={324}
+        volume={props.voiceoverVolume}
+      />
 
       {whooshSfx?.audioFile ? (
         <SoundCue
           src={staticFile(whooshSfx.audioFile)}
           atFrame={8}
+          durationSeconds={whooshSfx.durationSeconds}
           volume={props.sfxVolume}
         />
       ) : null}
@@ -639,6 +640,7 @@ export const HelloStudio: React.FC<HelloStudioProps> = (props) => {
           onWord="music"
           sceneStartFrame={324}
           fallbackFrame={24}
+          durationSeconds={popSfx.durationSeconds}
           voiceoverManifest={VOICEOVER_MANIFEST}
           volume={props.sfxVolume}
         />
@@ -705,9 +707,7 @@ export const HelloStudio: React.FC<HelloStudioProps> = (props) => {
   return `import React from 'react';
 import {
   AbsoluteFill,
-  Audio,
   interpolate,
-  Sequence,
   spring,
   staticFile,
   useCurrentFrame,
@@ -720,6 +720,7 @@ import {
   STUDIO_THEME,
   SmartMusicBed,
   SoundCue,
+  VoiceoverTrack,
 } from '@make-pictures/core';
 import {
   MUSIC_MANIFEST,
@@ -786,22 +787,23 @@ export const HelloStudio: React.FC<HelloStudioProps> = (props) => {
         />
       ) : null}
 
-      {introVo?.audioFile ? (
-        <Sequence from={12} durationInFrames={300} layout="none">
-          <Audio src={staticFile(introVo.audioFile)} volume={props.voiceoverVolume} />
-        </Sequence>
-      ) : null}
+      <VoiceoverTrack
+        voiceover={introVo}
+        fromFrame={12}
+        volume={props.voiceoverVolume}
+      />
 
-      {payoffVo?.audioFile ? (
-        <Sequence from={324} durationInFrames={306} layout="none">
-          <Audio src={staticFile(payoffVo.audioFile)} volume={props.voiceoverVolume} />
-        </Sequence>
-      ) : null}
+      <VoiceoverTrack
+        voiceover={payoffVo}
+        fromFrame={324}
+        volume={props.voiceoverVolume}
+      />
 
       {whooshSfx?.audioFile ? (
         <SoundCue
           src={staticFile(whooshSfx.audioFile)}
           atFrame={8}
+          durationSeconds={whooshSfx.durationSeconds}
           volume={props.sfxVolume}
         />
       ) : null}
@@ -810,6 +812,7 @@ export const HelloStudio: React.FC<HelloStudioProps> = (props) => {
         <SoundCue
           src={staticFile(popSfx.audioFile)}
           atFrame={322}
+          durationSeconds={popSfx.durationSeconds}
           volume={props.sfxVolume}
         />
       ) : null}
@@ -977,6 +980,7 @@ Read [\`AGENTS.md\`](./AGENTS.md) alongside this file for universal \`60 FPS\` V
 ## Capsule Architecture & Determinism
 - **Isolated Capsules (\`productions/<slug>/\`):** Keep every film self-contained (\`production.json\`, \`compositions/\`, \`assets/\`, \`generated/audio-manifest.ts\`). In embedded SaaS repos (\`--dir=videos\`), capsules live in \`videos/productions/<slug>/\`.
 - **60 FPS Determinism:** Frame \`0\` must render a clean empty background (start entrance springs at \`frame - 2\`). Never use \`Math.random()\` or cross-frame \`useRef\` state — use \`SPRING_PRESETS\` and \`createSeededRandom(seed)\` from \`@make-pictures/core\`.
+- **Audio Tag Pool Hygiene:** Use \`<VoiceoverTrack />\` and \`<SoundCue />\` from \`@make-pictures/core\`; never wrap raw \`<Audio />\` inside \`<Sequence>\` without an explicit finite \`durationInFrames\`.
 - **Props Inspector (\`zod\` ↔ \`*.props.json\`):** Always read \`<CompositionId>.props.json\` from disk before editing so live tweaks from Studio Web are preserved. Never open or print \`.env.local\`.
 
 ## CLI Commands (\`npx make-pictures\`)
@@ -1043,7 +1047,7 @@ function writeAiPluginAndAgentsMd(targetRoot: string): void {
         {
           name: 'make-pictures',
           description: EMBEDDED_PLUGIN_JSON.description,
-          version: '2.0.2',
+          version: '2.0.3',
         },
         null,
         2
@@ -1430,7 +1434,7 @@ export const SFX_MANIFEST: Record<string, ProductionSfxEntry> = {};
 
 function printCreateHelp(): void {
   console.log(`
-create-make-pictures (v2.0.2)
+create-make-pictures (v2.0.3)
 
 Usage:
   npx create-make-pictures@latest <project-directory> [options]

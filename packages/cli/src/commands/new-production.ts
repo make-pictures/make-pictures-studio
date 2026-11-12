@@ -183,9 +183,7 @@ export function buildScaffoldCompositionTsx(params: {
 import React from 'react';
 import {
   AbsoluteFill,
-  Audio,
   interpolate,
-  Sequence,
   spring,
   staticFile,
   useCurrentFrame,
@@ -196,6 +194,7 @@ import {
   SPRING_PRESETS,
   SmartMusicBed,
   SoundCue,
+  VoiceoverTrack,
 } from '@make-pictures/core';
 import {
   PaperCameraRig3D,
@@ -268,22 +267,23 @@ export const ${pascalName}: React.FC<${pascalName}Props> = (props) => {
         />
       ) : null}
 
-      {introVo?.audioFile ? (
-        <Sequence from={12} durationInFrames={300} layout="none">
-          <Audio src={staticFile(introVo.audioFile)} volume={props.voiceoverVolume} />
-        </Sequence>
-      ) : null}
+      <VoiceoverTrack
+        voiceover={introVo}
+        fromFrame={12}
+        volume={props.voiceoverVolume}
+      />
 
-      {payoffVo?.audioFile ? (
-        <Sequence from={324} durationInFrames={306} layout="none">
-          <Audio src={staticFile(payoffVo.audioFile)} volume={props.voiceoverVolume} />
-        </Sequence>
-      ) : null}
+      <VoiceoverTrack
+        voiceover={payoffVo}
+        fromFrame={324}
+        volume={props.voiceoverVolume}
+      />
 
       {whooshSfx?.audioFile ? (
         <SoundCue
           src={staticFile(whooshSfx.audioFile)}
           atFrame={8}
+          durationSeconds={whooshSfx.durationSeconds}
           volume={props.sfxVolume}
         />
       ) : null}
@@ -295,6 +295,7 @@ export const ${pascalName}: React.FC<${pascalName}Props> = (props) => {
           onWord="music"
           sceneStartFrame={324}
           fallbackFrame={24}
+          durationSeconds={popSfx.durationSeconds}
           voiceoverManifest={VOICEOVER_MANIFEST}
           volume={props.sfxVolume}
         />
@@ -361,9 +362,7 @@ export const ${pascalName}: React.FC<${pascalName}Props> = (props) => {
   return `import React from 'react';
 import {
   AbsoluteFill,
-  Audio,
   interpolate,
-  Sequence,
   spring,
   staticFile,
   useCurrentFrame,
@@ -376,6 +375,7 @@ import {
   STUDIO_THEME,
   SmartMusicBed,
   SoundCue,
+  VoiceoverTrack,
 } from '@make-pictures/core';
 import {
   MUSIC_MANIFEST,
@@ -443,22 +443,23 @@ export const ${pascalName}: React.FC<${pascalName}Props> = (props) => {
         />
       ) : null}
 
-      {introVo?.audioFile ? (
-        <Sequence from={12} durationInFrames={300} layout="none">
-          <Audio src={staticFile(introVo.audioFile)} volume={props.voiceoverVolume} />
-        </Sequence>
-      ) : null}
+      <VoiceoverTrack
+        voiceover={introVo}
+        fromFrame={12}
+        volume={props.voiceoverVolume}
+      />
 
-      {payoffVo?.audioFile ? (
-        <Sequence from={324} durationInFrames={306} layout="none">
-          <Audio src={staticFile(payoffVo.audioFile)} volume={props.voiceoverVolume} />
-        </Sequence>
-      ) : null}
+      <VoiceoverTrack
+        voiceover={payoffVo}
+        fromFrame={324}
+        volume={props.voiceoverVolume}
+      />
 
       {whooshSfx?.audioFile ? (
         <SoundCue
           src={staticFile(whooshSfx.audioFile)}
           atFrame={8}
+          durationSeconds={whooshSfx.durationSeconds}
           volume={props.sfxVolume}
         />
       ) : null}
@@ -467,6 +468,7 @@ export const ${pascalName}: React.FC<${pascalName}Props> = (props) => {
         <SoundCue
           src={staticFile(popSfx.audioFile)}
           atFrame={322}
+          durationSeconds={popSfx.durationSeconds}
           volume={props.sfxVolume}
         />
       ) : null}

@@ -39,9 +39,10 @@ Welcome to **make.pictures** ([https://make.pictures](https://make.pictures)) â€
 
 1. **Clean Capsule Architecture (`productions/<slug>/`):**
    - Every user video lives inside `productions/<slug>/` with its own `production.json`, `compositions/`, `assets/`, and `generated/audio-manifest.ts`. Never hardcode film-specific scene IDs inside engine packages or scripts.
-2. **100% Determinism at `60 FPS`:**
+2. **100% Determinism & Audio Tag Pool Hygiene at `60 FPS`:**
    - **Frame `0` is clean:** Start initial entrance springs at `frame - 2` (`spring({ frame: frame - 2, fps, config: SPRING_PRESETS.snappy })`) so `frame === 0` renders a clean empty background.
    - **Zero `Math.random()` & zero cross-frame `useRef` state:** Always use `createSeededRandom(seed)` from `@make-pictures/core` and `SPRING_PRESETS` (`damping: 200`).
+   - **Finite `<Audio />` lifetimes:** Always use `<VoiceoverTrack />` and `<SoundCue />` from `@make-pictures/core`; never mount raw `<Audio />` inside `<Sequence>` without an explicit finite `durationInFrames`.
 3. **Props Contract (`zod` â†” `*.props.json`):**
    - Export a `z.object` schema with `.describe('Section :: Label')` and store defaults in `<CompositionId>.props.json`. **Always read `*.props.json` from disk before editing** to preserve live tweaks saved by the user in **Studio Web**.
 4. **Mandatory Quality Gates Before Final Render:**

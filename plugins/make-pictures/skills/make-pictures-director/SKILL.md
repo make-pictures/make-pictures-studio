@@ -29,7 +29,7 @@ Use this runbook to guide every new film from initial user idea to broadcast-mas
 3. **Engine Monorepo (`make-pictures-studio`):**
    - `packages/*` holds engine source; `examples/*` holds showcase demos; `productions/<slug>/` holds isolated user films (`npm run new -- <slug>` or `npx make-pictures new <slug>`). Never hardcode user scene IDs inside `packages/` or `scripts/`.
 
-*(Bonus Mode — **Live Web Embeds**: applications can also `npm i @make-pictures/core @make-pictures/kits` and mount kits directly inside `<Player />` from `@remotion/player` on React/Next.js pages with zero MP4 rendering!)*
+*(Bonus Mode — **Live Web Embeds**: applications can also `npm i @make-pictures/core @make-pictures/kits` and mount kits directly inside `<Player numberOfSharedAudioTags={32} />` from `@remotion/player` on React/Next.js pages with zero MP4 rendering!)*
 
 ### Capsule Layout (`productions/<slug>/`)
 
@@ -139,7 +139,7 @@ Load `sound-and-music-design` and write `productions/<slug>/production.json` con
 
 1. **Read `<PascalSlug>.props.json` from disk first** before editing any existing composition so you never overwrite tweaks saved by the creator in **Studio Web** (`npx make-pictures studio`).
 2. Export a `zod` schema with `'Section :: Label'` descriptions (`'Teksty & Napisy :: Tytuł'`, `'Kolory & Styl :: Akcent'`, `'Audio :: Głośność muzyki'`, `'Kamera & Układ :: Korekta dystansu Z'`).
-3. Load `cinematography-and-vfx` + your chosen `kit-*` skill. Synchronize visuals to exact spoken words via `getWordTriggerFrame(sceneId, word, fallbackFrame, voiceoverManifest?)`, `getSpeechStateAtFrame(sceneId, localFrame, voiceoverManifest?)`, `<SmartMusicBed />`, and `<SoundCue />`.
+3. Load `cinematography-and-vfx` + your chosen `kit-*` skill. Synchronize visuals and audio via `getWordTriggerFrame(sceneId, word, fallbackFrame, voiceoverManifest?)`, `getSpeechStateAtFrame(sceneId, localFrame, voiceoverManifest?)`, `<VoiceoverTrack />`, `<SmartMusicBed />`, and `<SoundCue />` (never wrap `<Audio />` in `<Sequence>` without `durationInFrames`).
 4. Wrap `productions/<slug>/index.ts` with `defineProduction({ id: '<slug>', manifest, voiceoverManifest, compositions: [...] })` from `@make-pictures/core` (auto-registering capsule timestamps and setting `origin: 'production'`, `productionId`, `sceneTimeline`, `cameraTimeline`, `sfxTimeline`, and `hasMusicScore`) so the Multi-Track Director Timeline in **Studio Web** visualizes every cut, voiceover segment, SFX cue, and ducking envelope.
 
 ---

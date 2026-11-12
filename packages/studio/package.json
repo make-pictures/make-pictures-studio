@@ -1,6 +1,6 @@
 {
   "name": "@make-pictures/studio",
-  "version": "2.0.2",
+  "version": "2.0.3",
   "description": "Local 60 FPS Studio Web UI (<StudioApp />), Zod Props Inspector, Multi-Track Director Timeline, and programmatic Vite studio server for make.pictures.",
   "homepage": "https://make.pictures",
   "repository": {
@@ -57,7 +57,7 @@
     "vite"
   ],
   "peerDependencies": {
-    "@make-pictures/core": "^2.0.2",
+    "@make-pictures/core": "^2.0.3",
     "@remotion/player": "^4.0.0",
     "@vitejs/plugin-react": "^4.0.0 || ^5.0.0",
     "lucide-react": "^0.400.0 || ^0.500.0 || >=0.475.0",

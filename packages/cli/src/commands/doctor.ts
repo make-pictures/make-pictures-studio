@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { ElevenLabsClient } from '@elevenlabs/elevenlabs-js';
 import dotenv from 'dotenv';
+import { auditStudioAudioLifetimes } from '../audio/audit-audio-tags';
 import { resolveWorkspaceContext } from './workspace-paths';
 
 export interface DoctorCommandOptions {
@@ -192,6 +193,24 @@ export async function runDoctorCommand(
         status: 'ok',
         detail: `${capsuleManifests.length} capsule(s) in ${path.relative(rootDir, path.join(studioDir, 'productions')) || 'productions'} (${totalScenes} scenes @ 60 FPS)`,
       });
+
+      const audioWarnings = auditStudioAudioLifetimes(studioDir);
+      if (audioWarnings.length === 0) {
+        results.push({
+          name: 'Audio Tag Pool Safety',
+          status: 'ok',
+          detail:
+            'All capsule <Audio /> sequences specify finite lifetimes (no <Html5Audio /> tag leaks)',
+        });
+      } else {
+        const first = audioWarnings[0];
+        const relFile = path.relative(rootDir, first.filePath);
+        results.push({
+          name: 'Audio Tag Pool Safety',
+          status: 'warn',
+          detail: `${audioWarnings.length} unbounded <Sequence><Audio /></Sequence> block(s) (e.g. ${relFile}:${first.line}) — add \`durationInFrames\` or use \`<VoiceoverTrack />\``,
+        });
+      }
     } catch (err) {
       results.push({
         name: 'Production Capsules',

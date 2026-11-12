@@ -216,19 +216,19 @@ export const IsometricDialogueDemo: React.FC<
         overflow: 'hidden',
       }}
     >
-      <Sequence from={TURN1_START}>
+      <Sequence from={TURN1_START} durationInFrames={256} layout="none">
         <Audio
           src={staticFile('voiceovers/iso-line-1.mp3')}
           volume={props.voiceoverVolume}
         />
       </Sequence>
-      <Sequence from={TURN2_START}>
+      <Sequence from={TURN2_START} durationInFrames={248} layout="none">
         <Audio
           src={staticFile('voiceovers/iso-line-2.mp3')}
           volume={props.voiceoverVolume}
         />
       </Sequence>
-      <Sequence from={TURN3_START}>
+      <Sequence from={TURN3_START} durationInFrames={350} layout="none">
         <Audio
           src={staticFile('voiceovers/iso-line-3.mp3')}
           volume={props.voiceoverVolume}

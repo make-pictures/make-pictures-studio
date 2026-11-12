@@ -17,10 +17,22 @@ export {
 } from './SmartMusicBed';
 
 export {
+  DEFAULT_SOUND_CUE_MAX_SECONDS,
+  SOUND_CUE_TAIL_PADDING_SECONDS,
   SoundCue,
+  resolveSoundCueDurationInFrames,
   resolveSoundCueFrame,
+  type ResolveSoundCueDurationParams,
   type SoundCueAtFrameProps,
   type SoundCueCommonProps,
   type SoundCueProps,
   type SoundCueWordSyncProps,
 } from './SoundCue';
+
+export {
+  VOICEOVER_TAIL_PADDING_SECONDS,
+  VoiceoverTrack,
+  resolveVoiceoverDurationInFrames,
+  type ResolveVoiceoverDurationParams,
+  type VoiceoverTrackProps,
+} from './VoiceoverTrack';

@@ -1,13 +1,28 @@
 import React from 'react';
-import { Audio, Sequence } from 'remotion';
+import { Audio, Sequence, useVideoConfig } from 'remotion';
 import type { SceneVoiceoverData } from '../types/scene';
 import { getWordTriggerFrame } from '../utils/timestamps';
+
+/**
+ * Default finite lifetime (in seconds) for one-shot `<SoundCue />` instances when
+ * neither `durationInFrames` nor `durationSeconds` is explicitly passed.
+ * Ensures finished SFX unmount cleanly and release `<Html5Audio />` pool slots in `@remotion/player`.
+ */
+export const DEFAULT_SOUND_CUE_MAX_SECONDS = 6;
+
+/**
+ * Extra acoustic tail buffer (in seconds) added on top of `durationSeconds`
+ * so reverb tails never clip before the enclosing `<Sequence>` unmounts.
+ */
+export const SOUND_CUE_TAIL_PADDING_SECONDS = 0.35;
 
 export interface SoundCueCommonProps {
   src: string;
   volume?: number;
   playbackRate?: number;
   durationInFrames?: number;
+  durationSeconds?: number;
+  loop?: boolean;
   offsetFrames?: number;
 }
 
@@ -53,10 +68,66 @@ export function resolveSoundCueFrame(props: SoundCueProps): number {
   return Math.max(0, Math.round(sceneStart + localWordFrame + offset));
 }
 
+export interface ResolveSoundCueDurationParams {
+  resolvedFrame: number;
+  compositionDurationInFrames: number;
+  fps: number;
+  durationInFrames?: number;
+  durationSeconds?: number;
+  playbackRate?: number;
+  loop?: boolean;
+}
+
+/**
+ * Computes a guaranteed-finite `<Sequence>` duration (in frames) for `<SoundCue />`
+ * so one-shot Foley cues release their `@remotion/player` shared `<Html5Audio />` tag
+ * once finished instead of staying mounted until the end of the film.
+ */
+export function resolveSoundCueDurationInFrames(
+  params: ResolveSoundCueDurationParams
+): number {
+  const {
+    resolvedFrame,
+    compositionDurationInFrames,
+    fps,
+    durationInFrames,
+    durationSeconds,
+    playbackRate = 1,
+    loop = false,
+  } = params;
+
+  const safeStart = Math.max(0, Math.round(resolvedFrame));
+  if (safeStart >= compositionDurationInFrames) {
+    return 0;
+  }
+
+  const remaining = Math.max(1, compositionDurationInFrames - safeStart);
+  const safeFps = fps > 0 ? fps : 60;
+  const safeRate = playbackRate > 0 ? playbackRate : 1;
+
+  if (typeof durationInFrames === 'number' && Number.isFinite(durationInFrames) && durationInFrames > 0) {
+    return Math.max(1, Math.min(remaining, Math.round(durationInFrames)));
+  }
+
+  if (loop) {
+    return remaining;
+  }
+
+  if (typeof durationSeconds === 'number' && Number.isFinite(durationSeconds) && durationSeconds > 0) {
+    const paddedFrames = Math.ceil(
+      (durationSeconds / safeRate + SOUND_CUE_TAIL_PADDING_SECONDS) * safeFps
+    );
+    return Math.max(1, Math.min(remaining, paddedFrames));
+  }
+
+  const defaultWindowFrames = Math.ceil(DEFAULT_SOUND_CUE_MAX_SECONDS * safeFps);
+  return Math.max(1, Math.min(remaining, defaultWindowFrames));
+}
+
 /**
  * Declarative Foley & SFX component supporting either explicit `atFrame` timing
  * or automatic word-level synchronization (`sceneId` + `onWord`).
- * Uses `layout="none"` so it can be mounted safely inside both 2D HTML trees and 3D stages.
+ * Automatically unmounts after playback so `@remotion/player` shared audio tags never leak.
  */
 export const SoundCue: React.FC<SoundCueProps> = (props) => {
   const {
@@ -64,21 +135,42 @@ export const SoundCue: React.FC<SoundCueProps> = (props) => {
     volume = 0.4,
     playbackRate = 1,
     durationInFrames,
+    durationSeconds,
+    loop = false,
   } = props;
+  const { durationInFrames: compositionDurationInFrames, fps } = useVideoConfig();
 
   if (!src) {
     return null;
   }
 
   const resolvedFrame = resolveSoundCueFrame(props);
+  const resolvedDuration = resolveSoundCueDurationInFrames({
+    resolvedFrame,
+    compositionDurationInFrames,
+    fps,
+    durationInFrames,
+    durationSeconds,
+    playbackRate,
+    loop,
+  });
+
+  if (resolvedDuration <= 0) {
+    return null;
+  }
 
   return (
     <Sequence
       from={resolvedFrame}
-      durationInFrames={durationInFrames}
+      durationInFrames={resolvedDuration}
       layout="none"
     >
-      <Audio src={src} volume={volume} playbackRate={playbackRate} />
+      <Audio
+        src={src}
+        volume={volume}
+        playbackRate={playbackRate}
+        loop={loop}
+      />
     </Sequence>
   );
 };

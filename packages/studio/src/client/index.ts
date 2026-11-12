@@ -45,6 +45,7 @@ export {
   type StageErrorBoundaryProps,
 } from './components/StageErrorBoundary';
 export {
+  STUDIO_SHARED_AUDIO_TAGS,
   StageViewport,
   type StageViewportProps,
 } from './components/StageViewport';

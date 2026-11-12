@@ -30,6 +30,12 @@ import { DirectorTimelinePanel } from './DirectorTimelinePanel';
 import { LiveTranscriptBar } from './LiveTranscriptBar';
 import { StageErrorBoundary, StageErrorCard } from './StageErrorBoundary';
 
+/**
+ * Shared silent `<Html5Audio />` pool size pre-mounted by `@remotion/player` in Studio Web.
+ * Remotion defaults to `5`, which overflows in multi-scene films with music + dialogue + layered SFX.
+ */
+export const STUDIO_SHARED_AUDIO_TAGS = 32;
+
 export interface StageViewportProps {
   composition: StudioCompositionEntry;
   inputProps: Record<string, unknown>;
@@ -651,6 +657,7 @@ export const StageViewport: React.FC<StageViewportProps> = ({
                 clickToPlay={true}
                 spaceKeyToPlayOrPause={false}
                 initiallyMuted={muted}
+                numberOfSharedAudioTags={STUDIO_SHARED_AUDIO_TAGS}
                 acknowledgeRemotionLicense={true}
                 errorFallback={renderPlayerErrorFallback}
                 style={{

@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { openBrowser as OpenBrowserFn } from '@remotion/renderer';
+import { auditStudioAudioLifetimes } from '../audio/audit-audio-tags';
 import {
   resolveRemotionEntryPoint,
   resolveWorkspaceContext,
@@ -362,6 +363,17 @@ export async function runQaContactSheetCommand(
       ` 🔍 make.pictures — Contact-Sheet QA (${compositionId} • ${cols}x${rows})`
     );
     console.log('==============================================================');
+
+    const audioWarnings = auditStudioAudioLifetimes(studioDir);
+    if (audioWarnings.length > 0) {
+      for (const warn of audioWarnings) {
+        const relPath = path.relative(rootDir, warn.filePath);
+        console.warn(
+          `  ⚠️  [Audio Pool Guard] ${relPath}:${warn.line} — ${warn.message}`
+        );
+      }
+    }
+
     console.log(
       `  [1/3] Bundling Remotion entry (${path.relative(rootDir, entryPoint)})…`
     );

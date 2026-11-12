@@ -375,6 +375,7 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
   }
 }
 
+export * from './audio/audit-audio-tags';
 export * from './audio/generate-music';
 export * from './audio/generate-sfx';
 export * from './audio/master-loudness';

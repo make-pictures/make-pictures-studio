@@ -94,32 +94,48 @@ const beatPulse = useMusicBeatPulse(scoreSrc, { lowBinCount: 4, smoothingFrames:
 
 ---
 
-## 3. AI Sound Effects & Word-Synced Foley (`<SoundCue />`)
+## 3. Scene Voiceovers (`<VoiceoverTrack />`) & Word-Synced Foley (`<SoundCue />`)
+
+### `<Html5Audio />` Pool Hygiene (CRITICAL)
+`@remotion/player` only frees a shared `<Html5Audio />` slot when its `<Audio />` element **unmounts**. **Never** wrap `<Audio />` in an unbounded `<Sequence from={...}>` without `durationInFrames` — otherwise finished voiceovers and SFX stay mounted until the end of the film!
+- **For scene narration:** Mount `<VoiceoverTrack voiceover={VOICEOVER_MANIFEST[sceneId]} fromFrame={...} volume={...} />` from `@make-pictures/core` (it automatically computes finite `durationInFrames` from `voiceover.durationInSeconds + 0.35s` consonant safety tail).
+- **For Foley / SFX:** Mount `<SoundCue />` from `@make-pictures/core` and pass `durationSeconds={sfx.durationSeconds}` when available (even when omitted, `<SoundCue />` auto-unmounts after a finite `6s` window unless `loop` is set).
+- **Live Web Embeds:** When embedding compositions in your own custom `<Player />` from `@remotion/player`, pass `numberOfSharedAudioTags={32}` (Studio Web configures `STUDIO_SHARED_AUDIO_TAGS = 32` automatically).
 
 ### Declaring `sfx` in `production.json` (`SfxAssetSpec`)
 Each entry in `sfx` generates a cached `.mp3` via ElevenLabs Text-to-Sound-Effects (`prompt`, `durationSeconds`, `loop?: boolean` for seamless room/wind ambients, `promptInfluence?: number` default `0.35`) with offline `fallbackPreset` (`'whoosh' | 'pop' | 'click' | 'chime' | 'wind' | 'impact' | 'ambient-hum'`).
 
-### Mounting `<SoundCue />` (Frame-Exact or Word-Synced)
+### Mounting `<VoiceoverTrack />` & `<SoundCue />`
 
 ```tsx
-import { SoundCue } from '@make-pictures/core';
+import { SoundCue, VoiceoverTrack } from '@make-pictures/core';
+import { SFX_MANIFEST, VOICEOVER_MANIFEST } from '../generated/audio-manifest';
 
-{/* 1. Triggered at an exact composition frame (e.g. camera whip-pan or page turn) */}
+{/* 1. Bounded scene voiceover (auto-unmounts after durationInSeconds + 0.35s) */}
+<VoiceoverTrack
+  voiceover={VOICEOVER_MANIFEST['s2-reveal']}
+  fromFrame={270}
+  volume={1.0}
+/>
+
+{/* 2. SFX triggered at an exact composition frame */}
 <SoundCue
-  src={staticFile(productionAssetPath('my-film', 'sfx/page-slide.mp3'))}
+  src={staticFile(SFX_MANIFEST['page-slide'].audioFile)}
   atFrame={180}
+  durationSeconds={SFX_MANIFEST['page-slide'].durationSeconds}
   volume={0.38}
 />
 
-{/* 2. Automatically synced to a spoken word in the voiceover! */}
+{/* 3. SFX automatically synced to a spoken word in the voiceover! */}
 <SoundCue
-  src={staticFile(productionAssetPath('my-film', 'sfx/chime-reveal.mp3'))}
+  src={staticFile(SFX_MANIFEST['chime-reveal'].audioFile)}
   sceneId="s2-reveal"
   onWord="odkrycie"
   sceneStartFrame={270}
   offsetFrames={-3}
   fallbackFrame={60}
-  voiceoverManifest={AUDIO_MANIFEST}
+  durationSeconds={SFX_MANIFEST['chime-reveal'].durationSeconds}
+  voiceoverManifest={VOICEOVER_MANIFEST}
   volume={0.42}
 />
 ```

@@ -19,6 +19,7 @@ Uniwersalne niezmienniki studia **make.pictures** (`60 FPS` Video-as-Code). Szcz
 - **Czysta klatka `0`:** Pierwsza klatka to puste tło; animacje wejścia startuj od `frame - 2`.
 - **Sprężyny i determinizm:** Używaj `SPRING_PRESETS` (`damping: 200`) oraz `createSeededRandom(seed)` z `@make-pictures/core`. Całkowity **zakaz `Math.random()`** i akumulacji stanu w `useRef` między klatkami (`--concurrency=100%`).
 - **Props Inspector:** Eksportuj `z.object` z opisami `.describe('Sekcja :: Etykieta')` i trzymaj wartości domyślne w `<CompositionId>.props.json`. **Zawsze odczytaj `*.props.json` z dysku przed edycją**, by zachować zmiany z `Studio Web`.
+- **Higiena puli `<Audio />`:** Używaj `<VoiceoverTrack />` i `<SoundCue />` z `@make-pictures/core`; **zakaz** montowania `<Audio />` wewnątrz `<Sequence>` bez jawnego `durationInFrames`.
 - **Typografia:** Domyślnie bez dolnych napisów; karty *Ikona + 2–3 słowa*; po polsku *Sentence case* (bez *Title Case*).
 
 ```tsx
@@ -54,5 +55,5 @@ export const HeroCard: React.FC<z.infer<typeof FilmSchema>> = ({ headline, accen
 | Nagrania ekranu SaaS `.mp4` (screencasty) | `kit-motion-diagrams-2d` + `make-pictures-director` | `@make-pictures/kits/product-frames`: `BrowserFrame`, `PhoneFrame`, `ScreenSpotlightOverlay` (`<OffthreadVideo />`, `productions/<slug>/assets/videos/`) |
 | Izometryczne studio 3D i dialogi | `kit-isometric-3d` | `Stylized3DCharacter`, `speakingWeight` vs `speechEnergy`, `getSmoothPoseWindow`, `0.03..0.055` rad/kl. |
 | Kinetyczna typografia i wykresy | `kit-kinetic-and-data` | `WordByWordStage`, `ImpactKeywordCard`, `AnimatedMetricCounter`, `AnimatedBarRace`, `TimelineTrack`, `MetricComparisonCard` |
-| Lektor, fonetyka, muzyka AI i SFX | `sound-and-music-design` | Głosy ElevenLabs, fonetyka PL/EN, `SmartMusicBed` auto-ducking, `useMusicBeatPulse`, `SoundCue`, `VoiceAcousticPreset`, `-14 LUFS` |
+| Lektor, fonetyka, muzyka AI i SFX | `sound-and-music-design` | Głosy ElevenLabs, fonetyka PL/EN, `VoiceoverTrack`, `SmartMusicBed` auto-ducking, `useMusicBeatPulse`, `SoundCue`, `VoiceAcousticPreset`, `-14 LUFS` |
 | Kamera Shot DSL (2D/3D) i VFX | `cinematography-and-vfx` | `DirectorCamera3D/2D`, `dolly-zoom`, `9:16` Safe Box, `CinematicLensOverlay`, `ParticleField`, `StagePostProcessing3D`, `SceneTransition` |

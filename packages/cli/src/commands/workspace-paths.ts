@@ -284,6 +284,7 @@ Uniwersalne niezmienniki studia **make.pictures** (\`60 FPS\` Video-as-Code). Sz
 - **Czysta klatka \`0\`:** Pierwsza klatka to puste tło; animacje wejścia startuj od \`frame - 2\`.
 - **Sprężyny i determinizm:** Używaj \`SPRING_PRESETS\` (\`damping: 200\`) oraz \`createSeededRandom(seed)\` z \`@make-pictures/core\`. Całkowity **zakaz \`Math.random()\`** i akumulacji stanu w \`useRef\` między klatkami (\`--concurrency=100%\`).
 - **Props Inspector:** Eksportuj \`z.object\` z opisami \`.describe('Sekcja :: Etykieta')\` i trzymaj wartości domyślne w \`<CompositionId>.props.json\`. **Zawsze odczytaj \`*.props.json\` z dysku przed edycją**, by zachować zmiany z \`Studio Web\`.
+- **Higiena puli \`<Audio />\`:** Używaj \`<VoiceoverTrack />\` i \`<SoundCue />\` z \`@make-pictures/core\`; **zakaz** montowania \`<Audio />\` wewnątrz \`<Sequence>\` bez jawnego \`durationInFrames\`.
 - **Typografia:** Domyślnie bez dolnych napisów; karty *Ikona + 2–3 słowa*; po polsku *Sentence case* (bez *Title Case*).
 
 ## 4. Obowiązkowe Bramki Jakości przed Renderem
@@ -300,13 +301,13 @@ Uniwersalne niezmienniki studia **make.pictures** (\`60 FPS\` Video-as-Code). Sz
 | Nagrania ekranu SaaS \`.mp4\` (screencasty) | \`kit-motion-diagrams-2d\` + \`make-pictures-director\` | \`@make-pictures/kits/product-frames\`: \`BrowserFrame\`, \`PhoneFrame\`, \`ScreenSpotlightOverlay\` (\`<OffthreadVideo />\`, \`assets/videos/\`) |
 | Izometryczne studio 3D i dialogi | \`kit-isometric-3d\` | \`Stylized3DCharacter\`, \`speakingWeight\` vs \`speechEnergy\` |
 | Kinetyczna typografia i wykresy | \`kit-kinetic-and-data\` | \`WordByWordStage\`, \`AnimatedBarRace\`, \`TimelineTrack\`, \`MetricComparisonCard\` |
-| Lektor, fonetyka, muzyka AI i SFX | \`sound-and-music-design\` | \`SmartMusicBed\`, \`SoundCue\`, \`VoiceAcousticPreset\`, \`-14 LUFS\` |
+| Lektor, fonetyka, muzyka AI i SFX | \`sound-and-music-design\` | \`VoiceoverTrack\`, \`SmartMusicBed\`, \`SoundCue\`, \`VoiceAcousticPreset\`, \`-14 LUFS\` |
 | Kamera Shot DSL (2D/3D) i VFX | \`cinematography-and-vfx\` | \`DirectorCamera3D/2D\`, \`9:16\` Safe Box, \`CinematicLensOverlay\`, \`ParticleField\`, \`SceneTransition\` |
 `;
 
 const FALLBACK_PLUGIN_JSON = {
   name: 'make-pictures',
-  version: '2.0.2',
+  version: '2.0.3',
   description:
     'make.pictures Studio — 60 FPS Video-as-Code skills, visual kits, camera Shot DSL, and ElevenLabs AI Audio Studio.',
   author: {
@@ -324,6 +325,7 @@ Read [\`AGENTS.md\`](./AGENTS.md) alongside this file for universal \`60 FPS\` V
 ## Capsule Architecture & Determinism
 - **Isolated Capsules (\`productions/<slug>/\`):** Keep every film self-contained (\`production.json\`, \`compositions/\`, \`assets/\`, \`generated/audio-manifest.ts\`). In embedded SaaS repos (\`--dir=videos\`), capsules live in \`videos/productions/<slug>/\`.
 - **60 FPS Determinism:** Frame \`0\` must render a clean empty background (start entrance springs at \`frame - 2\`). Never use \`Math.random()\` or cross-frame \`useRef\` state — use \`SPRING_PRESETS\` and \`createSeededRandom(seed)\` from \`@make-pictures/core\`.
+- **Audio Tag Pool Hygiene:** Use \`<VoiceoverTrack />\` and \`<SoundCue />\` from \`@make-pictures/core\`; never wrap raw \`<Audio />\` inside \`<Sequence>\` without an explicit finite \`durationInFrames\`.
 - **Props Inspector (\`zod\` ↔ \`*.props.json\`):** Always read \`<CompositionId>.props.json\` from disk before editing so live tweaks from Studio Web are preserved. Never open or print \`.env.local\`.
 
 ## CLI Commands (\`npx make-pictures\`)
@@ -453,7 +455,7 @@ export function syncBundledAiPluginToProject(
         {
           name: 'make-pictures',
           description: FALLBACK_PLUGIN_JSON.description,
-          version: '2.0.2',
+          version: '2.0.3',
         },
         null,
         2
