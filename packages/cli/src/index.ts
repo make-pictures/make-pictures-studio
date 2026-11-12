@@ -37,6 +37,10 @@ const BOOLEAN_FLAGS = new Set([
   'setup',
   'help',
   'wait',
+  'json',
+  'human',
+  'no-browser',
+  'replace',
 ]);
 
 function parseCliArgs(argv: string[]): ParsedArgs {
@@ -109,8 +113,8 @@ Commands:
   init [--dir=videos] [--kit=paper-diorama-3d] [--lang=en|pl] [--force]
       Initialize make.pictures capsules + AI agent skills inside an existing repo
 
-  onboard [init|connect|wait|check|status]
-      Agent-friendly JSON onboarding workflow (Node, FFmpeg, ElevenLabs OAuth)
+  onboard [init|connect|wait|check|status] [--json|--human] [--no-browser]
+      Interactive terminal setup (or agent JSON workflow when --json / agent shell)
 
   doctor [--setup] [--dir=<subdir>]
       Verify Node.js, FFmpeg, ElevenLabs connectivity, capsules, and Remotion
@@ -186,12 +190,21 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
     }
 
     case 'onboard': {
-      const step = positionals[1] || getStringFlag(flags, 'step') || 'init';
-      const extraArgs = flags.wait ? ['--wait'] : [];
+      const step = positionals[1] || getStringFlag(flags, 'step');
+      const formatFlag = getStringFlag(flags, 'format')?.toLowerCase();
+      const extraArgs: string[] = [];
+      if (flags.wait) extraArgs.push('--wait');
+      if (flags['no-browser']) extraArgs.push('--no-browser');
+      if (flags.replace) extraArgs.push('--replace');
       await runOnboardCommand({
         cwd,
         step,
         extraArgs,
+        json: Boolean(flags.json) || formatFlag === 'json',
+        human:
+          Boolean(flags.human) ||
+          formatFlag === 'human' ||
+          formatFlag === 'table',
       });
       return;
     }

@@ -17,7 +17,7 @@ Powers standalone projects (`npx create-make-pictures@latest my-films`), embedde
 ## Commands
 
 ```bash
-# Agent-driven setup & ElevenLabs OAuth (.env.local)
+# Interactive terminal setup & ElevenLabs OAuth (.env.local); pass --json for agent state machine
 npx make-pictures onboard
 npx make-pictures doctor
 

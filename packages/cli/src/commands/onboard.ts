@@ -5,13 +5,7 @@ import { resolveWorkspaceContext } from './workspace-paths';
 
 export type OnboardStep = 'init' | 'connect' | 'wait' | 'check' | 'status';
 
-export interface OnboardCommandOptions {
-  cwd?: string;
-  step?: string;
-  extraArgs?: string[];
-}
-
-interface OnboardReply {
+export interface OnboardReply {
   next: string;
   instruction?: string;
   run?: string;
@@ -19,6 +13,39 @@ interface OnboardReply {
   rules?: string[];
   details?: Record<string, unknown>;
 }
+
+export interface OnboardRuntimeDeps {
+  stdout?: Pick<NodeJS.WriteStream, 'write'> & { isTTY?: boolean };
+  env?: NodeJS.ProcessEnv;
+  checkFfmpeg?: () => boolean;
+  installDeps?: (rootDir: string) => boolean;
+  elevenLabsRunner?: (
+    rootDir: string,
+    subcommandArgs: string[]
+  ) => OnboardReply | null;
+  maxWaitAttempts?: number;
+}
+
+export interface OnboardCommandOptions {
+  cwd?: string;
+  step?: string;
+  extraArgs?: string[];
+  json?: boolean;
+  human?: boolean;
+  deps?: OnboardRuntimeDeps;
+}
+
+const AGENT_ENV_KEYS = [
+  'ANTIGRAVITY_AGENT',
+  'ANTIGRAVITY_CONVERSATION_ID',
+  'CLAUDECODE',
+  'CLAUDE_CODE',
+  'CODEX_SANDBOX',
+  'CODEX_CI',
+  'CURSOR_AGENT',
+  'GEMINI_CLI',
+  'AIDER',
+] as const;
 
 const INSTRUCTIONS: Record<string, string> = {
   run: 'Tell the user `say`, then run `run`.',
@@ -31,23 +58,40 @@ const INSTRUCTIONS: Record<string, string> = {
   done: 'Tell the user `say`. Setup is complete.',
 };
 
-function emit(reply: OnboardReply): void {
-  const payload = {
-    next: reply.next,
-    instruction:
-      reply.instruction || INSTRUCTIONS[reply.next] || INSTRUCTIONS.run,
-    ...(reply.run ? { run: reply.run } : {}),
-    say: reply.say,
-    ...(reply.rules ? { rules: reply.rules } : {}),
-    ...(reply.details ? { details: reply.details } : {}),
-  };
-  process.stdout.write(`${JSON.stringify(payload)}\n`);
+function isEnvTruthy(val: string | undefined): boolean {
+  if (!val) return false;
+  const normalized = val.trim().toLowerCase();
+  return normalized !== '' && normalized !== '0' && normalized !== 'false';
 }
 
-function getCommandRunners(rootDir: string): {
+export function shouldUseJsonOutput(params: {
+  json?: boolean;
+  human?: boolean;
+  isTTY: boolean;
+  env: NodeJS.ProcessEnv;
+}): boolean {
+  if (params.json) return true;
+  if (params.human) return false;
+  if (isEnvTruthy(params.env.CI)) return true;
+  for (const key of AGENT_ENV_KEYS) {
+    if (isEnvTruthy(params.env[key])) {
+      return true;
+    }
+  }
+  return !params.isTTY;
+}
+
+function getCommandRunners(
+  rootDir: string,
+  options?: { preserveJsonFlag?: boolean }
+): {
   onboardCmd: (step: string) => string;
+  humanOnboardCmd: string;
   studioCmd: string;
+  doctorCmd: string;
   doctorSetupCmd: string;
+  audioCmd: string;
+  newFilmCmd: string;
 } {
   const pkgPath = path.join(rootDir, 'package.json');
   let scripts: Record<string, string> = {};
@@ -64,17 +108,31 @@ function getCommandRunners(rootDir: string): {
 
   const hasOnboardScript = Boolean(scripts.onboard);
   const hasStudioScript = Boolean(scripts.studio);
+  const hasDoctorScript = Boolean(scripts.doctor);
   const hasSetupScript = Boolean(scripts.setup);
+  const hasAudioScript = Boolean(scripts.audio);
+  const hasNewScript = Boolean(scripts.new);
+  const jsonSuffix = options?.preserveJsonFlag ? ' --json' : '';
 
   return {
     onboardCmd: (step: string) =>
       hasOnboardScript
-        ? `npm run onboard -- ${step}`
-        : `npx make-pictures onboard ${step}`,
+        ? `npm run onboard -- ${step}${jsonSuffix}`
+        : `npx make-pictures onboard ${step}${jsonSuffix}`,
+    humanOnboardCmd: hasOnboardScript
+      ? 'npm run onboard'
+      : 'npx make-pictures onboard',
     studioCmd: hasStudioScript ? 'npm run studio' : 'npx make-pictures studio',
+    doctorCmd: hasDoctorScript ? 'npm run doctor' : 'npx make-pictures doctor',
     doctorSetupCmd: hasSetupScript
       ? 'npm run setup'
       : 'npx make-pictures doctor --setup',
+    audioCmd: hasAudioScript
+      ? 'npm run audio -- --production=hello-studio'
+      : 'npx make-pictures audio --production=hello-studio',
+    newFilmCmd: hasNewScript
+      ? 'npm run new -- my-film --kit=paper-diorama-3d --lang=pl'
+      : 'npx make-pictures new my-film --kit=paper-diorama-3d --lang=pl',
   };
 }
 
@@ -98,13 +156,22 @@ function hasNodeModules(rootDir: string): boolean {
   );
 }
 
-function hasFfmpeg(): boolean {
+function defaultHasFfmpeg(): boolean {
   try {
     execSync('ffmpeg -version', { stdio: 'ignore' });
     return true;
   } catch {
     return false;
   }
+}
+
+function defaultInstallDeps(rootDir: string): boolean {
+  const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+  const res = spawnSync(npmCmd, ['install'], {
+    cwd: rootDir,
+    stdio: 'inherit',
+  });
+  return res.status === 0;
 }
 
 function ensureGitignore(rootDir: string): void {
@@ -144,6 +211,22 @@ function readApiKeyFromEnvLocal(envLocalPath: string): string | null {
   return null;
 }
 
+function ensureEnvLocalTemplate(
+  envLocalPath: string,
+  envExamplePath: string
+): void {
+  if (fs.existsSync(envLocalPath)) return;
+  if (fs.existsSync(envExamplePath)) {
+    fs.copyFileSync(envExamplePath, envLocalPath);
+  } else {
+    fs.writeFileSync(
+      envLocalPath,
+      'ELEVENLABS_API_KEY=your_elevenlabs_api_key_here\nELEVENLABS_VOICE_ID=TX3LPaxmHKxFdv7VOQHJ\nELEVENLABS_MODEL_ID=eleven_multilingual_v2\n',
+      { mode: 0o600 }
+    );
+  }
+}
+
 function ensureVoiceDefaultsInEnvLocal(
   rootDir: string,
   envLocalPath: string
@@ -165,7 +248,7 @@ function ensureVoiceDefaultsInEnvLocal(
   }
 }
 
-function runElevenLabsOnboard(
+function defaultRunElevenLabsOnboard(
   rootDir: string,
   subcommandArgs: string[]
 ): OnboardReply | null {
@@ -178,6 +261,8 @@ function runElevenLabsOnboard(
       ...subcommandArgs,
       '--env-path',
       '.env.local',
+      '--format',
+      'json',
     ],
     {
       cwd: rootDir,
@@ -185,17 +270,34 @@ function runElevenLabsOnboard(
       stdio: ['ignore', 'pipe', 'pipe'],
     }
   );
-  const stdout = (res.stdout || '').trim();
-  const lastLine = stdout.split(/\r?\n/).filter(Boolean).pop() || '';
-  try {
-    return JSON.parse(lastLine) as OnboardReply;
-  } catch {
-    return null;
+  if (res.signal === 'SIGINT' || res.status === 130) {
+    return { next: 'cancelled', say: 'Cancelled by user.' };
   }
+  const stdout = (res.stdout || '').trim();
+  const lines = stdout.split(/\r?\n/).filter(Boolean);
+  for (let i = lines.length - 1; i >= 0; i--) {
+    try {
+      return JSON.parse(lines[i]) as OnboardReply;
+    } catch {
+      // Try earlier line if npx emitted an info line
+    }
+  }
+  return null;
+}
+
+function isWaitReply(reply: OnboardReply | null): boolean {
+  if (!reply) return false;
+  return (
+    reply.next === 'wait' ||
+    Boolean(reply.run && reply.run.includes('connect --wait'))
+  );
 }
 
 /**
- * Deterministic JSON agent-onboarding state machine (`init` -> `connect` -> `wait` -> `check`).
+ * Onboarding workflow supporting both:
+ * 1. Interactive terminal UX for human creators (`npm run onboard` / `npx make-pictures onboard`)
+ * 2. Deterministic single-line JSON state machine (`init` -> `connect` -> `wait` -> `check`)
+ *    for AI coding agents, non-TTY pipes, and `--json`.
  */
 export async function runOnboardCommand(
   options: OnboardCommandOptions = {}
@@ -203,7 +305,240 @@ export async function runOnboardCommand(
   const { rootDir } = resolveWorkspaceContext({ cwd: options.cwd });
   const envLocalPath = path.join(rootDir, '.env.local');
   const envExamplePath = path.join(rootDir, '.env.example');
-  const { onboardCmd, studioCmd, doctorSetupCmd } = getCommandRunners(rootDir);
+
+  const stdout = options.deps?.stdout ?? process.stdout;
+  const env = options.deps?.env ?? process.env;
+  const checkFfmpeg = options.deps?.checkFfmpeg ?? defaultHasFfmpeg;
+  const installDeps = options.deps?.installDeps ?? defaultInstallDeps;
+  const elevenLabsRunner =
+    options.deps?.elevenLabsRunner ?? defaultRunElevenLabsOnboard;
+  const maxWaitAttempts = options.deps?.maxWaitAttempts ?? 10;
+
+  const useJson = shouldUseJsonOutput({
+    json: options.json,
+    human: options.human,
+    isTTY: Boolean(stdout.isTTY),
+    env,
+  });
+
+  const {
+    onboardCmd,
+    humanOnboardCmd,
+    studioCmd,
+    doctorCmd,
+    doctorSetupCmd,
+    audioCmd,
+    newFilmCmd,
+  } = getCommandRunners(rootDir, {
+    preserveJsonFlag: Boolean(options.json),
+  });
+
+  const writeLine = (line = ''): void => {
+    stdout.write(`${line}\n`);
+  };
+
+  if (!useJson) {
+    const rawStep = options.step?.toLowerCase();
+    const extraArgs = options.extraArgs ?? [];
+    const forceReplace = extraArgs.includes('--replace');
+
+    writeLine('==============================================================');
+    writeLine(' 🎬 make.pictures — Video-as-Code Studio Onboarding');
+    writeLine('==============================================================\n');
+
+    ensureGitignore(rootDir);
+
+    if (!hasNodeModules(rootDir)) {
+      if (rawStep === 'check' || rawStep === 'status') {
+        writeLine('❌ Studio dependencies are not installed yet.');
+        writeLine('   Run `npm install` first, then re-run `' + humanOnboardCmd + '`.');
+        return;
+      }
+      writeLine(
+        '📦 Installing make.pictures Studio dependencies (npm install)...'
+      );
+      const installed = installDeps(rootDir);
+      if (!installed || !hasNodeModules(rootDir)) {
+        throw new Error(
+          `Dependency installation did not complete. Please run \`npm install\` and re-run \`${humanOnboardCmd}\`.`
+        );
+      }
+    }
+    writeLine('✅ Studio packages verified (Remotion 60 FPS + ElevenLabs SDK)');
+
+    if (checkFfmpeg()) {
+      writeLine('✅ FFmpeg audio/video engine ready');
+    } else {
+      writeLine(
+        '⚠️  FFmpeg not found in PATH (install via `brew install ffmpeg` on macOS, `sudo apt install ffmpeg` on Linux, or `winget install Gyan.FFmpeg` on Windows before rendering).'
+      );
+    }
+
+    const resolveValidKey = (): string | null => {
+      const candidate =
+        readApiKeyFromEnvLocal(envLocalPath) || env.ELEVENLABS_API_KEY?.trim();
+      if (
+        !candidate ||
+        candidate === 'your_elevenlabs_api_key_here' ||
+        candidate === 'twoj_klucz_api_elevenlabs'
+      ) {
+        return null;
+      }
+      return candidate;
+    };
+
+    const printReadySummary = (key: string): void => {
+      ensureVoiceDefaultsInEnvLocal(rootDir, envLocalPath);
+      const checkReply = elevenLabsRunner(rootDir, ['check']);
+      if (
+        checkReply &&
+        (checkReply.next === 'fix' || checkReply.next === 'ask_user')
+      ) {
+        writeLine(`\n⚠️  ${checkReply.say}`);
+        return;
+      }
+
+      const keyLast4 = key.slice(-4);
+      writeLine(
+        `✅ ElevenLabs API key (...${keyLast4}) verified in .env.local!\n`
+      );
+      writeLine('✨ make.pictures Studio is ready! Next steps:');
+      writeLine(`   1. Launch Studio Web (60 FPS): ${studioCmd}  (http://127.0.0.1:3000)`);
+      writeLine(`   2. Generate capsule audio:     ${audioCmd}`);
+      writeLine(`   3. Create a new film capsule:  ${newFilmCmd}`);
+    };
+
+    const existingKey = resolveValidKey();
+
+    if (rawStep === 'check' || rawStep === 'status') {
+      if (!existingKey) {
+        writeLine('\n⚠️  ElevenLabs API key is not configured in .env.local yet.');
+        writeLine(`   • Authorize in browser: ${humanOnboardCmd}`);
+        writeLine(`   • Work offline (--mock): ${doctorSetupCmd}`);
+        return;
+      }
+      printReadySummary(existingKey);
+      return;
+    }
+
+    if (
+      existingKey &&
+      rawStep !== 'connect' &&
+      rawStep !== 'wait' &&
+      !forceReplace
+    ) {
+      printReadySummary(existingKey);
+      return;
+    }
+
+    if (fs.existsSync(envLocalPath) && !readApiKeyFromEnvLocal(envLocalPath)) {
+      fs.unlinkSync(envLocalPath);
+    }
+
+    writeLine('\n🔑 Connecting ElevenLabs (Voiceovers, AI Music & SFX)...');
+    writeLine(
+      '   Opening the ElevenLabs approval page in your browser.'
+    );
+    writeLine(
+      '   Sign in (or create an account) and click "Authorize" — your API key'
+    );
+    writeLine('   will be saved directly to `.env.local`.');
+    writeLine(
+      `   (Prefer offline mode without an API key right now? Press Ctrl+C and run \`${doctorSetupCmd}\`.)\n`
+    );
+
+    const connectArgs =
+      rawStep === 'wait'
+        ? ['connect', '--wait', ...extraArgs.filter((a) => a !== '--wait')]
+        : ['connect', ...extraArgs];
+
+    let reply = elevenLabsRunner(rootDir, connectArgs);
+
+    if (reply?.next === 'cancelled') {
+      writeLine(
+        `⏹️  Onboarding cancelled. Run \`${doctorSetupCmd}\` if you prefer to work offline without an ElevenLabs key.`
+      );
+      return;
+    }
+
+    if (!reply) {
+      ensureEnvLocalTemplate(envLocalPath, envExamplePath);
+      writeLine('⚠️  Could not launch browser authorization automatically.');
+      writeLine('📄 Created `.env.local` template.\n');
+      writeLine('Next steps:');
+      writeLine(
+        '   1. Create an ElevenLabs API key at https://elevenlabs.io/app/settings/api-keys'
+      );
+      writeLine(
+        '   2. Save it as `ELEVENLABS_API_KEY=...` inside `.env.local`'
+      );
+      writeLine(
+        `   3. Verify with \`${doctorCmd}\` (or run \`${studioCmd}\` in offline \`--mock\` mode)`
+      );
+      return;
+    }
+
+    if (isWaitReply(reply)) {
+      if (reply.say) {
+        writeLine(`   ${reply.say}`);
+      }
+      writeLine('⏳ Waiting for browser authorization...');
+
+      const waitExtra = extraArgs.filter(
+        (a) => a !== '--wait' && a !== '--no-browser'
+      );
+      for (let attempt = 0; attempt < maxWaitAttempts; attempt++) {
+        if (resolveValidKey()) break;
+        reply = elevenLabsRunner(rootDir, ['connect', '--wait', ...waitExtra]);
+        if (
+          reply?.next === 'cancelled' ||
+          resolveValidKey() ||
+          !isWaitReply(reply)
+        ) {
+          break;
+        }
+      }
+    }
+
+    if (reply?.next === 'cancelled') {
+      writeLine(
+        `\n⏹️  Onboarding cancelled. Run \`${doctorSetupCmd}\` if you prefer to work offline without an ElevenLabs key.`
+      );
+      return;
+    }
+
+    const connectedKey = resolveValidKey();
+    if (connectedKey) {
+      printReadySummary(connectedKey);
+      return;
+    }
+
+    if (reply?.say) {
+      writeLine(`\n⚠️  ${reply.say}`);
+    } else {
+      writeLine('\n⚠️  Browser authorization did not complete.');
+    }
+    writeLine(
+      `   Re-run \`${humanOnboardCmd}\` to try again, or run \`${doctorSetupCmd}\` for offline mode.`
+    );
+    return;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Agent / Non-TTY Deterministic JSON State Machine (`init` -> `connect` -> `wait` -> `check`)
+  // ---------------------------------------------------------------------------
+  const emit = (reply: OnboardReply): void => {
+    const payload = {
+      next: reply.next,
+      instruction:
+        reply.instruction || INSTRUCTIONS[reply.next] || INSTRUCTIONS.run,
+      ...(reply.run ? { run: reply.run } : {}),
+      say: reply.say,
+      ...(reply.rules ? { rules: reply.rules } : {}),
+      ...(reply.details ? { details: reply.details } : {}),
+    };
+    stdout.write(`${JSON.stringify(payload)}\n`);
+  };
 
   const rules = [
     `Never open, print or cat .env.local; run \`${onboardCmd('check')}\` or \`npx make-pictures doctor\` to verify it.`,
@@ -215,14 +550,14 @@ export async function runOnboardCommand(
   const handleCheck = (): void => {
     ensureVoiceDefaultsInEnvLocal(rootDir, envLocalPath);
     const key =
-      readApiKeyFromEnvLocal(envLocalPath) || process.env.ELEVENLABS_API_KEY;
+      readApiKeyFromEnvLocal(envLocalPath) || env.ELEVENLABS_API_KEY?.trim();
 
     if (!key || key === 'your_elevenlabs_api_key_here') {
       handleInit();
       return;
     }
 
-    const checkReply = runElevenLabsOnboard(rootDir, ['check']);
+    const checkReply = elevenLabsRunner(rootDir, ['check']);
     if (
       checkReply &&
       (checkReply.next === 'fix' || checkReply.next === 'ask_user')
@@ -273,7 +608,7 @@ export async function runOnboardCommand(
       return;
     }
 
-    if (!hasFfmpeg()) {
+    if (!checkFfmpeg()) {
       emit({
         next: 'fix',
         say: 'FFmpeg is required for audio duration detection, loudness mastering (-14 LUFS), and 60 FPS video rendering. Please install FFmpeg (e.g. `brew install ffmpeg` on macOS, `sudo apt install ffmpeg` on Ubuntu/Debian, or `winget install Gyan.FFmpeg` on Windows).',
@@ -284,7 +619,7 @@ export async function runOnboardCommand(
     }
 
     const existingKey =
-      readApiKeyFromEnvLocal(envLocalPath) || process.env.ELEVENLABS_API_KEY;
+      readApiKeyFromEnvLocal(envLocalPath) || env.ELEVENLABS_API_KEY?.trim();
     if (existingKey && existingKey !== 'your_elevenlabs_api_key_here') {
       handleCheck();
       return;
@@ -308,20 +643,10 @@ export async function runOnboardCommand(
 
   const handleConnect = (extraArgs: string[]): void => {
     ensureGitignore(rootDir);
-    const reply = runElevenLabsOnboard(rootDir, ['connect', ...extraArgs]);
+    const reply = elevenLabsRunner(rootDir, ['connect', ...extraArgs]);
 
     if (!reply) {
-      if (!fs.existsSync(envLocalPath)) {
-        if (fs.existsSync(envExamplePath)) {
-          fs.copyFileSync(envExamplePath, envLocalPath);
-        } else {
-          fs.writeFileSync(
-            envLocalPath,
-            'ELEVENLABS_API_KEY=your_elevenlabs_api_key_here\nELEVENLABS_VOICE_ID=TX3LPaxmHKxFdv7VOQHJ\nELEVENLABS_MODEL_ID=eleven_multilingual_v2\n',
-            { mode: 0o600 }
-          );
-        }
-      }
+      ensureEnvLocalTemplate(envLocalPath, envExamplePath);
       emit({
         next: 'ask_user',
         say: 'I created `.env.local`. Create an ElevenLabs API key at https://elevenlabs.io/app/settings/api-keys and save it as `ELEVENLABS_API_KEY` in `.env.local` (do not paste it in chat), then tell me when you are ready.',
@@ -331,10 +656,7 @@ export async function runOnboardCommand(
       return;
     }
 
-    if (
-      reply.next === 'wait' ||
-      (reply.run && reply.run.includes('connect --wait'))
-    ) {
+    if (isWaitReply(reply)) {
       emit({
         next: 'wait',
         instruction: reply.instruction,

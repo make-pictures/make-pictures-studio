@@ -13,8 +13,10 @@ packages/*/LICENSE
 packages/*/assets/
 *.tgz
 
-# Isolated user film capsules & public asset mirror
+# Isolated user film capsules, local specs/plans & public asset mirror
 productions/*
 !productions/.gitkeep
 !productions/README.md
 public/_productions/
+docs/superpowers/
+.superpowers/

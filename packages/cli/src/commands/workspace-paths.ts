@@ -268,7 +268,7 @@ export const FALLBACK_AGENTS_MD = `# AGENTS.md — Core Studio Rulebook (make.pi
 Uniwersalne niezmienniki studia **make.pictures** (\`60 FPS\` Video-as-Code). Szczegółowe reguły geometrii, audio, kamer i zestawów wizualnych ładuj progresywnie ze skilli w \`.agents/plugins/make-pictures/skills/\` (lub \`plugins/make-pictures/skills/\`).
 
 ## 1. Konfiguracja (\`onboard\` i \`ELEVENLABS_API_KEY\`)
-1. Uruchom \`npx make-pictures onboard\` (lub \`npm run onboard\`) i wykonuj kroki JSON (\`next\`, \`run\`, \`say\`).
+1. Uruchom \`npx make-pictures onboard --json\` (lub \`npm run onboard -- --json\`) i wykonuj kroki JSON (\`next\`, \`run\`, \`say\`) — w interaktywnym terminalu użytkownika zwykłe \`npm run onboard\` uruchamia czytelny kreator dla człowieka.
 2. Narzędzie weryfikuje \`node_modules\` i \`ffmpeg\`, po czym wywołuje \`@elevenlabs/cli@latest onboard connect --env-path .env.local\` (jeden klucz \`ELEVENLABS_API_KEY\` zasila TTS, Music i SFX). **Nigdy** nie proś o klucz na czacie ani nie wypisuj \`.env.local\`.
 3. Po \`npx make-pictures onboard check\` zaproponuj \`npx make-pictures studio\` (\`http://127.0.0.1:3000\`) lub pierwszy film.
 
@@ -306,7 +306,7 @@ Uniwersalne niezmienniki studia **make.pictures** (\`60 FPS\` Video-as-Code). Sz
 
 const FALLBACK_PLUGIN_JSON = {
   name: 'make-pictures',
-  version: '2.0.0',
+  version: '2.0.1',
   description:
     'make.pictures Studio — 60 FPS Video-as-Code skills, visual kits, camera Shot DSL, and ElevenLabs AI Audio Studio.',
   author: {
@@ -453,7 +453,7 @@ export function syncBundledAiPluginToProject(
         {
           name: 'make-pictures',
           description: FALLBACK_PLUGIN_JSON.description,
-          version: '2.0.0',
+          version: '2.0.1',
         },
         null,
         2

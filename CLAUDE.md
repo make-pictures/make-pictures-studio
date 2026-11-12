@@ -23,7 +23,7 @@ Welcome to **make.pictures** ([https://make.pictures](https://make.pictures)) �
 
 ## Quick Reference Commands (`npx make-pictures` / `npm run`)
 
-- `npx make-pictures onboard` (`npm run onboard`) — Agent-driven setup (`@elevenlabs/cli onboard`): verifies `node_modules` & `ffmpeg`, authorizes `ELEVENLABS_API_KEY` into `.env.local` (powering TTS, Music & SFX; never print `.env.local` in chat!), and checks `60 FPS` readiness.
+- `npx make-pictures onboard` (`npm run onboard`; pass `--json` for explicit agent JSON mode) — Interactive terminal setup (or agent JSON workflow when run by an AI agent / `--json`): verifies `node_modules` & `ffmpeg`, authorizes `ELEVENLABS_API_KEY` into `.env.local` (powering TTS, Music & SFX; never print `.env.local` in chat!), and checks `60 FPS` readiness.
 - `npx make-pictures doctor` (`npm run doctor`) — Validate Node.js, FFmpeg, `.env.local`, ElevenLabs API connectivity, and Remotion readiness.
 - `npx make-pictures init [--dir=videos] [--kit=paper-diorama-3d] [--lang=pl|en]` — Initialize `make.pictures` + `.agents/plugins/make-pictures` inside an existing SaaS/app repository.
 - `npx make-pictures new <slug> [--kit=paper-diorama-3d|motion-diagrams-2d|isometric-3d|kinetic-typography|data-storytelling] [--lang=pl|en] [--dir=. ]` — Scaffold a clean production capsule in `productions/<slug>/`.
