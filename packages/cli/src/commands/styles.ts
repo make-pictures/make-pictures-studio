@@ -6,7 +6,7 @@ import {
   StylePresetSchema,
   isBuiltInStyleId,
   type StylePreset,
-} from '../../../core/src/index';
+} from '../../../core/src/style/presets';
 import { SCENES_KIT_IDS, type ScaffoldKitId } from './new-production';
 import { resolveWorkspaceContext } from './workspace-paths';
 

@@ -202,6 +202,23 @@ function inspectTarball(
         entrySet.has(styleEntry),
         `@make-pictures/core tarball must contain ${styleEntry}`
       );
+      const presetsEntry = `package/dist/style/presets.${ext}`;
+      assert(
+        entrySet.has(presetsEntry),
+        `@make-pictures/core tarball must contain ${presetsEntry}`
+      );
+    }
+    // Verify zero static @react-three/fiber or three runtime imports in @make-pictures/core dist
+    const coreDistDir = path.join(pkgDir, 'dist');
+    for (const f of fs.readdirSync(coreDistDir, { recursive: true })) {
+      const rel = String(f);
+      if (!rel.endsWith('.mjs') && !rel.endsWith('.cjs')) continue;
+      const code = fs.readFileSync(path.join(coreDistDir, rel), 'utf8');
+      assert(
+        !code.includes('@react-three/fiber') &&
+          !/from\s+['"]three['"]|require\(\s*['"]three['"]\s*\)/.test(code),
+        `@make-pictures/core/dist/${rel} must not contain runtime imports of optional 3D peerDependencies (@react-three/fiber / three)`
+      );
     }
   }
 

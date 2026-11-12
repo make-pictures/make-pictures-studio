@@ -3,9 +3,9 @@ import React, {
   useEffect,
   useLayoutEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
-import { useThree } from '@react-three/fiber';
 import {
   Easing,
   interpolate,
@@ -13,7 +13,6 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from 'remotion';
-import * as THREE from 'three';
 import { SPRING_PRESETS } from '../theme/tokens';
 import { evaluateHandheldNoise, evaluateImpactShake } from './cameraNoise';
 import {
@@ -616,10 +615,58 @@ export interface DirectorCamera3DProps {
   children?: React.ReactNode;
 }
 
+interface R3FCameraLike {
+  up: { set(x: number, y: number, z: number): void };
+  position: { set(x: number, y: number, z: number): void };
+  lookAt(x: number, y: number, z: number): void;
+  rotateZ(radians: number): void;
+  updateProjectionMatrix(): void;
+  isPerspectiveCamera?: boolean;
+  fov?: number;
+}
+
+interface R3FRootStateLike {
+  camera?: R3FCameraLike;
+  invalidate?: () => void;
+}
+
+interface R3FRootStoreLike {
+  getState?: () => R3FRootStateLike;
+  (): R3FRootStateLike | { getState?: () => R3FRootStateLike };
+}
+
+interface R3FGroupInstanceLike {
+  __r3f?: {
+    root?: R3FRootStoreLike;
+  };
+}
+
+function resolveR3FRootState(
+  node: R3FGroupInstanceLike | null
+): R3FRootStateLike | null {
+  const root = node?.__r3f?.root;
+  if (!root) return null;
+  if (typeof root.getState === 'function') {
+    return root.getState();
+  }
+  if (typeof root === 'function') {
+    const res = root();
+    if (res && typeof (res as { getState?: unknown }).getState === 'function') {
+      return (res as { getState: () => R3FRootStateLike }).getState();
+    }
+    return (res as R3FRootStateLike) ?? null;
+  }
+  return null;
+}
+
 /**
  * Declarative 3D Shot-DSL Camera Rig for `@remotion/three` (`<ThreeCanvas>`).
  * Resolves named `StageAnchor3D` targets and cinematic shot presets, automatically
  * re-framing vertical `9:16` Shorts compositions into the Golden Safe Box (`y ∈ [220, 1380]`).
+ *
+ * Accesses the active R3F `camera` via the mounted `<group>` fiber instance (`__r3f.root`)
+ * so `@make-pictures/core` carries zero top-level runtime imports of `three` or `@react-three/fiber`
+ * in 2D-only projects and Node CLI environments.
  */
 export const DirectorCamera3D: React.FC<DirectorCamera3DProps> = ({
   anchors,
@@ -634,7 +681,7 @@ export const DirectorCamera3D: React.FC<DirectorCamera3DProps> = ({
 }) => {
   const frame = useCurrentFrame();
   const { fps, width, height, durationInFrames } = useVideoConfig();
-  const camera = useThree((state) => state.camera);
+  const rigGroupRef = useRef<R3FGroupInstanceLike | null>(null);
 
   const solved = useMemo(
     () =>
@@ -675,27 +722,32 @@ export const DirectorCamera3D: React.FC<DirectorCamera3DProps> = ({
   const { fov, rollDeg, telemetry } = solved;
 
   useLayoutEffect(() => {
-    camera.up.set(0, 1, 0);
-    camera.position.set(px, py, pz);
-    if (camera instanceof THREE.PerspectiveCamera) {
-      camera.fov = fov;
+    const r3fState = resolveR3FRootState(rigGroupRef.current);
+    const camera = r3fState?.camera;
+    if (camera) {
+      camera.up.set(0, 1, 0);
+      camera.position.set(px, py, pz);
+      if (camera.isPerspectiveCamera && typeof camera.fov === 'number') {
+        camera.fov = fov;
+      }
+      camera.lookAt(lx, ly, lz);
+      if (Math.abs(rollDeg) > 1e-4) {
+        camera.rotateZ((rollDeg * Math.PI) / 180);
+      }
+      camera.updateProjectionMatrix();
+      r3fState?.invalidate?.();
     }
-    camera.lookAt(lx, ly, lz);
-    if (Math.abs(rollDeg) > 1e-4) {
-      camera.rotateZ((rollDeg * Math.PI) / 180);
-    }
-    camera.updateProjectionMatrix();
 
     publishFrameCameraTelemetry(frame, telemetry);
-  }, [camera, px, py, pz, lx, ly, lz, fov, rollDeg, frame, telemetry]);
+  }, [px, py, pz, lx, ly, lz, fov, rollDeg, frame, telemetry]);
 
   if (!children) {
-    return null;
+    return React.createElement('group', { ref: rigGroupRef });
   }
 
   return (
     <DirectorCameraTelemetryProvider telemetry={telemetry}>
-      {children}
+      {React.createElement('group', { ref: rigGroupRef }, children)}
     </DirectorCameraTelemetryProvider>
   );
 };

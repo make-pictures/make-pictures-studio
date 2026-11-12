@@ -1,7 +1,7 @@
 {
   "name": "make-pictures",
   "displayName": "make.pictures Studio",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "description": "60 FPS Video-as-Code Studio: modular 2D/3D visual kits, Shot DSL camera, deterministic VFX, ElevenLabs TTS/Music/SFX auto-ducking, and Contact-Sheet QA.",
   "author": {
     "name": "make.pictures",

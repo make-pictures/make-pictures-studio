@@ -31,6 +31,14 @@ function mapOtherPackageToPublicSpecifier(
 ): string {
   const normalizedSub = subpathInsideSrc.replace(/\\/g, '/').replace(/^\/+/, '');
   if (otherPkgDirName === 'core') {
+    if (
+      normalizedSub === 'style/presets' ||
+      normalizedSub.startsWith('style/presets.') ||
+      normalizedSub === 'style/schema' ||
+      normalizedSub.startsWith('style/schema.')
+    ) {
+      return '@make-pictures/core/style/presets';
+    }
     return '@make-pictures/core';
   }
   if (otherPkgDirName === 'kits') {
@@ -442,6 +450,11 @@ async function main(): Promise<void> {
         {
           outSubpath: 'style/index',
           srcRelPath: 'src/style/index.ts',
+          platform: 'browser',
+        },
+        {
+          outSubpath: 'style/presets',
+          srcRelPath: 'src/style/presets.ts',
           platform: 'browser',
         },
         {

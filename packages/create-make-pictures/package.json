@@ -1,6 +1,6 @@
 {
   "name": "create-make-pictures",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "description": "Scaffold a 60 FPS Video-as-Code Studio project powered by @make-pictures/core, @make-pictures/kits, @make-pictures/studio, and ElevenLabs AI Audio.",
   "homepage": "https://make.pictures",
   "repository": {

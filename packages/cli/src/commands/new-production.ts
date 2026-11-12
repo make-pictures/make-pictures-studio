@@ -3,11 +3,13 @@ import path from 'node:path';
 import {
   BUILT_IN_STYLES,
   isBuiltInStyleId,
-  type MusicMoodPreset,
-  type ProductionManifest,
-  type SceneVoiceoverData,
   type StylePreset,
   type VoiceArchetype,
+} from '../../../core/src/style/presets';
+import type {
+  MusicMoodPreset,
+  ProductionManifest,
+  SceneVoiceoverData,
 } from '../../../core/src/index';
 import {
   buildSyntheticWordTimestamps,

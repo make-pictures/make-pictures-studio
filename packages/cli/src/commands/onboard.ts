@@ -2,7 +2,7 @@ import { execSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
-import { BUILT_IN_STYLE_IDS } from '../../../core/src/index';
+import { BUILT_IN_STYLE_IDS } from '../../../core/src/style/presets';
 import { SCENES_KIT_IDS } from './new-production';
 import { resolveWorkspaceContext } from './workspace-paths';
 

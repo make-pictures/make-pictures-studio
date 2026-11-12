@@ -1,5 +1,7 @@
 import type { StylePreset } from './schema';
 
+export * from './schema';
+
 export const BUILT_IN_STYLE_IDS = [
   'minimal-product',
   'editorial-press',

@@ -1,6 +1,6 @@
 {
   "name": "make-pictures-studio",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "private": true,
   "description": "make.pictures — Open-Source Video-as-Code Studio built with Remotion, Three.js, TypeScript, and ElevenLabs for Google Antigravity & Claude Code",
   "homepage": "https://make.pictures",
