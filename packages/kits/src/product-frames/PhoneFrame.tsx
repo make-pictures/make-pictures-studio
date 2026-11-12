@@ -1,12 +1,12 @@
 import React from 'react';
 import { interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
-import { SPRING_PRESETS } from '@make-pictures/core';
+import { getStyleSpringConfig, useStudioStyle } from '@make-pictures/core';
 import { FrameMedia, type FrameMediaProps } from './frameMedia';
 
 export interface PhoneFrameProps extends FrameMediaProps {
   /** Bezel style (default `'dynamic-island'`) */
   variant?: 'dynamic-island' | 'minimal';
-  /** Bezel theme (default `'dark'` titanium) */
+  /** Bezel theme (`'dark'` | `'light'`; defaults to `studioStyle.surface.isDark` when omitted) */
   theme?: 'dark' | 'light';
   /** Outer device width in px (default `520` — fits the 9:16 Golden Safe Box `x ∈ [40, 910]`) */
   width?: number;
@@ -36,7 +36,7 @@ function parseAspectRatio(ar: string | number): number {
  */
 export const PhoneFrame: React.FC<PhoneFrameProps> = ({
   variant = 'dynamic-island',
-  theme = 'dark',
+  theme,
   width = 520,
   aspectRatio = '9 / 19.5',
   height,
@@ -46,14 +46,16 @@ export const PhoneFrame: React.FC<PhoneFrameProps> = ({
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+  const studioStyle = useStudioStyle();
 
   const enter = spring({
     frame: frame - Math.max(2, enterFrame),
     fps,
-    config: SPRING_PRESETS.snappy,
+    config: getStyleSpringConfig(studioStyle, 'enter'),
   });
 
-  const isDark = theme === 'dark';
+  const hasExplicitTheme = theme !== undefined;
+  const isDark = hasExplicitTheme ? theme === 'dark' : studioStyle.surface.isDark;
   const outerH =
     typeof height === 'number'
       ? height
@@ -65,7 +67,7 @@ export const PhoneFrame: React.FC<PhoneFrameProps> = ({
 
   const titanium = isDark
     ? 'linear-gradient(145deg, #3A3D46 0%, #1C1E24 40%, #2A2C33 70%, #45484F 100%)'
-    : 'linear-gradient(145deg, #F1F2F4 0%, #C9CCD2 45%, #E4E6EA 75%, #FFFFFF 100%)';
+    : `linear-gradient(145deg, ${studioStyle.palette.bgElevated} 0%, ${studioStyle.palette.inkBorder} 45%, ${studioStyle.palette.bgSurface} 80%, #FFFFFF 100%)`;
 
   const translateY = interpolate(enter, [0, 1], [42, 0]);
   const scale = interpolate(enter, [0, 1], [0.93, 1]);
@@ -85,7 +87,7 @@ export const PhoneFrame: React.FC<PhoneFrameProps> = ({
         background: titanium,
         boxShadow: isDark
           ? '0 60px 120px -24px rgba(0,0,0,0.75), inset 0 0 0 1.5px rgba(255,255,255,0.12)'
-          : '0 50px 110px -24px rgba(15,23,42,0.32), inset 0 0 0 1.5px rgba(255,255,255,0.8)',
+          : `0 50px 110px -24px rgba(15,23,42,0.32), inset 0 0 0 1.5px ${studioStyle.palette.inkBorder}`,
         opacity: enter,
         transform: `translate3d(0, ${translateY.toFixed(2)}px, 0) scale(${scale.toFixed(4)})`,
         transformOrigin: 'center center',
@@ -101,7 +103,7 @@ export const PhoneFrame: React.FC<PhoneFrameProps> = ({
           width: 4,
           height: outerH * 0.06,
           borderRadius: 4,
-          background: isDark ? '#2A2C33' : '#C9CCD2',
+          background: isDark ? '#2A2C33' : studioStyle.palette.inkBorder,
         }}
       />
       <div
@@ -112,7 +114,7 @@ export const PhoneFrame: React.FC<PhoneFrameProps> = ({
           width: 4,
           height: outerH * 0.1,
           borderRadius: 4,
-          background: isDark ? '#2A2C33' : '#C9CCD2',
+          background: isDark ? '#2A2C33' : studioStyle.palette.inkBorder,
         }}
       />
 
@@ -124,7 +126,11 @@ export const PhoneFrame: React.FC<PhoneFrameProps> = ({
           height: '100%',
           borderRadius: innerRadius,
           overflow: 'hidden',
-          backgroundColor: '#000000',
+          backgroundColor: hasExplicitTheme
+            ? '#000000'
+            : isDark
+              ? '#000000'
+              : studioStyle.palette.bgCanvas,
         }}
       >
         <FrameMedia {...media} />

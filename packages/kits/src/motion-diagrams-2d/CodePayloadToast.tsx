@@ -1,6 +1,11 @@
 import React from 'react';
 import { interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
-import { FONTS, SPRING_PRESETS, THEME } from '@make-pictures/core';
+import {
+  formatFontFamilyCss,
+  getCardChromeStyle,
+  getStyleSpringConfig,
+  useStudioStyle,
+} from '@make-pictures/core';
 
 export interface CodePayloadToastProps {
   x: number;
@@ -15,16 +20,25 @@ export interface CodePayloadToastProps {
   endFrame: number;
 }
 
-function renderHighlightedLine(line: string, accentColor: string): React.ReactNode {
+function renderHighlightedLine(
+  line: string,
+  accentColor: string,
+  isDark: boolean,
+  textPrimary: string,
+  textSecondary: string
+): React.ReactNode {
+  const keyColor = isDark ? '#93C5FD' : '#1D4ED8';
+  const punctColor = textSecondary;
+
   const jsonKeyMatch = line.match(/^(\s*)("[^"]+")(\s*:\s*)(.*)$/);
   if (jsonKeyMatch) {
     const [, indent, keyPart, colonPart, valuePart] = jsonKeyMatch;
     return (
       <>
         <span>{indent}</span>
-        <span style={{ color: '#93C5FD' }}>{keyPart}</span>
-        <span style={{ color: '#64748B' }}>{colonPart}</span>
-        {renderJsonValue(valuePart, accentColor)}
+        <span style={{ color: keyColor }}>{keyPart}</span>
+        <span style={{ color: punctColor }}>{colonPart}</span>
+        {renderJsonValue(valuePart, accentColor, isDark, textPrimary, punctColor)}
       </>
     );
   }
@@ -38,25 +52,31 @@ function renderHighlightedLine(line: string, accentColor: string): React.ReactNo
           {tok}
         </span>
       ) : (
-        <span key={idx} style={{ color: '#E2E8F0' }}>
+        <span key={idx} style={{ color: textPrimary }}>
           {tok}
         </span>
       )
     );
   }
 
-  return <span style={{ color: '#94A3B8' }}>{line}</span>;
+  return <span style={{ color: textSecondary }}>{line}</span>;
 }
 
-function renderJsonValue(raw: string, accentColor: string): React.ReactNode {
+function renderJsonValue(
+  raw: string,
+  accentColor: string,
+  isDark: boolean,
+  textPrimary: string,
+  punctColor: string
+): React.ReactNode {
   const trailingComma = raw.endsWith(',') ? ',' : '';
   const clean = raw.endsWith(',') ? raw.slice(0, -1) : raw;
 
   if (/^".*"$/.test(clean)) {
     return (
       <>
-        <span style={{ color: '#6EE7B7' }}>{clean}</span>
-        <span style={{ color: '#64748B' }}>{trailingComma}</span>
+        <span style={{ color: isDark ? '#6EE7B7' : '#059669' }}>{clean}</span>
+        <span style={{ color: punctColor }}>{trailingComma}</span>
       </>
     );
   }
@@ -64,20 +84,20 @@ function renderJsonValue(raw: string, accentColor: string): React.ReactNode {
     return (
       <>
         <span style={{ color: accentColor, fontWeight: 600 }}>{clean}</span>
-        <span style={{ color: '#64748B' }}>{trailingComma}</span>
+        <span style={{ color: punctColor }}>{trailingComma}</span>
       </>
     );
   }
   if (/^-?\d+(\.\d+)?$/.test(clean)) {
     return (
       <>
-        <span style={{ color: '#FCD34D' }}>{clean}</span>
-        <span style={{ color: '#64748B' }}>{trailingComma}</span>
+        <span style={{ color: isDark ? '#FCD34D' : '#B45309' }}>{clean}</span>
+        <span style={{ color: punctColor }}>{trailingComma}</span>
       </>
     );
   }
 
-  return <span style={{ color: '#E2E8F0' }}>{raw}</span>;
+  return <span style={{ color: textPrimary }}>{raw}</span>;
 }
 
 export const CodePayloadToast: React.FC<CodePayloadToastProps> = ({
@@ -88,21 +108,29 @@ export const CodePayloadToast: React.FC<CodePayloadToastProps> = ({
   endpoint,
   latencyText = '18ms',
   code,
-  accentColor = THEME.colors.accents.cyan,
+  accentColor,
   startFrame,
   endFrame,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+  const studioStyle = useStudioStyle();
 
   if (frame < startFrame - 2 || frame > endFrame + 24) {
     return null;
   }
 
+  const resolvedAccent = accentColor ?? studioStyle.palette.accentPrimary;
+  const monoFontCss = formatFontFamilyCss(
+    studioStyle.typography.monoFont,
+    'mono'
+  );
+  const isDark = studioStyle.surface.isDark;
+
   const enterProgress = spring({
     frame: frame - startFrame,
     fps,
-    config: SPRING_PRESETS.snappy,
+    config: getStyleSpringConfig(studioStyle, 'enter'),
   });
 
   const exitProgress = interpolate(frame, [endFrame, endFrame + 18], [1, 0], {
@@ -116,6 +144,10 @@ export const CodePayloadToast: React.FC<CodePayloadToastProps> = ({
 
   const lines = code.trim().split('\n');
 
+  const chromeStyle = getCardChromeStyle(studioStyle, {
+    borderRadius: Math.max(0, Math.round(14 * studioStyle.surface.radiusScale)),
+  });
+
   return (
     <div
       style={{
@@ -126,10 +158,7 @@ export const CodePayloadToast: React.FC<CodePayloadToastProps> = ({
         opacity: combined,
         willChange: 'transform, opacity',
         transform: `translate3d(0, ${translateY}px, 0) scale(${scale})`,
-        borderRadius: THEME.radii.md,
-        backgroundColor: 'rgba(11, 14, 23, 0.95)',
-        border: `1px solid ${accentColor}44`,
-        boxShadow: `0 24px 60px rgba(0, 0, 0, 0.8), 0 0 28px ${accentColor}22, 0 1px 0 rgba(255, 255, 255, 0.1) inset`,
+        ...chromeStyle,
         overflow: 'hidden',
         pointerEvents: 'none',
       }}
@@ -140,21 +169,26 @@ export const CodePayloadToast: React.FC<CodePayloadToastProps> = ({
           alignItems: 'center',
           justifyContent: 'space-between',
           padding: '9px 14px',
-          backgroundColor: 'rgba(255, 255, 255, 0.03)',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.07)',
+          backgroundColor: isDark
+            ? 'rgba(255, 255, 255, 0.03)'
+            : studioStyle.palette.bgElevated,
+          borderBottom: `1px solid ${studioStyle.palette.inkBorder}`,
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span
             style={{
               padding: '2px 7px',
-              borderRadius: 5,
-              backgroundColor: `${accentColor}24`,
-              border: `1px solid ${accentColor}66`,
-              fontFamily: FONTS.mono,
+              borderRadius: Math.max(
+                0,
+                Math.round(5 * studioStyle.surface.radiusScale)
+              ),
+              backgroundColor: `${resolvedAccent}24`,
+              border: `1px solid ${resolvedAccent}66`,
+              fontFamily: monoFontCss,
               fontSize: 10,
               fontWeight: 600,
-              color: accentColor,
+              color: resolvedAccent,
               letterSpacing: '0.04em',
             }}
           >
@@ -162,10 +196,10 @@ export const CodePayloadToast: React.FC<CodePayloadToastProps> = ({
           </span>
           <span
             style={{
-              fontFamily: FONTS.mono,
+              fontFamily: monoFontCss,
               fontSize: 11.5,
               fontWeight: 500,
-              color: THEME.colors.textPrimary,
+              color: studioStyle.palette.textPrimary,
             }}
           >
             {endpoint}
@@ -174,9 +208,9 @@ export const CodePayloadToast: React.FC<CodePayloadToastProps> = ({
 
         <span
           style={{
-            fontFamily: FONTS.mono,
+            fontFamily: monoFontCss,
             fontSize: 10.5,
-            color: THEME.colors.textSecondary,
+            color: studioStyle.palette.textSecondary,
           }}
         >
           {latencyText}
@@ -186,7 +220,7 @@ export const CodePayloadToast: React.FC<CodePayloadToastProps> = ({
       <div
         style={{
           padding: '12px 16px',
-          fontFamily: FONTS.mono,
+          fontFamily: monoFontCss,
           fontSize: 12,
           lineHeight: 1.55,
           whiteSpace: 'pre',
@@ -211,14 +245,22 @@ export const CodePayloadToast: React.FC<CodePayloadToastProps> = ({
               <span
                 style={{
                   width: 22,
-                  color: 'rgba(100, 116, 139, 0.45)',
+                  color: `${studioStyle.palette.textSecondary}88`,
                   userSelect: 'none',
                   fontSize: 10.5,
                 }}
               >
                 {idx + 1}
               </span>
-              <span>{renderHighlightedLine(line, accentColor)}</span>
+              <span>
+                {renderHighlightedLine(
+                  line,
+                  resolvedAccent,
+                  isDark,
+                  studioStyle.palette.textPrimary,
+                  studioStyle.palette.textSecondary
+                )}
+              </span>
             </div>
           );
         })}

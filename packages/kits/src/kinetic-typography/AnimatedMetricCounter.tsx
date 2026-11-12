@@ -7,12 +7,14 @@ import {
   useVideoConfig,
 } from 'remotion';
 import {
-  FONTS,
-  SPRING_PRESETS,
   STUDIO_THEME,
   THEME,
+  formatFontFamilyCss,
+  getCardChromeStyle,
+  getStyleSpringConfig,
   useStudioFontsReady,
-} from '../../../core/src/theme';
+  useStudioStyle,
+} from '@make-pictures/core';
 
 export interface AnimatedMetricCounterProps {
   /** Target numeric value */
@@ -33,9 +35,9 @@ export interface AnimatedMetricCounterProps {
   label?: string;
   /** Optional delta pill badge (e.g. `"+240%"`) */
   badge?: string;
-  /** Highlight accent color (default `STUDIO_THEME.colors.accents.emerald`) */
+  /** Highlight accent color (defaults to `studioStyle.palette.accentPrimary`) */
   accentColor?: string;
-  /** Presentation mode (`'inline'` renders pure tabular text without card chrome) */
+  /** Presentation mode (`'inline'` renders pure tabular text without card chrome; inherits `StylePreset` card chrome when omitted) */
   variant?: 'dark' | 'light' | 'inline';
   /** Thousands separator character (default `','`) */
   thousandSeparator?: string;
@@ -74,8 +76,8 @@ export const AnimatedMetricCounter: React.FC<AnimatedMetricCounterProps> = ({
   durationInFrames = 54,
   label,
   badge,
-  accentColor = STUDIO_THEME.colors.accents.emerald,
-  variant = 'dark',
+  accentColor,
+  variant,
   thousandSeparator = ',',
   fontSize,
   style,
@@ -83,6 +85,21 @@ export const AnimatedMetricCounter: React.FC<AnimatedMetricCounterProps> = ({
   const frame = useCurrentFrame();
   const { fps, width, height } = useVideoConfig();
   useStudioFontsReady();
+  const studioStyle = useStudioStyle();
+
+  const resolvedAccent = accentColor ?? studioStyle.palette.accentPrimary;
+  const displayFontCss = formatFontFamilyCss(
+    studioStyle.typography.displayFont,
+    'display'
+  );
+  const bodyFontCss = formatFontFamilyCss(
+    studioStyle.typography.bodyFont,
+    'body'
+  );
+  const monoFontCss = formatFontFamilyCss(
+    studioStyle.typography.monoFont,
+    'mono'
+  );
 
   const effectiveStart = Math.max(2, startFrame);
   const dur = Math.max(6, durationInFrames);
@@ -90,7 +107,7 @@ export const AnimatedMetricCounter: React.FC<AnimatedMetricCounterProps> = ({
   const enter = spring({
     frame: frame - effectiveStart,
     fps,
-    config: SPRING_PRESETS.snappy,
+    config: getStyleSpringConfig(studioStyle, 'enter'),
   });
 
   const countProgress = interpolate(
@@ -118,11 +135,12 @@ export const AnimatedMetricCounter: React.FC<AnimatedMetricCounterProps> = ({
     return (
       <span
         style={{
-          fontFamily: FONTS.display,
+          fontFamily: displayFontCss,
           fontVariantNumeric: 'tabular-nums',
           fontWeight: 800,
           letterSpacing: '-0.03em',
           fontSize: fontSize ?? 56,
+          color: studioStyle.palette.textPrimary,
           opacity: enter,
           ...style,
         }}
@@ -137,8 +155,38 @@ export const AnimatedMetricCounter: React.FC<AnimatedMetricCounterProps> = ({
   }
 
   const isVertical = height > width;
-  const isLight = variant === 'light';
+  const hasExplicitVariant = variant !== undefined;
+  const isLight = hasExplicitVariant
+    ? variant === 'light'
+    : !studioStyle.surface.isDark;
   const resolvedFontSize = fontSize ?? (isVertical ? 68 : 76);
+
+  const chromeStyle: React.CSSProperties = hasExplicitVariant
+    ? {
+        borderRadius: 24,
+        backgroundColor: isLight
+          ? STUDIO_THEME.colors.bgSurfaceGlass
+          : 'rgba(13, 15, 26, 0.86)',
+        border: isLight
+          ? `1.5px solid ${STUDIO_THEME.colors.border.subtle}`
+          : '1.5px solid rgba(255, 255, 255, 0.12)',
+        boxShadow: isLight
+          ? STUDIO_THEME.shadows.cardElevated
+          : THEME.shadows.glow(resolvedAccent, 0.75),
+      }
+    : getCardChromeStyle(studioStyle);
+
+  const textPrimary = hasExplicitVariant
+    ? isLight
+      ? STUDIO_THEME.colors.text.slate900
+      : THEME.colors.textPrimary
+    : studioStyle.palette.textPrimary;
+
+  const textSecondary = hasExplicitVariant
+    ? isLight
+      ? STUDIO_THEME.colors.text.secondary
+      : THEME.colors.textSecondary
+    : studioStyle.palette.textSecondary;
 
   return (
     <div
@@ -148,17 +196,8 @@ export const AnimatedMetricCounter: React.FC<AnimatedMetricCounterProps> = ({
         alignItems: 'flex-start',
         gap: 10,
         padding: isVertical ? '26px 32px' : '30px 38px',
-        borderRadius: 24,
         boxSizing: 'border-box',
-        backgroundColor: isLight
-          ? STUDIO_THEME.colors.bgSurfaceGlass
-          : 'rgba(13, 15, 26, 0.86)',
-        border: isLight
-          ? `1.5px solid ${STUDIO_THEME.colors.border.subtle}`
-          : '1.5px solid rgba(255, 255, 255, 0.12)',
-        boxShadow: isLight
-          ? STUDIO_THEME.shadows.cardElevated
-          : THEME.shadows.glow(accentColor, 0.75),
+        ...chromeStyle,
         opacity: enter,
         transform: `translateY(${interpolate(enter, [0, 1], [22, 0]).toFixed(2)}px) scale(${interpolate(enter, [0, 1], [0.94, 1]).toFixed(4)})`,
         ...style,
@@ -173,15 +212,13 @@ export const AnimatedMetricCounter: React.FC<AnimatedMetricCounterProps> = ({
       >
         <span
           style={{
-            fontFamily: FONTS.display,
+            fontFamily: displayFontCss,
             fontVariantNumeric: 'tabular-nums',
             fontSize: resolvedFontSize,
             fontWeight: 800,
             lineHeight: 1,
             letterSpacing: '-0.035em',
-            color: isLight
-              ? STUDIO_THEME.colors.text.slate900
-              : THEME.colors.textPrimary,
+            color: textPrimary,
           }}
         >
           {formatted}
@@ -190,13 +227,13 @@ export const AnimatedMetricCounter: React.FC<AnimatedMetricCounterProps> = ({
         {badge && (
           <span
             style={{
-              fontFamily: FONTS.mono,
+              fontFamily: monoFontCss,
               fontSize: 15,
               fontWeight: 700,
               padding: '5px 12px',
               borderRadius: 9999,
               color: '#FFFFFF',
-              backgroundColor: accentColor,
+              backgroundColor: resolvedAccent,
             }}
           >
             {badge}
@@ -207,12 +244,10 @@ export const AnimatedMetricCounter: React.FC<AnimatedMetricCounterProps> = ({
       {label && (
         <div
           style={{
-            fontFamily: FONTS.sans,
+            fontFamily: bodyFontCss,
             fontSize: isVertical ? 20 : 21,
             fontWeight: 600,
-            color: isLight
-              ? STUDIO_THEME.colors.text.secondary
-              : THEME.colors.textSecondary,
+            color: textSecondary,
           }}
         >
           {label}
@@ -237,7 +272,7 @@ export const AnimatedMetricCounter: React.FC<AnimatedMetricCounterProps> = ({
             width: `${Math.round(countProgress * 100)}%`,
             height: '100%',
             borderRadius: 9999,
-            backgroundColor: accentColor,
+            backgroundColor: resolvedAccent,
           }}
         />
       </div>

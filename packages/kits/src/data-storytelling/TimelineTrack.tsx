@@ -7,12 +7,15 @@ import {
   useVideoConfig,
 } from 'remotion';
 import {
-  FONTS,
   SPRING_PRESETS,
   STUDIO_THEME,
   THEME,
+  formatFontFamilyCss,
+  getCardChromeStyle,
+  getStyleSpringConfig,
   useStudioFontsReady,
-} from '../../../core/src/theme';
+  useStudioStyle,
+} from '@make-pictures/core';
 
 export interface TimelineMilestone {
   id: string;
@@ -46,22 +49,37 @@ export interface TimelineTrackProps {
 export const TimelineTrack: React.FC<TimelineTrackProps> = ({
   milestones,
   orientation,
-  accentColor = STUDIO_THEME.colors.brand[600],
+  accentColor,
   enterFrame,
   startFrame,
-  variant = 'dark',
+  variant,
   safeBox9x16 = true,
   style,
 }) => {
   const frame = useCurrentFrame();
   const { fps, width, height } = useVideoConfig();
   useStudioFontsReady();
+  const studioStyle = useStudioStyle();
+
+  const resolvedAccent = accentColor ?? studioStyle.palette.accentPrimary;
+  const displayFontCss = formatFontFamilyCss(
+    studioStyle.typography.displayFont,
+    'display'
+  );
+  const bodyFontCss = formatFontFamilyCss(
+    studioStyle.typography.bodyFont,
+    'body'
+  );
+  const monoFontCss = formatFontFamilyCss(
+    studioStyle.typography.monoFont,
+    'mono'
+  );
 
   const effectiveStart = Math.max(2, startFrame ?? enterFrame ?? 2);
   const trackEnter = spring({
     frame: frame - effectiveStart,
     fps,
-    config: SPRING_PRESETS.snappy,
+    config: getStyleSpringConfig(studioStyle, 'enter'),
   });
 
   if (trackEnter <= 0.005 || milestones.length === 0) {
@@ -79,7 +97,50 @@ export const TimelineTrack: React.FC<TimelineTrackProps> = ({
   const resolvedOrientation =
     orientation ??
     (isVerticalViewport && sorted.length >= 4 ? 'vertical' : 'horizontal');
-  const isLight = variant === 'light';
+
+  const hasExplicitVariant = variant !== undefined;
+  const isLight = hasExplicitVariant
+    ? variant === 'light'
+    : !studioStyle.surface.isDark;
+
+  const chromeStyle: React.CSSProperties = hasExplicitVariant
+    ? {
+        borderRadius: 26,
+        backgroundColor: isLight
+          ? STUDIO_THEME.colors.bgSurfaceGlass
+          : 'rgba(13, 15, 26, 0.88)',
+        border: isLight
+          ? `1.5px solid ${STUDIO_THEME.colors.border.subtle}`
+          : '1.5px solid rgba(255, 255, 255, 0.12)',
+        boxShadow: isLight
+          ? STUDIO_THEME.shadows.cardElevated
+          : THEME.shadows.card,
+      }
+    : getCardChromeStyle(studioStyle);
+
+  const textPrimary = hasExplicitVariant
+    ? isLight
+      ? STUDIO_THEME.colors.text.slate900
+      : THEME.colors.textPrimary
+    : studioStyle.palette.textPrimary;
+
+  const textSecondary = hasExplicitVariant
+    ? isLight
+      ? STUDIO_THEME.colors.text.secondary
+      : THEME.colors.textSecondary
+    : studioStyle.palette.textSecondary;
+
+  const inactiveNodeBg = hasExplicitVariant
+    ? isLight
+      ? '#FFFFFF'
+      : '#1E293B'
+    : studioStyle.palette.bgElevated;
+
+  const inactiveNodeBorder = hasExplicitVariant
+    ? isLight
+      ? '#CBD5E1'
+      : 'rgba(255,255,255,0.2)'
+    : studioStyle.palette.inkBorder;
 
   // Compute active index & continuous rail progress across milestones
   let activeIdx = 0;
@@ -102,7 +163,7 @@ export const TimelineTrack: React.FC<TimelineTrackProps> = ({
   const totalSteps = Math.max(1, sorted.length - 1);
   const fillFraction =
     sorted.length <= 1 ? 1 : Math.min(1, Math.max(0, continuousIndex / totalSteps));
-  const activeColor = sorted[activeIdx]?.color ?? accentColor;
+  const activeColor = sorted[activeIdx]?.color ?? resolvedAccent;
 
   const containerWidth =
     isVerticalViewport && safeBox9x16 ? Math.min(830, width - 90) : 1120;
@@ -116,17 +177,8 @@ export const TimelineTrack: React.FC<TimelineTrackProps> = ({
         style={{
           width: Math.min(containerWidth, 680),
           padding: '30px 34px',
-          borderRadius: 26,
           boxSizing: 'border-box',
-          backgroundColor: isLight
-            ? STUDIO_THEME.colors.bgSurfaceGlass
-            : 'rgba(13, 15, 26, 0.88)',
-          border: isLight
-            ? `1.5px solid ${STUDIO_THEME.colors.border.subtle}`
-            : '1.5px solid rgba(255, 255, 255, 0.12)',
-          boxShadow: isLight
-            ? STUDIO_THEME.shadows.cardElevated
-            : THEME.shadows.card,
+          ...chromeStyle,
           opacity: trackEnter,
           transform: `translateY(${interpolate(trackEnter, [0, 1], [22, 0]).toFixed(2)}px)`,
           ...style,
@@ -168,7 +220,7 @@ export const TimelineTrack: React.FC<TimelineTrackProps> = ({
           {sorted.map((m, idx) => {
             const isCompleted = idx < activeIdx;
             const isActive = idx === activeIdx;
-            const nodeColor = m.color ?? accentColor;
+            const nodeColor = m.color ?? resolvedAccent;
             const pop = spring({
               frame: Math.max(0, frame - m.resolvedFrame),
               fps,
@@ -196,17 +248,9 @@ export const TimelineTrack: React.FC<TimelineTrackProps> = ({
                     alignItems: 'center',
                     justifyContent: 'center',
                     backgroundColor:
-                      isActive || isCompleted
-                        ? nodeColor
-                        : isLight
-                          ? '#FFFFFF'
-                          : '#1E293B',
+                      isActive || isCompleted ? nodeColor : inactiveNodeBg,
                     border: `3px solid ${
-                      isActive || isCompleted
-                        ? nodeColor
-                        : isLight
-                          ? '#CBD5E1'
-                          : 'rgba(255,255,255,0.2)'
+                      isActive || isCompleted ? nodeColor : inactiveNodeBorder
                     }`,
                     boxShadow: isActive
                       ? `0 0 28px ${nodeColor}88`
@@ -219,15 +263,10 @@ export const TimelineTrack: React.FC<TimelineTrackProps> = ({
                   ) : (
                     <span
                       style={{
-                        fontFamily: FONTS.mono,
+                        fontFamily: monoFontCss,
                         fontSize: 15,
                         fontWeight: 800,
-                        color:
-                          isActive
-                            ? '#FFFFFF'
-                            : isLight
-                              ? '#64748B'
-                              : '#94A3B8',
+                        color: isActive ? '#FFFFFF' : textSecondary,
                       }}
                     >
                       {idx + 1}
@@ -239,16 +278,12 @@ export const TimelineTrack: React.FC<TimelineTrackProps> = ({
                   {m.era && (
                     <span
                       style={{
-                        fontFamily: FONTS.mono,
+                        fontFamily: monoFontCss,
                         fontSize: 13,
                         fontWeight: 700,
                         letterSpacing: '0.07em',
                         textTransform: 'uppercase',
-                        color: isActive
-                          ? nodeColor
-                          : isLight
-                            ? STUDIO_THEME.colors.text.muted
-                            : THEME.colors.textMuted,
+                        color: isActive ? nodeColor : textSecondary,
                       }}
                     >
                       {m.era}
@@ -256,17 +291,10 @@ export const TimelineTrack: React.FC<TimelineTrackProps> = ({
                   )}
                   <span
                     style={{
-                      fontFamily: FONTS.display,
+                      fontFamily: displayFontCss,
                       fontSize: 22,
                       fontWeight: 800,
-                      color:
-                        isActive || isCompleted
-                          ? isLight
-                            ? STUDIO_THEME.colors.text.slate900
-                            : THEME.colors.textPrimary
-                          : isLight
-                            ? '#94A3B8'
-                            : '#64748B',
+                      color: isActive || isCompleted ? textPrimary : textSecondary,
                     }}
                   >
                     {m.label}
@@ -274,12 +302,10 @@ export const TimelineTrack: React.FC<TimelineTrackProps> = ({
                   {m.detail && (
                     <span
                       style={{
-                        fontFamily: FONTS.sans,
+                        fontFamily: bodyFontCss,
                         fontSize: 16,
                         fontWeight: 500,
-                        color: isLight
-                          ? STUDIO_THEME.colors.text.secondary
-                          : THEME.colors.textSecondary,
+                        color: textSecondary,
                       }}
                     >
                       {m.detail}
@@ -300,17 +326,8 @@ export const TimelineTrack: React.FC<TimelineTrackProps> = ({
       style={{
         width: containerWidth,
         padding: isVerticalViewport ? '28px 26px' : '32px 42px',
-        borderRadius: 26,
         boxSizing: 'border-box',
-        backgroundColor: isLight
-          ? STUDIO_THEME.colors.bgSurfaceGlass
-          : 'rgba(13, 15, 26, 0.88)',
-        border: isLight
-          ? `1.5px solid ${STUDIO_THEME.colors.border.subtle}`
-          : '1.5px solid rgba(255, 255, 255, 0.12)',
-        boxShadow: isLight
-          ? STUDIO_THEME.shadows.cardElevated
-          : THEME.shadows.card,
+        ...chromeStyle,
         opacity: trackEnter,
         transform: `translateY(${interpolate(trackEnter, [0, 1], [22, 0]).toFixed(2)}px)`,
         ...style,
@@ -353,7 +370,7 @@ export const TimelineTrack: React.FC<TimelineTrackProps> = ({
         {sorted.map((m, idx) => {
           const isCompleted = idx < activeIdx;
           const isActive = idx === activeIdx;
-          const nodeColor = m.color ?? accentColor;
+          const nodeColor = m.color ?? resolvedAccent;
 
           return (
             <div
@@ -379,17 +396,9 @@ export const TimelineTrack: React.FC<TimelineTrackProps> = ({
                   alignItems: 'center',
                   justifyContent: 'center',
                   backgroundColor:
-                    isActive || isCompleted
-                      ? nodeColor
-                      : isLight
-                        ? '#FFFFFF'
-                        : '#0F172A',
+                    isActive || isCompleted ? nodeColor : inactiveNodeBg,
                   border: `3px solid ${
-                    isActive || isCompleted
-                      ? nodeColor
-                      : isLight
-                        ? '#CBD5E1'
-                        : 'rgba(255,255,255,0.22)'
+                    isActive || isCompleted ? nodeColor : inactiveNodeBorder
                   }`,
                   boxShadow: isActive ? `0 0 28px ${nodeColor}99` : 'none',
                   transform: `scale(${isActive ? haloScale.toFixed(3) : '1'})`,
@@ -400,14 +409,10 @@ export const TimelineTrack: React.FC<TimelineTrackProps> = ({
                 ) : (
                   <span
                     style={{
-                      fontFamily: FONTS.mono,
+                      fontFamily: monoFontCss,
                       fontSize: 16,
                       fontWeight: 800,
-                      color: isActive
-                        ? '#FFFFFF'
-                        : isLight
-                          ? '#64748B'
-                          : '#94A3B8',
+                      color: isActive ? '#FFFFFF' : textSecondary,
                     }}
                   >
                     {idx + 1}
@@ -418,19 +423,21 @@ export const TimelineTrack: React.FC<TimelineTrackProps> = ({
               {m.era && (
                 <span
                   style={{
-                    fontFamily: FONTS.mono,
+                    fontFamily: monoFontCss,
                     fontSize: 13,
                     fontWeight: 700,
                     letterSpacing: '0.07em',
                     textTransform: 'uppercase',
                     padding: '2px 10px',
                     borderRadius: 9999,
-                    color: isActive ? '#FFFFFF' : isLight ? '#64748B' : '#94A3B8',
+                    color: isActive ? '#FFFFFF' : textSecondary,
                     backgroundColor: isActive
                       ? nodeColor
-                      : isLight
-                        ? 'rgba(15, 23, 42, 0.06)'
-                        : 'rgba(255, 255, 255, 0.07)',
+                      : hasExplicitVariant
+                        ? isLight
+                          ? 'rgba(15, 23, 42, 0.06)'
+                          : 'rgba(255, 255, 255, 0.07)'
+                        : studioStyle.palette.bgElevated,
                   }}
                 >
                   {m.era}
@@ -439,18 +446,11 @@ export const TimelineTrack: React.FC<TimelineTrackProps> = ({
 
               <div
                 style={{
-                  fontFamily: FONTS.display,
+                  fontFamily: displayFontCss,
                   fontSize: isVerticalViewport ? 19 : 21,
                   fontWeight: 800,
                   lineHeight: 1.2,
-                  color:
-                    isActive || isCompleted
-                      ? isLight
-                        ? STUDIO_THEME.colors.text.slate900
-                        : THEME.colors.textPrimary
-                      : isLight
-                        ? '#94A3B8'
-                        : '#64748B',
+                  color: isActive || isCompleted ? textPrimary : textSecondary,
                 }}
               >
                 {m.label}
@@ -459,12 +459,10 @@ export const TimelineTrack: React.FC<TimelineTrackProps> = ({
               {m.detail && (
                 <div
                   style={{
-                    fontFamily: FONTS.sans,
+                    fontFamily: bodyFontCss,
                     fontSize: 15,
                     fontWeight: 500,
-                    color: isLight
-                      ? STUDIO_THEME.colors.text.secondary
-                      : THEME.colors.textSecondary,
+                    color: textSecondary,
                   }}
                 >
                   {m.detail}

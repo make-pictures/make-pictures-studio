@@ -1,6 +1,11 @@
 import React from 'react';
 import { interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
-import { FONTS, SPRING_PRESETS, THEME } from '@make-pictures/core';
+import {
+  SPRING_PRESETS,
+  THEME,
+  formatFontFamilyCss,
+  useStudioStyle,
+} from '@make-pictures/core';
 
 export interface Point2D {
   x: number;
@@ -49,7 +54,7 @@ export const DataFlowEdge: React.FC<DataFlowEdgeProps> = ({
   from,
   to,
   curveOffsetY = -70,
-  color = THEME.colors.accents.cyan,
+  color,
   secondaryColor,
   drawStartFrame = 0,
   flowStartFrame = 30,
@@ -63,8 +68,18 @@ export const DataFlowEdge: React.FC<DataFlowEdgeProps> = ({
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+  const studioStyle = useStudioStyle();
 
-  const endColor = secondaryColor ?? color;
+  const resolvedColor = color ?? studioStyle.palette.accentPrimary;
+  const endColor =
+    secondaryColor ??
+    (color === undefined ? studioStyle.palette.accentSecondary : resolvedColor);
+  const monoFontCss = formatFontFamilyCss(
+    studioStyle.typography.monoFont,
+    'mono'
+  );
+  const isDark = studioStyle.surface.isDark;
+
   const dx = to.x - from.x;
 
   const p0 = from;
@@ -168,7 +183,7 @@ export const DataFlowEdge: React.FC<DataFlowEdgeProps> = ({
             y2={to.y}
             gradientUnits="userSpaceOnUse"
           >
-            <stop offset="0%" stopColor={color} />
+            <stop offset="0%" stopColor={resolvedColor} />
             <stop offset="100%" stopColor={endColor} />
           </linearGradient>
         </defs>
@@ -176,7 +191,8 @@ export const DataFlowEdge: React.FC<DataFlowEdgeProps> = ({
         <path
           d={pathData}
           fill="none"
-          stroke="rgba(255, 255, 255, 0.09)"
+          stroke={isDark ? 'rgba(255, 255, 255, 0.12)' : studioStyle.palette.inkBorder}
+          strokeOpacity={isDark ? 1 : 0.45}
           strokeWidth={2}
           strokeDasharray={pathLengthEstimate}
           strokeDashoffset={dashOffset}
@@ -218,7 +234,7 @@ export const DataFlowEdge: React.FC<DataFlowEdgeProps> = ({
           cx={from.x}
           cy={from.y}
           r={4.5}
-          fill={color}
+          fill={resolvedColor}
           opacity={drawProgress}
         />
         <circle
@@ -239,7 +255,7 @@ export const DataFlowEdge: React.FC<DataFlowEdgeProps> = ({
                   cx={pt.x}
                   cy={pt.y}
                   r={5.2 * ratio}
-                  fill={color}
+                  fill={resolvedColor}
                   opacity={0.4 * ratio}
                 />
               );
@@ -248,22 +264,22 @@ export const DataFlowEdge: React.FC<DataFlowEdgeProps> = ({
               cx={pkt.head.x}
               cy={pkt.head.y}
               r={16}
-              fill={color}
+              fill={resolvedColor}
               opacity={0.14}
             />
             <circle
               cx={pkt.head.x}
               cy={pkt.head.y}
               r={10}
-              fill={color}
+              fill={resolvedColor}
               opacity={0.28}
             />
             <circle
               cx={pkt.head.x}
               cy={pkt.head.y}
               r={5.2}
-              fill="#FFFFFF"
-              stroke={color}
+              fill={studioStyle.palette.bgSurface}
+              stroke={resolvedColor}
               strokeWidth={2.5}
             />
           </g>
@@ -288,14 +304,14 @@ export const DataFlowEdge: React.FC<DataFlowEdgeProps> = ({
             }),
             padding: '5px 12px',
             borderRadius: THEME.radii.pill,
-            backgroundColor: 'rgba(11, 14, 23, 0.94)',
+            backgroundColor: studioStyle.palette.bgSurface,
             border: `1px solid ${
-              flowAlpha > 0.2 ? `${color}77` : 'rgba(255,255,255,0.1)'
+              flowAlpha > 0.2 ? `${resolvedColor}77` : studioStyle.palette.inkBorder
             }`,
             boxShadow:
               flowAlpha > 0.2
-                ? `0 0 20px ${color}33, 0 8px 20px rgba(0,0,0,0.6)`
-                : '0 8px 20px rgba(0,0,0,0.6)',
+                ? `0 0 20px ${resolvedColor}33, 0 8px 20px rgba(0,0,0,0.22)`
+                : '0 8px 20px rgba(0,0,0,0.16)',
             display: 'flex',
             alignItems: 'center',
             gap: 7,
@@ -307,16 +323,16 @@ export const DataFlowEdge: React.FC<DataFlowEdgeProps> = ({
               width: 6,
               height: 6,
               borderRadius: '50%',
-              backgroundColor: color,
-              boxShadow: flowAlpha > 0.2 ? `0 0 8px ${color}` : 'none',
+              backgroundColor: resolvedColor,
+              boxShadow: flowAlpha > 0.2 ? `0 0 8px ${resolvedColor}` : 'none',
             }}
           />
           <span
             style={{
-              fontFamily: FONTS.mono,
+              fontFamily: monoFontCss,
               fontSize: 11,
               fontWeight: 600,
-              color: THEME.colors.textPrimary,
+              color: studioStyle.palette.textPrimary,
               letterSpacing: '0.04em',
             }}
           >
@@ -325,9 +341,9 @@ export const DataFlowEdge: React.FC<DataFlowEdgeProps> = ({
           {subLabel && (
             <span
               style={{
-                fontFamily: FONTS.mono,
+                fontFamily: monoFontCss,
                 fontSize: 10.5,
-                color: THEME.colors.textSecondary,
+                color: studioStyle.palette.textSecondary,
               }}
             >
               • {subLabel}

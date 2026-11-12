@@ -276,6 +276,7 @@ export const PopUpBookBase3D: React.FC<{
 
 /**
  * 3D Paper Cloud Cutout with Thick White Paper Border & Shadow Casting
+ * @deprecated Legacy Mount Everest showcase prop — build custom cutouts or use DioramaStage3D in new productions.
  */
 export const PaperCloudCutout3D: React.FC<{
   position: [number, number, number];
@@ -321,6 +322,7 @@ export const PaperCloudCutout3D: React.FC<{
 
 /**
  * 3D Paper Pine Tree Cutout (For multi-plane valley parallax & shadows)
+ * @deprecated Legacy Mount Everest showcase prop — build custom cutouts or use DioramaStage3D in new productions.
  */
 export const PaperPineTree3D: React.FC<{
   position: [number, number, number];
@@ -364,6 +366,7 @@ export const PaperPineTree3D: React.FC<{
 
 /**
  * Multi-Plane 3D Paper Cutout Mountain Backdrop
+ * @deprecated Legacy Mount Everest showcase prop — build custom cutouts or use DioramaStage3D in new productions.
  */
 export const PaperMountainBackdrop3D: React.FC<{
   position?: [number, number, number];

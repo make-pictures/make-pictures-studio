@@ -1,6 +1,12 @@
 import React from 'react';
 import { interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
-import { FONTS, SPRING_PRESETS, useStudioFontsReady } from '@make-pictures/core';
+import {
+  SPRING_PRESETS,
+  formatFontFamilyCss,
+  getStyleSpringConfig,
+  useStudioFontsReady,
+  useStudioStyle,
+} from '@make-pictures/core';
 
 export interface ScreenSpotlightOverlayProps {
   /** Highlight left edge (percent `0..100` of parent by default, or px with `unit="px"`) */
@@ -19,11 +25,11 @@ export interface ScreenSpotlightOverlayProps {
   endFrame?: number;
   /** Short 2–3 word callout pill */
   label?: string;
-  /** Ring & pill accent (default `'#38bdf8'`) */
+  /** Ring & pill accent (defaults to `studioStyle.palette.accentPrimary`) */
   accentColor?: string;
   /** Darkening applied outside the highlight (default `0.45`) */
   dimOpacity?: number;
-  /** Highlight corner radius in px (default `14`) */
+  /** Highlight corner radius in px (scales with `studioStyle.surface.radiusScale` when omitted) */
   borderRadius?: number;
   /** Label placement relative to the highlight (default `'auto'`) */
   labelPosition?: 'auto' | 'top' | 'bottom';
@@ -44,20 +50,29 @@ export const ScreenSpotlightOverlay: React.FC<ScreenSpotlightOverlayProps> = ({
   startFrame,
   endFrame,
   label,
-  accentColor = '#38bdf8',
+  accentColor,
   dimOpacity = 0.45,
-  borderRadius = 14,
+  borderRadius,
   labelPosition = 'auto',
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   useStudioFontsReady();
+  const studioStyle = useStudioStyle();
+
+  const resolvedAccent = accentColor ?? studioStyle.palette.accentPrimary;
+  const resolvedRadius =
+    borderRadius ?? Math.max(0, Math.round(14 * studioStyle.surface.radiusScale));
+  const bodyFontCss = formatFontFamilyCss(
+    studioStyle.typography.bodyFont,
+    'body'
+  );
 
   const effectiveStart = Math.max(2, startFrame);
   const enter = spring({
     frame: frame - effectiveStart,
     fps,
-    config: SPRING_PRESETS.smooth,
+    config: getStyleSpringConfig(studioStyle, 'enter'),
   });
   const exit =
     typeof endFrame === 'number'
@@ -84,7 +99,7 @@ export const ScreenSpotlightOverlay: React.FC<ScreenSpotlightOverlayProps> = ({
   const labelPop = spring({
     frame: frame - effectiveStart - 8,
     fps,
-    config: SPRING_PRESETS.snappy,
+    config: getStyleSpringConfig(studioStyle, 'emphasis'),
   });
 
   const placeTop =
@@ -108,7 +123,7 @@ export const ScreenSpotlightOverlay: React.FC<ScreenSpotlightOverlayProps> = ({
           top: `${top}${u}`,
           width: `${w}${u}`,
           height: `${h}${u}`,
-          borderRadius,
+          borderRadius: resolvedRadius,
           boxShadow: `0 0 0 9999px rgba(2, 6, 23, ${(dimOpacity * visibility).toFixed(3)})`,
         }}
       />
@@ -119,10 +134,10 @@ export const ScreenSpotlightOverlay: React.FC<ScreenSpotlightOverlayProps> = ({
           top: `${top}${u}`,
           width: `${w}${u}`,
           height: `${h}${u}`,
-          borderRadius,
-          border: `3px solid ${accentColor}`,
+          borderRadius: resolvedRadius,
+          border: `3px solid ${resolvedAccent}`,
           boxSizing: 'border-box',
-          boxShadow: `0 0 ${ringGlow.toFixed(1)}px ${accentColor}AA, inset 0 0 ${(ringGlow * 0.6).toFixed(1)}px ${accentColor}55`,
+          boxShadow: `0 0 ${ringGlow.toFixed(1)}px ${resolvedAccent}AA, inset 0 0 ${(ringGlow * 0.6).toFixed(1)}px ${resolvedAccent}55`,
           opacity: visibility,
         }}
       >
@@ -136,14 +151,14 @@ export const ScreenSpotlightOverlay: React.FC<ScreenSpotlightOverlayProps> = ({
               opacity: labelPop * visibility,
               padding: '7px 16px',
               borderRadius: 9999,
-              backgroundColor: accentColor,
-              color: '#020617',
-              fontFamily: FONTS.sans,
+              backgroundColor: resolvedAccent,
+              color: '#FFFFFF',
+              fontFamily: bodyFontCss,
               fontSize: 18,
               fontWeight: 800,
               letterSpacing: '-0.01em',
               whiteSpace: 'nowrap',
-              boxShadow: `0 10px 28px ${accentColor}66`,
+              boxShadow: `0 10px 28px ${resolvedAccent}66`,
             }}
           >
             {label}

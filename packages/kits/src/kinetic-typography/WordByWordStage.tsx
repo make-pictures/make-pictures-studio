@@ -7,17 +7,18 @@ import {
   useVideoConfig,
 } from 'remotion';
 import {
-  FONTS,
   SPRING_PRESETS,
   STUDIO_THEME,
   THEME,
+  formatFontFamilyCss,
+  formatHeadingText,
+  getSceneVoiceover,
+  getStyleSpringConfig,
   useStudioFontsReady,
-} from '../../../core/src/theme';
-import type {
-  SceneVoiceoverData,
-  WordTimestamp,
-} from '../../../core/src/types/scene';
-import { getSceneVoiceover } from '../../../core/src/utils/timestamps';
+  useStudioStyle,
+  type SceneVoiceoverData,
+  type WordTimestamp,
+} from '@make-pictures/core';
 
 export interface WordPhraseBeat {
   words: WordTimestamp[];
@@ -38,7 +39,7 @@ export interface WordByWordStageProps {
   sceneStartFrame?: number;
   /** Target words per visual beat (`3..5` recommended, default `4`) */
   wordsPerBeat?: number;
-  /** Highlight pill accent color (default `STUDIO_THEME.colors.brand[600]`) */
+  /** Highlight pill accent color (defaults to `studioStyle.palette.accentPrimary`) */
   accentColor?: string;
   /** Surface styling mode (`'transparent'` overlays 2D/3D stage cleanly) */
   variant?: 'dark' | 'light' | 'transparent';
@@ -146,8 +147,8 @@ export const WordByWordStage: React.FC<WordByWordStageProps> = ({
   fallbackText,
   sceneStartFrame = 0,
   wordsPerBeat = 4,
-  accentColor = STUDIO_THEME.colors.brand[600],
-  variant = 'transparent',
+  accentColor,
+  variant,
   eyebrow,
   fontSize,
   safeBox9x16 = true,
@@ -158,6 +159,18 @@ export const WordByWordStage: React.FC<WordByWordStageProps> = ({
   const frame = useCurrentFrame();
   const { fps, width, height, durationInFrames } = useVideoConfig();
   useStudioFontsReady();
+  const studioStyle = useStudioStyle();
+
+  const resolvedAccent = accentColor ?? studioStyle.palette.accentPrimary;
+  const displayFontCss = formatFontFamilyCss(
+    studioStyle.typography.displayFont,
+    'display'
+  );
+  const monoFontCss = formatFontFamilyCss(
+    studioStyle.typography.monoFont,
+    'mono'
+  );
+  const enterSpring = getStyleSpringConfig(studioStyle, 'enter');
 
   const resolvedWords = useMemo<ReadonlyArray<WordTimestamp>>(() => {
     if (words && words.length > 0) return words;
@@ -181,7 +194,7 @@ export const WordByWordStage: React.FC<WordByWordStageProps> = ({
   const stageEnter = spring({
     frame: frame - Math.max(2, startFrame ?? enterFrame ?? 2),
     fps,
-    config: SPRING_PRESETS.snappy,
+    config: enterSpring,
   });
 
   if (stageEnter <= 0.005 || beats.length === 0) {
@@ -207,7 +220,7 @@ export const WordByWordStage: React.FC<WordByWordStageProps> = ({
   const beatEnter = spring({
     frame: Math.max(0, localFrame - (activeBeat.startFrame - 4)),
     fps,
-    config: SPRING_PRESETS.snappy,
+    config: enterSpring,
   });
 
   // Locate currently spoken word inside `activeBeat`
@@ -220,13 +233,31 @@ export const WordByWordStage: React.FC<WordByWordStageProps> = ({
   }
 
   const isVertical = height > width;
-  const isLight = variant === 'light';
-  const textPrimary = isLight
-    ? STUDIO_THEME.colors.text.slate900
-    : THEME.colors.textPrimary;
+  const isLight =
+    variant === 'light'
+      ? true
+      : variant === 'dark'
+        ? false
+        : !studioStyle.surface.isDark;
 
-  const resolvedFontSize =
-    fontSize ?? (isVertical ? 64 : 74);
+  const textPrimary =
+    variant === 'dark'
+      ? THEME.colors.textPrimary
+      : variant === 'light'
+        ? studioStyle.surface.isDark
+          ? STUDIO_THEME.colors.text.slate900
+          : studioStyle.palette.textPrimary
+        : studioStyle.palette.textPrimary;
+
+  const resolvedBg =
+    variant === 'dark'
+      ? THEME.colors.bgPrimary
+      : variant === 'light'
+        ? studioStyle.palette.bgCanvas
+        : 'transparent';
+
+  const resolvedFontSize = fontSize ?? (isVertical ? 64 : 74);
+  const pillRadius = Math.max(0, Math.round(18 * studioStyle.surface.radiusScale));
 
   // Golden Safe Box bounds in 9:16: x ∈ [40, 910], y ∈ [220, 1380]
   const containerPaddingStyle: React.CSSProperties =
@@ -251,12 +282,7 @@ export const WordByWordStage: React.FC<WordByWordStageProps> = ({
   return (
     <AbsoluteFill
       style={{
-        backgroundColor:
-          variant === 'dark'
-            ? THEME.colors.bgPrimary
-            : variant === 'light'
-              ? STUDIO_THEME.colors.bgCanvas
-              : 'transparent',
+        backgroundColor: resolvedBg,
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
@@ -282,16 +308,18 @@ export const WordByWordStage: React.FC<WordByWordStageProps> = ({
         {eyebrow && (
           <div
             style={{
-              fontFamily: FONTS.mono,
+              fontFamily: monoFontCss,
               fontSize: isVertical ? 18 : 19,
               fontWeight: 700,
               letterSpacing: '0.08em',
               textTransform: 'uppercase',
               padding: '8px 18px',
               borderRadius: 9999,
-              color: isLight ? accentColor : '#FFFFFF',
-              backgroundColor: isLight ? `${accentColor}16` : `${accentColor}33`,
-              border: `1.5px solid ${accentColor}66`,
+              color: isLight ? resolvedAccent : '#FFFFFF',
+              backgroundColor: isLight
+                ? `${resolvedAccent}16`
+                : `${resolvedAccent}33`,
+              border: `1.5px solid ${resolvedAccent}66`,
             }}
           >
             {eyebrow}
@@ -330,27 +358,27 @@ export const WordByWordStage: React.FC<WordByWordStageProps> = ({
                 key={`${activeBeatIndex}-${idx}-${w.startFrame}`}
                 style={{
                   display: 'inline-block',
-                  fontFamily: FONTS.display,
+                  fontFamily: displayFontCss,
                   fontSize: resolvedFontSize,
                   fontWeight: 800,
                   lineHeight: 1.15,
-                  letterSpacing: '-0.025em',
+                  letterSpacing: `${studioStyle.typography.displayTrackingEm}em`,
                   padding: isCurrent ? '6px 20px' : '6px 8px',
-                  borderRadius: 18,
+                  borderRadius: pillRadius,
                   color: isCurrent ? '#FFFFFF' : textPrimary,
-                  backgroundColor: isCurrent ? accentColor : 'transparent',
+                  backgroundColor: isCurrent ? resolvedAccent : 'transparent',
                   boxShadow: isCurrent
-                    ? `0 14px 36px ${accentColor}66, 0 0 0 2px rgba(255,255,255,0.22) inset`
+                    ? `0 14px 36px ${resolvedAccent}66, 0 0 0 2px rgba(255,255,255,0.22) inset`
                     : 'none',
                   opacity: wordOpacity,
                   transform: `translateY(${yShift.toFixed(2)}px) scale(${scale.toFixed(4)})`,
                   textShadow:
-                    !isCurrent && variant === 'transparent'
+                    !isCurrent && !isLight && (variant === 'transparent' || variant === undefined)
                       ? '0 4px 22px rgba(9, 10, 15, 0.55)'
                       : 'none',
                 }}
               >
-                {w.word}
+                {formatHeadingText(w.word, studioStyle)}
               </span>
             );
           })}
@@ -363,7 +391,7 @@ export const WordByWordStage: React.FC<WordByWordStageProps> = ({
             height: 5,
             borderRadius: 9999,
             backgroundColor: isLight
-              ? 'rgba(15, 23, 42, 0.10)'
+              ? `${studioStyle.palette.inkBorder}88`
               : 'rgba(255, 255, 255, 0.14)',
             overflow: 'hidden',
           }}
@@ -373,7 +401,7 @@ export const WordByWordStage: React.FC<WordByWordStageProps> = ({
               width: `${Math.round(beatProgress * 100)}%`,
               height: '100%',
               borderRadius: 9999,
-              backgroundColor: accentColor,
+              backgroundColor: resolvedAccent,
             }}
           />
         </div>

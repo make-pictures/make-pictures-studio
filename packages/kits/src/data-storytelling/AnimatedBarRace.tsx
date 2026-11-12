@@ -7,12 +7,16 @@ import {
   useVideoConfig,
 } from 'remotion';
 import {
-  FONTS,
   SPRING_PRESETS,
   STUDIO_THEME,
   THEME,
+  formatFontFamilyCss,
+  formatHeadingText,
+  getCardChromeStyle,
+  getStyleSpringConfig,
   useStudioFontsReady,
-} from '../../../core/src/theme';
+  useStudioStyle,
+} from '@make-pictures/core';
 
 export interface BarRaceKeyframe {
   frame: number;
@@ -48,14 +52,7 @@ export interface AnimatedBarRaceProps {
   style?: React.CSSProperties;
 }
 
-const DEFAULT_BAR_PALETTE = [
-  '#2563EB',
-  '#10B981',
-  '#38BDF8',
-  '#F59E0B',
-  '#F43F5E',
-  '#A855F7',
-];
+const FALLBACK_BAR_SWATCHES = ['#10B981', '#F59E0B', '#F43F5E', '#A855F7'];
 
 function evaluateItemValueAtFrame(item: BarRaceItem, f: number): number {
   const kf = item.keyframes;
@@ -147,24 +144,44 @@ export const AnimatedBarRace: React.FC<AnimatedBarRaceProps> = ({
   enterFrame,
   startFrame,
   staggerFrames = 5,
-  variant = 'dark',
+  variant,
   safeBox9x16 = true,
   style,
 }) => {
   const frame = useCurrentFrame();
   const { fps, width, height } = useVideoConfig();
   useStudioFontsReady();
+  const studioStyle = useStudioStyle();
+
+  const displayFontCss = formatFontFamilyCss(
+    studioStyle.typography.displayFont,
+    'display'
+  );
+  const bodyFontCss = formatFontFamilyCss(
+    studioStyle.typography.bodyFont,
+    'body'
+  );
+  const monoFontCss = formatFontFamilyCss(
+    studioStyle.typography.monoFont,
+    'mono'
+  );
 
   const effectiveStart = Math.max(2, startFrame ?? enterFrame ?? 2);
   const cardEnter = spring({
     frame: frame - effectiveStart,
     fps,
-    config: SPRING_PRESETS.snappy,
+    config: getStyleSpringConfig(studioStyle, 'enter'),
   });
 
   if (cardEnter <= 0.005 || items.length === 0) {
     return null;
   }
+
+  const barPalette = [
+    studioStyle.palette.accentPrimary,
+    studioStyle.palette.accentSecondary,
+    ...FALLBACK_BAR_SWATCHES,
+  ];
 
   const visibleCount = Math.min(items.length, Math.max(1, maxItems));
   const smoothedRanks = getSmoothedRanks(items, frame);
@@ -172,8 +189,7 @@ export const AnimatedBarRace: React.FC<AnimatedBarRaceProps> = ({
   const evaluated = items.map((item, idx) => {
     const rawVal = evaluateItemValueAtFrame(item, frame);
     const rank = smoothedRanks.get(item.id) ?? idx;
-    const color =
-      item.color ?? DEFAULT_BAR_PALETTE[idx % DEFAULT_BAR_PALETTE.length];
+    const color = item.color ?? barPalette[idx % barPalette.length];
     return {
       item,
       idx,
@@ -185,20 +201,14 @@ export const AnimatedBarRace: React.FC<AnimatedBarRaceProps> = ({
 
   const maxVal = Math.max(1e-6, ...evaluated.map((e) => e.rawVal));
   const isVerticalViewport = height > width;
-  const isLight = variant === 'light';
+  const hasExplicitVariant = variant !== undefined;
+  const isLight = hasExplicitVariant
+    ? variant === 'light'
+    : !studioStyle.surface.isDark;
 
-  const cardWidth =
-    isVerticalViewport && safeBox9x16 ? Math.min(830, width - 90) : 980;
-  const rowHeight = isVerticalViewport ? 72 : 76;
-  const rowGap = 14;
-
-  return (
-    <div
-      style={{
-        width: cardWidth,
-        padding: isVerticalViewport ? '28px 30px' : '34px 40px',
+  const chromeStyle: React.CSSProperties = hasExplicitVariant
+    ? {
         borderRadius: 26,
-        boxSizing: 'border-box',
         backgroundColor: isLight
           ? STUDIO_THEME.colors.bgSurfaceGlass
           : 'rgba(13, 15, 26, 0.88)',
@@ -209,6 +219,36 @@ export const AnimatedBarRace: React.FC<AnimatedBarRaceProps> = ({
           ? STUDIO_THEME.shadows.cardElevated
           : THEME.shadows.card,
         backdropFilter: 'blur(16px)',
+      }
+    : getCardChromeStyle(studioStyle);
+
+  const textPrimary = hasExplicitVariant
+    ? isLight
+      ? STUDIO_THEME.colors.text.slate900
+      : THEME.colors.textPrimary
+    : studioStyle.palette.textPrimary;
+
+  const textSecondary = hasExplicitVariant
+    ? isLight
+      ? STUDIO_THEME.colors.text.secondary
+      : THEME.colors.textSecondary
+    : studioStyle.palette.textSecondary;
+
+  const cardWidth =
+    isVerticalViewport && safeBox9x16 ? Math.min(830, width - 90) : 980;
+  const rowHeight = isVerticalViewport ? 72 : 76;
+  const rowGap = 14;
+  const rankRadius = hasExplicitVariant
+    ? 12
+    : Math.max(0, Math.round(12 * studioStyle.surface.radiusScale));
+
+  return (
+    <div
+      style={{
+        width: cardWidth,
+        padding: isVerticalViewport ? '28px 30px' : '34px 40px',
+        boxSizing: 'border-box',
+        ...chromeStyle,
         opacity: cardEnter,
         transform: `translateY(${interpolate(cardEnter, [0, 1], [24, 0]).toFixed(2)}px) scale(${interpolate(cardEnter, [0, 1], [0.95, 1]).toFixed(4)})`,
         ...style,
@@ -219,28 +259,24 @@ export const AnimatedBarRace: React.FC<AnimatedBarRaceProps> = ({
           {title && (
             <div
               style={{
-                fontFamily: FONTS.display,
+                fontFamily: displayFontCss,
                 fontSize: isVerticalViewport ? 30 : 34,
                 fontWeight: 800,
-                letterSpacing: '-0.02em',
-                color: isLight
-                  ? STUDIO_THEME.colors.text.slate900
-                  : THEME.colors.textPrimary,
+                letterSpacing: `${studioStyle.typography.displayTrackingEm}em`,
+                color: textPrimary,
               }}
             >
-              {title}
+              {hasExplicitVariant ? title : formatHeadingText(title, studioStyle)}
             </div>
           )}
           {subtitle && (
             <div
               style={{
                 marginTop: 4,
-                fontFamily: FONTS.sans,
+                fontFamily: bodyFontCss,
                 fontSize: 18,
                 fontWeight: 500,
-                color: isLight
-                  ? STUDIO_THEME.colors.text.secondary
-                  : THEME.colors.textSecondary,
+                color: textSecondary,
               }}
             >
               {subtitle}
@@ -291,21 +327,23 @@ export const AnimatedBarRace: React.FC<AnimatedBarRaceProps> = ({
                   style={{
                     width: 38,
                     height: 38,
-                    borderRadius: 12,
+                    borderRadius: rankRadius,
                     flexShrink: 0,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    fontFamily: FONTS.mono,
+                    fontFamily: monoFontCss,
                     fontSize: 16,
                     fontWeight: 800,
-                    color: rankBadge === 1 ? '#FFFFFF' : isLight ? '#334155' : '#CBD5E1',
+                    color: rankBadge === 1 ? '#FFFFFF' : textSecondary,
                     backgroundColor:
                       rankBadge === 1
                         ? color
-                        : isLight
-                          ? 'rgba(15, 23, 42, 0.07)'
-                          : 'rgba(255, 255, 255, 0.08)',
+                        : hasExplicitVariant
+                          ? isLight
+                            ? 'rgba(15, 23, 42, 0.07)'
+                            : 'rgba(255, 255, 255, 0.08)'
+                          : studioStyle.palette.bgElevated,
                   }}
                 >
                   {rankBadge}
@@ -334,12 +372,10 @@ export const AnimatedBarRace: React.FC<AnimatedBarRaceProps> = ({
                         display: 'flex',
                         alignItems: 'center',
                         gap: 8,
-                        fontFamily: FONTS.sans,
+                        fontFamily: bodyFontCss,
                         fontSize: 20,
                         fontWeight: 700,
-                        color: isLight
-                          ? STUDIO_THEME.colors.text.slate900
-                          : THEME.colors.textPrimary,
+                        color: textPrimary,
                         whiteSpace: 'nowrap',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
@@ -350,7 +386,7 @@ export const AnimatedBarRace: React.FC<AnimatedBarRaceProps> = ({
                       {item.badge && (
                         <span
                           style={{
-                            fontFamily: FONTS.mono,
+                            fontFamily: monoFontCss,
                             fontSize: 12,
                             fontWeight: 700,
                             padding: '2px 8px',
@@ -367,7 +403,7 @@ export const AnimatedBarRace: React.FC<AnimatedBarRaceProps> = ({
                     {/* Value Pill */}
                     <div
                       style={{
-                        fontFamily: FONTS.mono,
+                        fontFamily: monoFontCss,
                         fontVariantNumeric: 'tabular-nums',
                         fontSize: 17,
                         fontWeight: 700,
@@ -451,7 +487,7 @@ export const AnimatedBarRace: React.FC<AnimatedBarRaceProps> = ({
                 >
                   <div
                     style={{
-                      fontFamily: FONTS.mono,
+                      fontFamily: monoFontCss,
                       fontVariantNumeric: 'tabular-nums',
                       fontSize: 15,
                       fontWeight: 700,
@@ -470,20 +506,18 @@ export const AnimatedBarRace: React.FC<AnimatedBarRaceProps> = ({
                       width: '100%',
                       maxWidth: 74,
                       height: `${(fillRatio * 74).toFixed(2)}%`,
-                      borderRadius: '14px 14px 6px 6px',
+                      borderRadius: `${Math.round(14 * studioStyle.surface.radiusScale)}px ${Math.round(14 * studioStyle.surface.radiusScale)}px 6px 6px`,
                       background: `linear-gradient(180deg, ${color} 0%, ${color}AA 100%)`,
                       boxShadow: `0 8px 24px ${color}44`,
                     }}
                   />
                   <div
                     style={{
-                      fontFamily: FONTS.sans,
+                      fontFamily: bodyFontCss,
                       fontSize: 16,
                       fontWeight: 700,
                       textAlign: 'center',
-                      color: isLight
-                        ? STUDIO_THEME.colors.text.slate900
-                        : THEME.colors.textPrimary,
+                      color: textPrimary,
                     }}
                   >
                     {item.label}

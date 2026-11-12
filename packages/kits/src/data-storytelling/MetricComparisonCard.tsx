@@ -8,12 +8,16 @@ import {
   useVideoConfig,
 } from 'remotion';
 import {
-  FONTS,
   SPRING_PRESETS,
   STUDIO_THEME,
   THEME,
+  formatFontFamilyCss,
+  formatHeadingText,
+  getCardChromeStyle,
+  getStyleSpringConfig,
   useStudioFontsReady,
-} from '../../../core/src/theme';
+  useStudioStyle,
+} from '@make-pictures/core';
 
 export interface MetricComparisonCardProps {
   title?: string;
@@ -54,6 +58,8 @@ interface RadialGaugeProps {
   textLabel: string;
   isLight: boolean;
   size: number;
+  displayFontCss: string;
+  textColor: string;
 }
 
 const RadialGauge: React.FC<RadialGaugeProps> = ({
@@ -62,6 +68,8 @@ const RadialGauge: React.FC<RadialGaugeProps> = ({
   textLabel,
   isLight,
   size,
+  displayFontCss,
+  textColor,
 }) => {
   const stroke = 12;
   const radius = (size - stroke) / 2;
@@ -104,14 +112,12 @@ const RadialGauge: React.FC<RadialGaugeProps> = ({
       <span
         style={{
           position: 'absolute',
-          fontFamily: FONTS.display,
+          fontFamily: displayFontCss,
           fontVariantNumeric: 'tabular-nums',
           fontSize: size >= 156 ? 32 : 28,
           fontWeight: 800,
           letterSpacing: '-0.03em',
-          color: isLight
-            ? STUDIO_THEME.colors.text.slate900
-            : THEME.colors.textPrimary,
+          color: textColor,
         }}
       >
         {textLabel}
@@ -136,23 +142,39 @@ export const MetricComparisonCard: React.FC<MetricComparisonCardProps> = ({
   decimals = 0,
   deltaBadge,
   mode = 'rings',
-  beforeColor = '#64748B',
-  afterColor = STUDIO_THEME.colors.accents.emerald,
+  beforeColor,
+  afterColor,
   enterFrame,
   startFrame,
-  variant = 'dark',
+  variant,
   safeBox9x16 = true,
   style,
 }) => {
   const frame = useCurrentFrame();
   const { fps, width, height } = useVideoConfig();
   useStudioFontsReady();
+  const studioStyle = useStudioStyle();
+
+  const resolvedBeforeColor = beforeColor ?? studioStyle.palette.textSecondary;
+  const resolvedAfterColor = afterColor ?? studioStyle.palette.accentPrimary;
+  const displayFontCss = formatFontFamilyCss(
+    studioStyle.typography.displayFont,
+    'display'
+  );
+  const bodyFontCss = formatFontFamilyCss(
+    studioStyle.typography.bodyFont,
+    'body'
+  );
+  const monoFontCss = formatFontFamilyCss(
+    studioStyle.typography.monoFont,
+    'mono'
+  );
 
   const effectiveStart = Math.max(2, startFrame ?? enterFrame ?? 2);
   const enter = spring({
     frame: frame - effectiveStart,
     fps,
-    config: SPRING_PRESETS.snappy,
+    config: getStyleSpringConfig(studioStyle, 'enter'),
   });
 
   if (enter <= 0.005) {
@@ -200,18 +222,17 @@ export const MetricComparisonCard: React.FC<MetricComparisonCardProps> = ({
   const resolvedDelta = deltaBadge ?? computeAutoDelta(beforeValue, afterValue);
 
   const isVerticalViewport = height > width;
-  const isLight = variant === 'light';
+  const hasExplicitVariant = variant !== undefined;
+  const isLight = hasExplicitVariant
+    ? variant === 'light'
+    : !studioStyle.surface.isDark;
   const cardWidth =
     isVerticalViewport && safeBox9x16 ? Math.min(830, width - 90) : 880;
   const gaugeSize = isVerticalViewport ? 148 : 164;
 
-  return (
-    <div
-      style={{
-        width: cardWidth,
-        padding: isVerticalViewport ? '28px 30px' : '34px 42px',
+  const chromeStyle: React.CSSProperties = hasExplicitVariant
+    ? {
         borderRadius: 26,
-        boxSizing: 'border-box',
         backgroundColor: isLight
           ? STUDIO_THEME.colors.bgSurfaceGlass
           : 'rgba(13, 15, 26, 0.88)',
@@ -220,8 +241,30 @@ export const MetricComparisonCard: React.FC<MetricComparisonCardProps> = ({
           : '1.5px solid rgba(255, 255, 255, 0.12)',
         boxShadow: isLight
           ? STUDIO_THEME.shadows.cardElevated
-          : THEME.shadows.glow(afterColor, 0.7),
+          : THEME.shadows.glow(resolvedAfterColor, 0.7),
         backdropFilter: 'blur(16px)',
+      }
+    : getCardChromeStyle(studioStyle);
+
+  const textPrimary = hasExplicitVariant
+    ? isLight
+      ? STUDIO_THEME.colors.text.slate900
+      : THEME.colors.textPrimary
+    : studioStyle.palette.textPrimary;
+
+  const textSecondary = hasExplicitVariant
+    ? isLight
+      ? STUDIO_THEME.colors.text.secondary
+      : THEME.colors.textSecondary
+    : studioStyle.palette.textSecondary;
+
+  return (
+    <div
+      style={{
+        width: cardWidth,
+        padding: isVerticalViewport ? '28px 30px' : '34px 42px',
+        boxSizing: 'border-box',
+        ...chromeStyle,
         opacity: enter,
         transform: `translateY(${interpolate(enter, [0, 1], [24, 0]).toFixed(2)}px) scale(${interpolate(enter, [0, 1], [0.95, 1]).toFixed(4)})`,
         ...style,
@@ -240,16 +283,14 @@ export const MetricComparisonCard: React.FC<MetricComparisonCardProps> = ({
         {title ? (
           <div
             style={{
-              fontFamily: FONTS.display,
+              fontFamily: displayFontCss,
               fontSize: isVerticalViewport ? 28 : 30,
               fontWeight: 800,
-              letterSpacing: '-0.02em',
-              color: isLight
-                ? STUDIO_THEME.colors.text.slate900
-                : THEME.colors.textPrimary,
+              letterSpacing: `${studioStyle.typography.displayTrackingEm}em`,
+              color: textPrimary,
             }}
           >
-            {title}
+            {hasExplicitVariant ? title : formatHeadingText(title, studioStyle)}
           </div>
         ) : (
           <div />
@@ -257,14 +298,14 @@ export const MetricComparisonCard: React.FC<MetricComparisonCardProps> = ({
 
         <div
           style={{
-            fontFamily: FONTS.mono,
+            fontFamily: monoFontCss,
             fontSize: 17,
             fontWeight: 800,
             padding: '6px 16px',
             borderRadius: 9999,
             color: '#FFFFFF',
-            backgroundColor: afterColor,
-            boxShadow: `0 8px 24px ${afterColor}55`,
+            backgroundColor: resolvedAfterColor,
+            boxShadow: `0 8px 24px ${resolvedAfterColor}55`,
             opacity: badgePop,
             transform: `scale(${interpolate(badgePop, [0, 1], [0.85, 1]).toFixed(3)})`,
           }}
@@ -293,19 +334,19 @@ export const MetricComparisonCard: React.FC<MetricComparisonCardProps> = ({
           >
             <RadialGauge
               fraction={beforeFrac}
-              color={beforeColor}
+              color={resolvedBeforeColor}
               textLabel={formattedBefore}
               isLight={isLight}
               size={gaugeSize}
+              displayFontCss={displayFontCss}
+              textColor={textPrimary}
             />
             <span
               style={{
-                fontFamily: FONTS.sans,
+                fontFamily: bodyFontCss,
                 fontSize: 19,
                 fontWeight: 600,
-                color: isLight
-                  ? STUDIO_THEME.colors.text.secondary
-                  : THEME.colors.textSecondary,
+                color: textSecondary,
               }}
             >
               {beforeLabel}
@@ -321,13 +362,15 @@ export const MetricComparisonCard: React.FC<MetricComparisonCardProps> = ({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              backgroundColor: isLight
-                ? 'rgba(15, 23, 42, 0.06)'
-                : 'rgba(255, 255, 255, 0.08)',
+              backgroundColor: hasExplicitVariant
+                ? isLight
+                  ? 'rgba(15, 23, 42, 0.06)'
+                  : 'rgba(255, 255, 255, 0.08)'
+                : studioStyle.palette.bgElevated,
               opacity: badgePop,
             }}
           >
-            <ArrowRight size={26} color={afterColor} strokeWidth={2.8} />
+            <ArrowRight size={26} color={resolvedAfterColor} strokeWidth={2.8} />
           </div>
 
           {/* AFTER RING */}
@@ -341,19 +384,19 @@ export const MetricComparisonCard: React.FC<MetricComparisonCardProps> = ({
           >
             <RadialGauge
               fraction={afterFrac}
-              color={afterColor}
+              color={resolvedAfterColor}
               textLabel={formattedAfter}
               isLight={isLight}
               size={gaugeSize}
+              displayFontCss={displayFontCss}
+              textColor={textPrimary}
             />
             <span
               style={{
-                fontFamily: FONTS.sans,
+                fontFamily: bodyFontCss,
                 fontSize: 19,
                 fontWeight: 700,
-                color: isLight
-                  ? STUDIO_THEME.colors.text.slate900
-                  : THEME.colors.textPrimary,
+                color: textPrimary,
               }}
             >
               {afterLabel}
@@ -368,14 +411,14 @@ export const MetricComparisonCard: React.FC<MetricComparisonCardProps> = ({
               lbl: beforeLabel,
               txt: formattedBefore,
               frac: beforeFrac,
-              col: beforeColor,
+              col: resolvedBeforeColor,
               bold: false,
             },
             {
               lbl: afterLabel,
               txt: formattedAfter,
               frac: afterFrac,
-              col: afterColor,
+              col: resolvedAfterColor,
               bold: true,
             },
           ].map((row, idx) => (
@@ -392,31 +435,21 @@ export const MetricComparisonCard: React.FC<MetricComparisonCardProps> = ({
               >
                 <span
                   style={{
-                    fontFamily: FONTS.sans,
+                    fontFamily: bodyFontCss,
                     fontSize: 20,
                     fontWeight: row.bold ? 700 : 600,
-                    color: row.bold
-                      ? isLight
-                        ? STUDIO_THEME.colors.text.slate900
-                        : THEME.colors.textPrimary
-                      : isLight
-                        ? STUDIO_THEME.colors.text.secondary
-                        : THEME.colors.textSecondary,
+                    color: row.bold ? textPrimary : textSecondary,
                   }}
                 >
                   {row.lbl}
                 </span>
                 <span
                   style={{
-                    fontFamily: FONTS.mono,
+                    fontFamily: monoFontCss,
                     fontVariantNumeric: 'tabular-nums',
                     fontSize: 22,
                     fontWeight: 800,
-                    color: row.bold
-                      ? row.col
-                      : isLight
-                        ? '#475569'
-                        : '#CBD5E1',
+                    color: row.bold ? row.col : textSecondary,
                   }}
                 >
                   {row.txt}

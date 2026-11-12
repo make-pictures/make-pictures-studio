@@ -14,6 +14,7 @@ export interface IsometricStudioEnvironmentProps {
   finaleActivateFrame: number;
 }
 
+/** @deprecated Legacy IsometricDialogueDemo stage — prefer IsometricStage3D with StyleProvider in new productions. */
 export const IsometricStudioEnvironment: React.FC<
   IsometricStudioEnvironmentProps
 > = ({ codeMorphFrame, finaleActivateFrame }) => {

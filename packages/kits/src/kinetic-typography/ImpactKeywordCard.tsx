@@ -7,12 +7,16 @@ import {
   useVideoConfig,
 } from 'remotion';
 import {
-  FONTS,
   SPRING_PRESETS,
   STUDIO_THEME,
   THEME,
+  formatFontFamilyCss,
+  formatHeadingText,
+  getCardChromeStyle,
+  getStyleSpringConfig,
   useStudioFontsReady,
-} from '../../../core/src/theme';
+  useStudioStyle,
+} from '@make-pictures/core';
 
 export interface ImpactKeywordCardProps {
   /** Primary bold statement (keep concise: 2–4 words per AGENTS.md) */
@@ -25,9 +29,9 @@ export interface ImpactKeywordCardProps {
   badge?: string;
   /** Custom icon node (`lucide-react`); defaults to `<Sparkles />` unless `icon={null}` */
   icon?: React.ReactNode;
-  /** Accent bar & glow color (default `STUDIO_THEME.colors.brand[600]`) */
+  /** Accent bar & glow color (defaults to `studioStyle.palette.accentPrimary`) */
   accentColor?: string;
-  /** Theme surface mode (default `'dark'`) */
+  /** Optional explicit surface mode override (`'dark'` | `'light'`); inherits active `StylePreset` when omitted */
   variant?: 'dark' | 'light';
   /** Entrance frame (default `2`, obeying Frame 0 clean board rule) */
   enterFrame?: number;
@@ -50,8 +54,8 @@ export const ImpactKeywordCard: React.FC<ImpactKeywordCardProps> = ({
   sublabel,
   badge,
   icon,
-  accentColor = STUDIO_THEME.colors.brand[600],
-  variant = 'dark',
+  accentColor,
+  variant,
   enterFrame,
   startFrame,
   exitFrame,
@@ -61,13 +65,28 @@ export const ImpactKeywordCard: React.FC<ImpactKeywordCardProps> = ({
   const frame = useCurrentFrame();
   const { fps, width, height } = useVideoConfig();
   useStudioFontsReady();
+  const studioStyle = useStudioStyle();
+
+  const resolvedAccent = accentColor ?? studioStyle.palette.accentPrimary;
+  const displayFontCss = formatFontFamilyCss(
+    studioStyle.typography.displayFont,
+    'display'
+  );
+  const bodyFontCss = formatFontFamilyCss(
+    studioStyle.typography.bodyFont,
+    'body'
+  );
+  const monoFontCss = formatFontFamilyCss(
+    studioStyle.typography.monoFont,
+    'mono'
+  );
 
   const effectiveStart = Math.max(2, startFrame ?? enterFrame ?? 2);
 
   const enter = spring({
     frame: frame - effectiveStart,
     fps,
-    config: SPRING_PRESETS.snappy,
+    config: getStyleSpringConfig(studioStyle, 'enter'),
   });
 
   const exit =
@@ -85,6 +104,7 @@ export const ImpactKeywordCard: React.FC<ImpactKeywordCardProps> = ({
   }
 
   const isVertical = height > width;
+  const hasExplicitVariant = variant !== undefined;
   const isLight = variant === 'light';
 
   const translateY = interpolate(enter, [0, 1], [28, 0]) - exit * 18;
@@ -102,6 +122,48 @@ export const ImpactKeywordCard: React.FC<ImpactKeywordCardProps> = ({
       icon
     );
 
+  const chromeStyle: React.CSSProperties = hasExplicitVariant
+    ? {
+        borderRadius: 26,
+        backgroundColor: isLight
+          ? STUDIO_THEME.colors.bgSurfaceGlass
+          : 'rgba(13, 15, 26, 0.86)',
+        border: isLight
+          ? `1.5px solid ${STUDIO_THEME.colors.border.subtle}`
+          : '1.5px solid rgba(255, 255, 255, 0.14)',
+        boxShadow: isLight
+          ? STUDIO_THEME.shadows.cardElevated
+          : THEME.shadows.glow(resolvedAccent, 0.9),
+        backdropFilter: 'blur(16px)',
+      }
+    : getCardChromeStyle(studioStyle);
+
+  const textPrimary = hasExplicitVariant
+    ? isLight
+      ? STUDIO_THEME.colors.text.slate900
+      : THEME.colors.textPrimary
+    : studioStyle.palette.textPrimary;
+
+  const textSecondary = hasExplicitVariant
+    ? isLight
+      ? STUDIO_THEME.colors.text.secondary
+      : THEME.colors.textSecondary
+    : studioStyle.palette.textSecondary;
+
+  const eyebrowColor = hasExplicitVariant
+    ? isLight
+      ? STUDIO_THEME.colors.text.muted
+      : THEME.colors.textSecondary
+    : studioStyle.palette.textSecondary;
+
+  const iconRadius = hasExplicitVariant
+    ? 20
+    : Math.max(0, Math.round(18 * studioStyle.surface.radiusScale));
+
+  const displayedKeyword = hasExplicitVariant
+    ? keyword
+    : formatHeadingText(keyword, studioStyle);
+
   return (
     <div
       style={{
@@ -111,18 +173,8 @@ export const ImpactKeywordCard: React.FC<ImpactKeywordCardProps> = ({
         gap: isVertical ? 22 : 28,
         maxWidth: isVertical && safeBox9x16 ? 830 : 1080,
         padding: isVertical ? '28px 34px' : '32px 42px',
-        borderRadius: 26,
         boxSizing: 'border-box',
-        backgroundColor: isLight
-          ? STUDIO_THEME.colors.bgSurfaceGlass
-          : 'rgba(13, 15, 26, 0.86)',
-        border: isLight
-          ? `1.5px solid ${STUDIO_THEME.colors.border.subtle}`
-          : `1.5px solid rgba(255, 255, 255, 0.14)`,
-        boxShadow: isLight
-          ? STUDIO_THEME.shadows.cardElevated
-          : THEME.shadows.glow(accentColor, 0.9),
-        backdropFilter: 'blur(16px)',
+        ...chromeStyle,
         opacity: visibility,
         transform: `translate3d(0, ${translateY.toFixed(2)}px, 0) scale(${scale.toFixed(4)})`,
         overflow: 'hidden',
@@ -137,7 +189,7 @@ export const ImpactKeywordCard: React.FC<ImpactKeywordCardProps> = ({
           top: 0,
           bottom: 0,
           width: 8,
-          backgroundColor: accentColor,
+          backgroundColor: resolvedAccent,
           transformOrigin: 'top center',
           transform: `scaleY(${accentBarScale.toFixed(4)})`,
         }}
@@ -149,13 +201,13 @@ export const ImpactKeywordCard: React.FC<ImpactKeywordCardProps> = ({
           style={{
             width: isVertical ? 64 : 72,
             height: isVertical ? 64 : 72,
-            borderRadius: 20,
+            borderRadius: iconRadius,
             flexShrink: 0,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            background: `linear-gradient(135deg, ${accentColor} 0%, ${accentColor}CC 100%)`,
-            boxShadow: `0 12px 28px ${accentColor}55`,
+            background: `linear-gradient(135deg, ${resolvedAccent} 0%, ${resolvedAccent}CC 100%)`,
+            boxShadow: `0 12px 28px ${resolvedAccent}55`,
           }}
         >
           {resolvedIcon}
@@ -183,14 +235,12 @@ export const ImpactKeywordCard: React.FC<ImpactKeywordCardProps> = ({
             {eyebrow && (
               <span
                 style={{
-                  fontFamily: FONTS.mono,
+                  fontFamily: monoFontCss,
                   fontSize: 15,
                   fontWeight: 700,
                   letterSpacing: '0.08em',
                   textTransform: 'uppercase',
-                  color: isLight
-                    ? STUDIO_THEME.colors.text.muted
-                    : THEME.colors.textSecondary,
+                  color: eyebrowColor,
                 }}
               >
                 {eyebrow}
@@ -199,13 +249,13 @@ export const ImpactKeywordCard: React.FC<ImpactKeywordCardProps> = ({
             {badge && (
               <span
                 style={{
-                  fontFamily: FONTS.mono,
+                  fontFamily: monoFontCss,
                   fontSize: 14,
                   fontWeight: 700,
                   padding: '3px 11px',
                   borderRadius: 9999,
                   color: '#FFFFFF',
-                  backgroundColor: accentColor,
+                  backgroundColor: resolvedAccent,
                 }}
               >
                 {badge}
@@ -216,28 +266,24 @@ export const ImpactKeywordCard: React.FC<ImpactKeywordCardProps> = ({
 
         <div
           style={{
-            fontFamily: FONTS.display,
+            fontFamily: displayFontCss,
             fontSize: isVertical ? 44 : 52,
             fontWeight: 800,
             lineHeight: 1.1,
-            letterSpacing: '-0.025em',
-            color: isLight
-              ? STUDIO_THEME.colors.text.slate900
-              : THEME.colors.textPrimary,
+            letterSpacing: `${studioStyle.typography.displayTrackingEm}em`,
+            color: textPrimary,
           }}
         >
-          {keyword}
+          {displayedKeyword}
         </div>
 
         {sublabel && (
           <div
             style={{
-              fontFamily: FONTS.sans,
+              fontFamily: bodyFontCss,
               fontSize: isVertical ? 20 : 22,
               fontWeight: 500,
-              color: isLight
-                ? STUDIO_THEME.colors.text.secondary
-                : THEME.colors.textSecondary,
+              color: textSecondary,
             }}
           >
             {sublabel}

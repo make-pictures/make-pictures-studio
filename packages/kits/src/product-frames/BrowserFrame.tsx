@@ -1,6 +1,11 @@
 import React from 'react';
 import { interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
-import { FONTS, SPRING_PRESETS, useStudioFontsReady } from '@make-pictures/core';
+import {
+  formatFontFamilyCss,
+  getStyleSpringConfig,
+  useStudioFontsReady,
+  useStudioStyle,
+} from '@make-pictures/core';
 import { FrameMedia, type FrameMediaProps } from './frameMedia';
 
 export interface BrowserFrameProps extends FrameMediaProps {
@@ -10,7 +15,7 @@ export interface BrowserFrameProps extends FrameMediaProps {
   title?: string;
   /** Window chrome style (default `'macos'`) */
   variant?: 'macos' | 'arc' | 'minimal';
-  /** Chrome theme (default `'dark'`) */
+  /** Chrome theme (`'dark'` | `'light'`; defaults to `studioStyle.surface.isDark` when omitted) */
   theme?: 'dark' | 'light';
   /** Outer window width in px (default `1360`) */
   width?: number;
@@ -20,7 +25,7 @@ export interface BrowserFrameProps extends FrameMediaProps {
   height?: number;
   /** Entrance frame (default `2`, so `frame === 0` renders `opacity: 0`) */
   enterFrame?: number;
-  /** Accent used for the secure-lock dot & focus ring (default `'#38bdf8'`) */
+  /** Accent used for the secure-lock dot & focus ring (defaults to `studioStyle.palette.accentPrimary`) */
   accentColor?: string;
   style?: React.CSSProperties;
 }
@@ -49,26 +54,38 @@ export const BrowserFrame: React.FC<BrowserFrameProps> = ({
   url,
   title,
   variant = 'macos',
-  theme = 'dark',
+  theme,
   width = 1360,
   aspectRatio = '16 / 10',
   height,
   enterFrame = 2,
-  accentColor = '#38bdf8',
+  accentColor,
   style,
   ...media
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   useStudioFontsReady();
+  const studioStyle = useStudioStyle();
+
+  const resolvedAccent = accentColor ?? studioStyle.palette.accentPrimary;
+  const bodyFontCss = formatFontFamilyCss(
+    studioStyle.typography.bodyFont,
+    'body'
+  );
+  const monoFontCss = formatFontFamilyCss(
+    studioStyle.typography.monoFont,
+    'mono'
+  );
 
   const enter = spring({
     frame: frame - Math.max(2, enterFrame),
     fps,
-    config: SPRING_PRESETS.snappy,
+    config: getStyleSpringConfig(studioStyle, 'enter'),
   });
 
-  const isDark = theme === 'dark';
+  const hasExplicitTheme = theme !== undefined;
+  const isDark = hasExplicitTheme ? theme === 'dark' : studioStyle.surface.isDark;
   const toolbarH = TOOLBAR_HEIGHT[variant];
   const viewportH =
     typeof height === 'number'
@@ -76,12 +93,36 @@ export const BrowserFrame: React.FC<BrowserFrameProps> = ({
       : Math.round(width / parseAspectRatio(aspectRatio));
   const outerH = viewportH + toolbarH;
 
-  const chromeBg = isDark ? '#14161F' : '#F1F5F9';
-  const chromeBorder = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.08)';
-  const pillBg = isDark ? 'rgba(255,255,255,0.06)' : '#FFFFFF';
-  const textColor = isDark ? '#CBD5E1' : '#334155';
-  const mutedText = isDark ? '#64748B' : '#94A3B8';
-  const radius = variant === 'arc' ? 22 : variant === 'minimal' ? 14 : 18;
+  const chromeBg = hasExplicitTheme
+    ? isDark
+      ? '#14161F'
+      : '#F1F5F9'
+    : studioStyle.palette.bgElevated;
+  const chromeBorder = hasExplicitTheme
+    ? isDark
+      ? 'rgba(255,255,255,0.08)'
+      : 'rgba(15,23,42,0.08)'
+    : studioStyle.palette.inkBorder;
+  const pillBg = hasExplicitTheme
+    ? isDark
+      ? 'rgba(255,255,255,0.06)'
+      : '#FFFFFF'
+    : studioStyle.palette.bgSurface;
+  const textColor = hasExplicitTheme
+    ? isDark
+      ? '#CBD5E1'
+      : '#334155'
+    : studioStyle.palette.textPrimary;
+  const mutedText = hasExplicitTheme
+    ? isDark
+      ? '#64748B'
+      : '#94A3B8'
+    : studioStyle.palette.textSecondary;
+
+  const baseRadius = variant === 'arc' ? 22 : variant === 'minimal' ? 14 : 18;
+  const radius = hasExplicitTheme
+    ? baseRadius
+    : Math.max(0, Math.round(baseRadius * studioStyle.surface.radiusScale));
 
   const translateY = interpolate(enter, [0, 1], [36, 0]);
   const scale = interpolate(enter, [0, 1], [0.94, 1]);
@@ -95,7 +136,11 @@ export const BrowserFrame: React.FC<BrowserFrameProps> = ({
         borderRadius: radius,
         overflow: 'hidden',
         boxSizing: 'border-box',
-        backgroundColor: isDark ? '#0B0D14' : '#FFFFFF',
+        backgroundColor: hasExplicitTheme
+          ? isDark
+            ? '#0B0D14'
+            : '#FFFFFF'
+          : studioStyle.palette.bgSurface,
         border: `1px solid ${chromeBorder}`,
         boxShadow: isDark
           ? '0 50px 120px -20px rgba(0,0,0,0.75), 0 0 0 1px rgba(255,255,255,0.04) inset'
@@ -121,7 +166,7 @@ export const BrowserFrame: React.FC<BrowserFrameProps> = ({
           boxSizing: 'border-box',
           backgroundColor: variant === 'arc' ? 'transparent' : chromeBg,
           borderBottom: variant === 'arc' ? 'none' : `1px solid ${chromeBorder}`,
-          fontFamily: FONTS.sans,
+          fontFamily: bodyFontCss,
         }}
       >
         {variant !== 'minimal' && (
@@ -172,7 +217,7 @@ export const BrowserFrame: React.FC<BrowserFrameProps> = ({
                 backgroundColor: pillBg,
                 border: `1px solid ${chromeBorder}`,
                 boxSizing: 'border-box',
-                fontFamily: FONTS.mono,
+                fontFamily: monoFontCss,
                 fontSize: variant === 'minimal' ? 12 : 14,
                 fontWeight: 500,
                 color: textColor,
@@ -186,7 +231,7 @@ export const BrowserFrame: React.FC<BrowserFrameProps> = ({
                   width: 8,
                   height: 8,
                   borderRadius: 9999,
-                  backgroundColor: accentColor,
+                  backgroundColor: resolvedAccent,
                   flexShrink: 0,
                 }}
               />
@@ -208,9 +253,16 @@ export const BrowserFrame: React.FC<BrowserFrameProps> = ({
           right: variant === 'arc' ? 8 : 0,
           bottom: variant === 'arc' ? 8 : 0,
           top: toolbarH,
-          borderRadius: variant === 'arc' ? 14 : 0,
+          borderRadius:
+            variant === 'arc'
+              ? Math.max(0, Math.round(14 * studioStyle.surface.radiusScale))
+              : 0,
           overflow: 'hidden',
-          backgroundColor: isDark ? '#05060A' : '#F8FAFC',
+          backgroundColor: hasExplicitTheme
+            ? isDark
+              ? '#05060A'
+              : '#F8FAFC'
+            : studioStyle.palette.bgCanvas,
         }}
       >
         <FrameMedia {...media} />

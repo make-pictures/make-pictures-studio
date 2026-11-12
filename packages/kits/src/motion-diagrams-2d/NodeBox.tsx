@@ -2,8 +2,11 @@ import React from 'react';
 import { spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import {
   SPRING_PRESETS,
-  STUDIO_FONTS,
   STUDIO_THEME,
+  THEME,
+  formatFontFamilyCss,
+  getCardChromeStyle,
+  useStudioStyle,
 } from '@make-pictures/core';
 
 /**
@@ -43,8 +46,10 @@ export interface WorldBoxProps {
   scale?: number;
   opacity?: number;
   zIndex?: number;
+  /** Optional explicit surface variant (`'transparent'` | `'dark'` | `'light'`); inherits `StylePreset` card chrome when omitted */
+  variant?: 'card' | 'transparent' | 'dark' | 'light';
   style?: React.CSSProperties;
-  children: React.ReactNode;
+  children?: React.ReactNode;
 }
 
 export const WorldBox: React.FC<WorldBoxProps> = ({
@@ -52,28 +57,64 @@ export const WorldBox: React.FC<WorldBoxProps> = ({
   scale = 1,
   opacity = 1,
   zIndex = 2,
+  variant,
   style,
   children,
-}) => (
-  <div
-    style={{
-      position: 'absolute',
-      left: node.cx - node.w / 2,
-      top: node.cy - node.h / 2,
-      width: node.w,
-      height: node.h,
-      boxSizing: 'border-box',
-      transformOrigin: 'center center',
-      transform: `scale(${scale})`,
-      opacity,
-      zIndex,
-      fontFamily: STUDIO_FONTS.sans,
-      ...style,
-    }}
-  >
-    {children}
-  </div>
-);
+}) => {
+  const studioStyle = useStudioStyle();
+  const bodyFontCss = formatFontFamilyCss(
+    studioStyle.typography.bodyFont,
+    'body'
+  );
+
+  let chromeStyle: React.CSSProperties;
+  if (variant === 'transparent') {
+    chromeStyle = {
+      backgroundColor: 'transparent',
+      color: studioStyle.palette.textPrimary,
+    };
+  } else if (variant === 'dark') {
+    chromeStyle = {
+      backgroundColor: 'rgba(13, 15, 26, 0.90)',
+      color: THEME.colors.textPrimary,
+      border: '1.5px solid rgba(255, 255, 255, 0.12)',
+      borderRadius: 24,
+      boxShadow: THEME.shadows.card,
+    };
+  } else if (variant === 'light') {
+    chromeStyle = {
+      backgroundColor: STUDIO_THEME.colors.bgSurface,
+      color: STUDIO_THEME.colors.text.primary,
+      border: `1.5px solid ${STUDIO_THEME.colors.border.subtle}`,
+      borderRadius: 24,
+      boxShadow: STUDIO_THEME.shadows.cardElevated,
+    };
+  } else {
+    chromeStyle = getCardChromeStyle(studioStyle);
+  }
+
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        left: node.cx - node.w / 2,
+        top: node.cy - node.h / 2,
+        width: node.w,
+        height: node.h,
+        boxSizing: 'border-box',
+        transformOrigin: 'center center',
+        transform: `scale(${scale})`,
+        opacity,
+        zIndex,
+        fontFamily: bodyFontCss,
+        ...chromeStyle,
+        ...style,
+      }}
+    >
+      {children}
+    </div>
+  );
+};
 
 export interface FlowCurveProps {
   from: { x: number; y: number };
@@ -103,7 +144,7 @@ export const FlowCurve: React.FC<FlowCurveProps> = ({
   curveY = 0,
   curveX = 0,
   orientation = 'horizontal',
-  color = STUDIO_THEME.colors.brand[600],
+  color,
   activeFromFrame,
   packetSpeedFrames = 100,
   packetCount = 2,
@@ -113,6 +154,9 @@ export const FlowCurve: React.FC<FlowCurveProps> = ({
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+  const studioStyle = useStudioStyle();
+  const resolvedColor = color ?? studioStyle.palette.accentPrimary;
+  const terminalFill = studioStyle.palette.bgSurface;
 
   const dx = to.x - from.x;
   const dy = to.y - from.y;
@@ -183,7 +227,7 @@ export const FlowCurve: React.FC<FlowCurveProps> = ({
       <path
         d={d}
         fill="none"
-        stroke={color}
+        stroke={resolvedColor}
         strokeWidth={strokeWidth + 6}
         strokeOpacity={0.14 * drawProgress}
         strokeLinecap="round"
@@ -191,7 +235,7 @@ export const FlowCurve: React.FC<FlowCurveProps> = ({
       <path
         d={d}
         fill="none"
-        stroke={color}
+        stroke={resolvedColor}
         strokeWidth={strokeWidth}
         strokeOpacity={0.85 * drawProgress}
         strokeDasharray={dashed ? '10 10' : undefined}
@@ -201,8 +245,8 @@ export const FlowCurve: React.FC<FlowCurveProps> = ({
         cx={from.x}
         cy={from.y}
         r={6}
-        fill="#FFFFFF"
-        stroke={color}
+        fill={terminalFill}
+        stroke={resolvedColor}
         strokeWidth={3}
         opacity={drawProgress}
       />
@@ -210,20 +254,20 @@ export const FlowCurve: React.FC<FlowCurveProps> = ({
         cx={to.x}
         cy={to.y}
         r={6}
-        fill="#FFFFFF"
-        stroke={color}
+        fill={terminalFill}
+        stroke={resolvedColor}
         strokeWidth={3}
         opacity={drawProgress}
       />
       {packets.map((pkt, idx) => (
         <g key={idx} opacity={pkt.alpha * drawProgress}>
-          <circle cx={pkt.x} cy={pkt.y} r={12} fill={color} opacity={0.22} />
+          <circle cx={pkt.x} cy={pkt.y} r={12} fill={resolvedColor} opacity={0.22} />
           <circle
             cx={pkt.x}
             cy={pkt.y}
             r={6.5}
-            fill="#FFFFFF"
-            stroke={color}
+            fill={terminalFill}
+            stroke={resolvedColor}
             strokeWidth={3}
           />
         </g>

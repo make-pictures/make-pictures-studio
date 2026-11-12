@@ -1,7 +1,15 @@
 import React from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
-import { FONTS, SPRING_PRESETS, THEME } from '@make-pictures/core';
+import {
+  SPRING_PRESETS,
+  THEME,
+  formatFontFamilyCss,
+  formatHeadingText,
+  getCardChromeStyle,
+  getStyleSpringConfig,
+  useStudioStyle,
+} from '@make-pictures/core';
 
 export interface SystemNodeProps {
   id: string;
@@ -16,6 +24,7 @@ export interface SystemNodeProps {
   width?: number;
   height?: number;
   accentColor?: string;
+  variant?: 'dark' | 'light';
   enterFrame?: number;
   activeRanges?: Array<[number, number]>;
   metricsLabel?: string;
@@ -33,7 +42,8 @@ export const SystemNode: React.FC<SystemNodeProps> = ({
   y,
   width = 340,
   height = 188,
-  accentColor = THEME.colors.accents.cyan,
+  accentColor,
+  variant,
   enterFrame = 0,
   activeRanges = [],
   metricsLabel,
@@ -41,11 +51,26 @@ export const SystemNode: React.FC<SystemNodeProps> = ({
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+  const studioStyle = useStudioStyle();
+
+  const resolvedAccent = accentColor ?? studioStyle.palette.accentPrimary;
+  const displayFontCss = formatFontFamilyCss(
+    studioStyle.typography.displayFont,
+    'display'
+  );
+  const bodyFontCss = formatFontFamilyCss(
+    studioStyle.typography.bodyFont,
+    'body'
+  );
+  const monoFontCss = formatFontFamilyCss(
+    studioStyle.typography.monoFont,
+    'mono'
+  );
 
   const enterProgress = spring({
     frame: frame - enterFrame,
     fps,
-    config: SPRING_PRESETS.snappy,
+    config: getStyleSpringConfig(studioStyle, 'enter'),
   });
 
   if (enterProgress <= 0.002) {
@@ -85,6 +110,45 @@ export const SystemNode: React.FC<SystemNodeProps> = ({
   const displayedStatus =
     isCurrentlyActive && activeStatusText ? activeStatusText : statusText;
 
+  const isDark =
+    variant === 'dark'
+      ? true
+      : variant === 'light'
+        ? false
+        : studioStyle.surface.isDark;
+
+  const baseChrome =
+    variant === 'dark'
+      ? {
+          borderRadius: THEME.radii.lg,
+          backgroundColor: 'rgba(15, 18, 29, 0.95)',
+          border: `1px solid ${
+            isCurrentlyActive ? `${resolvedAccent}88` : 'rgba(255, 255, 255, 0.09)'
+          }`,
+          boxShadow:
+            activeStrength > 0.02
+              ? THEME.shadows.glow(resolvedAccent, glowIntensity)
+              : THEME.shadows.card,
+        }
+      : getCardChromeStyle(studioStyle, {
+          ...(isCurrentlyActive
+            ? {
+                border: `1.5px solid ${resolvedAccent}AA`,
+                boxShadow: THEME.shadows.glow(resolvedAccent, glowIntensity),
+              }
+            : {}),
+        });
+
+  const textPrimary =
+    variant === 'dark' ? THEME.colors.textPrimary : studioStyle.palette.textPrimary;
+  const textSecondary =
+    variant === 'dark'
+      ? THEME.colors.textSecondary
+      : studioStyle.palette.textSecondary;
+  const dividerColor = isDark
+    ? 'rgba(255, 255, 255, 0.07)'
+    : `${studioStyle.palette.inkBorder}AA`;
+
   return (
     <div
       style={{
@@ -96,18 +160,14 @@ export const SystemNode: React.FC<SystemNodeProps> = ({
         opacity,
         willChange: 'transform, opacity',
         transform: `translate3d(0, ${translateY}px, 0) scale(${scale})`,
-        borderRadius: THEME.radii.lg,
-        backgroundColor: 'rgba(15, 18, 29, 0.95)',
-        backgroundImage: `radial-gradient(130% 110% at 50% 0%, ${accentColor}${
-          isCurrentlyActive ? '26' : '0E'
-        } 0%, rgba(15, 18, 29, 0.6) 68%)`,
-        border: `1px solid ${
-          isCurrentlyActive ? `${accentColor}88` : 'rgba(255, 255, 255, 0.09)'
-        }`,
-        boxShadow:
-          activeStrength > 0.02
-            ? THEME.shadows.glow(accentColor, glowIntensity)
-            : THEME.shadows.card,
+        ...baseChrome,
+        backgroundImage: isDark
+          ? `radial-gradient(130% 110% at 50% 0%, ${resolvedAccent}${
+              isCurrentlyActive ? '26' : '0E'
+            } 0%, rgba(15, 18, 29, 0.6) 68%)`
+          : `radial-gradient(130% 110% at 50% 0%, ${resolvedAccent}${
+              isCurrentlyActive ? '20' : '0A'
+            } 0%, transparent 72%)`,
         padding: '20px 22px',
         display: 'flex',
         flexDirection: 'column',
@@ -124,7 +184,7 @@ export const SystemNode: React.FC<SystemNodeProps> = ({
           right: '12%',
           height: 1.5,
           background: `linear-gradient(90deg, transparent, ${
-            isCurrentlyActive ? accentColor : 'rgba(255,255,255,0.22)'
+            isCurrentlyActive ? resolvedAccent : studioStyle.palette.inkBorder
           }, transparent)`,
           opacity: interpolate(activeStrength, [0, 1], [0.55, 1]),
         }}
@@ -141,11 +201,14 @@ export const SystemNode: React.FC<SystemNodeProps> = ({
           style={{
             width: 44,
             height: 44,
-            borderRadius: 12,
-            backgroundColor: `${accentColor}${isCurrentlyActive ? '28' : '14'}`,
-            border: `1px solid ${accentColor}${isCurrentlyActive ? '77' : '33'}`,
+            borderRadius: Math.max(
+              0,
+              Math.round(12 * studioStyle.surface.radiusScale)
+            ),
+            backgroundColor: `${resolvedAccent}${isCurrentlyActive ? '28' : '14'}`,
+            border: `1px solid ${resolvedAccent}${isCurrentlyActive ? '77' : '33'}`,
             boxShadow: isCurrentlyActive
-              ? `0 0 22px ${accentColor}55`
+              ? `0 0 22px ${resolvedAccent}55`
               : 'none',
             display: 'flex',
             alignItems: 'center',
@@ -154,7 +217,7 @@ export const SystemNode: React.FC<SystemNodeProps> = ({
         >
           <Icon
             size={22}
-            color={isCurrentlyActive ? '#FFFFFF' : accentColor}
+            color={isCurrentlyActive && isDark ? '#FFFFFF' : resolvedAccent}
             strokeWidth={2}
           />
         </div>
@@ -163,14 +226,18 @@ export const SystemNode: React.FC<SystemNodeProps> = ({
           style={{
             padding: '4px 10px',
             borderRadius: THEME.radii.pill,
-            backgroundColor: 'rgba(255, 255, 255, 0.045)',
-            border: '1px solid rgba(255, 255, 255, 0.08)',
-            fontFamily: FONTS.mono,
+            backgroundColor: isDark
+              ? 'rgba(255, 255, 255, 0.045)'
+              : studioStyle.palette.bgElevated,
+            border: `1px solid ${
+              isDark ? 'rgba(255, 255, 255, 0.08)' : studioStyle.palette.inkBorder
+            }`,
+            fontFamily: monoFontCss,
             fontSize: 11,
             fontWeight: 500,
             letterSpacing: '0.06em',
             textTransform: 'uppercase',
-            color: isCurrentlyActive ? accentColor : THEME.colors.textSecondary,
+            color: isCurrentlyActive ? resolvedAccent : textSecondary,
           }}
         >
           {badge}
@@ -180,22 +247,22 @@ export const SystemNode: React.FC<SystemNodeProps> = ({
       <div style={{ marginTop: 6 }}>
         <div
           style={{
-            fontFamily: FONTS.sans,
+            fontFamily: displayFontCss,
             fontSize: 21,
             fontWeight: 600,
-            letterSpacing: '-0.025em',
-            color: THEME.colors.textPrimary,
+            letterSpacing: `${studioStyle.typography.displayTrackingEm}em`,
+            color: textPrimary,
             lineHeight: 1.2,
           }}
         >
-          {title}
+          {variant === 'dark' ? title : formatHeadingText(title, studioStyle)}
         </div>
         <div
           style={{
-            fontFamily: FONTS.sans,
+            fontFamily: bodyFontCss,
             fontSize: 13,
             fontWeight: 400,
-            color: THEME.colors.textSecondary,
+            color: textSecondary,
             marginTop: 4,
             lineHeight: 1.35,
           }}
@@ -210,7 +277,7 @@ export const SystemNode: React.FC<SystemNodeProps> = ({
           alignItems: 'center',
           justifyContent: 'space-between',
           paddingTop: 10,
-          borderTop: '1px solid rgba(255, 255, 255, 0.06)',
+          borderTop: `1px solid ${dividerColor}`,
         }}
       >
         <div
@@ -226,21 +293,19 @@ export const SystemNode: React.FC<SystemNodeProps> = ({
               height: 8,
               borderRadius: '50%',
               backgroundColor: isCurrentlyActive
-                ? accentColor
+                ? resolvedAccent
                 : 'rgba(148, 163, 184, 0.45)',
               boxShadow: isCurrentlyActive
-                ? `0 0 12px ${accentColor}, 0 0 24px ${accentColor}`
+                ? `0 0 12px ${resolvedAccent}, 0 0 24px ${resolvedAccent}`
                 : 'none',
             }}
           />
           <span
             style={{
-              fontFamily: FONTS.mono,
+              fontFamily: monoFontCss,
               fontSize: 11.5,
               fontWeight: 500,
-              color: isCurrentlyActive
-                ? THEME.colors.textPrimary
-                : THEME.colors.textMuted,
+              color: isCurrentlyActive ? textPrimary : textSecondary,
               letterSpacing: '0.02em',
             }}
           >
@@ -251,13 +316,13 @@ export const SystemNode: React.FC<SystemNodeProps> = ({
         {metricsLabel && metricsValue && (
           <div
             style={{
-              fontFamily: FONTS.mono,
+              fontFamily: monoFontCss,
               fontSize: 11,
-              color: THEME.colors.textSecondary,
+              color: textSecondary,
             }}
           >
-            <span style={{ color: THEME.colors.textMuted }}>{metricsLabel}: </span>
-            <span style={{ color: isCurrentlyActive ? accentColor : '#E2E8F0' }}>
+            <span style={{ color: textSecondary }}>{metricsLabel}: </span>
+            <span style={{ color: isCurrentlyActive ? resolvedAccent : textPrimary }}>
               {metricsValue}
             </span>
           </div>
