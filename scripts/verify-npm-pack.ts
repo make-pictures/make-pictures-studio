@@ -44,6 +44,8 @@ const PACKAGES: PackageSpec[] = [
 
 const EXPECTED_SKILLS = [
   'make-pictures-director',
+  'style-and-art-direction',
+  'kit-editorial-and-vector',
   'kit-paper-diorama-3d',
   'kit-motion-diagrams-2d',
   'kit-isometric-3d',
@@ -193,13 +195,29 @@ function inspectTarball(
   }
 
   // 4. Package-specific asset assertions
-  if (pkg.name === '@make-pictures/kits') {
+  if (pkg.name === '@make-pictures/core') {
     for (const ext of ['mjs', 'cjs', 'd.ts']) {
-      const pfEntry = `package/dist/product-frames/index.${ext}`;
+      const styleEntry = `package/dist/style/index.${ext}`;
       assert(
-        entrySet.has(pfEntry),
-        `@make-pictures/kits tarball must contain ${pfEntry}`
+        entrySet.has(styleEntry),
+        `@make-pictures/core tarball must contain ${styleEntry}`
       );
+    }
+  }
+
+  if (pkg.name === '@make-pictures/kits') {
+    for (const subpath of [
+      'product-frames',
+      'editorial-collage',
+      'vector-scene-2d',
+    ]) {
+      for (const ext of ['mjs', 'cjs', 'd.ts']) {
+        const kitEntry = `package/dist/${subpath}/index.${ext}`;
+        assert(
+          entrySet.has(kitEntry),
+          `@make-pictures/kits tarball must contain ${kitEntry}`
+        );
+      }
     }
   }
 
@@ -557,6 +575,26 @@ async function verifyStandaloneStudioServer(standaloneDir: string): Promise<void
       `Timed out waiting for Studio server /api/studio/status (${lastErr}):\n${serverLogs}`
     );
 
+    const stylesRes = await httpGetLocal(port, '/api/studio/styles');
+    assert(
+      stylesRes.statusCode === 200,
+      `Expected GET /api/studio/styles -> 200 OK, got ${stylesRes.statusCode}: ${stylesRes.body.slice(0, 200)}`
+    );
+    const parsedStyles = JSON.parse(stylesRes.body) as {
+      ok?: boolean;
+      styles?: Array<{ id?: string }>;
+    };
+    assert(
+      parsedStyles &&
+        parsedStyles.ok === true &&
+        Array.isArray(parsedStyles.styles),
+      `/api/studio/styles returned unexpected JSON: ${stylesRes.body.slice(0, 200)}`
+    );
+    assert(
+      parsedStyles.styles.some((s) => s.id === 'bespoke-editorial'),
+      `Expected /api/studio/styles to include custom style "bespoke-editorial", got: ${stylesRes.body.slice(0, 200)}`
+    );
+
     const htmlRes = await httpGetLocal(port, '/');
     assert(
       htmlRes.statusCode === 200,
@@ -581,7 +619,7 @@ async function verifyStandaloneStudioServer(standaloneDir: string): Promise<void
     }
 
     console.log(
-      `  ✓ Studio Web server verified at http://127.0.0.1:${port} (GET /api/studio/status 200 JSON + GET / 200 HTML)`
+      `  ✓ Studio Web server verified at http://127.0.0.1:${port} (GET /api/studio/status 200 + GET /api/studio/styles 200 + GET / 200 HTML)`
     );
   } finally {
     await killServer();
@@ -671,23 +709,21 @@ async function main(): Promise<void> {
     const standaloneDir = path.join(tmpRoot, 'standalone-app');
     runCmd(
       process.execPath,
-      [
-        createBin,
-        standaloneDir,
-        '--kit=paper-diorama-3d',
-        '--lang=pl',
-        '--no-install',
-      ],
+      [createBin, standaloneDir, '--lang=pl', '--no-install'],
       {
         cwd: tmpRoot,
         label:
-          'node create-make-pictures/dist/index.mjs standalone-app --kit=paper-diorama-3d --lang=pl --no-install',
+          'node create-make-pictures/dist/index.mjs standalone-app --lang=pl --no-install',
       }
     );
 
     assertGitignoreAllowsProductions(path.join(standaloneDir, '.gitignore'));
     assertAgentAndClaudeSkillsDiscovery(MONOREPO_ROOT, 'Engine monorepo root');
     assertAgentAndClaudeSkillsDiscovery(standaloneDir, 'Standalone app');
+    assert(
+      fs.existsSync(path.join(standaloneDir, 'styles', 'README.md')),
+      'Standalone app missing styles/README.md'
+    );
     assert(
       fs.existsSync(
         path.join(
@@ -715,11 +751,84 @@ async function main(): Promise<void> {
       'make-pictures'
     );
 
-    // 4a. Typecheck initial standalone app against published .d.ts
+    // 4a. Typecheck initial standalone app (default vector-scene-2d + StyleProvider) against published .d.ts
     runCmd(tscBin, ['--noEmit'], {
       cwd: standaloneDir,
       label: '(standalone-app) ./node_modules/.bin/tsc --noEmit [initial]',
     });
+
+    // 4a-bis. Create custom style & inspect styles --json via unpacked CLI binary
+    runCmd(
+      process.execPath,
+      [
+        mpBin,
+        'style',
+        'new',
+        'bespoke-editorial',
+        '--from=editorial-press',
+      ],
+      {
+        cwd: standaloneDir,
+        label:
+          '(standalone-app) node ./node_modules/.bin/make-pictures style new bespoke-editorial --from=editorial-press',
+      }
+    );
+    assert(
+      fs.existsSync(
+        path.join(standaloneDir, 'styles', 'bespoke-editorial.style.json')
+      ),
+      'Expected styles/bespoke-editorial.style.json to be created in standalone-app'
+    );
+
+    const standaloneStylesJsonRaw = runCmd(
+      process.execPath,
+      [mpBin, 'styles', '--json'],
+      {
+        cwd: standaloneDir,
+        label:
+          '(standalone-app) node ./node_modules/.bin/make-pictures styles --json',
+      }
+    );
+    const standaloneStylesJson = JSON.parse(standaloneStylesJsonRaw) as {
+      builtInStyles?: unknown[];
+      customStyles?: Array<{ id?: string }>;
+      visualKits?: unknown[];
+    };
+    assert(
+      Array.isArray(standaloneStylesJson.builtInStyles) &&
+        standaloneStylesJson.builtInStyles.length === 7,
+      `Expected 7 builtInStyles in standalone styles --json, got ${standaloneStylesJson.builtInStyles?.length}`
+    );
+    assert(
+      Array.isArray(standaloneStylesJson.customStyles) &&
+        standaloneStylesJson.customStyles.some(
+          (s) => s.id === 'bespoke-editorial'
+        ),
+      'Expected customStyles in standalone styles --json to contain "bespoke-editorial"'
+    );
+    assert(
+      Array.isArray(standaloneStylesJson.visualKits) &&
+        standaloneStylesJson.visualKits.length === 7,
+      `Expected 7 visualKits in standalone styles --json, got ${standaloneStylesJson.visualKits?.length}`
+    );
+
+    // 4a-ter. Scaffold an editorial-collage film bound to bespoke-editorial to verify narrative kit .d.ts
+    runCmd(
+      process.execPath,
+      [
+        mpBin,
+        'new',
+        'editorial-smoke',
+        '--kit=editorial-collage',
+        '--style=bespoke-editorial',
+        '--lang=pl',
+      ],
+      {
+        cwd: standaloneDir,
+        label:
+          '(standalone-app) node ./node_modules/.bin/make-pictures new editorial-smoke --kit=editorial-collage --style=bespoke-editorial --lang=pl',
+      }
+    );
 
     // 4b. Create new film via unpacked CLI binary
     runCmd(
@@ -793,6 +902,9 @@ async function main(): Promise<void> {
 import { AbsoluteFill, Audio, Sequence, staticFile } from 'remotion';
 import { z } from 'zod';
 import { STUDIO_FONTS, STUDIO_THEME, SmartMusicBed, SoundCue } from '@make-pictures/core';
+import { StyleProvider, type StylePreset } from '@make-pictures/core/style';
+import { type ChapterTitleCardProps } from '@make-pictures/kits/editorial-collage';
+import { type StoryCard2DProps } from '@make-pictures/kits/vector-scene-2d';
 import {
   BrowserFrame,
   ScreenSpotlightOverlay,
@@ -817,6 +929,8 @@ export const TestFilmSchema = z.object({
 
 export type TestFilmProps = z.infer<typeof TestFilmSchema>;
 export type _PhoneCheck = PhoneFrameProps;
+export type _StyleCheck = [StylePreset, ChapterTitleCardProps, StoryCard2DProps];
+export const _StyleProviderRef = StyleProvider;
 
 const DIALOGUE_SEGMENTS = [
   { sceneId: 'test-film-intro', fromFrame: 12, durationInFrames: 300 },
@@ -977,9 +1091,63 @@ export const TestFilm: React.FC<TestFilmProps> = (props) => {
       ),
       'SaaS hello-studio capsule missing videos/productions/hello-studio/assets/videos/'
     );
+    assert(
+      fs.existsSync(path.join(existingSaasDir, 'videos', 'styles', 'README.md')),
+      'SaaS workspace missing videos/styles/README.md after make-pictures init --dir=videos'
+    );
+    runCmd(
+      process.execPath,
+      [
+        saasMpBin,
+        'style',
+        'new',
+        'saas-brand',
+        '--from=cyber-telemetry',
+        '--dir=videos',
+      ],
+      {
+        cwd: existingSaasDir,
+        label:
+          '(existing-saas) node ./node_modules/.bin/make-pictures style new saas-brand --from=cyber-telemetry --dir=videos',
+      }
+    );
+    assert(
+      fs.existsSync(
+        path.join(
+          existingSaasDir,
+          'videos',
+          'styles',
+          'saas-brand.style.json'
+        )
+      ),
+      'Expected videos/styles/saas-brand.style.json in existing-saas'
+    );
+    const saasStylesJsonRaw = runCmd(
+      process.execPath,
+      [saasMpBin, 'styles', '--json', '--dir=videos'],
+      {
+        cwd: existingSaasDir,
+        label:
+          '(existing-saas) node ./node_modules/.bin/make-pictures styles --json --dir=videos',
+      }
+    );
+    const saasStylesJson = JSON.parse(saasStylesJsonRaw) as {
+      builtInStyles?: unknown[];
+      customStyles?: Array<{ id?: string }>;
+      visualKits?: unknown[];
+    };
+    assert(
+      Array.isArray(saasStylesJson.builtInStyles) &&
+        saasStylesJson.builtInStyles.length === 7 &&
+        Array.isArray(saasStylesJson.customStyles) &&
+        saasStylesJson.customStyles.some((s) => s.id === 'saas-brand') &&
+        Array.isArray(saasStylesJson.visualKits) &&
+        saasStylesJson.visualKits.length === 7,
+      'Unexpected payload from make-pictures styles --json --dir=videos'
+    );
     assertAgentAndClaudeSkillsDiscovery(existingSaasDir, 'Existing SaaS app');
     console.log(
-      '  ✓ Verified videos/productions/hello-studio/production.json + AGENTS.md/.agents + CLAUDE.md/.claude/skills (all 7 skills)'
+      `  ✓ Verified videos/productions/hello-studio/production.json + videos/styles/saas-brand.style.json + AGENTS.md/.agents + CLAUDE.md/.claude/skills (all ${EXPECTED_SKILLS.length} skills)`
     );
 
     logStep('5/5 • Cleanup & Final Summary');

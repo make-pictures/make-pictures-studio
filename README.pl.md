@@ -29,7 +29,7 @@
 > Przygotuj dla mnie studio filmowe make.pictures: uruchom `npx -y @make-pictures/cli@latest onboard --lang=pl` i wykonaj wszystkie kroki aż do uruchomienia podglądu Studio Web.
 > ```
 >
-> Agent sam zainstaluje projekt, połączy Twoje konto ElevenLabs w przeglądarce (zapisując klucz do `.env.local`), uruchomi w tle podgląd `60 FPS` **Studio Web** pod adresem `http://127.0.0.1:3000` i zapyta jaki film chcesz stworzyć.
+> Agent sam zainstaluje projekt, połączy Twoje konto ElevenLabs w przeglądarce (zapisując klucz do `.env.local`), uruchomi w tle podgląd `60 FPS` **Studio Web** oraz **🎨 Style Lab** pod adresem `http://127.0.0.1:3000` i zapyta o temat oraz klimat/styl Twojego pierwszego filmu.
 
 ---
 
@@ -55,29 +55,31 @@ Kolejne iteracje promptów w `make.pictures` przeprowadziły tę samą scenę bi
 
 ---
 
-## 🚀 3 oficjalne sposoby użycia `make.pictures` 2.0
+## 🚀 3 oficjalne sposoby użycia `make.pictures`
 
 ### 1. Samodzielne studio wideo (`npx create-make-pictures@latest`)
-Dedykowane repozytorium Git dla kanału, agencji lub serii edukacyjnej. Filmy w `productions/*` są Twoim kodem śledzonym w Git, a cały silnik działa z `node_modules/@make-pictures/*`. Wtyczka AI jest automatycznie podłączona dla każdego agenta (`AGENTS.md` + `.agents/plugins/make-pictures/` oraz `CLAUDE.md` + `.claude/skills/`):
+Dedykowane repozytorium Git dla kanału, agencji lub serii edukacyjnej. Filmy w `productions/*` oraz autorskie presety stylów w `styles/*.style.json` są Twoim kodem śledzonym w Git, a cały silnik działa z `node_modules/@make-pictures/*`. Wtyczka AI jest automatycznie podłączona dla każdego agenta (`AGENTS.md` + `.agents/plugins/make-pictures/` oraz `CLAUDE.md` + `.claude/skills/`):
 
 ```bash
-npx create-make-pictures@latest moje-filmy --kit=paper-diorama-3d --lang=pl
+npx create-make-pictures@latest moje-filmy --lang=pl
 cd moje-filmy
 npx make-pictures onboard
+npx make-pictures new premiera-produktu --kit=vector-scene-2d --style=minimal-product --lang=pl
+npx make-pictures new historia-druku --kit=editorial-collage --style=editorial-press --lang=pl
 npx make-pictures studio
 ```
 
 ### 2. Wewnątrz istniejącej aplikacji SaaS / web (`npx make-pictures init`)
-Dodaje studio wideo 60 FPS do projektu Next.js, Vite lub monorepo. Tworzy `videos/productions/` i synchronizuje skille AI w katalogu głównym repozytorium, dzięki czemu agent może importować **Twoje prawdziwe komponenty React** — albo nagrania ekranu `.mp4` — i zamieniać je w zwiastuny i dema produktu:
+Dodaje studio wideo 60 FPS do projektu Next.js, Vite lub monorepo. Tworzy `videos/productions/` + `videos/styles/` i synchronizuje skille AI w katalogu głównym repozytorium, dzięki czemu agent może importować **Twoje prawdziwe komponenty React** — albo nagrania ekranu `.mp4` — i zamieniać je w zwiastuny i dema produktu:
 
 ```bash
 npm i -D @make-pictures/cli @make-pictures/studio @make-pictures/core @make-pictures/kits
-npx make-pictures init --dir=videos --kit=motion-diagrams-2d --lang=pl
+npx make-pictures init --dir=videos --kit=vector-scene-2d --style=minimal-product --lang=pl
 npx make-pictures studio --dir=videos
 ```
 
 ### 3. Interaktywne osadzanie na stronie (`@make-pictures/core` + `@make-pictures/kits`)
-Osadzaj diagramy architektury, wyścigi słupków czy sceny 3D w 60 FPS na stronach React / Next.js przez `@remotion/player` — ostra grafika wektorowa i WebGL bez kodowania MP4:
+Osadzaj eseje redakcyjne, diagramy architektury, wyścigi słupków czy sceny 3D w 60 FPS na stronach React / Next.js przez `@remotion/player` — ostra grafika wektorowa i WebGL bez kodowania MP4:
 
 ```bash
 npm i @make-pictures/core @make-pictures/kits @remotion/player remotion zod lucide-react
@@ -85,62 +87,86 @@ npm i @make-pictures/core @make-pictures/kits @remotion/player remotion zod luci
 
 ```tsx
 import { Player } from '@remotion/player';
+import { StyleProvider } from '@make-pictures/core';
 import { DirectorCamera2D } from '@make-pictures/core/camera';
 import { WorldBox, FlowCurve, portRight, portLeft } from '@make-pictures/kits/motion-diagrams-2d';
 ```
 
 ---
 
-## 📦 Ekosystem pakietów npm (`v2.0.2`)
+## 📦 Ekosystem pakietów npm (`v2.1`)
 
 | Pakiet | Rola |
 | :--- | :--- |
 | **`create-make-pictures`** | Kreator nowego repozytorium studia (`npx create-make-pictures@latest <katalog>`) |
-| **`@make-pictures/core`** | Deterministyczne jądro 60 FPS: `defineProduction`, `SPRING_PRESETS`, `createSeededRandom`, kamera Shot DSL `DirectorCamera3D` / `DirectorCamera2D`, auto-ducking `<SmartMusicBed />`, `<SoundCue />`, `VoiceAcousticPreset` |
-| **`@make-pictures/kits`** | Zestawy wizualne jako subścieżki: `paper-diorama-3d`, `isometric-3d`, `motion-diagrams-2d`, `kinetic-typography`, `data-storytelling`, `product-frames` oraz deterministyczne `vfx` |
-| **`@make-pictures/studio`** | Lokalne **Studio Web** 60 FPS z HMR i serwerem Vite (Multi-Track Director Timeline, Golden Safe Box `9:16`, Props Inspector `zod` ↔ `*.props.json`) |
-| **`@make-pictures/cli`** | Zunifikowane CLI `make-pictures` (`onboard`, `doctor`, `init`, `new`, `audio`, `music`, `sfx`, `studio`, `qa`, `render`, `image`) z wbudowaną wtyczką AI |
+| **`@make-pictures/core`** | Deterministyczne jądro 60 FPS: `<StyleProvider>` i `StylePresetSchema` (`@make-pictures/core/style`), 7 `BUILT_IN_STYLES`, loader Google Fonts (`latin-ext`), `defineProduction`, `SPRING_PRESETS`, `createSeededRandom`, kamera Shot DSL `DirectorCamera3D` / `DirectorCamera2D`, `<SmartMusicBed />`, `<SoundCue />` |
+| **`@make-pictures/kits`** | 7 zestawów scenicznych (`editorial-collage`, `vector-scene-2d`, `motion-diagrams-2d`, `kinetic-typography`, `data-storytelling`, `paper-diorama-3d`, `isometric-3d`), `product-frames` oraz deterministyczne `vfx` |
+| **`@make-pictures/studio`** | Lokalne **Studio Web** 60 FPS z HMR i widokiem **🎨 Style Lab** (`?view=styles`), Multi-Track Director Timeline, Golden Safe Box `9:16`, Props Inspector (`zod` ↔ `*.props.json` i `styles/*.style.json`) |
+| **`@make-pictures/cli`** | Zunifikowane CLI `make-pictures` (`onboard`, `doctor`, `init`, `styles`, `style new`, `new`, `audio`, `music`, `sfx`, `studio`, `qa`, `render`, `image`) z 9-skillową wtyczką AI |
 
 ---
 
 ## ✨ Kluczowe możliwości Studio
 
+- **System Art Direction, 7 stylów bazowych i `60 FPS` 🎨 Style Lab (`styles/*.style.json`):**
+  - Pełne oddzielenie **techniki scenicznej (`Kit`)** od **kierunku plastycznego (`StylePreset`)** — łącz wiele kitów między aktami wewnątrz jednego `<StyleProvider>`, zachowując spójną paletę, trójkę fontów Google Fonts (13 rodzin `latin-ext` z bezpiecznym limitem `2500 ms` dla pracy offline), fakturę tła, geometrię kart i fizykę sprężyn.
+  - Przeglądaj **7 stylów wbudowanych** lub edytuj i zapisuj własne style marki/epoki (`styles/<slug>.style.json`) na żywo w `60 FPS` w zakładce **🎨 Style Lab** (`http://127.0.0.1:3000?view=styles`) albo komendą `npx make-pictures style new <slug>`.
 - **Zintegrowane studio audio AI (1 klucz API = lektor + muzyka + SFX):**
-  - **Lektor z timestampami słów i filtrami akustycznymi:** synchronizacja co do milisekundy (`eleven_multilingual_v2`) i deklaratywne presety `VoiceAcousticPreset` (`clean`, `telephone`, `radio-walkie`, `cathedral`, `megaphone`, `excitement-boost`).
-  - **Muzyka AI z auto-duckingiem (`<SmartMusicBed />`):** ścieżki ElevenLabs Music (`prompt` lub sekcje `composition-plan`), wyciszanie pod dialogami z wyprzedzeniem, puls basu `useMusicBeatPulse` i 6 proceduralnych presetów offline.
+  - **Lektor z timestampami słów i archetypami głosu:** synchronizacja co do milisekundy (`eleven_multilingual_v2`), automatyczny dobór głosu do stylu (`voiceArchetype`) i deklaratywne presety `VoiceAcousticPreset` (`clean`, `telephone`, `radio-walkie`, `cathedral`, `megaphone`, `excitement-boost`).
+  - **Muzyka AI z auto-duckingiem (`<SmartMusicBed />`):** ścieżki ElevenLabs Music (`prompt` lub sekcje `composition-plan`), wyciszanie pod dialogami z wyprzedzeniem, puls basu `useMusicBeatPulse` i 7 proceduralnych presetów offline (w tym `cinematic-epic`).
   - **Efekty AI i foley zsynchronizowany ze słowami (`<SoundCue />`):** ElevenLabs Sound Effects wyzwalane w konkretnej klatce lub na wypowiadanym słowie (`onWord`), z automatycznym masteringiem **EBU R128 `-14 LUFS`**.
 - **Deklaratywna kamera Shot DSL (`DirectorCamera3D` i `DirectorCamera2D`):** język filmowy (`establishing-wide`, `medium-two-shot`, `close-up`, `over-the-shoulder`, `low-angle-hero`, `high-crane`, `cut | glide | whip | orbit`, `dolly-zoom`), deterministyczny oddech kamery i wstrząsy, a także automatyczne kadrowanie do **Golden Safe Box `9:16` (`x ∈ [40, 910], y ∈ [220, 1380]`)** dla Shorts / Reels / TikTok.
 - **Deterministyczne VFX 60 FPS (`@make-pictures/kits/vfx`):** `CinematicLensOverlay` sprzężony z prędkością kamery (winieta, ziarno, aberracja przy panoramach `whip`, flary), analityczne `ParticleField`, mgła `StagePostProcessing3D` i przejścia `SceneTransition`.
 - **Screencasty SaaS (`@make-pictures/kits/product-frames`):** wrzuć `.mp4` do `productions/<slug>/assets/videos/` i oprawiaj je w `BrowserFrame` / `PhoneFrame` z podświetleniami `ScreenSpotlightOverlay` oraz zbliżeniami `DirectorCamera2D`.
 - **12-klatkowy Contact-Sheet QA (`npx make-pictures qa <Id>`):** jedna komenda generuje `out/qa-<Id>.png` z numerami klatek i obrysem stref `9:16` do szybkiej kontroli przez człowieka i AI.
-- **Przenośna wtyczka AI bez konfiguracji:** natywne wykrywanie w **Google Antigravity** (`.agents/plugins/make-pictures/`) i **Claude Code** (`.claude/skills/` + `CLAUDE.md`), 7 progresywnych skilli `SKILL.md` i zwięzły kodeks `AGENTS.md` zmniejszający bazowy kontekst o **~80%**.
+- **Przenośna wtyczka AI bez konfiguracji:** natywne wykrywanie w **Google Antigravity** (`.agents/plugins/make-pictures/`) i **Claude Code** (`.claude/skills/` + `CLAUDE.md`), **9 progresywnych skilli `SKILL.md`** (z obowiązkową bramką Art Direction w Kroku 1) i zwięzły kodeks `AGENTS.md` zmniejszający bazowy kontekst o **~80%**.
 
 ---
 
-## 🎨 Zestawy wizualne i VFX (`@make-pictures/kits`)
+## 🎭 Kierunki Plastyczne i 7 Stylów Wbudowanych (`@make-pictures/core/style`)
+
+Sprawdź dostępne style komendą `npx make-pictures styles`, przetestuj je na żywo na wszystkich 7 kitach w **🎨 Style Lab**, albo utwórz własny preset w `styles/<slug>.style.json` przez `npx make-pictures style new <slug> --from=editorial-press`:
+
+| ID stylu (`--style=...`) | Typografia (`latin-ext`) | Powierzchnia i karty | Zastosowanie |
+| :--- | :--- | :--- | :--- |
+| **`minimal-product`** | `Plus Jakarta Sans` + `Inter` | Jasne płótno, czyste karty (`minimal-clean`) | Premiery SaaS, prezentacje produktu, raporty i KPI |
+| **`editorial-press`** | `Fraunces` + `DM Sans` | Ciepły papier prasowy (`editorial-paper`), ramki `editorial-ink` | Dziennikarstwo danych, nauka, ekonomia i eseje wideo |
+| **`archival-chronicle`** | `Playfair Display` + `DM Sans` | Pergamin, terakota i stare złoto (`editorial-ink`) | Historia, kulinaria, biografie, sztuka i kultura |
+| **`cyber-telemetry`** | `Space Grotesk` + `JetBrains Mono` | Ciemna siatka techniczna (`isDark`), karty `glass-glow` | Architektura systemów, AI, DevOps, cybersecurity |
+| **`brutalist-poster`** | `Syne` (`UPPERCASE`) + `Space Grotesk` | Raster `halftone-dots`, ostre rogi `0px`, twardy cień `6px` | Dynamiczne Reelsy 9:16, manifesty, kampanie społeczne |
+| **`sketch-notebook`** | `Caveat` + `DM Sans` | Jasny papier w kratkę (`blueprint-grid`), odręczne nagłówki | Edukacja, kursy, matematyka i tłumaczenie pojęć |
+| **`tactile-craft`** | `Outfit` + `Plus Jakarta Sans` | Ciepła poświata `mesh-aura`, obwódka wycinanki `tactile-cutout` | Opowieści przygodowe, lifestyle, teatrzyk wycinankowy 2.5D |
+
+---
+
+## 🎨 7 Zestawów Scenicznych, Product Frames i VFX (`@make-pictures/kits`)
 
 | Zestaw (kit) | Ścieżka importu | Główne komponenty | Zastosowanie |
 | :--- | :--- | :--- | :--- |
-| **1. Paper Diorama 3D** *(księga pop-up 2.5D)* | `@make-pictures/kits/paper-diorama-3d` | `PaperCutout3D`, `ImageCutout3D`, `PopUpHinge3D`, `PopUpBookBase3D`, `PaperBookPageTurn3D`, `PaperStageLighting3D` | Storytelling, historie naukowe i historyczne, teatrzyk z tektury |
-| **2. Isometric 3D Studio** | `@make-pictures/kits/isometric-3d` | `Stylized3DCharacter`, `IsometricStudioEnvironment` | Dialogi postaci 3D, podcasty, explainery technologiczne |
+| **1. Editorial Collage** | `@make-pictures/kits/editorial-collage` | `ChapterTitleCard`, `EditorialMediaCard` *(Ken Burns)*, `HighlightQuoteStage`, `SplitStoryLayout` | Dokumenty, historia, kultura, nauka i magazynowe eseje wideo |
+| **2. Vector Scene 2D** | `@make-pictures/kits/vector-scene-2d` | `StoryCard2D`, `AnnotatedCallout2D`, `ComparisonSplit2D` | Uniwersalna narracja 2D, prezentacja pojęć, przypisy i porównania A/B |
 | **3. Motion Diagrams 2D** | `@make-pictures/kits/motion-diagrams-2d` | `DirectorCamera2D` / `CameraRig`, `NodeBox` (`portTop/Bottom/Left/Right`), `FlowCurve`, `DataFlowEdge`, `SystemNode` | Architektura systemów, przepływy SaaS, nieskończone płótno |
 | **4. Kinetic Typography** | `@make-pictures/kits/kinetic-typography` | `WordByWordStage`, `ImpactKeywordCard`, `AnimatedMetricCounter` | Dynamiczne Shortsy / Reelsy, akcentowanie słów, liczniki KPI |
 | **5. Data Storytelling** | `@make-pictures/kits/data-storytelling` | `AnimatedBarRace`, `TimelineTrack`, `MetricComparisonCard` | Wyścigi słupków, osie czasu, porównania przed/po |
-| **6. Cinematic VFX** | `@make-pictures/kits/vfx` | `CinematicLensOverlay`, `ParticleField`, `StagePostProcessing3D`, `ContactShadowDisc3D`, `SceneTransition` | Ziarno filmowe, aberracja, śnieg / iskry / pył, mgła 3D i przejścia |
-| **7. Product Frames** | `@make-pictures/kits/product-frames` | `BrowserFrame`, `PhoneFrame`, `ScreenSpotlightOverlay` (`<OffthreadVideo />`) | Screencasty SaaS `.mp4`, prezentacje produktu, dema premierowe |
+| **6. Paper Diorama 3D** | `@make-pictures/kits/paper-diorama-3d` | `DioramaStage3D`, `PaperCutout3D`, `ImageCutout3D`, `PopUpHinge3D`, `PaperStageLighting3D` | Wycinankowe światy 2.5D na neutralnej, stylowanej scenie 3D |
+| **7. Isometric 3D Studio** | `@make-pictures/kits/isometric-3d` | `IsometricStage3D`, `Stylized3DCharacter` | Wieloosobowe dialogi 3D, podcasty, debaty studyjne |
+| **Product Frames** | `@make-pictures/kits/product-frames` | `BrowserFrame`, `PhoneFrame`, `ScreenSpotlightOverlay` (`<OffthreadVideo />`) | Screencasty SaaS `.mp4`, prezentacje produktu, dema premierowe |
+| **Cinematic VFX** | `@make-pictures/kits/vfx` | `CinematicLensOverlay`, `ParticleField`, `StagePostProcessing3D`, `ContactShadowDisc3D`, `SceneTransition` | Ziarno filmowe, aberracja, śnieg / iskry / pył, mgła 3D i przejścia |
 
 ---
 
-## 🧠 Wtyczka AI i progresywne skille (`plugins/make-pictures/`)
+## 🧠 Wtyczka AI i 9 progresywnych skilli (`plugins/make-pictures/`)
 
-Każdy agent czyta zwięzły (~5 KB) kodeks [`AGENTS.md`](./AGENTS.md) (Claude Code: [`CLAUDE.md`](./CLAUDE.md)) i doczytuje wyspecjalizowane skille tylko wtedy, gdy są potrzebne:
+Każdy agent czyta zwięzły kodeks [`AGENTS.md`](./AGENTS.md) (Claude Code: [`CLAUDE.md`](./CLAUDE.md)) i doczytuje wyspecjalizowane skille tylko wtedy, gdy są potrzebne:
 
 | Skill | Zakres |
 | :--- | :--- |
 | `make-pictures-director` | 6-etapowy proces produkcji, tryby pracy, `production.json`, rytm ujęć 3–5 s, Contact-Sheet QA, render `-14 LUFS`, screencasty `.mp4` |
-| `kit-paper-diorama-3d` | Obwódki `PaperCutout3D` / `ImageCutout3D`, odstęp `Δz`, polskie `maxWidth`, 3-fazowe przewracanie stron |
+| `style-and-art-direction` | Obowiązkowa bramka Art Direction (Krok 1), 7 `BUILT_IN_STYLES`, własne `styles/*.style.json`, `<StyleProvider>`, `useStudioStyle()`, **🎨 Style Lab**, archetypy głosu |
+| `kit-editorial-and-vector` | `editorial-collage` (`ChapterTitleCard`, `EditorialMediaCard` Ken Burns, `HighlightQuoteStage`, `SplitStoryLayout`) oraz `vector-scene-2d` (`StoryCard2D`, `AnnotatedCallout2D`, `ComparisonSplit2D`) |
+| `kit-paper-diorama-3d` | Neutralna scena `DioramaStage3D`, obwódki `PaperCutout3D` / `ImageCutout3D`, `PopUpHinge3D` (`[0, h/2, 0]`), odstęp `Δz >= 0.45`, polskie `maxWidth`, `cacheDeps` |
 | `kit-motion-diagrams-2d` | Porty `NodeBox`, omijanie nagłówków `curveX`, nieskończona siatka, pakiety `92–120` klatek, product frames |
-| `kit-isometric-3d` | `speakingWeight` vs `speechEnergy`, `getSmoothPoseWindow`, spokojne częstotliwości 60 FPS |
+| `kit-isometric-3d` | Neutralna scena `IsometricStage3D`, `Stylized3DCharacter`, `speakingWeight` vs `speechEnergy`, `getSmoothPoseWindow`, spokojne tempo `0.03..0.055 rad/kl.` |
 | `kit-kinetic-and-data` | `WordByWordStage`, `ImpactKeywordCard`, `AnimatedMetricCounter`, `AnimatedBarRace`, `TimelineTrack`, `MetricComparisonCard` |
 | `sound-and-music-design` | Profile głosów ElevenLabs, fonetyka PL/EN, `VoiceAcousticPreset`, `<SmartMusicBed />`, `<SoundCue />` |
 | `cinematography-and-vfx` | Kamera Shot DSL `DirectorCamera3D` / `DirectorCamera2D`, kadrowanie `9:16`, wstrząsy kamery, deterministyczne VFX |
@@ -153,10 +179,12 @@ Każdy agent czyta zwięzły (~5 KB) kodeks [`AGENTS.md`](./AGENTS.md) (Claude C
 | :--- | :--- |
 | `npx make-pictures onboard` | Kreator dla agenta (logowanie w przeglądarce przez `@elevenlabs/cli`, zapis `ELEVENLABS_API_KEY` do `.env.local`) |
 | `npx make-pictures doctor` | Sprawdza Node.js, FFmpeg, `.env.local`, połączenie z ElevenLabs i gotowość Remotion |
-| `npx make-pictures init` | Dodaje studio i wtyczkę AI do istniejącej aplikacji (`--dir=videos`) |
-| `npx make-pictures new <slug>` | Tworzy kapsułę filmu w `productions/<slug>/` (`--kit=...`, `--lang=pl\|en`, `--dir=...`) |
+| `npx make-pictures init` | Dodaje studio, katalog `styles/` i wtyczkę AI do istniejącej aplikacji (`--dir=videos`) |
+| `npx make-pictures styles` | Wypisuje 7 stylów wbudowanych, własne presety `styles/*.style.json` oraz 7 kitów scenicznych (`--json`) |
+| `npx make-pictures style new <slug>` | Tworzy własny preset stylu w `styles/<slug>.style.json` (`--from=editorial-press`, `--force`) |
+| `npx make-pictures new <slug>` | Tworzy kapsułę filmu w `productions/<slug>/` (`--kit=...`, `--style=...`, `--voice=...`, `--lang=pl\|en`) |
 | `npx make-pictures audio` | Lektor + timestampy słów + muzyka AI + efekty SFX (`--production=<slug>`, `--mock`, `--force`) |
-| `npx make-pictures studio` | **Studio Web** na `http://127.0.0.1:3000`: podgląd 60 FPS z HMR, Multi-Track Director Timeline, Golden Safe Box, Props Inspector, QA i eksport MP4 |
+| `npx make-pictures studio` | **Studio Web** i **🎨 Style Lab** na `http://127.0.0.1:3000` (`?view=styles`): podgląd 60 FPS z HMR, Multi-Track Director Timeline, Golden Safe Box, edytor Props &amp; Style |
 | `npx make-pictures qa <Id>` | 12-klatkowy arkusz PNG (`out/qa-<Id>.png`) z numerami klatek i obrysem `9:16` |
 | `npx make-pictures render <Id>` | MP4 w 60 FPS (auto `--gl=angle` dla 3D) z masteringiem EBU R128 `-14 LUFS` |
 
@@ -164,14 +192,14 @@ Każdy agent czyta zwięzły (~5 KB) kodeks [`AGENTS.md`](./AGENTS.md) (Claude C
 
 ## 🧑‍💻 Praca nad monorepo silnika
 
-Uruchom wbudowane pokazy (`DirectorShowcase`, `StarterStory`, `PaperDioramaDemo`, `IsometricDialogueDemo`, `ArchitectureDemo`) lub rozwijaj pakiety `@make-pictures/*`:
+Uruchom wbudowane pokazy (`DirectorShowcase`, `StarterStory`, `PaperDioramaDemo`, `IsometricDialogueDemo`, `ArchitectureDemo`), przetestuj wszystkie 7 kitów w **🎨 Style Lab** lub rozwijaj pakiety `@make-pictures/*`:
 
 ```bash
 git clone https://github.com/make-pictures/make-pictures-studio.git
 cd make-pictures-studio
 npm install
 npm run onboard        # lub: npm run setup (ręczne .env.local)
-npm run studio         # Studio Web z przykładami examples/* na http://127.0.0.1:3000
+npm run studio         # Studio Web + Style Lab na http://127.0.0.1:3000
 npm run build:packages # buduje @make-pictures/{core,kits,studio,cli} i create-make-pictures
 npm run pack:verify    # hermetyczny test paczek .tgz w zewnętrznym projekcie
 ```
