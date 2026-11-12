@@ -348,3 +348,261 @@ test('runCli wires --human and --json flags to onboard command', async () => {
     cleanup();
   }
 });
+
+test('bootstrap in empty directory (with .DS_Store / .git) scaffolds directly into . and preserves --lang=pl', async () => {
+  const emptyDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'make-pictures-empty-bootstrap-')
+  );
+  fs.writeFileSync(path.join(emptyDir, '.DS_Store'), '');
+  fs.mkdirSync(path.join(emptyDir, '.git'));
+  try {
+    const out = createMemoryStdout(true);
+    await runOnboardCommand({
+      cwd: emptyDir,
+      lang: 'pl',
+      deps: {
+        stdout: out.stream,
+        env: { ANTIGRAVITY_AGENT: '1' },
+        checkFfmpeg: () => true,
+      },
+    });
+    const parsed = JSON.parse(out.getOutput().trim()) as {
+      next: string;
+      run?: string;
+      say: string;
+    };
+    assert.equal(parsed.next, 'run');
+    assert.match(parsed.say, /make\.pictures/i);
+    assert.ok(parsed.run);
+    assert.match(parsed.run, /npx -y create-make-pictures@latest \. --lang=pl/);
+    assert.match(parsed.run, /npm run onboard -- init --lang=pl/);
+  } finally {
+    fs.rmSync(emptyDir, { recursive: true, force: true });
+  }
+});
+
+test('bootstrap in existing non-make.pictures app asks saas vs standalone choice, and --mode=saas installs into videos/', async () => {
+  const appDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'make-pictures-existing-app-')
+  );
+  fs.writeFileSync(
+    path.join(appDir, 'package.json'),
+    JSON.stringify({
+      name: 'my-nextjs-saas',
+      private: true,
+      dependencies: { next: '15.0.0', react: '18.3.1' },
+    }) + '\n'
+  );
+
+  try {
+    const askOut = createMemoryStdout(true);
+    await runOnboardCommand({
+      cwd: appDir,
+      lang: 'pl',
+      deps: {
+        stdout: askOut.stream,
+        env: { ANTIGRAVITY_AGENT: '1' },
+        checkFfmpeg: () => true,
+      },
+    });
+    const parsedAsk = JSON.parse(askOut.getOutput().trim()) as {
+      next: string;
+      say: string;
+      details?: {
+        choices?: { saas?: string; standalone?: string };
+      };
+    };
+    assert.equal(parsedAsk.next, 'ask_choice');
+    assert.match(parsedAsk.say, /videos\//);
+    assert.ok(parsedAsk.details?.choices?.saas);
+    assert.ok(parsedAsk.details?.choices?.standalone);
+    assert.match(parsedAsk.details.choices.saas!, /--mode=saas/);
+    assert.match(parsedAsk.details.choices.standalone!, /--mode=standalone/);
+
+    const saasOut = createMemoryStdout(true);
+    await runOnboardCommand({
+      cwd: appDir,
+      lang: 'pl',
+      mode: 'saas',
+      dir: 'videos',
+      deps: {
+        stdout: saasOut.stream,
+        env: { ANTIGRAVITY_AGENT: '1' },
+        checkFfmpeg: () => true,
+      },
+    });
+    const parsedSaas = JSON.parse(saasOut.getOutput().trim()) as {
+      next: string;
+      run?: string;
+    };
+    assert.equal(parsedSaas.next, 'run');
+    assert.ok(parsedSaas.run);
+    assert.match(parsedSaas.run, /@make-pictures\/cli@latest/);
+    assert.match(parsedSaas.run, /make-pictures init --dir=videos --lang=pl/);
+    assert.match(parsedSaas.run, /onboard init --dir=videos --lang=pl/);
+  } finally {
+    fs.rmSync(appDir, { recursive: true, force: true });
+  }
+});
+
+test('bootstrap in general non-empty folder creates my-films/ or resumes existing my-films/', async () => {
+  const projectsDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'make-pictures-general-dir-')
+  );
+  fs.mkdirSync(path.join(projectsDir, 'unrelated-folder'));
+
+  try {
+    const out1 = createMemoryStdout(true);
+    await runOnboardCommand({
+      cwd: projectsDir,
+      lang: 'en',
+      deps: {
+        stdout: out1.stream,
+        env: { CLAUDECODE: '1' },
+        checkFfmpeg: () => true,
+      },
+    });
+    const parsed1 = JSON.parse(out1.getOutput().trim()) as {
+      next: string;
+      run?: string;
+    };
+    assert.equal(parsed1.next, 'run');
+    assert.ok(parsed1.run);
+    assert.match(
+      parsed1.run,
+      /npx -y create-make-pictures@latest my-films --lang=en/
+    );
+    assert.match(parsed1.run, /--cwd=my-films --lang=en/);
+
+    // Now simulate that my-films already exists as a make.pictures workspace
+    const subStudio = path.join(projectsDir, 'my-films');
+    fs.mkdirSync(subStudio, { recursive: true });
+    fs.writeFileSync(
+      path.join(subStudio, 'package.json'),
+      JSON.stringify({
+        name: 'my-films',
+        scripts: { onboard: 'make-pictures onboard', studio: 'make-pictures studio' },
+        dependencies: { '@make-pictures/cli': '^2.0.2' },
+      }) + '\n'
+    );
+    for (const pkgParts of [
+      ['remotion'],
+      ['@remotion', 'player'],
+      ['@elevenlabs', 'elevenlabs-js'],
+    ]) {
+      const dir = path.join(subStudio, 'node_modules', ...pkgParts);
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(path.join(dir, 'package.json'), '{"version":"1.0.0"}\n');
+    }
+
+    const out2 = createMemoryStdout(true);
+    await runOnboardCommand({
+      cwd: projectsDir,
+      lang: 'en',
+      deps: {
+        stdout: out2.stream,
+        env: { CLAUDECODE: '1' },
+        checkFfmpeg: () => true,
+      },
+    });
+    const parsed2 = JSON.parse(out2.getOutput().trim()) as {
+      next: string;
+      run?: string;
+    };
+    assert.equal(parsed2.next, 'run');
+    assert.ok(parsed2.run);
+    assert.match(parsed2.run, /connect/);
+    assert.match(parsed2.run, /my-films/);
+  } finally {
+    fs.rmSync(projectsDir, { recursive: true, force: true });
+  }
+});
+
+test('final check step emits bilingual ask_what_to_build with background Studio Web launch instruction and zero audio credit burn', async () => {
+  const secretKey = 'sk_live_polish_key_7788';
+  const { rootDir, cleanup } = createTempStudioWorkspace({
+    envLocalContent: `ELEVENLABS_API_KEY=${secretKey}\n`,
+  });
+
+  try {
+    const outPl = createMemoryStdout(true);
+    await runOnboardCommand({
+      cwd: rootDir,
+      step: 'check',
+      lang: 'pl',
+      deps: {
+        stdout: outPl.stream,
+        env: { ANTIGRAVITY_AGENT: '1' },
+        checkFfmpeg: () => true,
+        isPortOpen: async () => false,
+        elevenLabsRunner: () => ({ next: 'done', say: 'Ready' }),
+      },
+    });
+
+    const parsedPl = JSON.parse(outPl.getOutput().trim()) as {
+      next: string;
+      instruction: string;
+      say: string;
+      details?: {
+        studio_already_running?: boolean;
+        studio_command?: string;
+        studio_web_url?: string;
+        workspace_dir?: string;
+      };
+    };
+    assert.equal(parsedPl.next, 'ask_what_to_build');
+    assert.match(parsedPl.instruction, /background|daemon/i);
+    assert.match(parsedPl.instruction, /npm run studio/);
+    assert.match(parsedPl.instruction, /AGENTS\.md/);
+    assert.match(parsedPl.say, /127\.0\.0\.1:3000/);
+    assert.match(parsedPl.say, /Jaki film chcesz stworzyć/i);
+    assert.ok(!parsedPl.say.includes(secretKey));
+    assert.ok(!parsedPl.instruction.includes('make-pictures audio'));
+    assert.equal(parsedPl.details?.studio_already_running, false);
+    assert.equal(parsedPl.details?.studio_web_url, 'http://127.0.0.1:3000');
+  } finally {
+    cleanup();
+  }
+});
+
+test('runCli wires --lang, --mode, and --dir flags cleanly to onboard', async () => {
+  const appDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'make-pictures-cli-flags-')
+  );
+  fs.writeFileSync(
+    path.join(appDir, 'package.json'),
+    JSON.stringify({ name: 'existing-web-app', dependencies: { react: '18.3.1' } }) + '\n'
+  );
+  const origWrite = process.stdout.write.bind(process.stdout);
+  let captured = '';
+  process.stdout.write = ((chunk: string | Uint8Array): boolean => {
+    captured +=
+      typeof chunk === 'string'
+        ? chunk
+        : Buffer.from(chunk).toString('utf8');
+    return true;
+  }) as typeof process.stdout.write;
+
+  try {
+    await runCli([
+      'onboard',
+      `--cwd=${appDir}`,
+      '--lang=pl',
+      '--mode=saas',
+      '--dir=videos',
+      '--json',
+    ]);
+    const parsed = JSON.parse(captured.trim()) as {
+      next: string;
+      run?: string;
+      say: string;
+    };
+    assert.equal(parsed.next, 'run');
+    assert.match(parsed.say, /videos\//);
+    assert.ok(parsed.run);
+    assert.match(parsed.run, /--dir=videos --lang=pl --json/);
+  } finally {
+    process.stdout.write = origWrite;
+    fs.rmSync(appDir, { recursive: true, force: true });
+  }
+});

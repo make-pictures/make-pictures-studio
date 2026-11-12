@@ -306,7 +306,7 @@ Uniwersalne niezmienniki studia **make.pictures** (\`60 FPS\` Video-as-Code). Sz
 
 const FALLBACK_PLUGIN_JSON = {
   name: 'make-pictures',
-  version: '2.0.1',
+  version: '2.0.2',
   description:
     'make.pictures Studio — 60 FPS Video-as-Code skills, visual kits, camera Shot DSL, and ElevenLabs AI Audio Studio.',
   author: {
@@ -453,7 +453,7 @@ export function syncBundledAiPluginToProject(
         {
           name: 'make-pictures',
           description: FALLBACK_PLUGIN_JSON.description,
-          version: '2.0.1',
+          version: '2.0.2',
         },
         null,
         2

@@ -35,6 +35,52 @@ const VALID_KITS = new Set<StarterKitId>([
 
 const BOOLEAN_FLAGS = new Set(['no-install', 'force', 'help']);
 
+export const IGNORABLE_EMPTY_DIR_ENTRIES: ReadonlySet<string> = new Set([
+  '.DS_Store',
+  'Thumbs.db',
+  '.git',
+  '.gitignore',
+  '.vscode',
+  '.idea',
+  '.claude',
+  '.agents',
+  '.antigravity',
+  '.cursor',
+]);
+
+export function isEffectivelyEmptyDir(dirPath: string): boolean {
+  if (!fs.existsSync(dirPath)) return true;
+  const entries = fs.readdirSync(dirPath);
+  return entries.every((entry) => IGNORABLE_EMPTY_DIR_ENTRIES.has(entry));
+}
+
+function writeMergedGitignore(
+  gitignorePath: string,
+  templateContent: string
+): void {
+  if (!fs.existsSync(gitignorePath)) {
+    fs.writeFileSync(gitignorePath, templateContent, 'utf8');
+    return;
+  }
+  const existing = fs.readFileSync(gitignorePath, 'utf8');
+  const existingLines = new Set(
+    existing
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter(Boolean)
+  );
+  const missingLines = templateContent
+    .split(/\r?\n/)
+    .filter((l) => {
+      const trimmed = l.trim();
+      return trimmed && !trimmed.startsWith('#') && !existingLines.has(trimmed);
+    });
+  if (missingLines.length > 0) {
+    const merged = `${existing.trimEnd()}\n${missingLines.join('\n')}\n`;
+    fs.writeFileSync(gitignorePath, merged, 'utf8');
+  }
+}
+
 function parseArgs(argv: string[]): ParsedCreateArgs {
   const positionals: string[] = [];
   const flags: Record<string, string | boolean> = {};
@@ -209,10 +255,10 @@ function buildPackageJson(projectName: string): Record<string, unknown> {
       typecheck: 'tsc --noEmit',
     },
     dependencies: {
-      '@make-pictures/core': '^2.0.1',
-      '@make-pictures/kits': '^2.0.1',
-      '@make-pictures/studio': '^2.0.1',
-      '@make-pictures/cli': '^2.0.1',
+      '@make-pictures/core': '^2.0.2',
+      '@make-pictures/kits': '^2.0.2',
+      '@make-pictures/studio': '^2.0.2',
+      '@make-pictures/cli': '^2.0.2',
       remotion: '^4.0.276',
       '@remotion/cli': '^4.0.276',
       '@remotion/bundler': '^4.0.276',
@@ -464,7 +510,7 @@ Uniwersalne niezmienniki studia **make.pictures** (\`60 FPS\` Video-as-Code). Sz
 
 const EMBEDDED_PLUGIN_JSON = {
   name: 'make-pictures',
-  version: '2.0.1',
+  version: '2.0.2',
   description:
     'make.pictures Studio — 60 FPS Video-as-Code skills, visual kits, camera Shot DSL, and ElevenLabs AI Audio Studio.',
   author: {
@@ -997,7 +1043,7 @@ function writeAiPluginAndAgentsMd(targetRoot: string): void {
         {
           name: 'make-pictures',
           description: EMBEDDED_PLUGIN_JSON.description,
-          version: '2.0.1',
+          version: '2.0.2',
         },
         null,
         2
@@ -1093,8 +1139,7 @@ export async function createMakePicturesApp(
   const isPl = lang === 'pl';
 
   if (fs.existsSync(targetDir) && !options.force) {
-    const entries = fs.readdirSync(targetDir);
-    if (entries.length > 0) {
+    if (!isEffectivelyEmptyDir(targetDir)) {
       throw new Error(
         `Target directory "${targetDir}" is not empty. Choose a new directory or pass --force.`
       );
@@ -1123,7 +1168,7 @@ export async function createMakePicturesApp(
     'utf8'
   );
   fs.writeFileSync(path.join(targetDir, 'src', 'index.ts'), SRC_INDEX_TS, 'utf8');
-  fs.writeFileSync(path.join(targetDir, '.gitignore'), GITIGNORE_CONTENT, 'utf8');
+  writeMergedGitignore(path.join(targetDir, '.gitignore'), GITIGNORE_CONTENT);
   fs.writeFileSync(
     path.join(targetDir, '.env.example'),
     ENV_EXAMPLE_CONTENT,
@@ -1385,7 +1430,7 @@ export const SFX_MANIFEST: Record<string, ProductionSfxEntry> = {};
 
 function printCreateHelp(): void {
   console.log(`
-create-make-pictures (v2.0.1)
+create-make-pictures (v2.0.2)
 
 Usage:
   npx create-make-pictures@latest <project-directory> [options]

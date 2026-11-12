@@ -192,13 +192,25 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
     case 'onboard': {
       const step = positionals[1] || getStringFlag(flags, 'step');
       const formatFlag = getStringFlag(flags, 'format')?.toLowerCase();
+      const langFlag = getStringFlag(flags, 'lang')?.toLowerCase();
+      const modeFlag = getStringFlag(flags, 'mode')?.toLowerCase();
+      const targetFlag = getStringFlag(flags, 'target');
       const extraArgs: string[] = [];
       if (flags.wait) extraArgs.push('--wait');
       if (flags['no-browser']) extraArgs.push('--no-browser');
       if (flags.replace) extraArgs.push('--replace');
       await runOnboardCommand({
         cwd,
+        dir,
         step,
+        lang: langFlag === 'pl' ? 'pl' : langFlag === 'en' ? 'en' : undefined,
+        mode:
+          modeFlag === 'saas'
+            ? 'saas'
+            : modeFlag === 'standalone'
+              ? 'standalone'
+              : undefined,
+        target: targetFlag,
         extraArgs,
         json: Boolean(flags.json) || formatFlag === 'json',
         human:

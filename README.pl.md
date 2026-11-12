@@ -23,18 +23,13 @@
 </p>
 
 > [!TIP]
-> **Utwórz własne studio filmowe 60 FPS w kilka sekund — bez wcześniejszego konta ani klucza API.**
->
-> ```bash
-> npx create-make-pictures@latest moje-filmy
-> cd moje-filmy
-> ```
->
-> Następnie otwórz katalog `moje-filmy` w **Google Antigravity**, **Claude Code**, **Cursor** lub **Codex** i wklej:
+> **Start bez terminala — wklej jedno zdanie w Google Antigravity lub Claude Code:**
 >
 > ```text
-> Skonfiguruj studio make.pictures: uruchom `npx make-pictures onboard` i wykonuj to, co wypisze.
+> Przygotuj dla mnie studio filmowe make.pictures: uruchom `npx -y @make-pictures/cli@latest onboard --lang=pl` i wykonaj wszystkie kroki aż do uruchomienia podglądu Studio Web.
 > ```
+>
+> Agent sam zainstaluje projekt, połączy Twoje konto ElevenLabs w przeglądarce (zapisując klucz do `.env.local`), uruchomi w tle podgląd `60 FPS` **Studio Web** pod adresem `http://127.0.0.1:3000` i zapyta jaki film chcesz stworzyć.
 
 ---
 
@@ -96,7 +91,7 @@ import { WorldBox, FlowCurve, portRight, portLeft } from '@make-pictures/kits/mo
 
 ---
 
-## 📦 Ekosystem pakietów npm (`v2.0.0`)
+## 📦 Ekosystem pakietów npm (`v2.0.2`)
 
 | Pakiet | Rola |
 | :--- | :--- |

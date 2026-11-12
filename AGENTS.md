@@ -3,9 +3,9 @@
 Uniwersalne niezmienniki studia **make.pictures** (`60 FPS` Video-as-Code). Szczegółowe reguły geometrii, audio, kamer i zestawów wizualnych ładuj progresywnie ze skilli w `.agents/plugins/make-pictures/skills/` (lub `plugins/make-pictures/skills/`).
 
 ## 1. Konfiguracja (`onboard` i `ELEVENLABS_API_KEY`)
-1. Uruchom `npx make-pictures onboard --json` (lub `npm run onboard -- --json`) i wykonuj kroki JSON (`next`, `run`, `say`) — w interaktywnym terminalu użytkownika zwykłe `npm run onboard` uruchamia czytelny kreator dla człowieka.
-2. Narzędzie weryfikuje `node_modules` i `ffmpeg`, po czym wywołuje `@elevenlabs/cli@latest onboard connect --env-path .env.local` (jeden klucz `ELEVENLABS_API_KEY` zasila TTS, Music i SFX). **Nigdy** nie proś o klucz na czacie ani nie wypisuj `.env.local`.
-3. Po `npx make-pictures onboard check` zaproponuj `npx make-pictures studio` (`http://127.0.0.1:3000`) lub pierwszy film.
+1. Uruchom `npx -y @make-pictures/cli@latest onboard --lang=pl` (lub `npm run onboard`) i wykonuj kroki JSON (`next`, `run`, `say`) — komenda sama rozpoznaje pusty katalog, istniejącą aplikację SaaS lub gotowy projekt; w zwykłym terminalu użytkownika uruchamia czytelny kreator dla człowieka.
+2. Narzędzie weryfikuje `node_modules` i `ffmpeg`, po czym wywołuje `@elevenlabs/cli@latest onboard connect --env-path .env.local` (jeden klucz `ELEVENLABS_API_KEY` zasila TTS, Music i SFX — podczas onboardingu nie generuj audio dla demo, żeby nie zużywać kredytów). **Nigdy** nie proś o klucz na czacie ani nie wypisuj `.env.local`.
+3. Po `npx make-pictures onboard check` uruchom w tle `npm run studio` (`http://127.0.0.1:3000`, `IsDaemon: true` / proces w tle) i zapytaj użytkownika o temat pierwszego filmu.
 
 ## 2. Architektura Kapsuł (`productions/<slug>/`) i Tryby Projektu
 - **Silnik:** `@make-pictures/core`, `@make-pictures/kits`, `@make-pictures/studio`, `@make-pictures/cli`.

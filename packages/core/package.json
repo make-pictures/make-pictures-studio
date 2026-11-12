@@ -1,6 +1,6 @@
 {
   "name": "@make-pictures/core",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "Deterministic 60 FPS Video-as-Code core runtime for make.pictures — Shot DSL cameras (2D/3D), SmartMusicBed auto-ducking, SoundCue word sync, themes, and seeded PRNG.",
   "homepage": "https://make.pictures",
   "repository": {
