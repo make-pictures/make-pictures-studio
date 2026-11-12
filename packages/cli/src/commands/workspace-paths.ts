@@ -45,14 +45,28 @@ export function resolveWorkspaceContext(
 export function buildConsumerRemotionEntrySource(
   productionsRelPath: './productions' | '../productions'
 ): string {
+  const stylesRelPath =
+    productionsRelPath === './productions' ? './styles' : '../styles';
+
   return `import React from 'react';
 import { Composition, registerRoot } from 'remotion';
 import {
+  registerCustomStyles,
   registerVoiceoverManifest,
   type DefinedProduction,
   type SceneVoiceoverData,
   type StudioCompositionEntry,
+  type StylePreset,
 } from '@make-pictures/core';
+
+declare global {
+  interface ImportMeta {
+    glob(
+      pattern: string,
+      options: { eager: true }
+    ): Record<string, Record<string, unknown>>;
+  }
+}
 
 interface WebpackContext {
   keys(): string[];
@@ -66,6 +80,60 @@ declare const require: {
     regExp: RegExp
   ): WebpackContext;
 };
+
+function unwrapJsonPreset(mod: unknown): StylePreset | null {
+  if (!mod || typeof mod !== 'object') return null;
+  const raw =
+    'default' in (mod as Record<string, unknown>) &&
+    (mod as Record<string, unknown>).default
+      ? (mod as Record<string, unknown>).default
+      : mod;
+  return raw && typeof raw === 'object' ? (raw as StylePreset) : null;
+}
+
+function discoverWorkspaceStyles(): void {
+  const discovered: StylePreset[] = [];
+  let viteStylesLoaded = false;
+
+  try {
+    const viteStyles = import.meta.glob('${stylesRelPath}/*.style.json', {
+      eager: true,
+    });
+    if (viteStyles) {
+      viteStylesLoaded = true;
+      for (const [, mod] of Object.entries(viteStyles).sort(([a], [b]) =>
+        a.localeCompare(b)
+      )) {
+        const preset = unwrapJsonPreset(mod);
+        if (preset) discovered.push(preset);
+      }
+    }
+  } catch {
+    // Non-Vite runtime
+  }
+
+  if (!viteStylesLoaded) {
+    try {
+      const stylesCtx = require.context(
+        '${stylesRelPath}',
+        false,
+        /^\\.\\/[^/]+\\.style\\.json$/
+      );
+      for (const key of stylesCtx.keys().sort()) {
+        const preset = unwrapJsonPreset(stylesCtx(key));
+        if (preset) discovered.push(preset);
+      }
+    } catch {
+      // Non-Webpack runtime or styles/ absent
+    }
+  }
+
+  if (discovered.length > 0) {
+    registerCustomStyles(discovered);
+  }
+}
+
+discoverWorkspaceStyles();
 
 function isDefinedProduction(val: unknown): val is DefinedProduction {
   return (
@@ -123,23 +191,47 @@ function extractEntries(
 function discoverProductions(): StudioCompositionEntry[] {
   const entries: StudioCompositionEntry[] = [];
   const seen = new Set<string>();
+  let viteLoaded = false;
 
   try {
-    const ctx = require.context(
-      '${productionsRelPath}',
-      true,
-      /^\\.\\/[^/]+\\/index\\.tsx?$/
-    );
-    for (const key of ctx.keys().sort()) {
-      for (const comp of extractEntries(ctx(key))) {
-        if (!seen.has(comp.id)) {
-          seen.add(comp.id);
-          entries.push(comp);
+    const viteProds = import.meta.glob('${productionsRelPath}/*/index.{ts,tsx}', {
+      eager: true,
+    });
+    if (viteProds) {
+      viteLoaded = true;
+      for (const [, mod] of Object.entries(viteProds).sort(([a], [b]) =>
+        a.localeCompare(b)
+      )) {
+        for (const comp of extractEntries(mod)) {
+          if (!seen.has(comp.id)) {
+            seen.add(comp.id);
+            entries.push(comp);
+          }
         }
       }
     }
   } catch {
-    // Non-Webpack runtime
+    // Non-Vite runtime
+  }
+
+  if (!viteLoaded) {
+    try {
+      const ctx = require.context(
+        '${productionsRelPath}',
+        true,
+        /^\\.\\/[^/]+\\/index\\.tsx?$/
+      );
+      for (const key of ctx.keys().sort()) {
+        for (const comp of extractEntries(ctx(key))) {
+          if (!seen.has(comp.id)) {
+            seen.add(comp.id);
+            entries.push(comp);
+          }
+        }
+      }
+    } catch {
+      // Non-Webpack runtime
+    }
   }
 
   return entries;
@@ -278,7 +370,8 @@ Uniwersalne niezmienniki studia **make.pictures** (\`60 FPS\` Video-as-Code). Sz
   1. **Standalone Studio (\`npx create-make-pictures my-films\`):** \`productions/<slug>/\` to kod źródłowy użytkownika śledzony w Git; silnik działa z \`node_modules/@make-pictures/*\`.
   2. **Wewnątrz istniejącej aplikacji SaaS (\`npx make-pictures init --dir=videos\`):** przekazuj \`--dir=videos\` do komend (\`npx make-pictures new <slug> --dir=videos\`, \`npx make-pictures studio --dir=videos\`).
   3. **Monorepo silnika (\`make-pictures-studio\`):** pokazy żyją w \`examples/*\`, a filmy użytkownika w izolowanym \`productions/<slug>/\`. Zakaz zaszywania ID scen filmów w kodzie silnika.
-- Tworzenie nowego filmu: \`npx make-pictures new <slug> --kit=paper-diorama-3d --lang=pl\` (\`production.json\`, \`compositions/\`, \`assets/\`, \`generated/audio-manifest.ts\`).
+- Tworzenie nowego filmu: \`npx make-pictures new <slug> --kit=vector-scene-2d --style=minimal-product --lang=pl\` (\`production.json\`, \`compositions/\`, \`assets/\`, \`generated/audio-manifest.ts\`).
+- Style i kierunek plastyczny: \`npx make-pictures styles\` oraz \`npx make-pictures style new <slug> --from=editorial-press\` (\`styles/*.style.json\`, zakładka **🎨 Style Lab** w Studio Web).
 
 ## 3. Determinizm \`60 FPS\` i Kontrakt \`zod\` ↔ \`*.props.json\`
 - **Czysta klatka \`0\`:** Pierwsza klatka to puste tło; animacje wejścia startuj od \`frame - 2\`.
@@ -296,10 +389,12 @@ Uniwersalne niezmienniki studia **make.pictures** (\`60 FPS\` Video-as-Code). Sz
 | Zadanie / Warstwa | Skill (\`.agents/plugins/make-pictures/skills/<skill>/SKILL.md\`) | Zakres |
 | :--- | :--- | :--- |
 | Nowy film, \`production.json\`, QA, render | \`make-pictures-director\` | 6 kroków produkcji, tryby CLI, rytm ujęć 3–5 s |
-| Teatrzyk 2.5D Pop-Up Book | \`kit-paper-diorama-3d\` | \`PaperCutout3D\`, \`ImageCutout3D\`, \`PopUpHinge3D\`, \`Δz\` |
+| Dobór stylu, fontów, palety i \`styles/*.style.json\` | \`style-and-art-direction\` | 7 stylów wbudowanych, \`StyleProvider\`, \`Style Lab\`, \`make-pictures style new\` |
+| Dokument, kolaż redakcyjny i narracja 2D | \`kit-editorial-and-vector\` | \`editorial-collage\` (\`ChapterTitleCard\`, \`EditorialMediaCard\`, \`HighlightQuoteStage\`), \`vector-scene-2d\` (\`StoryCard2D\`, \`ComparisonSplit2D\`) |
+| Teatrzyk 2.5D Pop-Up Book | \`kit-paper-diorama-3d\` | \`DioramaStage3D\`, \`PaperCutout3D\`, \`ImageCutout3D\`, \`PopUpHinge3D\`, \`Δz\` |
 | Diagramy 2D i nieskończone płótno | \`kit-motion-diagrams-2d\` | \`NodeBox\`, \`FlowCurve\`, \`DirectorCamera2D\` |
 | Nagrania ekranu SaaS \`.mp4\` (screencasty) | \`kit-motion-diagrams-2d\` + \`make-pictures-director\` | \`@make-pictures/kits/product-frames\`: \`BrowserFrame\`, \`PhoneFrame\`, \`ScreenSpotlightOverlay\` (\`<OffthreadVideo />\`, \`assets/videos/\`) |
-| Izometryczne studio 3D i dialogi | \`kit-isometric-3d\` | \`Stylized3DCharacter\`, \`speakingWeight\` vs \`speechEnergy\` |
+| Izometryczne studio 3D i dialogi | \`kit-isometric-3d\` | \`IsometricStage3D\`, \`Stylized3DCharacter\`, \`speakingWeight\` vs \`speechEnergy\` |
 | Kinetyczna typografia i wykresy | \`kit-kinetic-and-data\` | \`WordByWordStage\`, \`AnimatedBarRace\`, \`TimelineTrack\`, \`MetricComparisonCard\` |
 | Lektor, fonetyka, muzyka AI i SFX | \`sound-and-music-design\` | \`VoiceoverTrack\`, \`SmartMusicBed\`, \`SoundCue\`, \`VoiceAcousticPreset\`, \`-14 LUFS\` |
 | Kamera Shot DSL (2D/3D) i VFX | \`cinematography-and-vfx\` | \`DirectorCamera3D/2D\`, \`9:16\` Safe Box, \`CinematicLensOverlay\`, \`ParticleField\`, \`SceneTransition\` |
@@ -309,7 +404,7 @@ const FALLBACK_PLUGIN_JSON = {
   name: 'make-pictures',
   version: '2.0.3',
   description:
-    'make.pictures Studio — 60 FPS Video-as-Code skills, visual kits, camera Shot DSL, and ElevenLabs AI Audio Studio.',
+    'make.pictures Studio — 60 FPS Video-as-Code skills, visual kits, Art Direction Style Lab, camera Shot DSL, and ElevenLabs AI Audio Studio.',
   author: {
     name: 'make.pictures',
     url: 'https://make.pictures',
@@ -324,6 +419,7 @@ Read [\`AGENTS.md\`](./AGENTS.md) alongside this file for universal \`60 FPS\` V
 
 ## Capsule Architecture & Determinism
 - **Isolated Capsules (\`productions/<slug>/\`):** Keep every film self-contained (\`production.json\`, \`compositions/\`, \`assets/\`, \`generated/audio-manifest.ts\`). In embedded SaaS repos (\`--dir=videos\`), capsules live in \`videos/productions/<slug>/\`.
+- **Art Direction (\`styles/*.style.json\`):** Match every film's topic to one of the 7 visual kits and either a built-in style or a custom \`styles/<slug>.style.json\` preset wrapped in \`<StyleProvider style={props.styleId} renderBackdrop>\`.
 - **60 FPS Determinism:** Frame \`0\` must render a clean empty background (start entrance springs at \`frame - 2\`). Never use \`Math.random()\` or cross-frame \`useRef\` state — use \`SPRING_PRESETS\` and \`createSeededRandom(seed)\` from \`@make-pictures/core\`.
 - **Audio Tag Pool Hygiene:** Use \`<VoiceoverTrack />\` and \`<SoundCue />\` from \`@make-pictures/core\`; never wrap raw \`<Audio />\` inside \`<Sequence>\` without an explicit finite \`durationInFrames\`.
 - **Props Inspector (\`zod\` ↔ \`*.props.json\`):** Always read \`<CompositionId>.props.json\` from disk before editing so live tweaks from Studio Web are preserved. Never open or print \`.env.local\`.
@@ -331,20 +427,23 @@ Read [\`AGENTS.md\`](./AGENTS.md) alongside this file for universal \`60 FPS\` V
 ## CLI Commands (\`npx make-pictures\`)
 - \`npx make-pictures onboard\` / \`npx make-pictures doctor\` — Verify Node.js, FFmpeg, and ElevenLabs OAuth (\`.env.local\`).
 - \`npx make-pictures init --dir=videos\` — Initialize capsules + AI skills inside an existing app repo.
-- \`npx make-pictures new <slug> --kit=paper-diorama-3d --lang=en\` — Scaffold a new \`60 FPS\` production capsule.
+- \`npx make-pictures styles\` / \`npx make-pictures style new <slug> --from=editorial-press\` — List or create reusable Art Direction presets.
+- \`npx make-pictures new <slug> --kit=vector-scene-2d --style=minimal-product --lang=en\` — Scaffold a new \`60 FPS\` production capsule.
 - \`npx make-pictures audio --production=<slug> [--mock]\` — Synthesize ElevenLabs TTS + word timestamps + AI Music + AI SFX.
-- \`npx make-pictures studio [--port=3000] [--dir=.]\` — Launch local \`60 FPS\` Studio Web workstation (\`http://127.0.0.1:3000\`).
+- \`npx make-pictures studio [--port=3000] [--dir=.]\` — Launch local \`60 FPS\` Studio Web workstation (\`http://127.0.0.1:3000\`, including 🎨 Style Lab).
 - \`npx make-pictures qa <CompositionId>\` — Render 12-frame Contact-Sheet PNG (\`out/qa-<CompositionId>.png\`) and inspect via \`Read\` (\`9:16\` Golden Safe Box \`x ∈ [40, 910], y ∈ [220, 1380]\`).
 - \`npm run typecheck\` && \`npx make-pictures render <CompositionId>\` — Typecheck and render \`60 FPS\` MP4 mastered to \`-14 LUFS\`.
 
 ## Auto-Discovered Skills (\`.claude/skills/<skill>/SKILL.md\`)
 1. \`make-pictures-director\` — 6-step production workflow, \`production.json\`, CLI modes, and QA gates.
-2. \`kit-paper-diorama-3d\` — 2.5D pop-up book (\`PaperCutout3D\`, \`ImageCutout3D\`, \`PopUpHinge3D\`, \`Δz\` layering).
-3. \`kit-motion-diagrams-2d\` — 2D infinite-canvas diagrams (\`NodeBox\` ports, \`FlowCurve\`, \`92–120f\` packets), plus SaaS \`.mp4\` screencasts via \`@make-pictures/kits/product-frames\` (\`BrowserFrame\`, \`PhoneFrame\`, \`ScreenSpotlightOverlay\`).
-4. \`kit-isometric-3d\` — 3D isometric dialogue (\`Stylized3DCharacter\`, \`speakingWeight\` vs \`speechEnergy\`).
-5. \`kit-kinetic-and-data\` — Kinetic typography & data charts (\`WordByWordStage\`, \`AnimatedBarRace\`, \`TimelineTrack\`).
-6. \`sound-and-music-design\` — ElevenLabs voices, PL/EN phonetics, \`SmartMusicBed\` auto-ducking, \`SoundCue\`, \`-14 LUFS\`.
-7. \`cinematography-and-vfx\` — Shot DSL (\`DirectorCamera3D/2D\`), \`9:16\` Safe Box, deterministic particles & transitions.
+2. \`style-and-art-direction\` — Art Direction gate, 7 built-in styles, \`StyleProvider\`, \`Style Lab\`, and \`styles/*.style.json\`.
+3. \`kit-editorial-and-vector\` — Universal 2D narrative kits: \`editorial-collage\` & \`vector-scene-2d\`.
+4. \`kit-paper-diorama-3d\` — 2.5D pop-up stage (\`DioramaStage3D\`, \`PaperCutout3D\`, \`ImageCutout3D\`, \`PopUpHinge3D\`, \`Δz\` layering).
+5. \`kit-motion-diagrams-2d\` — 2D infinite-canvas diagrams (\`NodeBox\` ports, \`FlowCurve\`, \`92–120f\` packets), plus SaaS \`.mp4\` screencasts via \`@make-pictures/kits/product-frames\` (\`BrowserFrame\`, \`PhoneFrame\`, \`ScreenSpotlightOverlay\`).
+6. \`kit-isometric-3d\` — 3D isometric dialogue (\`IsometricStage3D\`, \`Stylized3DCharacter\`, \`speakingWeight\` vs \`speechEnergy\`).
+7. \`kit-kinetic-and-data\` — Kinetic typography & data charts (\`WordByWordStage\`, \`AnimatedBarRace\`, \`TimelineTrack\`).
+8. \`sound-and-music-design\` — ElevenLabs voices, PL/EN phonetics, \`SmartMusicBed\` auto-ducking, \`SoundCue\`, \`-14 LUFS\`.
+9. \`cinematography-and-vfx\` — Shot DSL (\`DirectorCamera3D/2D\`), \`9:16\` Safe Box, deterministic particles & transitions.
 `;
 
 function ensureClaudeSkillsLink(

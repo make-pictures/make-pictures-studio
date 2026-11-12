@@ -6,11 +6,13 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export type StarterKitId =
-  | 'paper-diorama-3d'
-  | 'motion-diagrams-2d'
-  | 'isometric-3d'
+  | 'editorial-collage'
+  | 'vector-scene-2d'
   | 'kinetic-typography'
-  | 'data-storytelling';
+  | 'data-storytelling'
+  | 'motion-diagrams-2d'
+  | 'paper-diorama-3d'
+  | 'isometric-3d';
 
 export interface CreateMakePicturesOptions {
   targetDir: string;
@@ -26,11 +28,13 @@ interface ParsedCreateArgs {
 }
 
 const VALID_KITS = new Set<StarterKitId>([
-  'paper-diorama-3d',
-  'motion-diagrams-2d',
-  'isometric-3d',
+  'editorial-collage',
+  'vector-scene-2d',
   'kinetic-typography',
   'data-storytelling',
+  'motion-diagrams-2d',
+  'paper-diorama-3d',
+  'isometric-3d',
 ]);
 
 const BOOLEAN_FLAGS = new Set(['no-install', 'force', 'help']);
@@ -126,6 +130,10 @@ function toPackageSlug(rawName: string): string {
 
 function moodForKit(kit: StarterKitId): string {
   switch (kit) {
+    case 'editorial-collage':
+      return 'warm-story';
+    case 'vector-scene-2d':
+      return 'upbeat-launch';
     case 'paper-diorama-3d':
       return 'paper-expedition';
     case 'isometric-3d':
@@ -246,6 +254,7 @@ function buildPackageJson(projectName: string): Record<string, unknown> {
       doctor: 'make-pictures doctor',
       setup: 'make-pictures doctor --setup',
       studio: 'make-pictures studio',
+      styles: 'make-pictures styles',
       new: 'make-pictures new',
       audio: 'make-pictures audio',
       music: 'make-pictures music',
@@ -302,9 +311,18 @@ function buildTsconfigJson(): Record<string, unknown> {
       isolatedModules: true,
       noEmit: true,
     },
-    include: ['src', 'productions', 'remotion.config.ts'],
+    include: ['src', 'productions', 'styles', 'remotion.config.ts'],
   };
 }
+
+const STYLES_README_MD = `# Custom Styles (\`styles/*.style.json\`)
+
+Pliki \`*.style.json\` w tym katalogu definiują wielokrotnego użytku kierunki plastyczne (**Art Direction**) dla Twoich filmów — paletę kolorów, parę fontów Google Fonts (\`latin-ext\`), fakturę tła, geometrię kart, profil sprężyn oraz domyślny nastrój audio.
+
+- Podgląd i edycja na żywo w **60 FPS**: otwórz Studio Web (\`npm run studio\`) i przełącz widok na **🎨 Style Lab**.
+- Tworzenie nowego stylu z CLI: \`npx make-pictures style new moj-styl --from=editorial-press\`
+- Użycie stylu w nowym filmie: \`npx make-pictures new moj-film --kit=editorial-collage --style=moj-styl\`
+`;
 
 const REMOTION_CONFIG_TS = `import { Config } from '@remotion/cli/config';
 
@@ -317,11 +335,22 @@ Config.setCodec('h264');
 const SRC_INDEX_TS = `import React from 'react';
 import { Composition, registerRoot } from 'remotion';
 import {
+  registerCustomStyles,
   registerVoiceoverManifest,
   type DefinedProduction,
   type SceneVoiceoverData,
   type StudioCompositionEntry,
+  type StylePreset,
 } from '@make-pictures/core';
+
+declare global {
+  interface ImportMeta {
+    glob(
+      pattern: string,
+      options: { eager: true }
+    ): Record<string, Record<string, unknown>>;
+  }
+}
 
 interface WebpackContext {
   keys(): string[];
@@ -335,6 +364,60 @@ declare const require: {
     regExp: RegExp
   ): WebpackContext;
 };
+
+function unwrapJsonPreset(mod: unknown): StylePreset | null {
+  if (!mod || typeof mod !== 'object') return null;
+  const raw =
+    'default' in (mod as Record<string, unknown>) &&
+    (mod as Record<string, unknown>).default
+      ? (mod as Record<string, unknown>).default
+      : mod;
+  return raw && typeof raw === 'object' ? (raw as StylePreset) : null;
+}
+
+function discoverWorkspaceStyles(): void {
+  const discovered: StylePreset[] = [];
+  let viteStylesLoaded = false;
+
+  try {
+    const viteStyles = import.meta.glob('../styles/*.style.json', {
+      eager: true,
+    });
+    if (viteStyles) {
+      viteStylesLoaded = true;
+      for (const [, mod] of Object.entries(viteStyles).sort(([a], [b]) =>
+        a.localeCompare(b)
+      )) {
+        const preset = unwrapJsonPreset(mod);
+        if (preset) discovered.push(preset);
+      }
+    }
+  } catch {
+    // Non-Vite runtime
+  }
+
+  if (!viteStylesLoaded) {
+    try {
+      const stylesCtx = require.context(
+        '../styles',
+        false,
+        /^\\.\\/[^/]+\\.style\\.json$/
+      );
+      for (const key of stylesCtx.keys().sort()) {
+        const preset = unwrapJsonPreset(stylesCtx(key));
+        if (preset) discovered.push(preset);
+      }
+    } catch {
+      // Non-Webpack runtime or styles/ absent
+    }
+  }
+
+  if (discovered.length > 0) {
+    registerCustomStyles(discovered);
+  }
+}
+
+discoverWorkspaceStyles();
 
 function isDefinedProduction(val: unknown): val is DefinedProduction {
   return (
@@ -392,23 +475,47 @@ function extractEntries(
 function discoverProductions(): StudioCompositionEntry[] {
   const entries: StudioCompositionEntry[] = [];
   const seen = new Set<string>();
+  let viteLoaded = false;
 
   try {
-    const ctx = require.context(
-      '../productions',
-      true,
-      /^\\.\\/[^/]+\\/index\\.tsx?$/
-    );
-    for (const key of ctx.keys().sort()) {
-      for (const comp of extractEntries(ctx(key))) {
-        if (!seen.has(comp.id)) {
-          seen.add(comp.id);
-          entries.push(comp);
+    const viteProds = import.meta.glob('../productions/*/index.{ts,tsx}', {
+      eager: true,
+    });
+    if (viteProds) {
+      viteLoaded = true;
+      for (const [, mod] of Object.entries(viteProds).sort(([a], [b]) =>
+        a.localeCompare(b)
+      )) {
+        for (const comp of extractEntries(mod)) {
+          if (!seen.has(comp.id)) {
+            seen.add(comp.id);
+            entries.push(comp);
+          }
         }
       }
     }
   } catch {
-    // Non-Webpack runtime
+    // Non-Vite runtime
+  }
+
+  if (!viteLoaded) {
+    try {
+      const ctx = require.context(
+        '../productions',
+        true,
+        /^\\.\\/[^/]+\\/index\\.tsx?$/
+      );
+      for (const key of ctx.keys().sort()) {
+        for (const comp of extractEntries(ctx(key))) {
+          if (!seen.has(comp.id)) {
+            seen.add(comp.id);
+            entries.push(comp);
+          }
+        }
+      }
+    } catch {
+      // Non-Webpack runtime
+    }
   }
 
   return entries;
@@ -482,7 +589,8 @@ Uniwersalne niezmienniki studia **make.pictures** (\`60 FPS\` Video-as-Code). Sz
   1. **Standalone Studio (\`npx create-make-pictures my-films\`):** \`productions/<slug>/\` to kod źródłowy użytkownika śledzony w Git; silnik działa z \`node_modules/@make-pictures/*\`.
   2. **Wewnątrz istniejącej aplikacji SaaS (\`npx make-pictures init --dir=videos\`):** przekazuj \`--dir=videos\` do komend (\`npx make-pictures new <slug> --dir=videos\`, \`npx make-pictures studio --dir=videos\`).
   3. **Monorepo silnika (\`make-pictures-studio\`):** pokazy żyją w \`examples/*\`, a filmy użytkownika w izolowanym \`productions/<slug>/\`. Zakaz zaszywania ID scen filmów w kodzie silnika.
-- Tworzenie nowego filmu: \`npx make-pictures new <slug> --kit=paper-diorama-3d --lang=pl\` (\`production.json\`, \`compositions/\`, \`assets/\`, \`generated/audio-manifest.ts\`).
+- Tworzenie nowego filmu: \`npx make-pictures new <slug> --kit=vector-scene-2d --style=minimal-product --lang=pl\` (\`production.json\`, \`compositions/\`, \`assets/\`, \`generated/audio-manifest.ts\`).
+- Style i kierunek plastyczny: \`npx make-pictures styles\` oraz \`npx make-pictures style new <slug> --from=editorial-press\` (\`styles/*.style.json\`, zakładka **🎨 Style Lab** w Studio Web).
 
 ## 3. Determinizm \`60 FPS\` i Kontrakt \`zod\` ↔ \`*.props.json\`
 - **Czysta klatka \`0\`:** Pierwsza klatka to puste tło; animacje wejścia startuj od \`frame - 2\`.
@@ -500,10 +608,12 @@ Uniwersalne niezmienniki studia **make.pictures** (\`60 FPS\` Video-as-Code). Sz
 | Zadanie / Warstwa | Skill (\`.agents/plugins/make-pictures/skills/<skill>/SKILL.md\`) | Zakres |
 | :--- | :--- | :--- |
 | Nowy film, \`production.json\`, QA, render | \`make-pictures-director\` | 6 kroków produkcji, tryby CLI, rytm ujęć 3–5 s |
-| Teatrzyk 2.5D Pop-Up Book | \`kit-paper-diorama-3d\` | \`PaperCutout3D\`, \`ImageCutout3D\`, \`PopUpHinge3D\`, \`Δz\` |
+| Dobór stylu, fontów, palety i \`styles/*.style.json\` | \`style-and-art-direction\` | 7 stylów wbudowanych, \`StyleProvider\`, \`Style Lab\`, \`make-pictures style new\` |
+| Dokument, kolaż redakcyjny i narracja 2D | \`kit-editorial-and-vector\` | \`editorial-collage\` (\`ChapterTitleCard\`, \`EditorialMediaCard\`, \`HighlightQuoteStage\`), \`vector-scene-2d\` (\`StoryCard2D\`, \`ComparisonSplit2D\`) |
+| Teatrzyk 2.5D Pop-Up Book | \`kit-paper-diorama-3d\` | \`DioramaStage3D\`, \`PaperCutout3D\`, \`ImageCutout3D\`, \`PopUpHinge3D\`, \`Δz\` |
 | Diagramy 2D i nieskończone płótno | \`kit-motion-diagrams-2d\` | \`NodeBox\`, \`FlowCurve\`, \`DirectorCamera2D\` |
 | Nagrania ekranu SaaS \`.mp4\` (screencasty) | \`kit-motion-diagrams-2d\` + \`make-pictures-director\` | \`@make-pictures/kits/product-frames\`: \`BrowserFrame\`, \`PhoneFrame\`, \`ScreenSpotlightOverlay\` (\`<OffthreadVideo />\`, \`assets/videos/\`) |
-| Izometryczne studio 3D i dialogi | \`kit-isometric-3d\` | \`Stylized3DCharacter\`, \`speakingWeight\` vs \`speechEnergy\` |
+| Izometryczne studio 3D i dialogi | \`kit-isometric-3d\` | \`IsometricStage3D\`, \`Stylized3DCharacter\`, \`speakingWeight\` vs \`speechEnergy\` |
 | Kinetyczna typografia i wykresy | \`kit-kinetic-and-data\` | \`WordByWordStage\`, \`AnimatedBarRace\`, \`TimelineTrack\`, \`MetricComparisonCard\` |
 | Lektor, fonetyka, muzyka AI i SFX | \`sound-and-music-design\` | \`VoiceoverTrack\`, \`SmartMusicBed\`, \`SoundCue\`, \`VoiceAcousticPreset\`, \`-14 LUFS\` |
 | Kamera Shot DSL (2D/3D) i VFX | \`cinematography-and-vfx\` | \`DirectorCamera3D/2D\`, \`9:16\` Safe Box, \`CinematicLensOverlay\`, \`ParticleField\`, \`SceneTransition\` |
@@ -513,7 +623,7 @@ const EMBEDDED_PLUGIN_JSON = {
   name: 'make-pictures',
   version: '2.0.3',
   description:
-    'make.pictures Studio — 60 FPS Video-as-Code skills, visual kits, camera Shot DSL, and ElevenLabs AI Audio Studio.',
+    'make.pictures Studio — 60 FPS Video-as-Code skills, visual kits, Art Direction Style Lab, camera Shot DSL, and ElevenLabs AI Audio Studio.',
   author: {
     name: 'make.pictures',
     url: 'https://make.pictures',
@@ -523,6 +633,500 @@ const EMBEDDED_PLUGIN_JSON = {
 };
 
 function buildHelloStudioCompositionTsx(kit: StarterKitId): string {
+  const schemaBlock = `export const HelloStudioSchema = z.object({
+  styleId: z.string().describe('Kolory & Styl :: Styl bazowy (Style ID)'),
+  headline: z.string().describe('Teksty & Napisy :: Nagłówek'),
+  subheadline: z.string().describe('Teksty & Napisy :: Podtytuł'),
+  badgeLabel: z.string().describe('Teksty & Napisy :: Etykieta zestawu'),
+  accentColor: z.string().describe('Kolory & Styl :: Akcent główny'),
+  secondaryColor: z.string().describe('Kolory & Styl :: Akcent drugi'),
+  voiceoverVolume: z.number().min(0).max(1.5).describe('Audio :: Głośność lektora'),
+  musicVolume: z.number().min(0).max(1).describe('Audio :: Głośność muzyki'),
+  sfxVolume: z.number().min(0).max(1).describe('Audio :: Głośność SFX'),
+});
+
+export type HelloStudioProps = z.infer<typeof HelloStudioSchema>;`;
+
+  const audioBlock = `{MUSIC_MANIFEST?.audioFile ? (
+          <SmartMusicBed
+            src={staticFile(MUSIC_MANIFEST.audioFile)}
+            dialogueSegments={DIALOGUE_SEGMENTS}
+            voiceoverManifest={VOICEOVER_MANIFEST}
+            baseVolume={props.musicVolume}
+            duckedVolume={Math.min(props.musicVolume * 0.34, 0.09)}
+          />
+        ) : null}
+
+        <VoiceoverTrack
+          voiceover={introVo}
+          fromFrame={12}
+          volume={props.voiceoverVolume}
+        />
+
+        <VoiceoverTrack
+          voiceover={payoffVo}
+          fromFrame={324}
+          volume={props.voiceoverVolume}
+        />
+
+        {whooshSfx?.audioFile ? (
+          <SoundCue
+            src={staticFile(whooshSfx.audioFile)}
+            atFrame={8}
+            durationSeconds={whooshSfx.durationSeconds}
+            volume={props.sfxVolume}
+          />
+        ) : null}
+
+        {popSfx?.audioFile ? (
+          <SoundCue
+            src={staticFile(popSfx.audioFile)}
+            atFrame={322}
+            durationSeconds={popSfx.durationSeconds}
+            volume={props.sfxVolume}
+          />
+        ) : null}`;
+
+  if (kit === 'editorial-collage') {
+    return `import React from 'react';
+import {
+  AbsoluteFill,
+  Sequence,
+  staticFile,
+} from 'remotion';
+import { z } from 'zod';
+import {
+  SmartMusicBed,
+  SoundCue,
+  StyleProvider,
+  VoiceoverTrack,
+} from '@make-pictures/core';
+import {
+  ChapterTitleCard,
+  EditorialMediaCard,
+  SplitStoryLayout,
+} from '@make-pictures/kits/editorial-collage';
+import {
+  MUSIC_MANIFEST,
+  SFX_MANIFEST,
+  VOICEOVER_MANIFEST,
+} from '../generated/audio-manifest';
+
+${schemaBlock}
+
+const DIALOGUE_SEGMENTS = [
+  { sceneId: 'hello-studio-intro', fromFrame: 12, durationInFrames: 300 },
+  { sceneId: 'hello-studio-payoff', fromFrame: 324, durationInFrames: 306 },
+];
+
+export const HelloStudio: React.FC<HelloStudioProps> = (props) => {
+  const introVo = VOICEOVER_MANIFEST['hello-studio-intro'];
+  const payoffVo = VOICEOVER_MANIFEST['hello-studio-payoff'];
+  const whooshSfx = SFX_MANIFEST['whoosh-open'];
+  const popSfx = SFX_MANIFEST['card-pop'];
+
+  return (
+    <StyleProvider style={props.styleId} renderBackdrop>
+      <AbsoluteFill>
+        ${audioBlock}
+
+        <Sequence from={0} durationInFrames={320}>
+          <ChapterTitleCard
+            chapterLabel={props.badgeLabel}
+            title={props.headline}
+            subtitle={props.subheadline}
+            startFrame={2}
+            accentColor={props.accentColor}
+          />
+        </Sequence>
+
+        <Sequence from={320} durationInFrames={328}>
+          <SplitStoryLayout
+            startFrame={2}
+            primary={
+              <EditorialMediaCard
+                caption={props.headline}
+                sourceTag={props.badgeLabel}
+                startFrame={2}
+                durationInFrames={240}
+              />
+            }
+            secondary={
+              <EditorialMediaCard
+                caption={props.subheadline}
+                sourceTag={props.styleId}
+                startFrame={12}
+                durationInFrames={240}
+                zoomFrom={1.04}
+                zoomTo={1.12}
+              />
+            }
+          />
+        </Sequence>
+      </AbsoluteFill>
+    </StyleProvider>
+  );
+};
+`;
+  }
+
+  if (kit === 'kinetic-typography') {
+    return `import React from 'react';
+import {
+  AbsoluteFill,
+  Sequence,
+  staticFile,
+} from 'remotion';
+import { z } from 'zod';
+import {
+  SmartMusicBed,
+  SoundCue,
+  StyleProvider,
+  VoiceoverTrack,
+} from '@make-pictures/core';
+import {
+  ImpactKeywordCard,
+  WordByWordStage,
+} from '@make-pictures/kits/kinetic-typography';
+import {
+  MUSIC_MANIFEST,
+  SFX_MANIFEST,
+  VOICEOVER_MANIFEST,
+} from '../generated/audio-manifest';
+
+${schemaBlock}
+
+const DIALOGUE_SEGMENTS = [
+  { sceneId: 'hello-studio-intro', fromFrame: 12, durationInFrames: 300 },
+  { sceneId: 'hello-studio-payoff', fromFrame: 324, durationInFrames: 306 },
+];
+
+export const HelloStudio: React.FC<HelloStudioProps> = (props) => {
+  const introVo = VOICEOVER_MANIFEST['hello-studio-intro'];
+  const payoffVo = VOICEOVER_MANIFEST['hello-studio-payoff'];
+  const whooshSfx = SFX_MANIFEST['whoosh-open'];
+  const popSfx = SFX_MANIFEST['card-pop'];
+
+  return (
+    <StyleProvider style={props.styleId} renderBackdrop>
+      <AbsoluteFill>
+        ${audioBlock}
+
+        <Sequence from={0} durationInFrames={320}>
+          <WordByWordStage
+            sceneId="hello-studio-intro"
+            voiceoverManifest={VOICEOVER_MANIFEST}
+            fallbackText={\`\${props.headline} — \${props.subheadline}\`}
+            eyebrow={props.badgeLabel}
+            accentColor={props.accentColor}
+            variant="transparent"
+            startFrame={2}
+          />
+        </Sequence>
+
+        <Sequence from={320} durationInFrames={328}>
+          <AbsoluteFill style={{ justifyContent: 'center', alignItems: 'center', padding: 120 }}>
+            <ImpactKeywordCard
+              keyword={props.headline}
+              eyebrow={props.badgeLabel}
+              sublabel={props.subheadline}
+              badge="60 FPS"
+              accentColor={props.accentColor}
+              startFrame={2}
+            />
+          </AbsoluteFill>
+        </Sequence>
+      </AbsoluteFill>
+    </StyleProvider>
+  );
+};
+`;
+  }
+
+  if (kit === 'data-storytelling') {
+    return `import React from 'react';
+import {
+  AbsoluteFill,
+  Sequence,
+  staticFile,
+} from 'remotion';
+import { z } from 'zod';
+import {
+  SmartMusicBed,
+  SoundCue,
+  StyleProvider,
+  VoiceoverTrack,
+} from '@make-pictures/core';
+import {
+  AnimatedBarRace,
+  MetricComparisonCard,
+} from '@make-pictures/kits/data-storytelling';
+import {
+  MUSIC_MANIFEST,
+  SFX_MANIFEST,
+  VOICEOVER_MANIFEST,
+} from '../generated/audio-manifest';
+
+${schemaBlock}
+
+const DIALOGUE_SEGMENTS = [
+  { sceneId: 'hello-studio-intro', fromFrame: 12, durationInFrames: 300 },
+  { sceneId: 'hello-studio-payoff', fromFrame: 324, durationInFrames: 306 },
+];
+
+export const HelloStudio: React.FC<HelloStudioProps> = (props) => {
+  const introVo = VOICEOVER_MANIFEST['hello-studio-intro'];
+  const payoffVo = VOICEOVER_MANIFEST['hello-studio-payoff'];
+  const whooshSfx = SFX_MANIFEST['whoosh-open'];
+  const popSfx = SFX_MANIFEST['card-pop'];
+
+  return (
+    <StyleProvider style={props.styleId} renderBackdrop>
+      <AbsoluteFill>
+        ${audioBlock}
+
+        <Sequence from={0} durationInFrames={320}>
+          <AbsoluteFill style={{ justifyContent: 'center', alignItems: 'center', padding: 140 }}>
+            <AnimatedBarRace
+              title={props.headline}
+              subtitle={props.subheadline}
+              valueSuffix=" pkt"
+              startFrame={2}
+              items={[
+                { id: 'clarity', label: 'Czytelność narracji', value: 96, color: props.accentColor },
+                { id: 'sync', label: 'Synchronizacja audio', value: 91, color: props.secondaryColor },
+                { id: 'pacing', label: 'Rytm ujęć 60 FPS', value: 87 },
+              ]}
+            />
+          </AbsoluteFill>
+        </Sequence>
+
+        <Sequence from={320} durationInFrames={328}>
+          <AbsoluteFill style={{ justifyContent: 'center', alignItems: 'center', padding: 140 }}>
+            <MetricComparisonCard
+              title={props.headline}
+              beforeLabel="Ręczny montaż"
+              beforeValue={24}
+              afterLabel="Video-as-Code"
+              afterValue={60}
+              unit=" FPS"
+              afterColor={props.accentColor}
+              startFrame={2}
+            />
+          </AbsoluteFill>
+        </Sequence>
+      </AbsoluteFill>
+    </StyleProvider>
+  );
+};
+`;
+  }
+
+  if (kit === 'motion-diagrams-2d') {
+    return `import React from 'react';
+import {
+  AbsoluteFill,
+  spring,
+  staticFile,
+  useCurrentFrame,
+  useVideoConfig,
+} from 'remotion';
+import { z } from 'zod';
+import {
+  DirectorCamera2D,
+  SmartMusicBed,
+  SoundCue,
+  StyleProvider,
+  VoiceoverTrack,
+  getCardChromeStyle,
+  getStyleSpringConfig,
+  useStudioStyle,
+} from '@make-pictures/core';
+import {
+  FlowCurve,
+  WorldBox,
+  portLeft,
+  portRight,
+  type NodeBox,
+} from '@make-pictures/kits/motion-diagrams-2d';
+import {
+  MUSIC_MANIFEST,
+  SFX_MANIFEST,
+  VOICEOVER_MANIFEST,
+} from '../generated/audio-manifest';
+
+${schemaBlock}
+
+const DIALOGUE_SEGMENTS = [
+  { sceneId: 'hello-studio-intro', fromFrame: 12, durationInFrames: 300 },
+  { sceneId: 'hello-studio-payoff', fromFrame: 324, durationInFrames: 306 },
+];
+
+const SOURCE_NODE: NodeBox = { cx: 560, cy: 540, w: 460, h: 230 };
+const TARGET_NODE: NodeBox = { cx: 1360, cy: 540, w: 460, h: 230 };
+
+const HelloDiagramStage: React.FC<HelloStudioProps> = (props) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const style = useStudioStyle();
+
+  const sourceEnter =
+    frame < 2 ? 0 : spring({ frame: frame - 2, fps, config: getStyleSpringConfig(style, 'enter') });
+  const targetEnter =
+    frame < 14 ? 0 : spring({ frame: frame - 14, fps, config: getStyleSpringConfig(style, 'enter') });
+
+  return (
+    <DirectorCamera2D
+      nodes={{ source: SOURCE_NODE, target: TARGET_NODE }}
+      shots={[
+        { fromFrame: 0, target: ['source', 'target'], padding: 140 },
+        { fromFrame: 320, target: 'target', padding: 180, transition: 'glide' },
+      ]}
+      showGrid={false}
+      handheldIntensity={style.motion.cameraHandheld}
+    >
+      <FlowCurve
+        from={portRight(SOURCE_NODE)}
+        to={portLeft(TARGET_NODE)}
+        curveY={-48}
+        color={props.accentColor}
+        activeFromFrame={18}
+        packetSpeedFrames={96}
+      />
+      <WorldBox
+        node={SOURCE_NODE}
+        opacity={sourceEnter}
+        scale={0.94 + 0.06 * sourceEnter}
+        style={getCardChromeStyle(style, { padding: '28px 32px', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 10 })}
+      >
+        <div style={{ fontSize: 16, fontWeight: 700, color: props.accentColor }}>{props.badgeLabel}</div>
+        <div style={{ fontSize: 34, fontWeight: 700, color: style.palette.textPrimary }}>{props.headline}</div>
+      </WorldBox>
+      <WorldBox
+        node={TARGET_NODE}
+        opacity={targetEnter}
+        scale={0.94 + 0.06 * targetEnter}
+        style={getCardChromeStyle(style, { padding: '28px 32px', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 10 })}
+      >
+        <div style={{ fontSize: 16, fontWeight: 700, color: props.secondaryColor }}>60 FPS • -14 LUFS</div>
+        <div style={{ fontSize: 24, color: style.palette.textSecondary }}>{props.subheadline}</div>
+      </WorldBox>
+    </DirectorCamera2D>
+  );
+};
+
+export const HelloStudio: React.FC<HelloStudioProps> = (props) => {
+  const introVo = VOICEOVER_MANIFEST['hello-studio-intro'];
+  const payoffVo = VOICEOVER_MANIFEST['hello-studio-payoff'];
+  const whooshSfx = SFX_MANIFEST['whoosh-open'];
+  const popSfx = SFX_MANIFEST['card-pop'];
+
+  return (
+    <StyleProvider style={props.styleId} renderBackdrop>
+      <AbsoluteFill>
+        ${audioBlock}
+        <HelloDiagramStage {...props} />
+      </AbsoluteFill>
+    </StyleProvider>
+  );
+};
+`;
+  }
+
+  if (kit === 'isometric-3d') {
+    return `import { ThreeCanvas } from '@remotion/three';
+import React from 'react';
+import {
+  AbsoluteFill,
+  interpolate,
+  spring,
+  staticFile,
+  useCurrentFrame,
+  useVideoConfig,
+} from 'remotion';
+import { z } from 'zod';
+import {
+  SPRING_PRESETS,
+  SmartMusicBed,
+  SoundCue,
+  StyleProvider,
+  VoiceoverTrack,
+} from '@make-pictures/core';
+import {
+  IsometricStage3D,
+  Stylized3DCharacter,
+} from '@make-pictures/kits/isometric-3d';
+import {
+  MUSIC_MANIFEST,
+  SFX_MANIFEST,
+  VOICEOVER_MANIFEST,
+} from '../generated/audio-manifest';
+
+${schemaBlock}
+
+const DIALOGUE_SEGMENTS = [
+  { sceneId: 'hello-studio-intro', fromFrame: 12, durationInFrames: 300 },
+  { sceneId: 'hello-studio-payoff', fromFrame: 324, durationInFrames: 306 },
+];
+
+const HelloIsometricStage: React.FC<HelloStudioProps> = (props) => {
+  const frame = useCurrentFrame();
+  const { fps, width, height } = useVideoConfig();
+
+  if (frame < 2) return null;
+
+  const stageReveal = spring({ frame: frame - 2, fps, config: SPRING_PRESETS.snappy });
+  const turnSwitch = spring({ frame: frame - 320, fps, config: SPRING_PRESETS.smooth });
+  const speakerAWeight = interpolate(turnSwitch, [0, 1], [1, 0]);
+  const speakerBWeight = interpolate(turnSwitch, [0, 1], [0, 1]);
+  const cadencePulse = 0.45 + 0.35 * Math.sin(frame * 0.16);
+
+  return (
+    <AbsoluteFill style={{ opacity: stageReveal }}>
+      <ThreeCanvas width={width} height={height} shadows camera={{ position: [0, 4.6, 8.6], fov: 35 }}>
+        <IsometricStage3D radius={5.2} showGrid accentColor={props.accentColor}>
+          <Stylized3DCharacter
+            position={[-1.55, 0, 0.25]}
+            rotationY={0.42}
+            primaryColor={props.accentColor}
+            accentColor={props.secondaryColor}
+            speechEnergy={cadencePulse * speakerAWeight}
+            speakingWeight={speakerAWeight}
+            enterFrame={4}
+          />
+          <Stylized3DCharacter
+            position={[1.55, 0, 0.25]}
+            rotationY={-0.42}
+            primaryColor={props.secondaryColor}
+            accentColor={props.accentColor}
+            speechEnergy={cadencePulse * speakerBWeight}
+            speakingWeight={speakerBWeight}
+            enterFrame={10}
+          />
+        </IsometricStage3D>
+      </ThreeCanvas>
+    </AbsoluteFill>
+  );
+};
+
+export const HelloStudio: React.FC<HelloStudioProps> = (props) => {
+  const introVo = VOICEOVER_MANIFEST['hello-studio-intro'];
+  const payoffVo = VOICEOVER_MANIFEST['hello-studio-payoff'];
+  const whooshSfx = SFX_MANIFEST['whoosh-open'];
+  const popSfx = SFX_MANIFEST['card-pop'];
+
+  return (
+    <StyleProvider style={props.styleId} renderBackdrop>
+      <AbsoluteFill>
+        ${audioBlock}
+        <HelloIsometricStage {...props} />
+      </AbsoluteFill>
+    </StyleProvider>
+  );
+};
+`;
+  }
+
   if (kit === 'paper-diorama-3d') {
     return `import { ThreeCanvas } from '@remotion/three';
 import React from 'react';
@@ -539,13 +1143,15 @@ import {
   SPRING_PRESETS,
   SmartMusicBed,
   SoundCue,
+  StyleProvider,
   VoiceoverTrack,
+  useStudioStyle,
 } from '@make-pictures/core';
 import {
+  DioramaStage3D,
   PaperCameraRig3D,
   PaperCutout3D,
   PaperStageLighting3D,
-  PopUpBookBase3D,
   PopUpHinge3D,
 } from '@make-pictures/kits/paper-diorama-3d';
 import {
@@ -554,29 +1160,20 @@ import {
   VOICEOVER_MANIFEST,
 } from '../generated/audio-manifest';
 
-export const HelloStudioSchema = z.object({
-  headline: z.string().describe('Texts & Labels :: Headline'),
-  subheadline: z.string().describe('Texts & Labels :: Subheadline'),
-  badgeLabel: z.string().describe('Texts & Labels :: Kit Badge'),
-  accentColor: z.string().describe('Colors & Style :: Primary Accent'),
-  secondaryColor: z.string().describe('Colors & Style :: Secondary Accent'),
-  voiceoverVolume: z.number().min(0).max(1.5).describe('Audio :: Voiceover Volume'),
-  musicVolume: z.number().min(0).max(1).describe('Audio :: Music Base Volume'),
-  sfxVolume: z.number().min(0).max(1).describe('Audio :: SFX Volume'),
-});
-
-export type HelloStudioProps = z.infer<typeof HelloStudioSchema>;
+${schemaBlock}
 
 const DIALOGUE_SEGMENTS = [
   { sceneId: 'hello-studio-intro', fromFrame: 12, durationInFrames: 300 },
   { sceneId: 'hello-studio-payoff', fromFrame: 324, durationInFrames: 306 },
 ];
 
-export const HelloStudio: React.FC<HelloStudioProps> = (props) => {
+const HelloDioramaStage: React.FC<HelloStudioProps> = (props) => {
   const frame = useCurrentFrame();
   const { fps, width, height } = useVideoConfig();
+  const style = useStudioStyle();
 
-  // Frame 0 Clean Board Rule: opacity starts at 0 on frame === 0
+  if (frame < 2) return null;
+
   const stageReveal = spring({
     frame: frame - 2,
     fps,
@@ -589,86 +1186,43 @@ export const HelloStudio: React.FC<HelloStudioProps> = (props) => {
     config: SPRING_PRESETS.gentle,
   });
 
-  const camDriftX = Math.sin(frame * 0.035) * 0.32;
-  const camZ = interpolate(frame, [0, 630], [9.8, 8.6], {
+  const camDriftX = Math.sin(frame * 0.032) * 0.28;
+  const camZ = interpolate(frame, [0, 630], [9.6, 8.4], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
 
-  const introVo = VOICEOVER_MANIFEST['hello-studio-intro'];
-  const payoffVo = VOICEOVER_MANIFEST['hello-studio-payoff'];
-  const whooshSfx = SFX_MANIFEST['whoosh-open'];
-  const popSfx = SFX_MANIFEST['card-pop'];
-
   return (
-    <AbsoluteFill style={{ backgroundColor: '#F6F1E7' }}>
-      {MUSIC_MANIFEST?.audioFile ? (
-        <SmartMusicBed
-          src={staticFile(MUSIC_MANIFEST.audioFile)}
-          dialogueSegments={DIALOGUE_SEGMENTS}
-          voiceoverManifest={VOICEOVER_MANIFEST}
-          baseVolume={props.musicVolume}
-          duckedVolume={Math.min(props.musicVolume * 0.34, 0.09)}
+    <AbsoluteFill style={{ opacity: stageReveal }}>
+      <ThreeCanvas
+        width={width}
+        height={height}
+        shadows
+        camera={{ position: [0, 3.0, 9.6], fov: 36 }}
+      >
+        <PaperCameraRig3D
+          cameraPos={[camDriftX, 2.95, camZ]}
+          lookAt={[0, 1.35, -0.3]}
+          fov={36}
         />
-      ) : null}
-
-      <VoiceoverTrack
-        voiceover={introVo}
-        fromFrame={12}
-        volume={props.voiceoverVolume}
-      />
-
-      <VoiceoverTrack
-        voiceover={payoffVo}
-        fromFrame={324}
-        volume={props.voiceoverVolume}
-      />
-
-      {whooshSfx?.audioFile ? (
-        <SoundCue
-          src={staticFile(whooshSfx.audioFile)}
-          atFrame={8}
-          durationSeconds={whooshSfx.durationSeconds}
-          volume={props.sfxVolume}
+        <PaperStageLighting3D
+          preset={style.surface.isDark ? 'dramatic-night' : 'studio-bright'}
         />
-      ) : null}
-
-      {popSfx?.audioFile ? (
-        <SoundCue
-          src={staticFile(popSfx.audioFile)}
-          sceneId="hello-studio-payoff"
-          onWord="music"
-          sceneStartFrame={324}
-          fallbackFrame={24}
-          durationSeconds={popSfx.durationSeconds}
-          voiceoverManifest={VOICEOVER_MANIFEST}
-          volume={props.sfxVolume}
-        />
-      ) : null}
-
-      <AbsoluteFill style={{ opacity: stageReveal }}>
-        <ThreeCanvas
-          width={width}
-          height={height}
-          shadows
-          camera={{ position: [0, 3.1, 9.8], fov: 36 }}
+        <DioramaStage3D
+          variant="minimal-plinth"
+          surfacePattern="spotlight"
+          accentColor={props.accentColor}
         >
-          <PaperCameraRig3D
-            cameraPos={[camDriftX, 3.0, camZ]}
-            lookAt={[0, 1.45, -0.5]}
-            fov={36}
-          />
-          <PaperStageLighting3D preset="golden-hour" />
-          <PopUpBookBase3D
-            floorTheme="warm-parquet"
-            nextFloorTheme="warm-parquet"
-            pageTurnProgress={0}
-          />
-
-          <PopUpHinge3D foldProgress={hingeFold} position={[0, 0, -0.4]}>
+          <PopUpHinge3D foldProgress={hingeFold} position={[0, 0, -0.25]}>
             <PaperCutout3D
               cacheKey="hello-studio-hero-card"
-              cacheDeps={[props.headline, props.subheadline, props.accentColor]}
+              cacheDeps={[
+                props.headline,
+                props.subheadline,
+                props.accentColor,
+                style.palette.bgSurface,
+                style.palette.textPrimary,
+              ]}
               width={5.8}
               height={2.45}
               pixelWidth={720}
@@ -677,7 +1231,7 @@ export const HelloStudio: React.FC<HelloStudioProps> = (props) => {
               position={[0, 0, 0]}
               thickness={0.055}
               draw={(ctx) => {
-                ctx.fillStyle = '#FFFDF9';
+                ctx.fillStyle = style.palette.bgSurface;
                 ctx.strokeStyle = props.accentColor;
                 ctx.lineWidth = 8;
                 ctx.beginPath();
@@ -685,20 +1239,36 @@ export const HelloStudio: React.FC<HelloStudioProps> = (props) => {
                 ctx.fill();
                 ctx.stroke();
 
-                ctx.fillStyle = '#0F172A';
+                ctx.fillStyle = style.palette.textPrimary;
                 ctx.font = '800 44px Inter, sans-serif';
                 ctx.textAlign = 'center';
                 ctx.fillText(props.headline, 360, 136, 616);
 
-                ctx.fillStyle = '#475569';
+                ctx.fillStyle = style.palette.textSecondary;
                 ctx.font = '600 24px Inter, sans-serif';
                 ctx.fillText(props.subheadline, 360, 192, 616);
               }}
             />
           </PopUpHinge3D>
-        </ThreeCanvas>
-      </AbsoluteFill>
+        </DioramaStage3D>
+      </ThreeCanvas>
     </AbsoluteFill>
+  );
+};
+
+export const HelloStudio: React.FC<HelloStudioProps> = (props) => {
+  const introVo = VOICEOVER_MANIFEST['hello-studio-intro'];
+  const payoffVo = VOICEOVER_MANIFEST['hello-studio-payoff'];
+  const whooshSfx = SFX_MANIFEST['whoosh-open'];
+  const popSfx = SFX_MANIFEST['card-pop'];
+
+  return (
+    <StyleProvider style={props.styleId} renderBackdrop>
+      <AbsoluteFill>
+        ${audioBlock}
+        <HelloDioramaStage {...props} />
+      </AbsoluteFill>
+    </StyleProvider>
   );
 };
 `;
@@ -707,39 +1277,28 @@ export const HelloStudio: React.FC<HelloStudioProps> = (props) => {
   return `import React from 'react';
 import {
   AbsoluteFill,
-  interpolate,
-  spring,
+  Sequence,
   staticFile,
-  useCurrentFrame,
   useVideoConfig,
 } from 'remotion';
 import { z } from 'zod';
 import {
-  SPRING_PRESETS,
-  STUDIO_FONTS,
-  STUDIO_THEME,
   SmartMusicBed,
   SoundCue,
+  StyleProvider,
   VoiceoverTrack,
 } from '@make-pictures/core';
+import {
+  ComparisonSplit2D,
+  StoryCard2D,
+} from '@make-pictures/kits/vector-scene-2d';
 import {
   MUSIC_MANIFEST,
   SFX_MANIFEST,
   VOICEOVER_MANIFEST,
 } from '../generated/audio-manifest';
 
-export const HelloStudioSchema = z.object({
-  headline: z.string().describe('Texts & Labels :: Headline'),
-  subheadline: z.string().describe('Texts & Labels :: Subheadline'),
-  badgeLabel: z.string().describe('Texts & Labels :: Kit Badge'),
-  accentColor: z.string().describe('Colors & Style :: Primary Accent'),
-  secondaryColor: z.string().describe('Colors & Style :: Secondary Accent'),
-  voiceoverVolume: z.number().min(0).max(1.5).describe('Audio :: Voiceover Volume'),
-  musicVolume: z.number().min(0).max(1).describe('Audio :: Music Base Volume'),
-  sfxVolume: z.number().min(0).max(1).describe('Audio :: SFX Volume'),
-});
-
-export type HelloStudioProps = z.infer<typeof HelloStudioSchema>;
+${schemaBlock}
 
 const DIALOGUE_SEGMENTS = [
   { sceneId: 'hello-studio-intro', fromFrame: 12, durationInFrames: 300 },
@@ -747,140 +1306,58 @@ const DIALOGUE_SEGMENTS = [
 ];
 
 export const HelloStudio: React.FC<HelloStudioProps> = (props) => {
-  const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
+  const { width, height } = useVideoConfig();
+  const isVertical = height > width;
 
-  const cardEntrance = spring({
-    frame: frame - 2,
-    fps,
-    config: SPRING_PRESETS.snappy,
-  });
-
-  const beatTwoEntrance = spring({
-    frame: frame - 320,
-    fps,
-    config: SPRING_PRESETS.gentle,
-  });
-
-  const cardY = interpolate(cardEntrance, [0, 1], [36, 0]);
   const introVo = VOICEOVER_MANIFEST['hello-studio-intro'];
   const payoffVo = VOICEOVER_MANIFEST['hello-studio-payoff'];
   const whooshSfx = SFX_MANIFEST['whoosh-open'];
   const popSfx = SFX_MANIFEST['card-pop'];
 
   return (
-    <AbsoluteFill
-      style={{
-        backgroundColor: STUDIO_THEME.bgCanvas,
-        fontFamily: STUDIO_FONTS.sans,
-        justifyContent: 'center',
-        alignItems: 'center',
-      }}
-    >
-      {MUSIC_MANIFEST?.audioFile ? (
-        <SmartMusicBed
-          src={staticFile(MUSIC_MANIFEST.audioFile)}
-          dialogueSegments={DIALOGUE_SEGMENTS}
-          voiceoverManifest={VOICEOVER_MANIFEST}
-          baseVolume={props.musicVolume}
-          duckedVolume={Math.min(props.musicVolume * 0.34, 0.09)}
-        />
-      ) : null}
+    <StyleProvider style={props.styleId} renderBackdrop>
+      <AbsoluteFill>
+        ${audioBlock}
 
-      <VoiceoverTrack
-        voiceover={introVo}
-        fromFrame={12}
-        volume={props.voiceoverVolume}
-      />
+        <Sequence from={0} durationInFrames={320}>
+          <AbsoluteFill
+            style={{
+              justifyContent: isVertical ? 'flex-start' : 'center',
+              alignItems: isVertical ? 'flex-start' : 'center',
+              paddingLeft: isVertical ? 54 : 160,
+              paddingRight: isVertical ? 186 : 160,
+              paddingTop: isVertical ? 280 : 0,
+            }}
+          >
+            <div style={{ width: '100%', maxWidth: isVertical ? 836 : 980 }}>
+              <StoryCard2D
+                title={props.headline}
+                subtitle={props.subheadline}
+                badge={props.badgeLabel}
+                accentColor={props.accentColor}
+                startFrame={2}
+              />
+            </div>
+          </AbsoluteFill>
+        </Sequence>
 
-      <VoiceoverTrack
-        voiceover={payoffVo}
-        fromFrame={324}
-        volume={props.voiceoverVolume}
-      />
-
-      {whooshSfx?.audioFile ? (
-        <SoundCue
-          src={staticFile(whooshSfx.audioFile)}
-          atFrame={8}
-          durationSeconds={whooshSfx.durationSeconds}
-          volume={props.sfxVolume}
-        />
-      ) : null}
-
-      {popSfx?.audioFile ? (
-        <SoundCue
-          src={staticFile(popSfx.audioFile)}
-          atFrame={322}
-          durationSeconds={popSfx.durationSeconds}
-          volume={props.sfxVolume}
-        />
-      ) : null}
-
-      <div
-        style={{
-          opacity: cardEntrance,
-          transform: \`translate3d(0, \${cardY}px, 0)\`,
-          padding: '56px 72px',
-          borderRadius: 28,
-          background: 'rgba(15, 23, 42, 0.92)',
-          border: \`2px solid \${props.accentColor}\`,
-          boxShadow: '0 28px 80px rgba(0, 0, 0, 0.45)',
-          maxWidth: 920,
-          textAlign: 'center',
-        }}
-      >
-        <div
-          style={{
-            display: 'inline-block',
-            padding: '8px 18px',
-            borderRadius: 999,
-            background: \`\${props.accentColor}26\`,
-            color: props.accentColor,
-            fontWeight: 700,
-            fontSize: 18,
-            letterSpacing: '0.08em',
-            marginBottom: 24,
-          }}
-        >
-          {props.badgeLabel}
-        </div>
-        <h1
-          style={{
-            margin: 0,
-            color: '#F8FAFC',
-            fontSize: 64,
-            fontWeight: 800,
-            lineHeight: 1.12,
-          }}
-        >
-          {props.headline}
-        </h1>
-        <p
-          style={{
-            marginTop: 20,
-            marginBottom: 0,
-            color: '#94A3B8',
-            fontSize: 28,
-            fontWeight: 500,
-          }}
-        >
-          {props.subheadline}
-        </p>
-
-        <div
-          style={{
-            marginTop: 32,
-            opacity: beatTwoEntrance,
-            color: props.secondaryColor,
-            fontSize: 22,
-            fontWeight: 600,
-          }}
-        >
-          SmartMusicBed Auto-Ducking • Word-Synced SoundCue • 60 FPS
-        </div>
-      </div>
-    </AbsoluteFill>
+        <Sequence from={320} durationInFrames={328}>
+          <ComparisonSplit2D
+            startFrame={2}
+            left={{
+              tag: '01 • Scena',
+              title: props.headline,
+              detail: props.subheadline,
+            }}
+            right={{
+              tag: '02 • Kierunek plastyczny',
+              title: props.styleId,
+              detail: 'Spójna typografia, paleta i mastering -14 LUFS',
+            }}
+          />
+        </Sequence>
+      </AbsoluteFill>
+    </StyleProvider>
   );
 };
 `;
@@ -979,6 +1456,7 @@ Read [\`AGENTS.md\`](./AGENTS.md) alongside this file for universal \`60 FPS\` V
 
 ## Capsule Architecture & Determinism
 - **Isolated Capsules (\`productions/<slug>/\`):** Keep every film self-contained (\`production.json\`, \`compositions/\`, \`assets/\`, \`generated/audio-manifest.ts\`). In embedded SaaS repos (\`--dir=videos\`), capsules live in \`videos/productions/<slug>/\`.
+- **Art Direction (\`styles/*.style.json\`):** Match every film's topic to one of the 7 visual kits and either a built-in style or a custom \`styles/<slug>.style.json\` preset wrapped in \`<StyleProvider style={props.styleId} renderBackdrop>\`.
 - **60 FPS Determinism:** Frame \`0\` must render a clean empty background (start entrance springs at \`frame - 2\`). Never use \`Math.random()\` or cross-frame \`useRef\` state — use \`SPRING_PRESETS\` and \`createSeededRandom(seed)\` from \`@make-pictures/core\`.
 - **Audio Tag Pool Hygiene:** Use \`<VoiceoverTrack />\` and \`<SoundCue />\` from \`@make-pictures/core\`; never wrap raw \`<Audio />\` inside \`<Sequence>\` without an explicit finite \`durationInFrames\`.
 - **Props Inspector (\`zod\` ↔ \`*.props.json\`):** Always read \`<CompositionId>.props.json\` from disk before editing so live tweaks from Studio Web are preserved. Never open or print \`.env.local\`.
@@ -986,20 +1464,23 @@ Read [\`AGENTS.md\`](./AGENTS.md) alongside this file for universal \`60 FPS\` V
 ## CLI Commands (\`npx make-pictures\`)
 - \`npx make-pictures onboard\` / \`npx make-pictures doctor\` — Verify Node.js, FFmpeg, and ElevenLabs OAuth (\`.env.local\`).
 - \`npx make-pictures init --dir=videos\` — Initialize capsules + AI skills inside an existing app repo.
-- \`npx make-pictures new <slug> --kit=paper-diorama-3d --lang=en\` — Scaffold a new \`60 FPS\` production capsule.
+- \`npx make-pictures styles\` / \`npx make-pictures style new <slug> --from=editorial-press\` — List or create reusable Art Direction presets.
+- \`npx make-pictures new <slug> --kit=vector-scene-2d --style=minimal-product --lang=en\` — Scaffold a new \`60 FPS\` production capsule.
 - \`npx make-pictures audio --production=<slug> [--mock]\` — Synthesize ElevenLabs TTS + word timestamps + AI Music + AI SFX.
-- \`npx make-pictures studio [--port=3000] [--dir=.]\` — Launch local \`60 FPS\` Studio Web workstation (\`http://127.0.0.1:3000\`).
+- \`npx make-pictures studio [--port=3000] [--dir=.]\` — Launch local \`60 FPS\` Studio Web workstation (\`http://127.0.0.1:3000\`, including 🎨 Style Lab).
 - \`npx make-pictures qa <CompositionId>\` — Render 12-frame Contact-Sheet PNG (\`out/qa-<CompositionId>.png\`) and inspect via \`Read\` (\`9:16\` Golden Safe Box \`x ∈ [40, 910], y ∈ [220, 1380]\`).
 - \`npm run typecheck\` && \`npx make-pictures render <CompositionId>\` — Typecheck and render \`60 FPS\` MP4 mastered to \`-14 LUFS\`.
 
 ## Auto-Discovered Skills (\`.claude/skills/<skill>/SKILL.md\`)
 1. \`make-pictures-director\` — 6-step production workflow, \`production.json\`, CLI modes, and QA gates.
-2. \`kit-paper-diorama-3d\` — 2.5D pop-up book (\`PaperCutout3D\`, \`ImageCutout3D\`, \`PopUpHinge3D\`, \`Δz\` layering).
-3. \`kit-motion-diagrams-2d\` — 2D infinite-canvas diagrams (\`NodeBox\` ports, \`FlowCurve\`, \`92–120f\` packets), plus SaaS \`.mp4\` screencasts via \`@make-pictures/kits/product-frames\` (\`BrowserFrame\`, \`PhoneFrame\`, \`ScreenSpotlightOverlay\`).
-4. \`kit-isometric-3d\` — 3D isometric dialogue (\`Stylized3DCharacter\`, \`speakingWeight\` vs \`speechEnergy\`).
-5. \`kit-kinetic-and-data\` — Kinetic typography & data charts (\`WordByWordStage\`, \`AnimatedBarRace\`, \`TimelineTrack\`).
-6. \`sound-and-music-design\` — ElevenLabs voices, PL/EN phonetics, \`SmartMusicBed\` auto-ducking, \`SoundCue\`, \`-14 LUFS\`.
-7. \`cinematography-and-vfx\` — Shot DSL (\`DirectorCamera3D/2D\`), \`9:16\` Safe Box, deterministic particles & transitions.
+2. \`style-and-art-direction\` — Art Direction gate, 7 built-in styles, \`StyleProvider\`, \`Style Lab\`, and \`styles/*.style.json\`.
+3. \`kit-editorial-and-vector\` — Universal 2D narrative kits: \`editorial-collage\` & \`vector-scene-2d\`.
+4. \`kit-paper-diorama-3d\` — 2.5D pop-up stage (\`DioramaStage3D\`, \`PaperCutout3D\`, \`ImageCutout3D\`, \`PopUpHinge3D\`, \`Δz\` layering).
+5. \`kit-motion-diagrams-2d\` — 2D infinite-canvas diagrams (\`NodeBox\` ports, \`FlowCurve\`, \`92–120f\` packets), plus SaaS \`.mp4\` screencasts via \`@make-pictures/kits/product-frames\` (\`BrowserFrame\`, \`PhoneFrame\`, \`ScreenSpotlightOverlay\`).
+6. \`kit-isometric-3d\` — 3D isometric dialogue (\`IsometricStage3D\`, \`Stylized3DCharacter\`, \`speakingWeight\` vs \`speechEnergy\`).
+7. \`kit-kinetic-and-data\` — Kinetic typography & data charts (\`WordByWordStage\`, \`AnimatedBarRace\`, \`TimelineTrack\`).
+8. \`sound-and-music-design\` — ElevenLabs voices, PL/EN phonetics, \`SmartMusicBed\` auto-ducking, \`SoundCue\`, \`-14 LUFS\`.
+9. \`cinematography-and-vfx\` — Shot DSL (\`DirectorCamera3D/2D\`), \`9:16\` Safe Box, deterministic particles & transitions.
 `;
 
 function writeAiPluginAndAgentsMd(targetRoot: string): void {
@@ -1138,7 +1619,7 @@ export async function createMakePicturesApp(
 ): Promise<{ targetDir: string; projectName: string }> {
   const targetDir = path.resolve(options.targetDir);
   const projectName = toPackageSlug(path.basename(targetDir));
-  const kit: StarterKitId = options.kit ?? 'paper-diorama-3d';
+  const kit: StarterKitId = options.kit ?? 'vector-scene-2d';
   const lang: 'pl' | 'en' = options.lang ?? 'en';
   const isPl = lang === 'pl';
 
@@ -1151,11 +1632,17 @@ export async function createMakePicturesApp(
   }
 
   fs.mkdirSync(path.join(targetDir, 'src'), { recursive: true });
+  fs.mkdirSync(path.join(targetDir, 'styles'), { recursive: true });
   fs.mkdirSync(path.join(targetDir, 'public', '_productions'), {
     recursive: true,
   });
 
   // 1. Root project config files
+  fs.writeFileSync(
+    path.join(targetDir, 'styles', 'README.md'),
+    STYLES_README_MD,
+    'utf8'
+  );
   fs.writeFileSync(
     path.join(targetDir, 'package.json'),
     `${JSON.stringify(buildPackageJson(projectName), null, 2)}\n`,
@@ -1262,13 +1749,14 @@ export async function createMakePicturesApp(
   );
 
   const defaultProps = {
+    styleId: 'minimal-product',
     headline: 'Hello Studio',
     subheadline: isPl
       ? 'Odizolowana produkcja 60 FPS • make.pictures'
-      : 'Isolated 60 FPS Production • make.pictures',
+      : 'Isolated 60 FPS production • make.pictures',
     badgeLabel: kit.toUpperCase(),
-    accentColor: kit === 'paper-diorama-3d' ? '#D97706' : '#2563EB',
-    secondaryColor: '#FF2A85',
+    accentColor: '#2563EB',
+    secondaryColor: '#0EA5E9',
     voiceoverVolume: 1.0,
     musicVolume: 0.25,
     sfxVolume: 0.35,
@@ -1440,8 +1928,9 @@ Usage:
   npx create-make-pictures@latest <project-directory> [options]
 
 Options:
-  --kit=<kit>       Starter kit: paper-diorama-3d (default), motion-diagrams-2d,
-                    isometric-3d, kinetic-typography, data-storytelling
+  --kit=<kit>       Starter kit: vector-scene-2d (default), editorial-collage,
+                    kinetic-typography, data-storytelling, motion-diagrams-2d,
+                    paper-diorama-3d, isometric-3d
   --lang=<en|pl>    Starter narration language (default: en)
   --no-install      Skip running npm install
   --force           Allow scaffolding into a non-empty directory
@@ -1467,7 +1956,7 @@ export async function runCreateCli(
   const kit: StarterKitId =
     rawKit && VALID_KITS.has(rawKit as StarterKitId)
       ? (rawKit as StarterKitId)
-      : 'paper-diorama-3d';
+      : 'vector-scene-2d';
   const lang = flags.lang === 'pl' ? 'pl' : 'en';
 
   await createMakePicturesApp({

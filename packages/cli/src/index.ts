@@ -23,6 +23,10 @@ import { runOnboardCommand } from './commands/onboard';
 import { runQaContactSheetCommand } from './commands/qa-contact-sheet';
 import { runRenderCommand } from './commands/render';
 import { runStudioCommand } from './commands/studio';
+import {
+  runStyleNewCommand,
+  runStylesListCommand,
+} from './commands/styles';
 
 interface ParsedArgs {
   positionals: string[];
@@ -110,7 +114,7 @@ Commands:
   studio [--port=3000] [--host=127.0.0.1] [--dir=<subdir>]
       Launch the 60 FPS Studio Web workstation (HMR + Props Inspector + Safe Box)
 
-  init [--dir=videos] [--kit=paper-diorama-3d] [--lang=en|pl] [--force]
+  init [--dir=videos] [--kit=vector-scene-2d] [--style=minimal-product] [--lang=en|pl] [--force]
       Initialize make.pictures capsules + AI agent skills inside an existing repo
 
   onboard [init|connect|wait|check|status] [--json|--human] [--no-browser]
@@ -119,7 +123,13 @@ Commands:
   doctor [--setup] [--dir=<subdir>]
       Verify Node.js, FFmpeg, ElevenLabs connectivity, capsules, and Remotion
 
-  new <slug> [--kit=motion-diagrams-2d|paper-diorama-3d|isometric-3d|kinetic-typography|data-storytelling] [--lang=en|pl] [--dir=<subdir>]
+  styles [--json] [--dir=<subdir>]
+      List all 7 built-in Art Direction styles, custom styles/*.style.json, and 7 visual kits
+
+  style new <slug> [--from=minimal-product] [--force] [--dir=<subdir>]
+      Create a reusable custom Art Direction preset in styles/<slug>.style.json
+
+  new <slug> [--kit=vector-scene-2d|editorial-collage|kinetic-typography|data-storytelling|motion-diagrams-2d|paper-diorama-3d|isometric-3d] [--style=minimal-product] [--voice=<voiceId>] [--lang=en|pl] [--dir=<subdir>]
       Scaffold an isolated production capsule in productions/<slug>/
 
   audio [--production=<slug>] [--mock] [--force] [--dir=<subdir>]
@@ -177,12 +187,16 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
 
     case 'init': {
       const kit = getStringFlag(flags, 'kit') as ScaffoldKitId | undefined;
+      const style = getStringFlag(flags, 'style');
+      const voice = getStringFlag(flags, 'voice');
       const langRaw = getStringFlag(flags, 'lang');
       const lang = langRaw === 'pl' ? 'pl' : 'en';
       await runInitCommand({
         cwd,
         dir,
         kit,
+        style,
+        voice,
         lang,
         force: Boolean(flags.force),
       });
@@ -230,14 +244,56 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
       return;
     }
 
+    case 'styles': {
+      await runStylesListCommand({
+        cwd,
+        dir,
+        json: Boolean(flags.json),
+      });
+      return;
+    }
+
+    case 'style': {
+      const subcommand = positionals[1]?.toLowerCase();
+      if (!subcommand || subcommand === 'list') {
+        await runStylesListCommand({
+          cwd,
+          dir,
+          json: Boolean(flags.json),
+        });
+        return;
+      }
+      if (subcommand === 'new') {
+        const slug = positionals[2] || getStringFlag(flags, 'slug');
+        if (!slug) {
+          throw new Error(
+            'Missing <slug>. Usage: make-pictures style new <slug> [--from=minimal-product]'
+          );
+        }
+        await runStyleNewCommand({
+          cwd,
+          dir,
+          slug,
+          from: getStringFlag(flags, 'from'),
+          force: Boolean(flags.force),
+        });
+        return;
+      }
+      throw new Error(
+        `Unknown style subcommand "${positionals[1]}". Usage: make-pictures style new <slug> [--from=minimal-product]`
+      );
+    }
+
     case 'new': {
       const slug = positionals[1] || getStringFlag(flags, 'slug');
       if (!slug) {
         throw new Error(
-          'Missing <slug>. Usage: make-pictures new <slug> [--kit=paper-diorama-3d] [--lang=pl|en]'
+          'Missing <slug>. Usage: make-pictures new <slug> [--kit=vector-scene-2d] [--style=minimal-product] [--lang=pl|en]'
         );
       }
       const kit = getStringFlag(flags, 'kit') as ScaffoldKitId | undefined;
+      const style = getStringFlag(flags, 'style');
+      const voice = getStringFlag(flags, 'voice');
       const langRaw = getStringFlag(flags, 'lang');
       const lang = langRaw === 'pl' ? 'pl' : 'en';
       await runNewProductionCommand({
@@ -245,6 +301,8 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
         dir,
         slug,
         kit,
+        style,
+        voice,
         lang,
         force: Boolean(flags.force),
       });
@@ -388,6 +446,7 @@ export * from './commands/onboard';
 export * from './commands/qa-contact-sheet';
 export * from './commands/render';
 export * from './commands/studio';
+export * from './commands/styles';
 export * from './commands/workspace-paths';
 
 function resolveSelfFilename(): string | null {

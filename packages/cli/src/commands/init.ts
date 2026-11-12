@@ -4,6 +4,7 @@ import {
   runNewProductionCommand,
   type ScaffoldKitId,
 } from './new-production';
+import { ensureWorkspaceStylesDir } from './styles';
 import {
   ensureConsumerRemotionEntry,
   resolveWorkspaceContext,
@@ -14,6 +15,8 @@ export interface InitCommandOptions {
   cwd?: string;
   dir?: string;
   kit?: ScaffoldKitId;
+  style?: string;
+  voice?: string;
   lang?: 'pl' | 'en';
   force?: boolean;
 }
@@ -87,7 +90,7 @@ export async function runInitCommand(
     dir: options.dir,
   });
 
-  const kit: ScaffoldKitId = options.kit ?? 'paper-diorama-3d';
+  const kit: ScaffoldKitId = options.kit ?? 'vector-scene-2d';
   const lang: 'pl' | 'en' = options.lang ?? 'en';
   const force = Boolean(options.force);
 
@@ -95,6 +98,7 @@ export async function runInitCommand(
   const publicDir = path.join(studioDir, 'public');
   fs.mkdirSync(productionsRoot, { recursive: true });
   fs.mkdirSync(publicDir, { recursive: true });
+  ensureWorkspaceStylesDir(studioDir);
 
   const entryPath = ensureConsumerRemotionEntry(studioDir, rootDir, force);
 
@@ -104,6 +108,8 @@ export async function runInitCommand(
       dir: dirRel,
       slug: 'hello-studio',
       kit,
+      style: options.style,
+      voice: options.voice,
       lang,
       force,
       prepopulateTimestamps: true,

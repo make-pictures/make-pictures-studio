@@ -2,6 +2,8 @@ import { execSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
+import { BUILT_IN_STYLE_IDS } from '../../../core/src/index';
+import { SCENES_KIT_IDS } from './new-production';
 import { resolveWorkspaceContext } from './workspace-paths';
 
 export type OnboardStep = 'init' | 'connect' | 'wait' | 'check' | 'status';
@@ -958,8 +960,8 @@ export async function runOnboardCommand(
       next: 'ask_what_to_build',
       instruction: finalInstruction,
       say: isPl
-        ? `Środowisko make.pictures jest gotowe! Klucz ElevenLabs (końcówka ${keyLast4}) został zapisany w .env.local, a podgląd 60 FPS Studio Web działa pod adresem http://127.0.0.1:3000. Jaki film chcesz stworzyć? Opisz krótko temat (i opcjonalnie czy wolisz format poziomy 16:9 czy pionowy Short 9:16).`
-        : `make.pictures Studio is ready! Your ElevenLabs API key (ending in ${keyLast4}) is saved in .env.local, and the 60 FPS Studio Web preview is live at http://127.0.0.1:3000. What film would you like to create? Describe the topic (and optionally 16:9 landscape or 9:16 vertical).`,
+        ? `Środowisko make.pictures jest gotowe! Klucz ElevenLabs (końcówka ${keyLast4}) został zapisany w .env.local, a podgląd 60 FPS Studio Web (wraz z zakładką 🎨 Style Lab do podglądu i edycji stylów na żywo) działa pod adresem http://127.0.0.1:3000. Jaki film chcesz stworzyć? Opisz krótko temat, klimat plastyczny i opcjonalnie czy wolisz format poziomy 16:9 czy pionowy Short 9:16.`
+        : `make.pictures Studio is ready! Your ElevenLabs API key (ending in ${keyLast4}) is saved in .env.local, and the 60 FPS Studio Web preview (including 🎨 Style Lab for live style browsing and editing) is live at http://127.0.0.1:3000. What film would you like to create? Describe the topic, visual mood/style, and optionally 16:9 landscape or 9:16 vertical.`,
       rules,
       details: {
         env_file: '.env.local',
@@ -968,13 +970,8 @@ export async function runOnboardCommand(
         studio_web_url: 'http://127.0.0.1:3000',
         studio_command: studioLaunchCmd,
         studio_already_running: studioAlreadyRunning,
-        visual_kits: [
-          'paper-diorama-3d',
-          'isometric-3d',
-          'motion-diagrams-2d',
-          'kinetic-typography',
-          'data-storytelling',
-        ],
+        visual_kits: [...SCENES_KIT_IDS],
+        built_in_styles: [...BUILT_IN_STYLE_IDS],
         docs: [agentsMdRel, skillsDirRel],
       },
     });
