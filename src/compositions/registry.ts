@@ -2,8 +2,10 @@ import {
   type CompositionSceneSegment,
   type DefinedProduction,
   isVerticalComposition,
+  registerCustomStyles,
   registerVoiceoverManifest,
   type SceneVoiceoverData,
+  type StylePreset,
   type StudioCompositionEntry,
   type VisualKitId,
 } from '@make-pictures/core';
@@ -45,6 +47,61 @@ declare const require: WebpackRequire;
 
 // Seed global voiceover lookup with root examples manifest
 registerVoiceoverManifest(VOICEOVER_MANIFEST);
+
+function unwrapJsonModule(raw: unknown): StylePreset | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const unwrapped =
+    'default' in (raw as Record<string, unknown>) &&
+    typeof (raw as Record<string, unknown>).default === 'object' &&
+    (raw as Record<string, unknown>).default !== null
+      ? (raw as Record<string, unknown>).default
+      : raw;
+  return unwrapped as StylePreset;
+}
+
+function discoverWorkspaceCustomStyles(): void {
+  const discoveredStyles: StylePreset[] = [];
+  let viteStylesLoaded = false;
+
+  try {
+    const viteStyles = import.meta.glob('../../styles/*.style.json', {
+      eager: true,
+    });
+    if (viteStyles) {
+      viteStylesLoaded = true;
+      for (const [, mod] of Object.entries(viteStyles).sort(([a], [b]) =>
+        a.localeCompare(b)
+      )) {
+        const candidate = unwrapJsonModule(mod);
+        if (candidate) discoveredStyles.push(candidate);
+      }
+    }
+  } catch {
+    // Non-Vite bundler (Webpack / Node tsx) — handled below
+  }
+
+  if (!viteStylesLoaded) {
+    try {
+      const stylesCtx = require.context(
+        '../../styles',
+        false,
+        /^\.\/[^/]+\.style\.json$/
+      );
+      for (const key of stylesCtx.keys().sort()) {
+        const candidate = unwrapJsonModule(stylesCtx(key));
+        if (candidate) discoveredStyles.push(candidate);
+      }
+    } catch {
+      // Non-Webpack runtime or styles/ directory does not exist yet
+    }
+  }
+
+  if (discoveredStyles.length > 0) {
+    registerCustomStyles(discoveredStyles);
+  }
+}
+
+discoverWorkspaceCustomStyles();
 
 function isDefinedProduction(val: unknown): val is DefinedProduction {
   return (

@@ -12,7 +12,12 @@ import type {
   ProductionManifest,
   ScenesManifest,
   SceneVoiceoverData,
-} from '@make-pictures/core';
+} from '../../../core/src/index';
+import {
+  StylePresetSchema,
+  type StylePreset,
+} from '../../../core/src/style/schema';
+import { isBuiltInStyleId } from '../../../core/src/style/presets';
 
 export interface StartStudioServerOptions {
   rootDir?: string;
@@ -453,6 +458,157 @@ function isAllowedPropsPath(
   return null;
 }
 
+export function readCustomStylesFromDisk(studioDir: string): {
+  ok: true;
+  styles: StylePreset[];
+  warnings: string[];
+} {
+  const stylesDir = path.resolve(studioDir, 'styles');
+  if (!fs.existsSync(stylesDir)) {
+    return { ok: true, styles: [], warnings: [] };
+  }
+
+  const styles: StylePreset[] = [];
+  const warnings: string[] = [];
+
+  let entries: string[] = [];
+  try {
+    entries = fs
+      .readdirSync(stylesDir)
+      .filter((name) => name.endsWith('.style.json'))
+      .sort((a, b) => a.localeCompare(b));
+  } catch (err) {
+    warnings.push(
+      `Nie udało się odczytać katalogu styles/: ${
+        err instanceof Error ? err.message : String(err)
+      }`
+    );
+    return { ok: true, styles, warnings };
+  }
+
+  for (const fileName of entries) {
+    const absPath = path.join(stylesDir, fileName);
+    try {
+      const rawText = fs.readFileSync(absPath, 'utf8');
+      const rawJson = JSON.parse(rawText) as unknown;
+      const parsed = StylePresetSchema.safeParse(rawJson);
+      if (!parsed.success) {
+        warnings.push(
+          `Pominięto nieprawidłowy plik styles/${fileName}: ${
+            parsed.error.issues[0]?.message ?? 'błąd walidacji schematu'
+          }`
+        );
+        continue;
+      }
+      if (isBuiltInStyleId(parsed.data.id)) {
+        warnings.push(
+          `Pominięto styles/${fileName}: identyfikator "${parsed.data.id}" jest zarezerwowany dla stylu wbudowanego.`
+        );
+        continue;
+      }
+      styles.push(parsed.data);
+    } catch (err) {
+      warnings.push(
+        `Nie udało się sparsować styles/${fileName}: ${
+          err instanceof Error ? err.message : String(err)
+        }`
+      );
+    }
+  }
+
+  return { ok: true, styles, warnings };
+}
+
+export function saveCustomStyleToDisk(
+  studioDir: string,
+  payload: { slug?: unknown; style?: unknown }
+): { statusCode: number; body: Record<string, unknown> } {
+  const rawSlug = typeof payload?.slug === 'string' ? payload.slug.trim() : '';
+
+  if (!PROD_SLUG_PATTERN.test(rawSlug)) {
+    return {
+      statusCode: 400,
+      body: {
+        ok: false,
+        error:
+          'Nieprawidłowy identyfikator stylu (slug). Dozwolone są małe litery, cyfry i myślniki (1–63 znaki).',
+      },
+    };
+  }
+
+  if (isBuiltInStyleId(rawSlug)) {
+    return {
+      statusCode: 400,
+      body: {
+        ok: false,
+        error: `Identyfikator "${rawSlug}" jest zarezerwowany dla stylu wbudowanego (built-in) i nie może zostać nadpisany.`,
+      },
+    };
+  }
+
+  if (
+    !payload?.style ||
+    typeof payload.style !== 'object' ||
+    Array.isArray(payload.style)
+  ) {
+    return {
+      statusCode: 400,
+      body: {
+        ok: false,
+        error: 'Pole style musi być poprawnym obiektem JSON.',
+      },
+    };
+  }
+
+  const stylesDir = path.resolve(studioDir, 'styles');
+  const resolvedTarget = path.resolve(stylesDir, `${rawSlug}.style.json`);
+  if (!resolvedTarget.startsWith(stylesDir + path.sep)) {
+    return {
+      statusCode: 400,
+      body: {
+        ok: false,
+        error: 'Niedozwolona ścieżka pliku stylu.',
+      },
+    };
+  }
+
+  const candidate = {
+    ...(payload.style as Record<string, unknown>),
+    id: rawSlug,
+  };
+  const parsed = StylePresetSchema.safeParse(candidate);
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    const issuePath = issue?.path?.length ? `${issue.path.join('.')}: ` : '';
+    return {
+      statusCode: 400,
+      body: {
+        ok: false,
+        error: `Błąd walidacji schematu stylu (${issuePath}${
+          issue?.message ?? 'nieprawidłowe dane'
+        }).`,
+      },
+    };
+  }
+
+  fs.mkdirSync(stylesDir, { recursive: true });
+  const formatted = `${JSON.stringify(parsed.data, null, 2)}\n`;
+  const tmpPath = `${resolvedTarget}.tmp-${process.pid}`;
+  fs.writeFileSync(tmpPath, formatted, 'utf8');
+  fs.renameSync(tmpPath, resolvedTarget);
+
+  return {
+    statusCode: 200,
+    body: {
+      ok: true,
+      slug: rawSlug,
+      styleFile: `styles/${rawSlug}.style.json`,
+      style: parsed.data,
+      savedAt: new Date().toISOString(),
+    },
+  };
+}
+
 function parseRemotionProgressLine(
   cleanLine: string,
   prevPercent: number
@@ -555,6 +711,40 @@ export function makePicturesStudioServerPlugin(
           res.statusCode = 200;
           res.setHeader('Content-Type', 'application/json; charset=utf-8');
           res.end(JSON.stringify(payload));
+          return;
+        }
+
+        // 1a. GET /api/studio/styles
+        if (req.method === 'GET' && url === '/api/studio/styles') {
+          const payload = readCustomStylesFromDisk(studioDir);
+          res.statusCode = 200;
+          res.setHeader('Content-Type', 'application/json; charset=utf-8');
+          res.end(JSON.stringify(payload));
+          return;
+        }
+
+        // 1a-post. POST /api/studio/styles
+        if (req.method === 'POST' && url === '/api/studio/styles') {
+          readJsonBody(req)
+            .then((body) => {
+              const result = saveCustomStyleToDisk(studioDir, {
+                slug: body.slug,
+                style: body.style,
+              });
+              res.statusCode = result.statusCode;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify(result.body));
+            })
+            .catch((err) => {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(
+                JSON.stringify({
+                  ok: false,
+                  error: err instanceof Error ? err.message : String(err),
+                })
+              );
+            });
           return;
         }
 
@@ -1261,11 +1451,50 @@ function discoverCapsuleIndexFiles(
   return discovered;
 }
 
+function discoverValidStyleJsonFiles(studioDir: string): string[] {
+  const stylesDir = path.join(studioDir, 'styles');
+  if (!fs.existsSync(stylesDir)) return [];
+
+  let names: string[] = [];
+  try {
+    names = fs
+      .readdirSync(stylesDir)
+      .filter((name) => name.endsWith('.style.json'))
+      .sort((a, b) => a.localeCompare(b));
+  } catch {
+    return [];
+  }
+
+  const validPaths: string[] = [];
+  for (const name of names) {
+    const abs = path.join(stylesDir, name);
+    try {
+      JSON.parse(fs.readFileSync(abs, 'utf8'));
+      validPaths.push(abs);
+    } catch {
+      // Skip malformed JSON so Vite's JSON loader never crashes the Studio shell
+    }
+  }
+  return validPaths;
+}
+
 function buildVirtualStudioEntrySource(
   rootDir: string,
   studioDir: string
 ): string {
   const modules = discoverCapsuleIndexFiles(rootDir, studioDir);
+  const styleFiles = discoverValidStyleJsonFiles(studioDir);
+
+  const styleImportLines = styleFiles.map(
+    (absPath, idx) =>
+      `import stylePreset_${idx} from ${JSON.stringify(
+        `/@fs/${toPosixPath(absPath)}`
+      )};`
+  );
+  const styleArrayEntries = styleFiles.map(
+    (_absPath, idx) => `  stylePreset_${idx},`
+  );
+
   const importLines = modules.map(
     (m, idx) =>
       `import * as compMod_${idx} from ${JSON.stringify(
@@ -1280,8 +1509,14 @@ function buildVirtualStudioEntrySource(
     `import '@make-pictures/studio/styles.css';`,
     `import React from 'react';`,
     `import { createRoot } from 'react-dom/client';`,
+    `import { registerCustomStyles } from '@make-pictures/core';`,
     `import { StudioApp, mergeStudioCompositionModules } from '@make-pictures/studio/client';`,
+    ...styleImportLines,
     ...importLines,
+    ``,
+    `registerCustomStyles([`,
+    ...styleArrayEntries,
+    `]);`,
     ``,
     `const compositions = mergeStudioCompositionModules([`,
     ...arrayEntries,
@@ -1344,24 +1579,46 @@ function studioVirtualClientPlugin(
     },
     configureServer(server: ViteDevServer) {
       const productionsDir = path.join(studioDir, 'productions');
+      const stylesDir = path.join(studioDir, 'styles');
       server.watcher.add(productionsDir);
+      server.watcher.add(stylesDir);
+
+      const invalidateVirtualEntry = () => {
+        const mod = server.moduleGraph.getModuleById(RESOLVED_VIRTUAL_MAIN_ID);
+        if (mod) {
+          server.moduleGraph.invalidateModule(mod);
+        }
+      };
 
       const handleCapsuleAddOrUnlink = (changedPath: string) => {
+        if (
+          changedPath.startsWith(stylesDir) &&
+          changedPath.endsWith('.style.json')
+        ) {
+          invalidateVirtualEntry();
+          server.ws.send({ type: 'full-reload' });
+          return;
+        }
         if (!changedPath.startsWith(productionsDir)) return;
         syncProductionAssetSymlinks(studioDir);
         if (/index\.(ts|tsx|js|jsx)$/.test(changedPath)) {
-          const mod = server.moduleGraph.getModuleById(
-            RESOLVED_VIRTUAL_MAIN_ID
-          );
-          if (mod) {
-            server.moduleGraph.invalidateModule(mod);
-          }
+          invalidateVirtualEntry();
           server.ws.send({ type: 'full-reload' });
+        }
+      };
+
+      const handleStyleChange = (changedPath: string) => {
+        if (
+          changedPath.startsWith(stylesDir) &&
+          changedPath.endsWith('.style.json')
+        ) {
+          invalidateVirtualEntry();
         }
       };
 
       server.watcher.on('add', handleCapsuleAddOrUnlink);
       server.watcher.on('unlink', handleCapsuleAddOrUnlink);
+      server.watcher.on('change', handleStyleChange);
 
       server.middlewares.use(async (req, res, next) => {
         const cleanUrl = (req.url ?? '').split('?')[0];

@@ -58,6 +58,7 @@
   ],
   "peerDependencies": {
     "@make-pictures/core": "^2.0.3",
+    "@make-pictures/kits": "^2.0.3",
     "@remotion/player": "^4.0.0",
     "@vitejs/plugin-react": "^4.0.0 || ^5.0.0",
     "lucide-react": "^0.400.0 || ^0.500.0 || >=0.475.0",
@@ -68,6 +69,9 @@
     "zod": "^3.22.0"
   },
   "peerDependenciesMeta": {
+    "@make-pictures/kits": {
+      "optional": true
+    },
     "@vitejs/plugin-react": {
       "optional": true
     },
