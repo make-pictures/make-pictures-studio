@@ -5,3 +5,5 @@ export * from './vfx';
 export * from './kinetic-typography';
 export * from './data-storytelling';
 export * from './product-frames';
+export * from './editorial-collage';
+export * from './vector-scene-2d';

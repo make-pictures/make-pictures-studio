@@ -66,6 +66,16 @@
       "types": "./dist/product-frames/index.d.ts",
       "import": "./dist/product-frames/index.mjs",
       "require": "./dist/product-frames/index.cjs"
+    },
+    "./editorial-collage": {
+      "types": "./dist/editorial-collage/index.d.ts",
+      "import": "./dist/editorial-collage/index.mjs",
+      "require": "./dist/editorial-collage/index.cjs"
+    },
+    "./vector-scene-2d": {
+      "types": "./dist/vector-scene-2d/index.d.ts",
+      "import": "./dist/vector-scene-2d/index.mjs",
+      "require": "./dist/vector-scene-2d/index.cjs"
     }
   },
   "peerDependencies": {
