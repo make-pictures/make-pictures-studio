@@ -1,6 +1,6 @@
 {
   "name": "@make-pictures/kits",
-  "version": "2.0.3",
+  "version": "2.1.0",
   "description": "60 FPS Visual Kits for make.pictures — Paper Diorama 3D, Isometric 3D Dialogue, Motion Diagrams 2D, Kinetic Typography, Data Storytelling, Optical VFX, and Product Frames (BrowserFrame, PhoneFrame, ScreenSpotlightOverlay).",
   "homepage": "https://make.pictures",
   "repository": {
@@ -79,7 +79,7 @@
     }
   },
   "peerDependencies": {
-    "@make-pictures/core": "^2.0.3",
+    "@make-pictures/core": "^2.1.0",
     "@react-three/drei": "^9.0.0 || ^10.0.0",
     "@react-three/fiber": "^8.0.0 || ^9.0.0",
     "@remotion/three": "^4.0.0",
