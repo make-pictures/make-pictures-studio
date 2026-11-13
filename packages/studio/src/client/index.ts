@@ -5,13 +5,38 @@ export {
 } from './discovery';
 export { consumePostSseStream } from './sseClient';
 export type {
+  InspectorTabId,
   OverlaySettings,
+  SaveStudioScenePayload,
   SceneAudioStatusItem,
+  StudioCapsuleScenesGroup,
+  StudioScenePatch,
+  StudioScenesResponse,
   StudioStatusResponse,
 } from './types';
 export {
+  attachPlayerLifecycle,
+  useRemotionPlayer,
+  type PlayerLifecycleCallbacks,
+  type PlayerLifecycleEventName,
+  type PlayerLifecycleTarget,
+  type UseRemotionPlayerOptions,
+  type UseRemotionPlayerResult,
+} from './hooks/useRemotionPlayer';
+export {
+  STUDIO_THEME_STORAGE_KEY,
+  useStudioTheme,
+  type ResolvedStudioTheme,
+  type StudioThemeMode,
+  type UseStudioThemeResult,
+} from './hooks/useStudioTheme';
+export {
+  formatColorWithAlpha,
   getNestedValue,
+  introspectPropsFallback,
   introspectZodObject,
+  mergeSchemaWithExtraProps,
+  parseRgbaOrHex,
   setNestedValue,
   type InspectorFieldKind,
   type InspectorFieldSpec,
@@ -35,9 +60,18 @@ export {
   type LiveTranscriptBarProps,
 } from './components/LiveTranscriptBar';
 export {
+  ProjectPickerPopover,
+  type ProjectPickerPopoverProps,
+  type ProjectPickerViewMode,
+} from './components/ProjectPickerPopover';
+export {
   PropsInspector,
   type PropsInspectorProps,
 } from './components/PropsInspector';
+export {
+  SceneScriptEditor,
+  type SceneScriptEditorProps,
+} from './components/SceneScriptEditor';
 export {
   buildAiErrorContext,
   StageErrorBoundary,

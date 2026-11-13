@@ -13,10 +13,8 @@ import {
   type StylePreset,
 } from '@make-pictures/core';
 import { BrandMarkSvg } from './components/BrandLogo';
-import { LeftSidebar } from './components/LeftSidebar';
 import { PropsInspector } from './components/PropsInspector';
 import { StageViewport } from './components/StageViewport';
-import { StyleCatalogSidebar } from './components/StyleCatalogSidebar';
 import {
   STYLE_LAB_DURATION_IN_FRAMES,
   STYLE_LAB_FPS,
@@ -25,7 +23,13 @@ import {
   type StyleLabAspectRatio,
 } from './components/StyleLabShowcase';
 import { Topbar, type StudioViewMode } from './components/Topbar';
-import type { OverlaySettings, StudioStatusResponse } from './types';
+import { useStudioTheme } from './hooks/useStudioTheme';
+import type {
+  OverlaySettings,
+  SaveStudioScenePayload,
+  StudioScenesResponse,
+  StudioStatusResponse,
+} from './types';
 
 export interface StudioAppProps {
   compositions?: StudioCompositionEntry[];
@@ -90,9 +94,29 @@ function suggestNewStyleSlug(baseId: string, existingCustomIds: Set<string>): st
 export const StudioApp: React.FC<StudioAppProps> = ({
   compositions = EMPTY_COMPOSITIONS,
 }) => {
+  const { themeMode, resolvedTheme, cycleThemeMode, setThemeMode } =
+    useStudioTheme();
+
   const [viewMode, setViewMode] = useState<StudioViewMode>(() =>
     readInitialViewMode()
   );
+
+  // SSR-safe default `true` so SSR markup includes PropsInspector;
+  // collapses automatically on <1100px viewports when mounted in browser.
+  const [inspectorOpen, setInspectorOpen] = useState<boolean>(() =>
+    typeof window === 'undefined' ? true : window.innerWidth >= 1100
+  );
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (window.innerWidth < 1100) {
+      setInspectorOpen(false);
+    }
+  }, []);
+
+  const handleToggleInspector = useCallback(() => {
+    setInspectorOpen((prev) => !prev);
+  }, []);
 
   const [selectedId, setSelectedId] = useState<string>(() =>
     readInitialCompId(compositions)
@@ -112,6 +136,8 @@ export const StudioApp: React.FC<StudioAppProps> = ({
   const [measuredFps, setMeasuredFps] = useState<number>(60);
   const [studioStatus, setStudioStatus] =
     useState<StudioStatusResponse | null>(null);
+  const [scenesResponse, setScenesResponse] =
+    useState<StudioScenesResponse | null>(null);
 
   // ==================== FILMS PROPS INSPECTOR STATE ====================
   const [propsByComp, setPropsByComp] = useState<
@@ -170,6 +196,22 @@ export const StudioApp: React.FC<StudioAppProps> = ({
     ruleOfThirds: false,
     safeMargins: false,
   });
+
+  const availableStyles = useMemo<
+    Array<{ preset: StylePreset; origin: 'built-in' | 'custom' }>
+  >(
+    () => [
+      ...builtInStyles.map((preset) => ({
+        preset,
+        origin: 'built-in' as const,
+      })),
+      ...customStyles.map((preset) => ({
+        preset,
+        origin: 'custom' as const,
+      })),
+    ],
+    [builtInStyles, customStyles]
+  );
 
   const [styleDraftsById, setStyleDraftsById] = useState<
     Record<string, Record<string, unknown>>
@@ -243,10 +285,13 @@ export const StudioApp: React.FC<StudioAppProps> = ({
     const onPopState = () => {
       setViewMode(readInitialViewMode());
       setSelectedStyleId(readInitialStyleId());
+      if (compositions.length > 0) {
+        setSelectedId(readInitialCompId(compositions));
+      }
     };
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
-  }, []);
+  }, [compositions]);
 
   // Fetch custom styles from `/api/studio/styles`
   const fetchCustomStyles = useCallback(async () => {
@@ -291,6 +336,10 @@ export const StudioApp: React.FC<StudioAppProps> = ({
   }, []);
 
   useEffect(() => {
+    void fetchCustomStyles();
+  }, [fetchCustomStyles]);
+
+  const handleRefreshStyles = useCallback(() => {
     void fetchCustomStyles();
   }, [fetchCustomStyles]);
 
@@ -375,6 +424,7 @@ export const StudioApp: React.FC<StudioAppProps> = ({
   const isDirty =
     Boolean(activeComposition) && activeLiveJson !== activeBaselineJson;
 
+  // ==================== STUDIO STATUS & SCENES API ====================
   const fetchStudioStatus = useCallback(async () => {
     try {
       const res = await fetch('/api/studio/status');
@@ -386,9 +436,63 @@ export const StudioApp: React.FC<StudioAppProps> = ({
     }
   }, []);
 
+  const fetchScenes = useCallback(async () => {
+    try {
+      const res = await fetch('/api/studio/scenes');
+      if (!res.ok) return;
+      const data = (await res.json()) as StudioScenesResponse;
+      if (data && data.ok && Array.isArray(data.groups)) {
+        setScenesResponse(data);
+      }
+    } catch {
+      // Offline / static fallback uses registered voiceover manifest
+    }
+  }, []);
+
   useEffect(() => {
     void fetchStudioStatus();
-  }, [fetchStudioStatus]);
+    void fetchScenes();
+  }, [fetchStudioStatus, fetchScenes]);
+
+  const handleRefreshScenesAndStatus = useCallback(() => {
+    void fetchStudioStatus();
+    void fetchScenes();
+  }, [fetchStudioStatus, fetchScenes]);
+
+  const handleSaveScene = useCallback(
+    async (
+      payload: SaveStudioScenePayload
+    ): Promise<{ ok: boolean; error?: string }> => {
+      try {
+        const res = await fetch('/api/studio/scenes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = (await res.json()) as {
+          ok?: boolean;
+          error?: string;
+        };
+        if (!res.ok || !data.ok) {
+          return {
+            ok: false,
+            error: data.error ?? `Błąd zapisu sceny (HTTP ${res.status})`,
+          };
+        }
+        await Promise.all([fetchScenes(), fetchStudioStatus()]);
+        return { ok: true };
+      } catch (err) {
+        return {
+          ok: false,
+          error:
+            err instanceof Error
+              ? err.message
+              : 'Nie udało się zapisać sceny na dysku.',
+        };
+      }
+    },
+    [fetchScenes, fetchStudioStatus]
+  );
 
   const handleSelectComposition = useCallback(
     (id: string) => {
@@ -645,6 +749,18 @@ export const StudioApp: React.FC<StudioAppProps> = ({
     [syncUrlParams]
   );
 
+  const handleOpenStyleLab = useCallback(
+    (styleId: string) => {
+      setSelectedStyleId(styleId);
+      setStyleSaveError(null);
+      setShowSaveAsCustomForm(false);
+      setSaveAsSlugError(null);
+      handleChangeViewMode('styles');
+      syncUrlParams('styles', styleId);
+    },
+    [handleChangeViewMode, syncUrlParams]
+  );
+
   const handleChangeStyleDraft = useCallback(
     (nextDraft: Record<string, unknown>) => {
       setStyleSaveError(null);
@@ -865,10 +981,22 @@ export const StudioApp: React.FC<StudioAppProps> = ({
     activeLiveStyleRaw,
   ]);
 
-  // Global Cmd/Ctrl + S shortcut for both Films and Style Lab
+  // Global Cmd/Ctrl + S (save) and Cmd/Ctrl + I (toggle inspector) shortcuts
   useEffect(() => {
+    if (typeof window === 'undefined') return;
     const onKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
+      if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
+      const key = e.key.toLowerCase();
+
+      if (!e.shiftKey && key === 'i') {
+        if (e.defaultPrevented) return;
+        e.preventDefault();
+        setInspectorOpen((prev) => !prev);
+        return;
+      }
+
+      if (key === 's') {
+        if (e.defaultPrevented) return;
         e.preventDefault();
         if (viewMode === 'styles') {
           handleSaveActiveStyle();
@@ -886,35 +1014,122 @@ export const StudioApp: React.FC<StudioAppProps> = ({
       ? '1080×1920 • 9:16 Shorts'
       : '1920×1080 • 16:9 HD';
 
+  const topbarSharedProps = {
+    compositions,
+    activeComposition,
+    onSelectComposition: handleSelectComposition,
+    measuredFps,
+    viewMode,
+    onChangeViewMode: handleChangeViewMode,
+    styleLabTitle: `${activeLiveStylePreset.name} (${activeStyleId})`,
+    styleLabRatioLabel,
+    builtInStyles,
+    customStyles,
+    activeStyleId,
+    activeStyle: activeLiveStylePreset,
+    styleWarnings,
+    isSavingStyle,
+    onSelectStyle: handleSelectStyle,
+    onDuplicateStyle: handleDuplicateStyle,
+    onRefreshStyles: handleRefreshStyles,
+    isDirty: viewMode === 'styles' ? isStyleDirty : isDirty,
+    themeMode,
+    resolvedTheme,
+    onCycleTheme: cycleThemeMode,
+    onChangeThemeMode: setThemeMode,
+  };
+
   // ==================== VIEW 1: STYLE LAB (60 FPS) ====================
   if (viewMode === 'styles') {
+    const styleSaveAsBanner = isActiveStyleBuiltIn ? (
+      <div className="mp-style-saveas-banner">
+        <div className="mp-style-saveas-info">
+          <Sparkles
+            size={13}
+            style={{ flexShrink: 0, color: 'var(--mp-brand-coral)' }}
+            aria-hidden="true"
+          />
+          <span>
+            Edytujesz podgląd presetu wbudowanego <code>{activeStyleId}</code>.
+          </span>
+        </div>
+
+        {!showSaveAsCustomForm ? (
+          <button
+            type="button"
+            className="mp-icon-btn is-primary"
+            style={{ width: '100%', height: 31, fontSize: 11.5 }}
+            disabled={isSavingStyle}
+            onClick={openSaveAsCustomPrompt}
+          >
+            <CopyPlus size={13} />
+            <span>Zapisz jako nowy własny styl…</span>
+          </button>
+        ) : (
+          <form
+            className="mp-style-dup-form"
+            onSubmit={(e) => void handleSubmitSaveAsCustom(e)}
+          >
+            <input
+              type="text"
+              className="mp-input-text"
+              style={{
+                fontFamily: 'var(--mp-font-mono)',
+                fontSize: 12,
+              }}
+              value={saveAsSlugDraft}
+              autoFocus
+              spellCheck={false}
+              placeholder="np. moja-marka"
+              aria-label="Slug nowego własnego stylu"
+              onChange={(e) => {
+                setSaveAsSlugDraft(e.target.value);
+                setSaveAsSlugError(null);
+              }}
+            />
+            {saveAsSlugError && (
+              <div className="mp-style-inline-err">{saveAsSlugError}</div>
+            )}
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button
+                type="submit"
+                className="mp-icon-btn is-primary"
+                style={{ flex: 1, height: 29, fontSize: 11.5 }}
+                disabled={isSavingStyle}
+              >
+                Zapisz do styles/
+              </button>
+              <button
+                type="button"
+                className="mp-icon-btn"
+                style={{ height: 29, fontSize: 11.5 }}
+                onClick={() => {
+                  setShowSaveAsCustomForm(false);
+                  setSaveAsSlugError(null);
+                }}
+              >
+                Anuluj
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+    ) : undefined;
+
     return (
-      <div className="mp-shell">
+      <div className="mp-shell" data-theme={resolvedTheme}>
         <Topbar
-          compositions={compositions}
-          activeComposition={activeComposition}
-          onSelectComposition={handleSelectComposition}
-          measuredFps={measuredFps}
+          {...topbarSharedProps}
           isPlaying={isPlaying}
-          viewMode={viewMode}
-          onChangeViewMode={handleChangeViewMode}
-          styleLabTitle={`${activeLiveStylePreset.name} (${activeStyleId})`}
-          styleLabRatioLabel={styleLabRatioLabel}
+          inspectorOpen={inspectorOpen}
+          onToggleInspector={handleToggleInspector}
         />
 
-        <div className="mp-workspace">
-          <StyleCatalogSidebar
-            builtInStyles={builtInStyles}
-            customStyles={customStyles}
-            activeStyleId={activeStyleId}
-            activeStyle={activeLiveStylePreset}
-            isSaving={isSavingStyle}
-            warnings={styleWarnings}
-            onSelectStyle={handleSelectStyle}
-            onDuplicateAsCustom={handleDuplicateStyle}
-            onRefreshStyles={() => void fetchCustomStyles()}
-          />
-
+        <div
+          className={`mp-workspace ${
+            inspectorOpen ? '' : 'is-inspector-closed'
+          }`.trim()}
+        >
           <StyleLabShowcase
             activeStyle={activeLiveStylePreset}
             activeKit={styleLabKit}
@@ -927,102 +1142,39 @@ export const StudioApp: React.FC<StudioAppProps> = ({
             onFpsMeasure={setMeasuredFps}
           />
 
-          <div className="mp-style-right-col">
-            {isActiveStyleBuiltIn && (
-              <div className="mp-style-saveas-banner">
-                <div className="mp-style-saveas-info">
-                  <Sparkles size={13} color="#FF2A85" style={{ flexShrink: 0 }} />
-                  <span>
-                    Edytujesz podgląd presetu wbudowanego{' '}
-                    <code>{activeStyleId}</code>.
-                  </span>
-                </div>
-
-                {!showSaveAsCustomForm ? (
-                  <button
-                    type="button"
-                    className="mp-icon-btn is-primary"
-                    style={{ width: '100%', height: 31, fontSize: 11.5 }}
-                    disabled={isSavingStyle}
-                    onClick={openSaveAsCustomPrompt}
-                  >
-                    <CopyPlus size={13} />
-                    <span>Zapisz jako nowy własny styl…</span>
-                  </button>
-                ) : (
-                  <form
-                    className="mp-style-dup-form"
-                    onSubmit={(e) => void handleSubmitSaveAsCustom(e)}
-                  >
-                    <input
-                      type="text"
-                      className="mp-input-text"
-                      style={{
-                        fontFamily: 'var(--mp-font-mono)',
-                        fontSize: 12,
-                      }}
-                      value={saveAsSlugDraft}
-                      autoFocus
-                      spellCheck={false}
-                      placeholder="np. moja-marka"
-                      aria-label="Slug nowego własnego stylu"
-                      onChange={(e) => {
-                        setSaveAsSlugDraft(e.target.value);
-                        setSaveAsSlugError(null);
-                      }}
-                    />
-                    {saveAsSlugError && (
-                      <div className="mp-style-inline-err">
-                        {saveAsSlugError}
-                      </div>
-                    )}
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <button
-                        type="submit"
-                        className="mp-icon-btn is-primary"
-                        style={{ flex: 1, height: 29, fontSize: 11.5 }}
-                        disabled={isSavingStyle}
-                      >
-                        Zapisz do styles/
-                      </button>
-                      <button
-                        type="button"
-                        className="mp-icon-btn"
-                        style={{ height: 29, fontSize: 11.5 }}
-                        onClick={() => {
-                          setShowSaveAsCustomForm(false);
-                          setSaveAsSlugError(null);
-                        }}
-                      >
-                        Anuluj
-                      </button>
-                    </div>
-                  </form>
-                )}
-              </div>
-            )}
-
-            <PropsInspector
-              composition={syntheticStyleComposition}
-              liveProps={activeLiveStyleRaw}
-              isDirty={isStyleDirty}
-              isSaving={isSavingStyle}
-              autoSave={isActiveStyleBuiltIn ? false : styleAutoSave}
-              saveError={styleSaveError}
-              lastSavedAt={styleLastSavedAt}
-              onChangeProps={handleChangeStyleDraft}
-              onSave={handleSaveActiveStyle}
-              onToggleAutoSave={() => {
-                if (isActiveStyleBuiltIn) {
-                  openSaveAsCustomPrompt();
-                } else {
-                  setStyleAutoSave((v) => !v);
-                }
-              }}
-              onResetToDisk={handleResetActiveStyle}
-            />
-          </div>
+          <PropsInspector
+            mode="styles"
+            composition={syntheticStyleComposition}
+            liveProps={activeLiveStyleRaw}
+            isDirty={isStyleDirty}
+            isSaving={isSavingStyle}
+            autoSave={isActiveStyleBuiltIn ? false : styleAutoSave}
+            saveError={styleSaveError}
+            lastSavedAt={styleLastSavedAt}
+            onChangeProps={handleChangeStyleDraft}
+            onSave={handleSaveActiveStyle}
+            onToggleAutoSave={() => {
+              if (isActiveStyleBuiltIn) {
+                openSaveAsCustomPrompt();
+              } else {
+                setStyleAutoSave((v) => !v);
+              }
+            }}
+            onResetToDisk={handleResetActiveStyle}
+            availableStyles={availableStyles}
+            isMobileOpen={inspectorOpen}
+            onCloseMobile={() => setInspectorOpen(false)}
+            styleSaveAsBanner={styleSaveAsBanner}
+          />
         </div>
+
+        <div
+          className={`mp-inspector-backdrop ${
+            inspectorOpen ? '' : 'is-hidden'
+          }`.trim()}
+          onClick={() => setInspectorOpen(false)}
+          aria-hidden="true"
+        />
       </div>
     );
   }
@@ -1030,15 +1182,8 @@ export const StudioApp: React.FC<StudioAppProps> = ({
   // ==================== VIEW 2: EMPTY PRODUCTIONS WELCOME ====================
   if (!activeComposition) {
     return (
-      <div className="mp-shell">
-        <Topbar
-          compositions={compositions}
-          activeComposition={null}
-          measuredFps={measuredFps}
-          isPlaying={false}
-          viewMode={viewMode}
-          onChangeViewMode={handleChangeViewMode}
-        />
+      <div className="mp-shell" data-theme={resolvedTheme}>
+        <Topbar {...topbarSharedProps} activeComposition={null} isPlaying={false} />
 
         <main className="mp-empty-studio-screen">
           <div className="mp-empty-studio-card">
@@ -1055,11 +1200,19 @@ export const StudioApp: React.FC<StudioAppProps> = ({
             </p>
             <div className="mp-empty-studio-commands">
               <div className="mp-empty-studio-cmd-row">
-                <Terminal size={13} color="#A5B4FC" />
+                <Terminal
+                  size={13}
+                  style={{ flexShrink: 0, color: 'var(--mp-accent)' }}
+                  aria-hidden="true"
+                />
                 <code>npx make-pictures new moj-pierwszy-film</code>
               </div>
               <div className="mp-empty-studio-cmd-row">
-                <Terminal size={13} color="#6EE7B7" />
+                <Terminal
+                  size={13}
+                  style={{ flexShrink: 0, color: 'var(--mp-emerald)' }}
+                  aria-hidden="true"
+                />
                 <code>npx make-pictures audio --production=moj-pierwszy-film</code>
               </div>
             </div>
@@ -1092,26 +1245,19 @@ export const StudioApp: React.FC<StudioAppProps> = ({
 
   // ==================== VIEW 3: FILMS WORKSPACE ====================
   return (
-    <div className="mp-shell">
+    <div className="mp-shell" data-theme={resolvedTheme}>
       <Topbar
-        compositions={compositions}
-        activeComposition={activeComposition}
-        onSelectComposition={handleSelectComposition}
-        measuredFps={measuredFps}
+        {...topbarSharedProps}
         isPlaying={isPlaying}
-        viewMode={viewMode}
-        onChangeViewMode={handleChangeViewMode}
+        inspectorOpen={inspectorOpen}
+        onToggleInspector={handleToggleInspector}
       />
 
-      <div className="mp-workspace">
-        <LeftSidebar
-          compositions={compositions}
-          activeComposition={activeComposition}
-          onSelectComposition={handleSelectComposition}
-          studioStatus={studioStatus}
-          onRefreshStatus={fetchStudioStatus}
-        />
-
+      <div
+        className={`mp-workspace ${
+          inspectorOpen ? '' : 'is-inspector-closed'
+        }`.trim()}
+      >
         <StageViewport
           composition={activeComposition}
           inputProps={activeLiveProps}
@@ -1122,6 +1268,7 @@ export const StudioApp: React.FC<StudioAppProps> = ({
         />
 
         <PropsInspector
+          mode="films"
           composition={activeComposition}
           liveProps={activeLiveProps}
           isDirty={isDirty}
@@ -1133,8 +1280,24 @@ export const StudioApp: React.FC<StudioAppProps> = ({
           onSave={handleSaveActive}
           onToggleAutoSave={() => setAutoSave((v) => !v)}
           onResetToDisk={handleResetActive}
+          availableStyles={availableStyles}
+          onOpenStyleLab={handleOpenStyleLab}
+          scenesResponse={scenesResponse}
+          studioStatus={studioStatus}
+          onSaveScene={handleSaveScene}
+          onRefreshScenesAndStatus={handleRefreshScenesAndStatus}
+          isMobileOpen={inspectorOpen}
+          onCloseMobile={() => setInspectorOpen(false)}
         />
       </div>
+
+      <div
+        className={`mp-inspector-backdrop ${
+          inspectorOpen ? '' : 'is-hidden'
+        }`.trim()}
+        onClick={() => setInspectorOpen(false)}
+        aria-hidden="true"
+      />
     </div>
   );
 };
