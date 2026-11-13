@@ -33,6 +33,12 @@ Przygotuj dla mnie studio filmowe make.pictures: uruchom `npx -y @make-pictures/
 ## 🖥️ Studio Web i 🎨 Style Lab (`v2.2.0`)
 
 <p align="center">
+  <a href="https://make.pictures"><img src="./docs/showcase/showreel-preview.gif" alt="make.pictures 25 s Showreel — 1 prompt do Studio Web i 4 style wizualne" width="760" /></a>
+  <br />
+  <sub>▶ <strong>Showreel 25 s</strong> — prompt → <strong>Studio Web</strong> → 4 style wizualne (obejrzyj z głosem i muzyką na <a href="https://make.pictures">make.pictures</a>).</sub>
+</p>
+
+<p align="center">
   <img src="./docs/showcase/studio-web-liquid-glass.png" alt="make.pictures Studio Web — scena Liquid Glass, oś reżyserska, transkrypt i 3-zakładkowy inspektor" width="920" />
   <br />
   <sub><strong>Studio Web</strong> (<code>127.0.0.1:3000</code>) — podgląd na żywo, oś kamery/lektora/SFX/muzyki, transkrypcja słowo po słowie, 3-zakładkowy Inspektor (<code>⌘I</code>) i eksport MP4 jednym kliknięciem.</sub>

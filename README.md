@@ -33,6 +33,12 @@ Set up make.pictures video studio for me: run `npx -y @make-pictures/cli@latest 
 ## 🖥️ Studio Web & 🎨 Style Lab (`v2.2.0`)
 
 <p align="center">
+  <a href="https://make.pictures"><img src="./docs/showcase/showreel-preview.gif" alt="make.pictures 25s Showreel — 1 prompt to Studio Web and 4 visual styles" width="760" /></a>
+  <br />
+  <sub>▶ <strong>25s Showreel</strong> — prompt → <strong>Studio Web</strong> → 4 visual styles (watch with voice &amp; music at <a href="https://make.pictures">make.pictures</a>).</sub>
+</p>
+
+<p align="center">
   <img src="./docs/showcase/studio-web-liquid-glass.png" alt="make.pictures Studio Web — Liquid Glass stage, multi-track timeline, live transcript and 3-tab inspector" width="920" />
   <br />
   <sub><strong>Studio Web</strong> (<code>127.0.0.1:3000</code>) — live preview, camera/voice/SFX/music timeline, word-by-word transcript, 3-tab Inspector (<code>⌘I</code>) &amp; one-click MP4 export.</sub>
