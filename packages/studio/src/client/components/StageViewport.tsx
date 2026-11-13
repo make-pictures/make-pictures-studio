@@ -1,19 +1,27 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Player, type PlayerRef } from '@remotion/player';
+import { Player } from '@remotion/player';
 import {
+  AlertCircle,
+  Check,
   CheckCircle2,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  ExternalLink,
   Film,
   FolderOpen,
   Grid3x3,
+  Layers,
+  LayoutGrid,
+  Loader2,
   Maximize2,
   Pause,
   Play,
   Repeat,
   RotateCcw,
+  Scan,
   Smartphone,
   Volume2,
   VolumeX,
@@ -23,6 +31,7 @@ import {
   isVerticalComposition,
   type StudioCompositionEntry,
 } from '@make-pictures/core';
+import { useRemotionPlayer } from '../hooks/useRemotionPlayer';
 import { consumePostSseStream } from '../sseClient';
 import type { OverlaySettings } from '../types';
 import { DirectorOverlays } from './DirectorOverlays';
@@ -46,8 +55,11 @@ export interface StageViewportProps {
   onFpsMeasure?: (fps: number) => void;
 }
 
+type DrawerSubView = 'all' | 'timeline' | 'transcript';
+
 function formatTimecode(frame: number, fps: number): string {
-  const totalSec = frame / fps;
+  const safeFps = fps > 0 ? fps : 60;
+  const totalSec = Math.max(0, frame) / safeFps;
   const mins = Math.floor(totalSec / 60);
   const secs = Math.floor(totalSec % 60);
   const hundredths = Math.floor((totalSec - Math.floor(totalSec)) * 100);
@@ -56,6 +68,10 @@ function formatTimecode(frame: number, fps: number): string {
     '0'
   )}.${String(hundredths).padStart(2, '0')}`;
 }
+
+const preventButtonFocus = (e: React.MouseEvent<HTMLButtonElement>) => {
+  e.preventDefault();
+};
 
 export const StageViewport: React.FC<StageViewportProps> = ({
   composition,
@@ -66,23 +82,66 @@ export const StageViewport: React.FC<StageViewportProps> = ({
   onPlayingChange,
   onFpsMeasure,
 }) => {
-  const playerRef = useRef<PlayerRef>(null);
   const stageAreaRef = useRef<HTMLDivElement>(null);
+  const overlaysMenuRef = useRef<HTMLDivElement>(null);
 
-  // Persistent frame ref across HMR updates so timeline position is never lost
-  const currentFrameRef = useRef<number>(0);
-  const prevCompIdRef = useRef<string>(composition.id);
+  const {
+    playerRefCallback,
+    displayFrame,
+    currentFrameRef,
+    isPlaying,
+    loop,
+    setLoop,
+    muted,
+    toggleMute,
+    seekToFrame,
+    togglePlay,
+    pause,
+  } = useRemotionPlayer({
+    fps: composition.fps,
+    durationInFrames: composition.durationInFrames,
+    resetKey: composition.id,
+    initialFrame: 0,
+    onFrameChange,
+    onPlayingChange,
+    onFpsMeasure,
+  });
 
-  const [displayFrame, setDisplayFrame] = useState<number>(0);
-  const [isPlaying, setIsPlaying] = useState<boolean>(false);
-  const [loop, setLoop] = useState<boolean>(true);
-  const [muted, setMuted] = useState<boolean>(false);
   const [stageBox, setStageBox] = useState<{ w: number; h: number }>({
     w: 960,
     h: 540,
   });
   const [retryNonce, setRetryNonce] = useState<number>(0);
   const [webglLostError, setWebglLostError] = useState<Error | null>(null);
+
+  // Floating Liquid Glass controls state
+  const [overlaysMenuOpen, setOverlaysMenuOpen] = useState<boolean>(false);
+  const [drawerOpen, setDrawerOpen] = useState<boolean>(false);
+  const [drawerSubView, setDrawerSubView] = useState<DrawerSubView>('all');
+
+  // Root-level QA Contact Sheet state (shared between "Kadr & QA" popover and bottom drawer)
+  const [qaState, setQaState] = useState<{
+    status: 'idle' | 'running' | 'done' | 'error';
+    contactSheetUrl: string | null;
+    outputFile: string | null;
+    error: string | null;
+  }>({
+    status: 'idle',
+    contactSheetUrl: null,
+    outputFile: null,
+    error: null,
+  });
+  const [showQaModal, setShowQaModal] = useState<boolean>(false);
+
+  useEffect(() => {
+    setQaState({
+      status: 'idle',
+      contactSheetUrl: null,
+      outputFile: null,
+      error: null,
+    });
+    setShowQaModal(false);
+  }, [composition.id]);
 
   // Local 60 FPS MP4 render state
   const renderAbortRef = useRef<AbortController | null>(null);
@@ -104,9 +163,40 @@ export const StageViewport: React.FC<StageViewportProps> = ({
     };
   }, []);
 
+  // Close "Kadr & QA" popover and QA modal on Escape / outside pointerdown
+  useEffect(() => {
+    if (!overlaysMenuOpen && !showQaModal) return;
+    if (typeof window === 'undefined') return;
+
+    const onPointerDown = (e: MouseEvent | PointerEvent) => {
+      if (!overlaysMenuOpen) return;
+      const wrap = overlaysMenuRef.current;
+      if (wrap && !wrap.contains(e.target as Node)) {
+        setOverlaysMenuOpen(false);
+      }
+    };
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (overlaysMenuOpen) {
+          setOverlaysMenuOpen(false);
+        } else if (showQaModal) {
+          setShowQaModal(false);
+        }
+      }
+    };
+
+    window.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [overlaysMenuOpen, showQaModal]);
+
   const handleStartRender = useCallback(async () => {
     if (renderState.status === 'running') return;
-    playerRef.current?.pause();
+    pause();
 
     const controller = new AbortController();
     renderAbortRef.current = controller;
@@ -190,6 +280,7 @@ export const StageViewport: React.FC<StageViewportProps> = ({
     }
   }, [
     renderState.status,
+    pause,
     composition.id,
     composition.usesThree,
     composition.fps,
@@ -219,25 +310,65 @@ export const StageViewport: React.FC<StageViewportProps> = ({
     }
   }, []);
 
-  // Reset timeline to 0 only when switching to a DIFFERENT composition (not on HMR!)
-  if (prevCompIdRef.current !== composition.id) {
-    prevCompIdRef.current = composition.id;
-    currentFrameRef.current = 0;
-  }
+  const handleGenerateQaSheet = useCallback(async () => {
+    if (qaState.status === 'running') return;
+    pause();
+    setQaState({
+      status: 'running',
+      contactSheetUrl: null,
+      outputFile: null,
+      error: null,
+    });
 
-  useEffect(() => {
-    setDisplayFrame(currentFrameRef.current);
-  }, [composition.id]);
+    try {
+      const res = await fetch('/api/studio/qa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ compositionId: composition.id }),
+      });
+      const data = (await res.json()) as {
+        ok?: boolean;
+        contactSheetUrl?: string;
+        outputFile?: string;
+        error?: string;
+      };
+      if (!res.ok || !data.ok || !data.contactSheetUrl) {
+        throw new Error(
+          data.error ?? `Nie udało się wygenerować arkusza QA (HTTP ${res.status})`
+        );
+      }
 
-  // Fit 16:9 or 9:16 composition cleanly into available center stage viewport
+      setQaState({
+        status: 'done',
+        contactSheetUrl: data.contactSheetUrl,
+        outputFile: data.outputFile ?? null,
+        error: null,
+      });
+      setShowQaModal(true);
+    } catch (err) {
+      setQaState({
+        status: 'error',
+        contactSheetUrl: null,
+        outputFile: null,
+        error:
+          err instanceof Error
+            ? err.message
+            : 'Błąd podczas generowania arkusza QA',
+      });
+    }
+  }, [composition.id, pause, qaState.status]);
+
+  // Fit 16:9 or 9:16 composition cleanly into center stage viewport with generous breathing room
   useEffect(() => {
     const el = stageAreaRef.current;
     if (!el) return;
 
     const computeFit = () => {
       const rect = el.getBoundingClientRect();
-      const availW = Math.max(240, rect.width - 48);
-      const availH = Math.max(180, rect.height - 40);
+      const padX = rect.width < 640 ? 20 : 52;
+      const padY = rect.height < 480 ? 20 : 36;
+      const availW = Math.max(200, rect.width - padX);
+      const availH = Math.max(150, rect.height - padY);
       const aspect = composition.width / composition.height;
 
       let fitW = availW;
@@ -258,65 +389,6 @@ export const StageViewport: React.FC<StageViewportProps> = ({
     ro.observe(el);
     return () => ro.disconnect();
   }, [composition.width, composition.height]);
-
-  // Subscribe to Remotion Player events (frameupdate, play, pause)
-  useEffect(() => {
-    const player = playerRef.current;
-    if (!player) return;
-
-    let frameSamples = 0;
-    let windowStart = performance.now();
-
-    const handleFrameUpdate = (e: { detail: { frame: number } }) => {
-      const f = e.detail.frame;
-      currentFrameRef.current = f;
-      setDisplayFrame(f);
-      onFrameChange?.(f);
-
-      const now = performance.now();
-      frameSamples += 1;
-      const elapsed = now - windowStart;
-      if (elapsed >= 500) {
-        const measured = Math.min(
-          composition.fps,
-          Math.round((frameSamples * 1000) / elapsed)
-        );
-        onFpsMeasure?.(measured > 0 ? measured : composition.fps);
-        frameSamples = 0;
-        windowStart = now;
-      }
-    };
-
-    const handlePlay = () => {
-      frameSamples = 0;
-      windowStart = performance.now();
-      setIsPlaying(true);
-      onPlayingChange?.(true);
-    };
-
-    const handlePause = () => {
-      setIsPlaying(false);
-      onPlayingChange?.(false);
-      onFpsMeasure?.(composition.fps);
-    };
-
-    player.addEventListener('frameupdate', handleFrameUpdate);
-    player.addEventListener('play', handlePlay);
-    player.addEventListener('pause', handlePause);
-
-    return () => {
-      player.removeEventListener('frameupdate', handleFrameUpdate);
-      player.removeEventListener('play', handlePlay);
-      player.removeEventListener('pause', handlePause);
-    };
-  }, [
-    composition.id,
-    composition.fps,
-    retryNonce,
-    onFrameChange,
-    onPlayingChange,
-    onFpsMeasure,
-  ]);
 
   // Guard against WebGL context loss during heavy 3D sessions
   useEffect(() => {
@@ -345,58 +417,6 @@ export const StageViewport: React.FC<StageViewportProps> = ({
     };
   }, []);
 
-  const seekToFrame = useCallback(
-    (target: number) => {
-      const clamped = Math.max(
-        0,
-        Math.min(composition.durationInFrames - 1, Math.round(target))
-      );
-      currentFrameRef.current = clamped;
-      setDisplayFrame(clamped);
-      onFrameChange?.(clamped);
-      playerRef.current?.seekTo(clamped);
-    },
-    [composition.durationInFrames, onFrameChange]
-  );
-
-  const togglePlay = useCallback(() => {
-    const player = playerRef.current;
-    if (!player) return;
-    if (player.isPlaying()) {
-      player.pause();
-    } else {
-      player.play();
-    }
-  }, []);
-
-  // Keyboard shortcuts (when not typing in an input/textarea)
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement | null)?.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-
-      if (e.code === 'Space') {
-        e.preventDefault();
-        togglePlay();
-      } else if (e.key === 'ArrowLeft') {
-        e.preventDefault();
-        playerRef.current?.pause();
-        seekToFrame(currentFrameRef.current - (e.shiftKey ? 10 : 1));
-      } else if (e.key === 'ArrowRight') {
-        e.preventDefault();
-        playerRef.current?.pause();
-        seekToFrame(currentFrameRef.current + (e.shiftKey ? 10 : 1));
-      } else if (e.key === '0' || e.key === 'Home') {
-        e.preventDefault();
-        playerRef.current?.pause();
-        seekToFrame(0);
-      }
-    };
-
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [seekToFrame, togglePlay]);
-
   const handleRetry = useCallback(() => {
     setWebglLostError(null);
     setRetryNonce((n) => n + 1);
@@ -412,94 +432,19 @@ export const StageViewport: React.FC<StageViewportProps> = ({
         onRetry={handleRetry}
       />
     ),
-    [composition, inputProps, handleRetry]
+    [composition, currentFrameRef, inputProps, handleRetry]
   );
 
   const isVertical = isVerticalComposition(composition);
+  const maxFrameIndex = Math.max(0, composition.durationInFrames - 1);
+  const hasActiveOverlay =
+    overlays.goldenSafeBox || overlays.ruleOfThirds || overlays.safeMargins;
   const componentSignature = `${composition.id}:${retryNonce}:${String(
     composition.component
   ).slice(0, 64)}`;
 
   return (
     <main className="mp-center-col">
-      {/* ==================== DIRECTOR OVERLAYS TOOLBAR ==================== */}
-      <div className="mp-stage-toolbar">
-        <div className="mp-toolbar-group">
-          <button
-            type="button"
-            className={`mp-toggle-btn is-safebox ${
-              overlays.goldenSafeBox ? 'is-active' : ''
-            }`}
-            onClick={() => onToggleOverlay('goldenSafeBox')}
-            title="Bezpieczny kadr (Golden Safe Box) — strefy martwe YouTube Shorts / Reels / TikTok (AGENTS.md)"
-          >
-            <Smartphone size={14} />
-            <span>Bezpieczny kadr {isVertical ? '(9:16)' : ''}</span>
-          </button>
-
-          <button
-            type="button"
-            className={`mp-toggle-btn ${
-              overlays.ruleOfThirds ? 'is-active' : ''
-            }`}
-            onClick={() => onToggleOverlay('ruleOfThirds')}
-            title="Siatka kompozycyjna trójpodziału (Rule of Thirds)"
-          >
-            <Grid3x3 size={14} />
-            <span>Siatka 3×3</span>
-          </button>
-
-          <button
-            type="button"
-            className={`mp-toggle-btn ${
-              overlays.safeMargins ? 'is-active' : ''
-            }`}
-            onClick={() => onToggleOverlay('safeMargins')}
-            title="Bezpieczne marginesy Action Safe 90% / Title Safe 80%"
-          >
-            <Maximize2 size={14} />
-            <span>Marginesy 16:9</span>
-          </button>
-        </div>
-
-        <div className="mp-toolbar-group">
-          <button
-            type="button"
-            className="mp-toggle-btn"
-            onClick={() => {
-              playerRef.current?.pause();
-              seekToFrame(0);
-            }}
-            title="Skocz do klatki 0 (weryfikacja czystej planszy startowej wg AGENTS.md)"
-          >
-            <RotateCcw size={13} />
-            <span>Klatka 0</span>
-          </button>
-
-          <button
-            type="button"
-            className="mp-icon-btn is-primary"
-            style={{
-              height: 30,
-              fontSize: 12,
-              opacity: renderState.status === 'running' ? 0.65 : 1,
-            }}
-            disabled={renderState.status === 'running'}
-            onClick={() => void handleStartRender()}
-            title={`Eksportuj ${composition.id} do pliku MP4 (${composition.fps} FPS${
-              composition.usesThree ? ', --gl=angle' : ''
-            })`}
-          >
-            <Film size={13} />
-            <span>
-              {renderState.status === 'running'
-                ? `Renderowanie ${renderState.percent}%…`
-                : 'Eksportuj MP4'}
-            </span>
-          </button>
-        </div>
-      </div>
-
       {/* ==================== INLINE MP4 RENDER PROGRESS BANNER ==================== */}
       {renderState.status !== 'idle' && (
         <div
@@ -518,24 +463,39 @@ export const StageViewport: React.FC<StageViewportProps> = ({
                 alignItems: 'center',
                 gap: 8,
                 fontWeight: 600,
+                minWidth: 0,
                 color:
                   renderState.status === 'done'
-                    ? '#047857'
+                    ? 'var(--mp-emerald-text)'
                     : renderState.status === 'error'
-                    ? '#BE123C'
+                    ? 'var(--mp-rose-text)'
                     : 'var(--mp-text-primary)',
               }}
             >
-              {renderState.status === 'done' && <CheckCircle2 size={15} />}
+              {renderState.status === 'done' && (
+                <CheckCircle2 size={15} style={{ flexShrink: 0 }} />
+              )}
+              {renderState.status === 'error' && (
+                <AlertCircle size={15} style={{ flexShrink: 0 }} />
+              )}
+              {renderState.status === 'running' && (
+                <Loader2
+                  size={14}
+                  className="mp-spin"
+                  style={{ color: 'var(--mp-accent)', flexShrink: 0 }}
+                />
+              )}
               <span>{renderState.label}</span>
               {renderState.outputFile && (
                 <code
                   style={{
                     fontFamily: 'var(--mp-font-mono)',
                     fontSize: 11,
-                    backgroundColor: 'rgba(15, 23, 42, 0.06)',
-                    padding: '2px 6px',
-                    borderRadius: 5,
+                    backgroundColor: 'var(--mp-bg-subtle)',
+                    border: '0.5px solid var(--mp-border-hairline)',
+                    color: 'var(--mp-text-secondary)',
+                    padding: '2px 7px',
+                    borderRadius: 6,
                   }}
                 >
                   {renderState.outputFile}
@@ -543,15 +503,16 @@ export const StageViewport: React.FC<StageViewportProps> = ({
               )}
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
               {renderState.status === 'running' && (
                 <>
                   <span
+                    className="mp-tabular"
                     style={{
                       fontFamily: 'var(--mp-font-mono)',
                       fontSize: 11.5,
                       fontWeight: 700,
-                      color: 'var(--mp-brand-600)',
+                      color: 'var(--mp-accent)',
                     }}
                   >
                     {renderState.percent}%
@@ -559,7 +520,8 @@ export const StageViewport: React.FC<StageViewportProps> = ({
                   <button
                     type="button"
                     className="mp-icon-btn"
-                    style={{ height: 26, fontSize: 11, padding: '0 8px' }}
+                    style={{ height: 26, fontSize: 11, padding: '0 9px' }}
+                    onMouseDown={preventButtonFocus}
                     onClick={handleCancelRender}
                   >
                     Anuluj
@@ -574,10 +536,11 @@ export const StageViewport: React.FC<StageViewportProps> = ({
                   style={{
                     height: 27,
                     fontSize: 11.5,
-                    borderColor: '#A7F3D0',
-                    backgroundColor: '#FFFFFF',
-                    color: '#047857',
+                    borderColor: 'var(--mp-emerald-border)',
+                    backgroundColor: 'var(--mp-emerald-soft)',
+                    color: 'var(--mp-emerald-text)',
                   }}
+                  onMouseDown={preventButtonFocus}
                   onClick={() => void handleOpenOutput(renderState.outputFile)}
                 >
                   <FolderOpen size={13} />
@@ -588,8 +551,9 @@ export const StageViewport: React.FC<StageViewportProps> = ({
               {renderState.status !== 'running' && (
                 <button
                   type="button"
-                  className="mp-icon-btn"
+                  className="mp-icon-btn is-ghost"
                   style={{ height: 26, padding: '0 6px' }}
+                  onMouseDown={preventButtonFocus}
                   onClick={() =>
                     setRenderState({
                       status: 'idle',
@@ -599,6 +563,7 @@ export const StageViewport: React.FC<StageViewportProps> = ({
                     })
                   }
                   title="Zamknij komunikat"
+                  aria-label="Zamknij komunikat"
                 >
                   <X size={13} />
                 </button>
@@ -616,6 +581,66 @@ export const StageViewport: React.FC<StageViewportProps> = ({
           )}
         </div>
       )}
+
+      {/* ==================== QA SHEET STATUS BANNER (WHEN DRAWER CLOSED) ==================== */}
+      {!drawerOpen &&
+        (qaState.status === 'running' || qaState.status === 'error') && (
+          <div
+            className={`mp-render-banner ${
+              qaState.status === 'error' ? 'is-error' : ''
+            }`}
+          >
+            <div className="mp-render-top">
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  fontWeight: 600,
+                  color:
+                    qaState.status === 'error'
+                      ? 'var(--mp-rose-text)'
+                      : 'var(--mp-text-primary)',
+                }}
+              >
+                {qaState.status === 'running' ? (
+                  <Loader2
+                    size={14}
+                    className="mp-spin"
+                    style={{ color: 'var(--mp-accent)', flexShrink: 0 }}
+                  />
+                ) : (
+                  <AlertCircle size={14} style={{ flexShrink: 0 }} />
+                )}
+                <span>
+                  {qaState.status === 'running'
+                    ? `Generowanie arkusza kontrolnego QA (12 klatek) dla ${composition.id}…`
+                    : qaState.error ?? 'Błąd podczas generowania arkusza QA'}
+                </span>
+              </div>
+
+              {qaState.status === 'error' && (
+                <button
+                  type="button"
+                  className="mp-icon-btn is-ghost"
+                  style={{ height: 26, padding: '0 6px' }}
+                  onMouseDown={preventButtonFocus}
+                  onClick={() =>
+                    setQaState({
+                      status: 'idle',
+                      contactSheetUrl: null,
+                      outputFile: null,
+                      error: null,
+                    })
+                  }
+                  aria-label="Zamknij komunikat błędu QA"
+                >
+                  <X size={13} />
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
       {/* ==================== 60 FPS STAGE VIEWPORT ==================== */}
       <div className="mp-stage-canvas-area" ref={stageAreaRef}>
@@ -641,17 +666,14 @@ export const StageViewport: React.FC<StageViewportProps> = ({
             >
               <Player
                 key={`${composition.id}:${retryNonce}`}
-                ref={playerRef}
+                ref={playerRefCallback}
                 component={composition.component}
                 inputProps={inputProps}
                 durationInFrames={composition.durationInFrames}
                 compositionWidth={composition.width}
                 compositionHeight={composition.height}
                 fps={composition.fps}
-                initialFrame={Math.min(
-                  currentFrameRef.current,
-                  composition.durationInFrames - 1
-                )}
+                initialFrame={Math.min(currentFrameRef.current, maxFrameIndex)}
                 loop={loop}
                 controls={false}
                 clickToPlay={true}
@@ -677,65 +699,42 @@ export const StageViewport: React.FC<StageViewportProps> = ({
         </div>
       </div>
 
-      {/* ==================== STUDIO TIMELINE & TRANSPORT BAR ==================== */}
-      <div className="mp-transport-bar">
-        <div className="mp-scrubber-row">
-          <span
-            style={{
-              fontFamily: 'var(--mp-font-mono)',
-              fontSize: 11,
-              fontWeight: 700,
-              color: 'var(--mp-brand-600)',
-              minWidth: 44,
-            }}
+      {/* ==================== FLOATING LIQUID GLASS TRANSPORT CAPSULE ==================== */}
+      <div className="mp-floating-dock-wrap">
+        <div
+          className="mp-floating-transport"
+          style={{ width: 'min(960px, 100%)' }}
+          role="region"
+          aria-label="Sterowanie odtwarzaniem i eksportem"
+        >
+          {/* Primary Play/Pause FAB */}
+          <button
+            type="button"
+            className="mp-play-fab"
+            aria-label={isPlaying ? 'Pauza' : 'Odtwarzaj'}
+            title={isPlaying ? 'Pauza (Spacja / K)' : 'Odtwarzaj (Spacja / K)'}
+            onMouseDown={preventButtonFocus}
+            onClick={togglePlay}
           >
-            f:{displayFrame}
-          </span>
-          <input
-            type="range"
-            className="mp-timeline-slider"
-            min={0}
-            max={Math.max(1, composition.durationInFrames - 1)}
-            value={Math.min(displayFrame, composition.durationInFrames - 1)}
-            aria-label="Oś czasu klatek"
-            onChange={(e) => {
-              playerRef.current?.pause();
-              seekToFrame(Number(e.target.value));
-            }}
-          />
-          <span
-            style={{
-              fontFamily: 'var(--mp-font-mono)',
-              fontSize: 11,
-              color: 'var(--mp-text-muted)',
-              minWidth: 48,
-              textAlign: 'right',
-            }}
-          >
-            /{composition.durationInFrames - 1}
-          </span>
-        </div>
+            {isPlaying ? (
+              <Pause size={16} fill="currentColor" />
+            ) : (
+              <Play size={16} fill="currentColor" style={{ marginLeft: 1.5 }} />
+            )}
+          </button>
 
-        <div className="mp-transport-controls">
-          <div className="mp-toolbar-group">
-            <button
-              type="button"
-              className="mp-icon-btn is-primary"
-              onClick={togglePlay}
-              title="Odtwarzaj / Pauza (Spacja)"
-            >
-              {isPlaying ? <Pause size={14} /> : <Play size={14} />}
-              <span>{isPlaying ? 'Pauza' : 'Odtwarzaj'}</span>
-            </button>
-
+          {/* Compact Frame Steppers (-10, -1, +1, +10, Klatka 0) */}
+          <div className="mp-transport-step-group" role="group" aria-label="Nawigacja klatkowa">
             <button
               type="button"
               className="mp-icon-btn"
+              onMouseDown={preventButtonFocus}
               onClick={() => {
-                playerRef.current?.pause();
+                pause();
                 seekToFrame(displayFrame - 10);
               }}
-              title="-10 klatek (Shift + ←)"
+              title="-10 klatek (J / Shift + ←)"
+              aria-label="Cofnij o 10 klatek"
             >
               <ChevronsLeft size={14} />
             </button>
@@ -743,11 +742,13 @@ export const StageViewport: React.FC<StageViewportProps> = ({
             <button
               type="button"
               className="mp-icon-btn"
+              onMouseDown={preventButtonFocus}
               onClick={() => {
-                playerRef.current?.pause();
+                pause();
                 seekToFrame(displayFrame - 1);
               }}
               title="-1 klatka (←)"
+              aria-label="Poprzednia klatka"
             >
               <ChevronLeft size={14} />
             </button>
@@ -755,11 +756,13 @@ export const StageViewport: React.FC<StageViewportProps> = ({
             <button
               type="button"
               className="mp-icon-btn"
+              onMouseDown={preventButtonFocus}
               onClick={() => {
-                playerRef.current?.pause();
+                pause();
                 seekToFrame(displayFrame + 1);
               }}
               title="+1 klatka (→)"
+              aria-label="Następna klatka"
             >
               <ChevronRight size={14} />
             </button>
@@ -767,72 +770,486 @@ export const StageViewport: React.FC<StageViewportProps> = ({
             <button
               type="button"
               className="mp-icon-btn"
+              onMouseDown={preventButtonFocus}
               onClick={() => {
-                playerRef.current?.pause();
+                pause();
                 seekToFrame(displayFrame + 10);
               }}
-              title="+10 klatek (Shift + →)"
+              title="+10 klatek (L / Shift + →)"
+              aria-label="Przeskocz o 10 klatek"
             >
               <ChevronsRight size={14} />
             </button>
-          </div>
 
-          <div className="mp-timecode">
-            {formatTimecode(displayFrame, composition.fps)} /{' '}
-            {formatTimecode(composition.durationInFrames, composition.fps)}
-          </div>
-
-          <div className="mp-toolbar-group">
             <button
               type="button"
-              className={`mp-toggle-btn ${loop ? 'is-active' : ''}`}
-              onClick={() => setLoop((v) => !v)}
-              title="Zapętlanie odtwarzania"
+              className="mp-icon-btn"
+              onMouseDown={preventButtonFocus}
+              onClick={() => {
+                pause();
+                seekToFrame(0);
+              }}
+              title="Klatka 0 — weryfikacja czystego tła startowego (0 / Home)"
+              aria-label="Skocz do klatki 0"
             >
-              <Repeat size={13} />
-              <span>Pętla</span>
+              <RotateCcw size={13} />
+            </button>
+          </div>
+
+          {/* Smooth Scrubber + Tabular Timecode Pill */}
+          <div className="mp-scrubber-wrap">
+            <input
+              type="range"
+              className="mp-timeline-slider"
+              min={0}
+              max={Math.max(1, maxFrameIndex)}
+              value={Math.min(displayFrame, maxFrameIndex)}
+              aria-label="Oś czasu klatek"
+              onChange={(e) => {
+                pause();
+                seekToFrame(Number(e.target.value));
+              }}
+            />
+            <span className="mp-timecode-pill mp-tabular">
+              {formatTimecode(displayFrame, composition.fps)} • f:{displayFrame}/
+              {maxFrameIndex}
+            </span>
+          </div>
+
+          {/* Loop & Mute Toggles */}
+          <div className="mp-transport-step-group" role="group" aria-label="Pętla i dźwięk">
+            <button
+              type="button"
+              className={`mp-icon-btn ${loop ? 'is-active' : ''}`}
+              aria-pressed={loop}
+              aria-label="Zapętlanie odtwarzania"
+              title={loop ? 'Pętla włączona' : 'Pętla wyłączona'}
+              onMouseDown={preventButtonFocus}
+              onClick={() => setLoop((v) => !v)}
+            >
+              <Repeat size={14} />
             </button>
 
             <button
               type="button"
-              className={`mp-toggle-btn ${muted ? 'is-active' : ''}`}
-              onClick={() => {
-                const next = !muted;
-                setMuted(next);
-                if (next) {
-                  playerRef.current?.mute();
-                } else {
-                  playerRef.current?.unmute();
-                }
-              }}
+              className={`mp-icon-btn ${muted ? 'is-active' : ''}`}
+              aria-pressed={muted}
+              aria-label={muted ? 'Włącz dźwięk' : 'Wycisz podgląd'}
               title={muted ? 'Włącz dźwięk' : 'Wycisz podgląd'}
+              onMouseDown={preventButtonFocus}
+              onClick={toggleMute}
             >
               {muted ? <VolumeX size={14} /> : <Volume2 size={14} />}
             </button>
           </div>
+
+          {/* "Kadr & QA" Liquid Glass Popover Menu */}
+          <div className="mp-overlays-popover-wrap" ref={overlaysMenuRef}>
+            <button
+              type="button"
+              className={`mp-drawer-toggle-btn ${
+                overlaysMenuOpen || hasActiveOverlay ? 'is-active' : ''
+              }`}
+              aria-haspopup="menu"
+              aria-expanded={overlaysMenuOpen}
+              title="Linie pomocnicze kadru i arkusz kontrolny QA (12 klatek)"
+              onMouseDown={preventButtonFocus}
+              onClick={() => setOverlaysMenuOpen((v) => !v)}
+            >
+              <Scan size={13} />
+              <span>Kadr &amp; QA</span>
+            </button>
+
+            {overlaysMenuOpen && (
+              <div
+                className="mp-overlays-popover"
+                role="menu"
+                aria-label="Kadr i narzędzia QA"
+              >
+                <button
+                  type="button"
+                  role="menuitemcheckbox"
+                  aria-checked={overlays.goldenSafeBox}
+                  className={`mp-overlays-popover-item ${
+                    overlays.goldenSafeBox ? 'is-active' : ''
+                  }`}
+                  onMouseDown={preventButtonFocus}
+                  onClick={() => onToggleOverlay('goldenSafeBox')}
+                >
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                    <Smartphone size={14} />
+                    <span>
+                      Bezpieczny kadr (Golden Safe Box){' '}
+                      {isVertical ? '9:16' : ''}
+                    </span>
+                  </span>
+                  {overlays.goldenSafeBox && <Check size={14} />}
+                </button>
+
+                <button
+                  type="button"
+                  role="menuitemcheckbox"
+                  aria-checked={overlays.ruleOfThirds}
+                  className={`mp-overlays-popover-item ${
+                    overlays.ruleOfThirds ? 'is-active' : ''
+                  }`}
+                  onMouseDown={preventButtonFocus}
+                  onClick={() => onToggleOverlay('ruleOfThirds')}
+                >
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                    <Grid3x3 size={14} />
+                    <span>Siatka kompozycyjna 3×3</span>
+                  </span>
+                  {overlays.ruleOfThirds && <Check size={14} />}
+                </button>
+
+                <button
+                  type="button"
+                  role="menuitemcheckbox"
+                  aria-checked={overlays.safeMargins}
+                  className={`mp-overlays-popover-item ${
+                    overlays.safeMargins ? 'is-active' : ''
+                  }`}
+                  onMouseDown={preventButtonFocus}
+                  onClick={() => onToggleOverlay('safeMargins')}
+                >
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                    <Maximize2 size={14} />
+                    <span>Bezpieczne marginesy 16:9</span>
+                  </span>
+                  {overlays.safeMargins && <Check size={14} />}
+                </button>
+
+                <div
+                  style={{
+                    height: '0.5px',
+                    backgroundColor: 'var(--mp-border-hairline)',
+                    margin: '3px 6px',
+                  }}
+                />
+
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="mp-overlays-popover-item"
+                  onMouseDown={preventButtonFocus}
+                  onClick={() => {
+                    pause();
+                    seekToFrame(0);
+                    setOverlaysMenuOpen(false);
+                  }}
+                >
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                    <RotateCcw size={14} />
+                    <span>Skocz do klatki 0</span>
+                  </span>
+                  <span className="mp-mini-badge">f:0</span>
+                </button>
+
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={`mp-overlays-popover-item ${
+                    qaState.status === 'done' ? 'is-active' : ''
+                  }`}
+                  disabled={qaState.status === 'running'}
+                  onMouseDown={preventButtonFocus}
+                  onClick={() => {
+                    setOverlaysMenuOpen(false);
+                    void handleGenerateQaSheet();
+                  }}
+                >
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                    {qaState.status === 'running' ? (
+                      <Loader2 size={14} className="mp-spin" />
+                    ) : (
+                      <LayoutGrid size={14} />
+                    )}
+                    <span>
+                      {qaState.status === 'running'
+                        ? 'Renderowanie QA (12 klatek)…'
+                        : 'Arkusz QA (12 klatek)'}
+                    </span>
+                  </span>
+                </button>
+
+                {qaState.status === 'done' && qaState.contactSheetUrl && (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="mp-overlays-popover-item"
+                    onMouseDown={preventButtonFocus}
+                    onClick={() => {
+                      setOverlaysMenuOpen(false);
+                      setShowQaModal(true);
+                    }}
+                  >
+                    <span
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}
+                    >
+                      <ExternalLink size={14} />
+                      <span>Podgląd ostatniego arkusza QA</span>
+                    </span>
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Expandable Bottom Timeline & Transcript Drawer Toggle Pill */}
+          <button
+            type="button"
+            className={`mp-drawer-toggle-btn ${drawerOpen ? 'is-active' : ''}`}
+            aria-expanded={drawerOpen}
+            title={
+              drawerOpen
+                ? 'Zwiń oś reżyserską i transkrypt'
+                : 'Pokaż wielościeżkową oś reżyserską i transkrypt słów'
+            }
+            onMouseDown={preventButtonFocus}
+            onClick={() => setDrawerOpen((v) => !v)}
+          >
+            <Layers size={13} />
+            <span>Oś czasu</span>
+          </button>
+
+          {/* Primary Eksportuj MP4 Pill Button */}
+          <button
+            type="button"
+            className="mp-icon-btn is-primary"
+            style={{
+              height: 34,
+              borderRadius: 999,
+              fontSize: 12,
+              padding: '0 13px',
+              flexShrink: 0,
+            }}
+            disabled={renderState.status === 'running'}
+            onMouseDown={preventButtonFocus}
+            onClick={() => void handleStartRender()}
+            title={`Eksportuj ${composition.id} do pliku MP4 (${composition.fps} FPS${
+              composition.usesThree ? ', --gl=angle' : ''
+            })`}
+          >
+            {renderState.status === 'running' ? (
+              <Loader2 size={13} className="mp-spin" />
+            ) : (
+              <Film size={13} />
+            )}
+            <span>
+              {renderState.status === 'running'
+                ? `Renderowanie ${renderState.percent}%…`
+                : 'Eksportuj MP4'}
+            </span>
+          </button>
         </div>
       </div>
 
-      {/* ==================== MULTI-TRACK DIRECTOR TIMELINE & QA ==================== */}
-      <DirectorTimelinePanel
-        composition={composition}
-        currentFrame={displayFrame}
-        onSeek={(target) => {
-          playerRef.current?.pause();
-          seekToFrame(target);
-        }}
-        onOpenOutputFile={(f) => void handleOpenOutput(f)}
-      />
+      {/* ==================== EXPANDABLE BOTTOM DRAWER (TIMELINE + TRANSCRIPT) ==================== */}
+      <div
+        className={`mp-bottom-drawer ${drawerOpen ? 'is-open' : ''}`}
+        aria-hidden={!drawerOpen}
+      >
+        <div className="mp-drawer-header">
+          <div className="mp-segmented" role="tablist" aria-label="Widok dolnej szuflady">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={drawerSubView === 'all'}
+              className={`mp-segmented-btn ${
+                drawerSubView === 'all' ? 'is-active' : ''
+              }`}
+              onMouseDown={preventButtonFocus}
+              onClick={() => setDrawerSubView('all')}
+            >
+              Wszystko
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={drawerSubView === 'timeline'}
+              className={`mp-segmented-btn ${
+                drawerSubView === 'timeline' ? 'is-active' : ''
+              }`}
+              onMouseDown={preventButtonFocus}
+              onClick={() => setDrawerSubView('timeline')}
+            >
+              Oś reżyserska
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={drawerSubView === 'transcript'}
+              className={`mp-segmented-btn ${
+                drawerSubView === 'transcript' ? 'is-active' : ''
+              }`}
+              onMouseDown={preventButtonFocus}
+              onClick={() => setDrawerSubView('transcript')}
+            >
+              Transkrypt
+            </button>
+          </div>
 
-      {/* ==================== INTERACTIVE LIVE WORD TRANSCRIPT ==================== */}
-      <LiveTranscriptBar
-        composition={composition}
-        currentFrame={displayFrame}
-        onSeek={(target) => {
-          playerRef.current?.pause();
-          seekToFrame(target);
-        }}
-      />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {qaState.status === 'error' && qaState.error && (
+              <span className="mp-dt-qa-err" title={qaState.error}>
+                {qaState.error}
+              </span>
+            )}
+
+            {qaState.status === 'done' && qaState.contactSheetUrl && (
+              <button
+                type="button"
+                className="mp-toggle-btn is-active"
+                style={{ height: 26, fontSize: 11 }}
+                onMouseDown={preventButtonFocus}
+                onClick={() => setShowQaModal(true)}
+                title="Otwórz wygenerowany arkusz kontrolny 12 klatek"
+              >
+                <ExternalLink size={12} />
+                <span>Podgląd arkusza QA</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              className="mp-toggle-btn"
+              style={{
+                height: 26,
+                fontSize: 11.5,
+                padding: '0 10px',
+                opacity: qaState.status === 'running' ? 0.7 : 1,
+              }}
+              disabled={qaState.status === 'running'}
+              onMouseDown={preventButtonFocus}
+              onClick={() => void handleGenerateQaSheet()}
+              title={`Wygeneruj 12-klatkowy arkusz kontrolny QA dla ${composition.id} (out/qa-*.png)`}
+            >
+              {qaState.status === 'running' ? (
+                <Loader2 size={12} className="mp-spin" />
+              ) : (
+                <LayoutGrid size={12} />
+              )}
+              <span>
+                {qaState.status === 'running'
+                  ? 'Renderowanie QA (12 klatek)…'
+                  : 'Arkusz QA (12 klatek)'}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              className="mp-icon-btn is-ghost"
+              style={{ width: 26, height: 26, padding: 0 }}
+              onMouseDown={preventButtonFocus}
+              onClick={() => setDrawerOpen(false)}
+              title="Zwiń panel osi czasu"
+              aria-label="Zwiń panel osi czasu"
+            >
+              <ChevronDown size={15} />
+            </button>
+          </div>
+        </div>
+
+        {(drawerSubView === 'all' || drawerSubView === 'timeline') && (
+          <DirectorTimelinePanel
+            composition={composition}
+            currentFrame={displayFrame}
+            hideQaActions
+            onSeek={(target) => {
+              pause();
+              seekToFrame(target);
+            }}
+            onOpenOutputFile={(f) => void handleOpenOutput(f)}
+          />
+        )}
+
+        {(drawerSubView === 'all' || drawerSubView === 'transcript') && (
+          <LiveTranscriptBar
+            composition={composition}
+            currentFrame={displayFrame}
+            onSeek={(target) => {
+              pause();
+              seekToFrame(target);
+            }}
+          />
+        )}
+      </div>
+
+      {/* ==================== ROOT-LEVEL QA CONTACT SHEET MODAL ==================== */}
+      {showQaModal && qaState.contactSheetUrl && (
+        <div
+          className="mp-qa-modal-backdrop"
+          onClick={() => setShowQaModal(false)}
+        >
+          <div
+            className="mp-qa-modal-card"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mp-qa-modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <LayoutGrid
+                  size={16}
+                  style={{ color: 'var(--mp-accent)', flexShrink: 0 }}
+                />
+                <strong>Arkusz QA (12 klatek) — {composition.title}</strong>
+                {qaState.outputFile && (
+                  <code className="mp-qa-file-pill">{qaState.outputFile}</code>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <a
+                  href={qaState.contactSheetUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mp-icon-btn"
+                  style={{
+                    height: 28,
+                    fontSize: 11.5,
+                    textDecoration: 'none',
+                  }}
+                >
+                  <ExternalLink size={12} />
+                  <span>Otwórz 1:1 w nowej karcie</span>
+                </a>
+
+                {qaState.outputFile && (
+                  <button
+                    type="button"
+                    className="mp-icon-btn"
+                    style={{ height: 28, fontSize: 11.5 }}
+                    onMouseDown={preventButtonFocus}
+                    onClick={() => void handleOpenOutput(qaState.outputFile)}
+                  >
+                    <FolderOpen size={12} />
+                    <span>Pokaż w out/</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  className="mp-icon-btn"
+                  style={{ height: 28, padding: '0 8px' }}
+                  onMouseDown={preventButtonFocus}
+                  onClick={() => setShowQaModal(false)}
+                  aria-label="Zamknij"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            </div>
+
+            <div className="mp-qa-modal-body">
+              <img
+                src={qaState.contactSheetUrl}
+                alt={`Arkusz QA dla ${composition.id}`}
+                className="mp-qa-modal-img"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 };

@@ -21,6 +21,10 @@ interface GlobalWordToken {
   isFirstInSegment: boolean;
 }
 
+const preventButtonFocus = (e: React.MouseEvent<HTMLButtonElement>) => {
+  e.preventDefault();
+};
+
 export const LiveTranscriptBar: React.FC<LiveTranscriptBarProps> = ({
   composition,
   currentFrame,
@@ -114,14 +118,30 @@ export const LiveTranscriptBar: React.FC<LiveTranscriptBarProps> = ({
         className="mp-transcript-label"
         title="Kliknij w dowolne słowo, aby przeskoczyć do dokładnej klatki"
       >
-        <MessageSquareText size={13} color="#2563EB" />
+        <MessageSquareText
+          size={13}
+          style={{ color: 'var(--mp-accent)', flexShrink: 0 }}
+        />
         <span>Transkrypt</span>
       </div>
 
       {tokens.length === 0 ? (
         <span style={{ fontSize: 12, color: 'var(--mp-text-muted)' }}>
           Brak wygenerowanych znaczników słów dla tej kompozycji (uruchom{' '}
-          <code>npx make-pictures audio</code>).
+          <code
+            style={{
+              fontFamily: 'var(--mp-font-mono)',
+              fontSize: 11,
+              padding: '1px 6px',
+              borderRadius: 5,
+              backgroundColor: 'var(--mp-bg-subtle)',
+              border: '0.5px solid var(--mp-border-hairline)',
+              color: 'var(--mp-text-secondary)',
+            }}
+          >
+            npx make-pictures audio
+          </code>
+          ).
         </span>
       ) : (
         <div className="mp-transcript-scroller" ref={scrollerRef}>
@@ -135,7 +155,7 @@ export const LiveTranscriptBar: React.FC<LiveTranscriptBarProps> = ({
                   <button
                     type="button"
                     className="mp-transcript-seg-tag"
-                    style={{ cursor: 'pointer' }}
+                    onMouseDown={preventButtonFocus}
                     onClick={() =>
                       onSeek(tok.segmentStartFrame ?? tok.globalStartFrame)
                     }
@@ -159,6 +179,7 @@ export const LiveTranscriptBar: React.FC<LiveTranscriptBarProps> = ({
                   className={`mp-word-chip ${isActive ? 'is-active' : ''} ${
                     isPast ? 'is-past' : ''
                   }`}
+                  onMouseDown={preventButtonFocus}
                   onClick={() => onSeek(tok.globalStartFrame)}
                   title={`Skocz do klatki f:${tok.globalStartFrame} (${(
                     tok.globalStartFrame / composition.fps
