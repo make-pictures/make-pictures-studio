@@ -10,8 +10,11 @@ import react from '@vitejs/plugin-react';
 import { createServer, type Plugin, type ViteDevServer } from 'vite';
 import type {
   ProductionManifest,
+  SceneDefinition,
   ScenesManifest,
   SceneVoiceoverData,
+  VoiceAcousticPreset,
+  VoiceSettingsConfig,
 } from '../../../core/src/index';
 import {
   StylePresetSchema,
@@ -42,6 +45,39 @@ export interface SceneAudioStatusItem {
   wordCount: number;
   durationInSeconds: number;
 }
+
+export interface StudioCapsuleScenesGroup {
+  id: string;
+  title: string;
+  origin: 'root' | 'production';
+  manifestFile: string;
+  fps: number;
+  scenes: SceneDefinition[];
+}
+
+export interface StudioScenesResponse {
+  ok: true;
+  hasApiKey: boolean;
+  groups: StudioCapsuleScenesGroup[];
+  audioStatus: Record<string, SceneAudioStatusItem>;
+}
+
+const VALID_VOICE_EFFECTS = new Set<VoiceAcousticPreset>([
+  'clean',
+  'telephone',
+  'radio-walkie',
+  'cathedral',
+  'megaphone',
+  'excitement-boost',
+]);
+
+const VALID_VOICE_SETTINGS_KEYS = new Set<keyof VoiceSettingsConfig>([
+  'stability',
+  'similarityBoost',
+  'style',
+  'speed',
+  'useSpeakerBoost',
+]);
 
 const SAFE_REL_PROPS_RE = /^[A-Za-z0-9_./-]+\.props\.json$/;
 const COMP_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
@@ -609,6 +645,577 @@ export function saveCustomStyleToDisk(
   };
 }
 
+export function readStudioScenesFromDisk(
+  rootDir: string,
+  studioDir: string
+): StudioScenesResponse {
+  const resolvedRootDir = path.resolve(rootDir);
+  const resolvedStudioDir = path.resolve(resolvedRootDir, studioDir);
+  const groups: StudioCapsuleScenesGroup[] = [];
+
+  const rootScenesPath = path.join(resolvedStudioDir, 'scenes.json');
+  if (fs.existsSync(rootScenesPath)) {
+    try {
+      const parsed = JSON.parse(
+        fs.readFileSync(rootScenesPath, 'utf8')
+      ) as Partial<ScenesManifest> & { title?: unknown; fps?: unknown };
+      if (
+        parsed &&
+        typeof parsed === 'object' &&
+        !Array.isArray(parsed) &&
+        Array.isArray(parsed.scenes)
+      ) {
+        const title =
+          typeof parsed.project?.title === 'string' &&
+          parsed.project.title.trim().length > 0
+            ? parsed.project.title.trim()
+            : typeof parsed.title === 'string' && parsed.title.trim().length > 0
+              ? parsed.title.trim()
+              : 'scenes.json';
+        const fps =
+          typeof parsed.project?.fps === 'number' &&
+          Number.isFinite(parsed.project.fps) &&
+          parsed.project.fps > 0
+            ? parsed.project.fps
+            : typeof parsed.fps === 'number' &&
+                Number.isFinite(parsed.fps) &&
+                parsed.fps > 0
+              ? parsed.fps
+              : 60;
+
+        groups.push({
+          id: 'root',
+          title,
+          origin: 'root',
+          manifestFile: 'scenes.json',
+          fps,
+          scenes: parsed.scenes,
+        });
+      }
+    } catch {
+      // Ignore malformed scenes.json during active editing
+    }
+  }
+
+  const productionsDir = path.join(resolvedStudioDir, 'productions');
+  if (fs.existsSync(productionsDir)) {
+    try {
+      const entries = fs
+        .readdirSync(productionsDir, { withFileTypes: true })
+        .filter(
+          (entry) =>
+            entry.isDirectory() &&
+            !entry.name.startsWith('.') &&
+            entry.name !== 'root' &&
+            PROD_SLUG_PATTERN.test(entry.name)
+        )
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+      for (const entry of entries) {
+        const prodManifestPath = path.join(
+          productionsDir,
+          entry.name,
+          'production.json'
+        );
+        if (!fs.existsSync(prodManifestPath)) continue;
+
+        try {
+          const prodManifest = JSON.parse(
+            fs.readFileSync(prodManifestPath, 'utf8')
+          ) as Partial<ProductionManifest>;
+          if (
+            prodManifest &&
+            typeof prodManifest === 'object' &&
+            !Array.isArray(prodManifest) &&
+            Array.isArray(prodManifest.scenes)
+          ) {
+            const title =
+              typeof prodManifest.title === 'string' &&
+              prodManifest.title.trim().length > 0
+                ? prodManifest.title.trim()
+                : entry.name;
+            const fps =
+              typeof prodManifest.fps === 'number' &&
+              Number.isFinite(prodManifest.fps) &&
+              prodManifest.fps > 0
+                ? prodManifest.fps
+                : 60;
+
+            groups.push({
+              id: entry.name,
+              title,
+              origin: 'production',
+              manifestFile: `productions/${entry.name}/production.json`,
+              fps,
+              scenes: prodManifest.scenes,
+            });
+          }
+        } catch {
+          // Ignore malformed capsule manifest during active editing
+        }
+      }
+    } catch {
+      // Ignore unreadable productions directory
+    }
+  }
+
+  const audio = collectAudioStatus(resolvedRootDir, resolvedStudioDir);
+
+  return {
+    ok: true,
+    hasApiKey: audio.hasApiKey,
+    groups,
+    audioStatus: audio.scenes,
+  };
+}
+
+export function saveStudioSceneToDisk(
+  _rootDir: string,
+  studioDir: string,
+  payload: { targetId?: unknown; sceneId?: unknown; patch?: unknown }
+): { statusCode: number; body: Record<string, unknown> } {
+  const resolvedRootDir = path.resolve(_rootDir);
+  const resolvedStudioDir = path.resolve(resolvedRootDir, studioDir);
+  const rawTargetId =
+    typeof payload?.targetId === 'string' ? payload.targetId.trim() : '';
+
+  if (!rawTargetId || rawTargetId.includes('..')) {
+    return {
+      statusCode: 400,
+      body: {
+        ok: false,
+        error: 'Nieprawidłowy identyfikator celu (targetId).',
+      },
+    };
+  }
+
+  let resolvedManifestPath: string;
+  let manifestFile: string;
+  let canonicalTargetId: string;
+
+  if (rawTargetId === '__root__' || rawTargetId === 'root') {
+    if (
+      rawTargetId === 'root' &&
+      fs.existsSync(path.join(resolvedStudioDir, 'productions', 'root'))
+    ) {
+      return {
+        statusCode: 400,
+        body: {
+          ok: false,
+          error:
+            'Kolizja identyfikatora "root" z katalogiem productions/root. Użyj "__root__" dla pliku scenes.json.',
+        },
+      };
+    }
+
+    resolvedManifestPath = path.resolve(resolvedStudioDir, 'scenes.json');
+    if (path.dirname(resolvedManifestPath) !== resolvedStudioDir) {
+      return {
+        statusCode: 400,
+        body: {
+          ok: false,
+          error: 'Niedozwolona ścieżka pliku scenes.json.',
+        },
+      };
+    }
+    manifestFile = 'scenes.json';
+    canonicalTargetId = 'root';
+  } else {
+    if (!PROD_SLUG_PATTERN.test(rawTargetId)) {
+      return {
+        statusCode: 400,
+        body: {
+          ok: false,
+          error:
+            'Nieprawidłowy identyfikator kapsuły (targetId). Dozwolone są małe litery, cyfry i myślniki (1–63 znaki).',
+        },
+      };
+    }
+
+    const productionsDir = path.resolve(resolvedStudioDir, 'productions');
+    resolvedManifestPath = path.resolve(
+      productionsDir,
+      rawTargetId,
+      'production.json'
+    );
+    if (!resolvedManifestPath.startsWith(productionsDir + path.sep)) {
+      return {
+        statusCode: 400,
+        body: {
+          ok: false,
+          error: 'Niedozwolona ścieżka manifestu kapsuły.',
+        },
+      };
+    }
+    manifestFile = `productions/${rawTargetId}/production.json`;
+    canonicalTargetId = rawTargetId;
+  }
+
+  if (!fs.existsSync(resolvedManifestPath)) {
+    return {
+      statusCode: 404,
+      body: {
+        ok: false,
+        error: `Nie znaleziono pliku manifestu: ${manifestFile}.`,
+      },
+    };
+  }
+
+  const sceneId =
+    typeof payload?.sceneId === 'string' ? payload.sceneId.trim() : '';
+  if (!sceneId) {
+    return {
+      statusCode: 400,
+      body: {
+        ok: false,
+        error: 'Pole sceneId musi być niepustym ciągiem znaków.',
+      },
+    };
+  }
+
+  if (
+    !payload?.patch ||
+    typeof payload.patch !== 'object' ||
+    Array.isArray(payload.patch)
+  ) {
+    return {
+      statusCode: 400,
+      body: {
+        ok: false,
+        error: 'Pole patch musi być poprawnym obiektem JSON.',
+      },
+    };
+  }
+
+  let manifestObj: Record<string, unknown>;
+  try {
+    const rawJson = JSON.parse(
+      fs.readFileSync(resolvedManifestPath, 'utf8')
+    ) as unknown;
+    if (!rawJson || typeof rawJson !== 'object' || Array.isArray(rawJson)) {
+      return {
+        statusCode: 400,
+        body: {
+          ok: false,
+          error: 'Plik manifestu scen nie jest poprawnym obiektem JSON.',
+        },
+      };
+    }
+    manifestObj = rawJson as Record<string, unknown>;
+  } catch (err) {
+    return {
+      statusCode: 400,
+      body: {
+        ok: false,
+        error: `Nie udało się sparsować pliku ${manifestFile}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      },
+    };
+  }
+
+  if (!Array.isArray(manifestObj.scenes)) {
+    return {
+      statusCode: 400,
+      body: {
+        ok: false,
+        error: `Plik ${manifestFile} nie zawiera tablicy scenes.`,
+      },
+    };
+  }
+
+  const manifestScenes = manifestObj.scenes as Array<
+    SceneDefinition & Record<string, unknown>
+  >;
+  const sceneIndex = manifestScenes.findIndex(
+    (item) =>
+      item &&
+      typeof item === 'object' &&
+      !Array.isArray(item) &&
+      item.id === sceneId
+  );
+
+  if (sceneIndex === -1) {
+    return {
+      statusCode: 404,
+      body: {
+        ok: false,
+        error: `Nie znaleziono sceny o identyfikatorze "${sceneId}" w pliku ${manifestFile}.`,
+      },
+    };
+  }
+
+  const patch = payload.patch as Record<string, unknown>;
+  const existingScene = manifestScenes[sceneIndex];
+  const updatedScene: SceneDefinition & Record<string, unknown> = {
+    ...existingScene,
+  };
+
+  if ('text' in patch && patch.text !== undefined) {
+    if (typeof patch.text !== 'string' || patch.text.trim().length < 1) {
+      return {
+        statusCode: 400,
+        body: {
+          ok: false,
+          error: 'Tekst lektora (text) musi być niepustym ciągiem znaków.',
+        },
+      };
+    }
+    updatedScene.text = patch.text;
+  }
+
+  if ('title' in patch) {
+    if (patch.title === undefined || patch.title === null) {
+      delete updatedScene.title;
+    } else if (typeof patch.title === 'string') {
+      if (patch.title.trim().length === 0) {
+        delete updatedScene.title;
+      } else {
+        updatedScene.title = patch.title.trim();
+      }
+    } else {
+      return {
+        statusCode: 400,
+        body: {
+          ok: false,
+          error: 'Pole title musi być ciągiem znaków.',
+        },
+      };
+    }
+  }
+
+  if ('speaker' in patch) {
+    if (patch.speaker === undefined || patch.speaker === null) {
+      delete updatedScene.speaker;
+    } else if (typeof patch.speaker === 'string') {
+      if (patch.speaker.trim().length === 0) {
+        delete updatedScene.speaker;
+      } else {
+        updatedScene.speaker = patch.speaker.trim();
+      }
+    } else {
+      return {
+        statusCode: 400,
+        body: {
+          ok: false,
+          error: 'Pole speaker musi być ciągiem znaków.',
+        },
+      };
+    }
+  }
+
+  if ('voiceId' in patch) {
+    if (patch.voiceId === undefined || patch.voiceId === null) {
+      delete updatedScene.voiceId;
+    } else if (typeof patch.voiceId === 'string') {
+      if (patch.voiceId.trim().length === 0) {
+        delete updatedScene.voiceId;
+      } else {
+        updatedScene.voiceId = patch.voiceId.trim();
+      }
+    } else {
+      return {
+        statusCode: 400,
+        body: {
+          ok: false,
+          error: 'Pole voiceId musi być ciągiem znaków.',
+        },
+      };
+    }
+  }
+
+  if ('durationInSeconds' in patch && patch.durationInSeconds !== undefined) {
+    if (
+      typeof patch.durationInSeconds !== 'number' ||
+      !Number.isFinite(patch.durationInSeconds) ||
+      patch.durationInSeconds <= 0.2 ||
+      patch.durationInSeconds > 600
+    ) {
+      return {
+        statusCode: 400,
+        body: {
+          ok: false,
+          error:
+            'Czas trwania (durationInSeconds) musi być skończoną liczbą z przedziału (0.2, 600].',
+        },
+      };
+    }
+
+    updatedScene.durationInSeconds = patch.durationInSeconds;
+
+    const projectObj =
+      manifestObj.project &&
+      typeof manifestObj.project === 'object' &&
+      !Array.isArray(manifestObj.project)
+        ? (manifestObj.project as Record<string, unknown>)
+        : null;
+    const rawManifestFps =
+      typeof manifestObj.fps === 'number'
+        ? manifestObj.fps
+        : typeof projectObj?.fps === 'number'
+          ? projectObj.fps
+          : undefined;
+    const hasValidManifestFps =
+      typeof rawManifestFps === 'number' &&
+      Number.isFinite(rawManifestFps) &&
+      rawManifestFps > 0;
+
+    if (updatedScene.durationInFrames !== undefined || hasValidManifestFps) {
+      const effectiveFps = hasValidManifestFps ? rawManifestFps! : 60;
+      updatedScene.durationInFrames = Math.round(
+        patch.durationInSeconds * effectiveFps
+      );
+    }
+  }
+
+  if ('voiceEffect' in patch) {
+    if (patch.voiceEffect === undefined || patch.voiceEffect === null) {
+      delete updatedScene.voiceEffect;
+    } else if (
+      typeof patch.voiceEffect === 'string' &&
+      VALID_VOICE_EFFECTS.has(patch.voiceEffect as VoiceAcousticPreset)
+    ) {
+      updatedScene.voiceEffect = patch.voiceEffect as VoiceAcousticPreset;
+    } else {
+      return {
+        statusCode: 400,
+        body: {
+          ok: false,
+          error:
+            'Nieprawidłowy preset efektu głosowego (voiceEffect). Dozwolone: clean, telephone, radio-walkie, cathedral, megaphone, excitement-boost.',
+        },
+      };
+    }
+  }
+
+  if ('voiceSettings' in patch) {
+    if (patch.voiceSettings === undefined || patch.voiceSettings === null) {
+      delete updatedScene.voiceSettings;
+    } else if (
+      typeof patch.voiceSettings !== 'object' ||
+      Array.isArray(patch.voiceSettings)
+    ) {
+      return {
+        statusCode: 400,
+        body: {
+          ok: false,
+          error: 'Pole voiceSettings musi być obiektem JSON.',
+        },
+      };
+    } else {
+      const rawVs = patch.voiceSettings as Record<string, unknown>;
+      const nextVs: VoiceSettingsConfig = {
+        ...(updatedScene.voiceSettings ?? {}),
+      };
+
+      for (const key of Object.keys(rawVs)) {
+        if (!VALID_VOICE_SETTINGS_KEYS.has(key as keyof VoiceSettingsConfig)) {
+          return {
+            statusCode: 400,
+            body: {
+              ok: false,
+              error: `Nieznane pole w voiceSettings: "${key}".`,
+            },
+          };
+        }
+      }
+
+      for (const unitKey of ['stability', 'similarityBoost', 'style'] as const) {
+        if (unitKey in rawVs) {
+          const val = rawVs[unitKey];
+          if (val === undefined || val === null) {
+            delete nextVs[unitKey];
+          } else if (
+            typeof val !== 'number' ||
+            !Number.isFinite(val) ||
+            val < 0 ||
+            val > 1
+          ) {
+            return {
+              statusCode: 400,
+              body: {
+                ok: false,
+                error: `Pole voiceSettings.${unitKey} musi być liczbą z przedziału [0, 1].`,
+              },
+            };
+          } else {
+            nextVs[unitKey] = val;
+          }
+        }
+      }
+
+      if ('speed' in rawVs) {
+        const val = rawVs.speed;
+        if (val === undefined || val === null) {
+          delete nextVs.speed;
+        } else if (
+          typeof val !== 'number' ||
+          !Number.isFinite(val) ||
+          val < 0.5 ||
+          val > 2.0
+        ) {
+          return {
+            statusCode: 400,
+            body: {
+              ok: false,
+              error:
+                'Pole voiceSettings.speed musi być liczbą z przedziału [0.5, 2.0].',
+            },
+          };
+        } else {
+          nextVs.speed = val;
+        }
+      }
+
+      if ('useSpeakerBoost' in rawVs) {
+        const val = rawVs.useSpeakerBoost;
+        if (val === undefined || val === null) {
+          delete nextVs.useSpeakerBoost;
+        } else if (typeof val !== 'boolean') {
+          return {
+            statusCode: 400,
+            body: {
+              ok: false,
+              error: 'Pole voiceSettings.useSpeakerBoost musi być wartością logiczną (boolean).',
+            },
+          };
+        } else {
+          nextVs.useSpeakerBoost = val;
+        }
+      }
+
+      if (Object.keys(nextVs).length === 0) {
+        delete updatedScene.voiceSettings;
+      } else {
+        updatedScene.voiceSettings = nextVs;
+      }
+    }
+  }
+
+  const nextScenes = [...manifestScenes];
+  nextScenes[sceneIndex] = updatedScene;
+  const nextManifest: Record<string, unknown> = {
+    ...manifestObj,
+    scenes: nextScenes,
+  };
+
+  const formatted = `${JSON.stringify(nextManifest, null, 2)}\n`;
+  const tmpPath = `${resolvedManifestPath}.tmp-${process.pid}`;
+  fs.writeFileSync(tmpPath, formatted, 'utf8');
+  fs.renameSync(tmpPath, resolvedManifestPath);
+
+  return {
+    statusCode: 200,
+    body: {
+      ok: true,
+      targetId: canonicalTargetId,
+      manifestFile,
+      scene: updatedScene,
+      savedAt: new Date().toISOString(),
+    },
+  };
+}
+
 function parseRemotionProgressLine(
   cleanLine: string,
   prevPercent: number
@@ -730,6 +1337,41 @@ export function makePicturesStudioServerPlugin(
               const result = saveCustomStyleToDisk(studioDir, {
                 slug: body.slug,
                 style: body.style,
+              });
+              res.statusCode = result.statusCode;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify(result.body));
+            })
+            .catch((err) => {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(
+                JSON.stringify({
+                  ok: false,
+                  error: err instanceof Error ? err.message : String(err),
+                })
+              );
+            });
+          return;
+        }
+
+        // 1a-scenes. GET /api/studio/scenes
+        if (req.method === 'GET' && url === '/api/studio/scenes') {
+          const payload = readStudioScenesFromDisk(rootDir, studioDir);
+          res.statusCode = 200;
+          res.setHeader('Content-Type', 'application/json; charset=utf-8');
+          res.end(JSON.stringify(payload));
+          return;
+        }
+
+        // 1a-scenes-post. POST /api/studio/scenes
+        if (req.method === 'POST' && url === '/api/studio/scenes') {
+          readJsonBody(req)
+            .then((body) => {
+              const result = saveStudioSceneToDisk(rootDir, studioDir, {
+                targetId: body.targetId,
+                sceneId: body.sceneId,
+                patch: body.patch,
               });
               res.statusCode = result.statusCode;
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
