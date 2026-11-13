@@ -1,6 +1,6 @@
 {
   "name": "@make-pictures/cli",
-  "version": "2.1.1",
+  "version": "2.2.0",
   "description": "Unified 60 FPS Video-as-Code CLI for make.pictures — Studio Web launcher, capsule scaffolding, ElevenLabs TTS/Music/SFX pipeline, 12-frame Contact-Sheet QA, and -14 LUFS mastering.",
   "homepage": "https://make.pictures",
   "repository": {
@@ -37,8 +37,8 @@
     "LICENSE"
   ],
   "dependencies": {
-    "@make-pictures/core": "^2.1.1",
-    "@make-pictures/studio": "^2.1.1",
+    "@make-pictures/core": "^2.2.0",
+    "@make-pictures/studio": "^2.2.0",
     "@elevenlabs/elevenlabs-js": "^2.76.0",
     "dotenv": "^16.4.7",
     "zod": "^3.24.2"
