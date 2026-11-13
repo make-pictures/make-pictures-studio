@@ -87,7 +87,7 @@ export const StylePresetSchema = z.object({
     .min(4)
     .max(240)
     .describe('Informacje :: Opis kierunku plastycznego'),
-  recommendedFor: z.array(z.string()).default([]),
+  recommendedFor: z.array(z.string()).default([]).describe('Informacje :: Polecane zastosowania'),
 
   palette: z.object({
     bgCanvas: ColorHexField('Tło płótna (Canvas)'),
