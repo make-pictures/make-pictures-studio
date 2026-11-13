@@ -79,22 +79,34 @@ export const StageErrorCard: React.FC<{
               width: 36,
               height: 36,
               borderRadius: 10,
-              backgroundColor: '#FFF1F2',
-              border: '1px solid #FECDD3',
+              backgroundColor: 'var(--mp-rose-soft)',
+              border: '1px solid var(--mp-rose-border)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: '#E11D48',
+              color: 'var(--mp-rose)',
               flexShrink: 0,
             }}
           >
             <AlertTriangle size={19} />
           </div>
           <div>
-            <div style={{ fontSize: 14.5, fontWeight: 800, color: '#0B1C30' }}>
+            <div
+              style={{
+                fontSize: 14.5,
+                fontWeight: 800,
+                color: 'var(--mp-text-primary)',
+              }}
+            >
               Chwilowy błąd sceny ({composition.id})
             </div>
-            <div style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>
+            <div
+              style={{
+                fontSize: 12,
+                color: 'var(--mp-text-secondary)',
+                marginTop: 2,
+              }}
+            >
               Zatrzymano na klatce {frame} • Studio Web działa dalej i czeka na poprawkę HMR
             </div>
           </div>

@@ -285,6 +285,29 @@ test('saveStudioSceneToDisk updates allowed fields, syncs durationInFrames, and 
     });
     assert.equal(clearEffectSave.statusCode, 200);
 
+    // Also verify empty string voiceEffect ('') deletes voiceEffect per Spec §6.1
+    const setMegaphone = saveStudioSceneToDisk(studioDir, studioDir, {
+      targetId: 'root',
+      sceneId: 'intro-root',
+      patch: {
+        voiceEffect: 'megaphone',
+      },
+    });
+    assert.equal(setMegaphone.statusCode, 200);
+
+    const clearEffectByEmptyString = saveStudioSceneToDisk(
+      studioDir,
+      studioDir,
+      {
+        targetId: 'root',
+        sceneId: 'intro-root',
+        patch: {
+          voiceEffect: '',
+        },
+      }
+    );
+    assert.equal(clearEffectByEmptyString.statusCode, 200);
+
     const parsedRoot = JSON.parse(
       fs.readFileSync(path.join(studioDir, 'scenes.json'), 'utf8')
     ) as {

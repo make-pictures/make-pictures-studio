@@ -1549,6 +1549,7 @@ export const StyleLabShowcase: React.FC<StyleLabShowcaseProps> = ({
           <button
             type="button"
             className="mp-play-fab"
+            aria-pressed={isPlaying}
             aria-label={isPlaying ? 'Pauza' : 'Odtwarzaj'}
             title={isPlaying ? 'Pauza (Spacja / K)' : 'Odtwarzaj (Spacja / K)'}
             onMouseDown={preventButtonFocus}

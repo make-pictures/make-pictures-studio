@@ -711,6 +711,7 @@ export const StageViewport: React.FC<StageViewportProps> = ({
           <button
             type="button"
             className="mp-play-fab"
+            aria-pressed={isPlaying}
             aria-label={isPlaying ? 'Pauza' : 'Odtwarzaj'}
             title={isPlaying ? 'Pauza (Spacja / K)' : 'Odtwarzaj (Spacja / K)'}
             onMouseDown={preventButtonFocus}

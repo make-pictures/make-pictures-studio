@@ -1069,13 +1069,18 @@ export function saveStudioSceneToDisk(
   }
 
   if ('voiceEffect' in patch) {
-    if (patch.voiceEffect === undefined || patch.voiceEffect === null) {
+    if (
+      patch.voiceEffect === undefined ||
+      patch.voiceEffect === null ||
+      (typeof patch.voiceEffect === 'string' &&
+        patch.voiceEffect.trim().length === 0)
+    ) {
       delete updatedScene.voiceEffect;
     } else if (
       typeof patch.voiceEffect === 'string' &&
-      VALID_VOICE_EFFECTS.has(patch.voiceEffect as VoiceAcousticPreset)
+      VALID_VOICE_EFFECTS.has(patch.voiceEffect.trim() as VoiceAcousticPreset)
     ) {
-      updatedScene.voiceEffect = patch.voiceEffect as VoiceAcousticPreset;
+      updatedScene.voiceEffect = patch.voiceEffect.trim() as VoiceAcousticPreset;
     } else {
       return {
         statusCode: 400,
