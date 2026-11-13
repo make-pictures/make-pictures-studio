@@ -183,7 +183,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
       <div className="mp-scroll-area">
         {groupedCompositions.length === 0 ? (
           <div className="mp-empty-capsule-card">
-            <Clapperboard size={20} color="#2563EB" />
+            <Clapperboard size={20} style={{ color: 'var(--mp-accent)' }} />
             <div className="mp-empty-capsule-title">
               Brak kapsuł w <code>productions/</code>
             </div>
@@ -256,7 +256,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
             className="mp-panel-title"
             style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
           >
-            <Mic size={13} color="#2563EB" />
+            <Mic size={13} style={{ color: 'var(--mp-accent)' }} />
             <span>Ścieżki Audio ({uniqueSceneIds.length})</span>
           </span>
 
@@ -287,7 +287,9 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
               width: 7,
               height: 7,
               borderRadius: '50%',
-              backgroundColor: hasApiKey ? '#10B981' : '#F59E0B',
+              backgroundColor: hasApiKey
+                ? 'var(--mp-emerald)'
+                : 'var(--mp-amber)',
               flexShrink: 0,
             }}
           />
@@ -407,9 +409,9 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
           <div
             className="mp-audio-gen-log"
             style={{
-              color: '#BE123C',
-              backgroundColor: '#FFF1F2',
-              borderColor: '#FECDD3',
+              color: 'var(--mp-rose-text)',
+              backgroundColor: 'var(--mp-rose-soft)',
+              borderColor: 'var(--mp-rose-border)',
             }}
             title={audioError}
           >

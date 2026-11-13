@@ -152,7 +152,7 @@ export const StyleCatalogSidebar: React.FC<StyleCatalogSidebarProps> = ({
           className="mp-panel-title"
           style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
         >
-          <Palette size={13} color="#FF2A85" />
+          <Palette size={13} style={{ color: 'var(--mp-brand-coral)' }} />
           <span>Katalog stylów</span>
         </span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -177,7 +177,7 @@ export const StyleCatalogSidebar: React.FC<StyleCatalogSidebarProps> = ({
         {/* ==================== CUSTOM WORKSPACE STYLES ==================== */}
         <div className="mp-group-block">
           <div className="mp-group-label">
-            <Sparkles size={13} color="#10B981" />
+            <Sparkles size={13} style={{ color: 'var(--mp-emerald)' }} />
             <span>Twoje style (styles/*.style.json)</span>
             <span className="mp-mini-badge" style={{ marginLeft: 'auto' }}>
               {customStyles.length}
@@ -199,7 +199,7 @@ export const StyleCatalogSidebar: React.FC<StyleCatalogSidebarProps> = ({
         {/* ==================== 7 BUILT-IN STYLES ==================== */}
         <div className="mp-group-block">
           <div className="mp-group-label">
-            <Palette size={13} color="#2563EB" />
+            <Palette size={13} style={{ color: 'var(--mp-accent)' }} />
             <span>Style wbudowane ({builtInStyles.length})</span>
           </div>
           {builtInStyles.map((preset) => renderStyleCard(preset, 'built-in'))}
