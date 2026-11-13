@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useId, useMemo, useState } from 'react';
 import {
   Camera,
   ChevronDown,
@@ -23,16 +23,25 @@ export interface DirectorTimelinePanelProps {
   currentFrame: number;
   onSeek: (frame: number) => void;
   onOpenOutputFile?: (outputFile: string | null) => void;
+  hideQaActions?: boolean;
 }
 
 const ENVELOPE_SAMPLES = 120;
+
+const preventButtonFocus = (e: React.MouseEvent<HTMLButtonElement>) => {
+  e.preventDefault();
+};
 
 export const DirectorTimelinePanel: React.FC<DirectorTimelinePanelProps> = ({
   composition,
   currentFrame,
   onSeek,
   onOpenOutputFile,
+  hideQaActions = false,
 }) => {
+  const rawGradId = useId();
+  const duckingGradId = `mpDuckingGrad-${rawGradId.replace(/[^a-zA-Z0-9_-]/g, '')}`;
+
   const [collapsed, setCollapsed] = useState<boolean>(false);
   const [qaState, setQaState] = useState<{
     status: 'idle' | 'running' | 'done' | 'error';
@@ -46,6 +55,27 @@ export const DirectorTimelinePanel: React.FC<DirectorTimelinePanelProps> = ({
     error: null,
   });
   const [showQaModal, setShowQaModal] = useState<boolean>(false);
+
+  useEffect(() => {
+    setQaState({
+      status: 'idle',
+      contactSheetUrl: null,
+      outputFile: null,
+      error: null,
+    });
+    setShowQaModal(false);
+  }, [composition.id]);
+
+  useEffect(() => {
+    if (!showQaModal || typeof window === 'undefined') return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowQaModal(false);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [showQaModal]);
 
   const totalFrames = Math.max(1, composition.durationInFrames);
   const playheadPct = Math.min(
@@ -168,6 +198,7 @@ export const DirectorTimelinePanel: React.FC<DirectorTimelinePanelProps> = ({
           <button
             type="button"
             className="mp-dt-collapse-btn"
+            onMouseDown={preventButtonFocus}
             onClick={() => setCollapsed((v) => !v)}
             title={
               collapsed
@@ -182,54 +213,55 @@ export const DirectorTimelinePanel: React.FC<DirectorTimelinePanelProps> = ({
             </span>
           </button>
 
-          <div className="mp-dt-actions">
-            {qaState.status === 'error' && qaState.error && (
-              <span className="mp-dt-qa-err" title={qaState.error}>
-                {qaState.error}
-              </span>
-            )}
+          {!hideQaActions && (
+            <div className="mp-dt-actions">
+              {qaState.status === 'error' && qaState.error && (
+                <span className="mp-dt-qa-err" title={qaState.error}>
+                  {qaState.error}
+                </span>
+              )}
 
-            {qaState.status === 'done' && qaState.contactSheetUrl && (
+              {qaState.status === 'done' && qaState.contactSheetUrl && (
+                <button
+                  type="button"
+                  className="mp-toggle-btn is-active"
+                  style={{ height: 25, fontSize: 11 }}
+                  onMouseDown={preventButtonFocus}
+                  onClick={() => setShowQaModal(true)}
+                  title="Otwórz wygenerowany arkusz kontrolny 12 klatek"
+                >
+                  <ExternalLink size={12} />
+                  <span>Podgląd arkusza QA</span>
+                </button>
+              )}
+
               <button
                 type="button"
                 className="mp-toggle-btn is-active"
-                style={{ height: 25, fontSize: 11 }}
-                onClick={() => setShowQaModal(true)}
-                title="Otwórz wygenerowany arkusz kontrolny 12 klatek"
+                style={{
+                  height: 26,
+                  fontSize: 11.5,
+                  padding: '0 10px',
+                  opacity: qaState.status === 'running' ? 0.7 : 1,
+                }}
+                disabled={qaState.status === 'running'}
+                onMouseDown={preventButtonFocus}
+                onClick={() => void handleGenerateQaSheet()}
+                title={`Wygeneruj 12-klatkowy arkusz kontrolny QA dla ${composition.id} (out/qa-*.png)`}
               >
-                <ExternalLink size={12} />
-                <span>Podgląd arkusza QA</span>
+                {qaState.status === 'running' ? (
+                  <Loader2 size={12} className="mp-spin" />
+                ) : (
+                  <LayoutGrid size={12} />
+                )}
+                <span>
+                  {qaState.status === 'running'
+                    ? 'Renderowanie QA (12 klatek)…'
+                    : 'Arkusz QA (12 klatek)'}
+                </span>
               </button>
-            )}
-
-            <button
-              type="button"
-              className="mp-icon-btn"
-              style={{
-                height: 26,
-                fontSize: 11.5,
-                padding: '0 10px',
-                borderColor: 'var(--mp-brand-100)',
-                backgroundColor: 'var(--mp-brand-50)',
-                color: 'var(--mp-brand-600)',
-                opacity: qaState.status === 'running' ? 0.7 : 1,
-              }}
-              disabled={qaState.status === 'running'}
-              onClick={() => void handleGenerateQaSheet()}
-              title={`Wygeneruj 12-klatkowy arkusz kontrolny QA dla ${composition.id} (out/qa-*.png)`}
-            >
-              {qaState.status === 'running' ? (
-                <Loader2 size={12} className="mp-spin" />
-              ) : (
-                <LayoutGrid size={12} />
-              )}
-              <span>
-                {qaState.status === 'running'
-                  ? 'Renderowanie QA (12 klatek)…'
-                  : 'Arkusz QA (12 klatek)'}
-              </span>
-            </button>
-          </div>
+            </div>
+          )}
         </div>
 
         {!collapsed && (
@@ -237,7 +269,10 @@ export const DirectorTimelinePanel: React.FC<DirectorTimelinePanelProps> = ({
             {/* Lane 1: Camera Cuts */}
             <div className="mp-dt-row">
               <div className="mp-dt-row-label">
-                <Camera size={12} color="#7209B7" />
+                <Camera
+                  size={12}
+                  style={{ color: 'var(--mp-brand-violet)', flexShrink: 0 }}
+                />
                 <span>Ujęcia kamery</span>
               </div>
               <div className="mp-dt-track" onClick={handleTrackBarClick}>
@@ -262,6 +297,7 @@ export const DirectorTimelinePanel: React.FC<DirectorTimelinePanelProps> = ({
                         left: `${leftPct}%`,
                         width: `calc(${widthPct}% - 2px)`,
                       }}
+                      onMouseDown={preventButtonFocus}
                       onClick={(e) => {
                         e.stopPropagation();
                         onSeek(cut.fromFrame);
@@ -284,7 +320,10 @@ export const DirectorTimelinePanel: React.FC<DirectorTimelinePanelProps> = ({
             {/* Lane 2: Voiceover Segments */}
             <div className="mp-dt-row">
               <div className="mp-dt-row-label">
-                <Mic size={12} color="#059669" />
+                <Mic
+                  size={12}
+                  style={{ color: 'var(--mp-emerald)', flexShrink: 0 }}
+                />
                 <span>Lektor</span>
               </div>
               <div className="mp-dt-track" onClick={handleTrackBarClick}>
@@ -309,6 +348,7 @@ export const DirectorTimelinePanel: React.FC<DirectorTimelinePanelProps> = ({
                         left: `${leftPct}%`,
                         width: `calc(${widthPct}% - 2px)`,
                       }}
+                      onMouseDown={preventButtonFocus}
                       onClick={(e) => {
                         e.stopPropagation();
                         onSeek(seg.fromFrame);
@@ -329,7 +369,10 @@ export const DirectorTimelinePanel: React.FC<DirectorTimelinePanelProps> = ({
             {/* Lane 3: SFX Cues */}
             <div className="mp-dt-row">
               <div className="mp-dt-row-label">
-                <Volume2 size={12} color="#D97706" />
+                <Volume2
+                  size={12}
+                  style={{ color: 'var(--mp-amber)', flexShrink: 0 }}
+                />
                 <span>Efekty SFX</span>
               </div>
               <div className="mp-dt-track" onClick={handleTrackBarClick}>
@@ -352,6 +395,7 @@ export const DirectorTimelinePanel: React.FC<DirectorTimelinePanelProps> = ({
                           isNear ? 'is-active' : ''
                         }`}
                         style={{ left: `${leftPct}%` }}
+                        onMouseDown={preventButtonFocus}
                         onClick={(e) => {
                           e.stopPropagation();
                           onSeek(cue.fromFrame);
@@ -376,7 +420,10 @@ export const DirectorTimelinePanel: React.FC<DirectorTimelinePanelProps> = ({
             {/* Lane 4: SmartMusicBed Auto-Ducking Envelope */}
             <div className="mp-dt-row">
               <div className="mp-dt-row-label">
-                <Music2 size={12} color="#0096C7" />
+                <Music2
+                  size={12}
+                  style={{ color: 'var(--mp-brand-cyan)', flexShrink: 0 }}
+                />
                 <span>Muzyka (Ducking)</span>
               </div>
               <div
@@ -391,25 +438,32 @@ export const DirectorTimelinePanel: React.FC<DirectorTimelinePanelProps> = ({
                 >
                   <defs>
                     <linearGradient
-                      id="mpDuckingGrad"
+                      id={duckingGradId}
                       x1="0"
                       y1="0"
                       x2="0"
                       y2="1"
                     >
-                      <stop offset="0%" stopColor="#00F5D4" stopOpacity="0.34" />
+                      <stop
+                        offset="0%"
+                        stopColor="var(--mp-brand-cyan)"
+                        stopOpacity="0.34"
+                      />
                       <stop
                         offset="100%"
-                        stopColor="#00F5D4"
+                        stopColor="var(--mp-brand-cyan)"
                         stopOpacity="0.04"
                       />
                     </linearGradient>
                   </defs>
-                  <path d={duckingSvgPaths.area} fill="url(#mpDuckingGrad)" />
+                  <path
+                    d={duckingSvgPaths.area}
+                    fill={`url(#${duckingGradId})`}
+                  />
                   <path
                     d={duckingSvgPaths.line}
                     fill="none"
-                    stroke="#0096C7"
+                    stroke="var(--mp-brand-cyan)"
                     strokeWidth="2"
                   />
                 </svg>
@@ -428,8 +482,8 @@ export const DirectorTimelinePanel: React.FC<DirectorTimelinePanelProps> = ({
         )}
       </section>
 
-      {/* Contact-Sheet QA Modal */}
-      {showQaModal && qaState.contactSheetUrl && (
+      {/* Standalone Contact-Sheet QA Modal */}
+      {!hideQaActions && showQaModal && qaState.contactSheetUrl && (
         <div
           className="mp-qa-modal-backdrop"
           onClick={() => setShowQaModal(false)}
@@ -440,10 +494,11 @@ export const DirectorTimelinePanel: React.FC<DirectorTimelinePanelProps> = ({
           >
             <div className="mp-qa-modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <LayoutGrid size={16} color="#2563EB" />
-                <strong>
-                  Arkusz QA (12 klatek) — {composition.title}
-                </strong>
+                <LayoutGrid
+                  size={16}
+                  style={{ color: 'var(--mp-accent)', flexShrink: 0 }}
+                />
+                <strong>Arkusz QA (12 klatek) — {composition.title}</strong>
                 {qaState.outputFile && (
                   <code className="mp-qa-file-pill">{qaState.outputFile}</code>
                 )}
@@ -470,6 +525,7 @@ export const DirectorTimelinePanel: React.FC<DirectorTimelinePanelProps> = ({
                     type="button"
                     className="mp-icon-btn"
                     style={{ height: 28, fontSize: 11.5 }}
+                    onMouseDown={preventButtonFocus}
                     onClick={() => onOpenOutputFile(qaState.outputFile)}
                   >
                     <FolderOpen size={12} />
@@ -481,6 +537,7 @@ export const DirectorTimelinePanel: React.FC<DirectorTimelinePanelProps> = ({
                   type="button"
                   className="mp-icon-btn"
                   style={{ height: 28, padding: '0 8px' }}
+                  onMouseDown={preventButtonFocus}
                   onClick={() => setShowQaModal(false)}
                   aria-label="Zamknij"
                 >
