@@ -68,6 +68,9 @@ export const ScreenSpotlightOverlay: React.FC<ScreenSpotlightOverlayProps> = ({
     'body'
   );
 
+  if (frame <= 0) {
+    return null;
+  }
   const effectiveStart = Math.max(2, startFrame);
   const enter = spring({
     frame: frame - effectiveStart,
@@ -146,19 +149,25 @@ export const ScreenSpotlightOverlay: React.FC<ScreenSpotlightOverlayProps> = ({
             style={{
               position: 'absolute',
               left: '50%',
-              ...(placeTop ? { bottom: '100%', marginBottom: 12 } : { top: '100%', marginTop: 12 }),
+              ...(placeTop
+                ? { bottom: '100%', marginBottom: 12 }
+                : { top: '100%', marginTop: 12 }),
               transform: `translateX(-50%) translateY(${interpolate(labelPop, [0, 1], [placeTop ? 8 : -8, 0]).toFixed(2)}px) scale(${interpolate(labelPop, [0, 1], [0.85, 1]).toFixed(3)})`,
               opacity: labelPop * visibility,
-              padding: '7px 16px',
-              borderRadius: 9999,
+              padding: '6px 14px',
+              borderRadius: Math.max(
+                0,
+                Math.round(6 * studioStyle.surface.radiusScale)
+              ),
               backgroundColor: resolvedAccent,
+              border: `1px solid ${studioStyle.palette.inkBorder}`,
               color: '#FFFFFF',
               fontFamily: bodyFontCss,
-              fontSize: 18,
-              fontWeight: 800,
+              fontSize: 17,
+              fontWeight: 700,
               letterSpacing: '-0.01em',
               whiteSpace: 'nowrap',
-              boxShadow: `0 10px 28px ${resolvedAccent}66`,
+              boxShadow: '0 8px 22px rgba(15, 23, 42, 0.24)',
             }}
           >
             {label}

@@ -2,9 +2,10 @@ import React from 'react';
 import { interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import {
   formatFontFamilyCss,
-  getCardChromeStyle,
   getStyleSpringConfig,
+  getTactileSurfaceStyle,
   useStudioStyle,
+  type StylePreset,
 } from '@make-pictures/core';
 
 export interface CodePayloadToastProps {
@@ -20,35 +21,56 @@ export interface CodePayloadToastProps {
   endFrame: number;
 }
 
+export interface PayloadTokenColors {
+  keyColor: string;
+  stringColor: string;
+  numberColor: string;
+  keywordColor: string;
+  punctColor: string;
+}
+
+export function resolvePayloadTokenColors(
+  style: StylePreset,
+  explicitAccent?: string
+): PayloadTokenColors {
+  return {
+    keyColor: explicitAccent ?? style.palette.accentPrimary,
+    stringColor: style.palette.accentSecondary,
+    numberColor: style.palette.textPrimary,
+    keywordColor: explicitAccent ?? style.palette.accentPrimary,
+    punctColor: style.palette.textSecondary,
+  };
+}
+
 function renderHighlightedLine(
   line: string,
-  accentColor: string,
-  isDark: boolean,
-  textPrimary: string,
-  textSecondary: string
+  tokens: PayloadTokenColors,
+  textPrimary: string
 ): React.ReactNode {
-  const keyColor = isDark ? '#93C5FD' : '#1D4ED8';
-  const punctColor = textSecondary;
-
   const jsonKeyMatch = line.match(/^(\s*)("[^"]+")(\s*:\s*)(.*)$/);
   if (jsonKeyMatch) {
     const [, indent, keyPart, colonPart, valuePart] = jsonKeyMatch;
     return (
       <>
         <span>{indent}</span>
-        <span style={{ color: keyColor }}>{keyPart}</span>
-        <span style={{ color: punctColor }}>{colonPart}</span>
-        {renderJsonValue(valuePart, accentColor, isDark, textPrimary, punctColor)}
+        <span style={{ color: tokens.keyColor, fontWeight: 600 }}>{keyPart}</span>
+        <span style={{ color: tokens.punctColor }}>{colonPart}</span>
+        {renderJsonValue(valuePart, tokens, textPrimary)}
       </>
     );
   }
 
-  const sqlKeywords = /\b(INSERT|INTO|VALUES|SELECT|FROM|WHERE|RETURNING|await|const|return)\b/g;
+  const sqlKeywords =
+    /\b(INSERT|INTO|VALUES|SELECT|FROM|WHERE|RETURNING|await|const|return)\b/g;
   if (sqlKeywords.test(line)) {
-    const tokens = line.split(/(\b(?:INSERT|INTO|VALUES|SELECT|FROM|WHERE|RETURNING|await|const|return)\b)/g);
-    return tokens.map((tok, idx) =>
-      /^(INSERT|INTO|VALUES|SELECT|FROM|WHERE|RETURNING|await|const|return)$/.test(tok) ? (
-        <span key={idx} style={{ color: accentColor, fontWeight: 600 }}>
+    const parts = line.split(
+      /(\b(?:INSERT|INTO|VALUES|SELECT|FROM|WHERE|RETURNING|await|const|return)\b)/g
+    );
+    return parts.map((tok, idx) =>
+      /^(INSERT|INTO|VALUES|SELECT|FROM|WHERE|RETURNING|await|const|return)$/.test(
+        tok
+      ) ? (
+        <span key={idx} style={{ color: tokens.keywordColor, fontWeight: 700 }}>
           {tok}
         </span>
       ) : (
@@ -59,15 +81,13 @@ function renderHighlightedLine(
     );
   }
 
-  return <span style={{ color: textSecondary }}>{line}</span>;
+  return <span style={{ color: tokens.punctColor }}>{line}</span>;
 }
 
 function renderJsonValue(
   raw: string,
-  accentColor: string,
-  isDark: boolean,
-  textPrimary: string,
-  punctColor: string
+  tokens: PayloadTokenColors,
+  textPrimary: string
 ): React.ReactNode {
   const trailingComma = raw.endsWith(',') ? ',' : '';
   const clean = raw.endsWith(',') ? raw.slice(0, -1) : raw;
@@ -75,24 +95,34 @@ function renderJsonValue(
   if (/^".*"$/.test(clean)) {
     return (
       <>
-        <span style={{ color: isDark ? '#6EE7B7' : '#059669' }}>{clean}</span>
-        <span style={{ color: punctColor }}>{trailingComma}</span>
+        <span style={{ color: tokens.stringColor }}>{clean}</span>
+        <span style={{ color: tokens.punctColor }}>{trailingComma}</span>
       </>
     );
   }
   if (/^(true|false|null)$/.test(clean)) {
     return (
       <>
-        <span style={{ color: accentColor, fontWeight: 600 }}>{clean}</span>
-        <span style={{ color: punctColor }}>{trailingComma}</span>
+        <span style={{ color: tokens.keywordColor, fontWeight: 700 }}>
+          {clean}
+        </span>
+        <span style={{ color: tokens.punctColor }}>{trailingComma}</span>
       </>
     );
   }
   if (/^-?\d+(\.\d+)?$/.test(clean)) {
     return (
       <>
-        <span style={{ color: isDark ? '#FCD34D' : '#B45309' }}>{clean}</span>
-        <span style={{ color: punctColor }}>{trailingComma}</span>
+        <span
+          style={{
+            color: tokens.numberColor,
+            fontWeight: 700,
+            fontVariantNumeric: 'tabular-nums',
+          }}
+        >
+          {clean}
+        </span>
+        <span style={{ color: tokens.punctColor }}>{trailingComma}</span>
       </>
     );
   }
@@ -116,19 +146,20 @@ export const CodePayloadToast: React.FC<CodePayloadToastProps> = ({
   const { fps } = useVideoConfig();
   const studioStyle = useStudioStyle();
 
-  if (frame < startFrame - 2 || frame > endFrame + 24) {
+  const effectiveStart = Math.max(2, startFrame);
+  if (frame <= 0 || frame < effectiveStart || frame > endFrame + 24) {
     return null;
   }
 
   const resolvedAccent = accentColor ?? studioStyle.palette.accentPrimary;
+  const tokens = resolvePayloadTokenColors(studioStyle, resolvedAccent);
   const monoFontCss = formatFontFamilyCss(
     studioStyle.typography.monoFont,
     'mono'
   );
-  const isDark = studioStyle.surface.isDark;
 
   const enterProgress = spring({
-    frame: frame - startFrame,
+    frame: frame - effectiveStart,
     fps,
     config: getStyleSpringConfig(studioStyle, 'enter'),
   });
@@ -139,17 +170,24 @@ export const CodePayloadToast: React.FC<CodePayloadToastProps> = ({
   });
 
   const combined = enterProgress * exitProgress;
-  const translateY = interpolate(enterProgress, [0, 1], [18, 0]);
-  const scale = interpolate(combined, [0, 1], [0.92, 1]);
+  if (combined <= 0.002) {
+    return null;
+  }
 
+  const translateY = interpolate(enterProgress, [0, 1], [16, 0]);
+  const scale = interpolate(combined, [0, 1], [0.94, 1]);
   const lines = code.trim().split('\n');
 
-  const chromeStyle = getCardChromeStyle(studioStyle, {
-    borderRadius: Math.max(0, Math.round(14 * studioStyle.surface.radiusScale)),
+  const plateChrome = getTactileSurfaceStyle(studioStyle, {
+    elevation: 'floating',
+    overrides: {
+      borderRadius: Math.max(0, Math.round(8 * studioStyle.surface.radiusScale)),
+    },
   });
 
   return (
     <div
+      data-payload-plate="true"
       style={{
         position: 'absolute',
         left: x - width / 2,
@@ -157,8 +195,8 @@ export const CodePayloadToast: React.FC<CodePayloadToastProps> = ({
         width,
         opacity: combined,
         willChange: 'transform, opacity',
-        transform: `translate3d(0, ${translateY}px, 0) scale(${scale})`,
-        ...chromeStyle,
+        transform: `translate3d(0, ${translateY.toFixed(2)}px, 0) scale(${scale.toFixed(4)})`,
+        ...plateChrome,
         overflow: 'hidden',
         pointerEvents: 'none',
       }}
@@ -168,11 +206,10 @@ export const CodePayloadToast: React.FC<CodePayloadToastProps> = ({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '9px 14px',
-          backgroundColor: isDark
-            ? 'rgba(255, 255, 255, 0.03)'
-            : studioStyle.palette.bgElevated,
+          padding: '8px 14px',
+          backgroundColor: studioStyle.palette.bgElevated,
           borderBottom: `1px solid ${studioStyle.palette.inkBorder}`,
+          borderLeft: `3px solid ${resolvedAccent}`,
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -181,15 +218,15 @@ export const CodePayloadToast: React.FC<CodePayloadToastProps> = ({
               padding: '2px 7px',
               borderRadius: Math.max(
                 0,
-                Math.round(5 * studioStyle.surface.radiusScale)
+                Math.round(3 * studioStyle.surface.radiusScale)
               ),
-              backgroundColor: `${resolvedAccent}24`,
-              border: `1px solid ${resolvedAccent}66`,
+              backgroundColor: studioStyle.palette.bgSurface,
+              border: `1px solid ${resolvedAccent}`,
               fontFamily: monoFontCss,
               fontSize: 10,
-              fontWeight: 600,
+              fontWeight: 700,
               color: resolvedAccent,
-              letterSpacing: '0.04em',
+              letterSpacing: '0.05em',
             }}
           >
             {methodBadge}
@@ -198,7 +235,7 @@ export const CodePayloadToast: React.FC<CodePayloadToastProps> = ({
             style={{
               fontFamily: monoFontCss,
               fontSize: 11.5,
-              fontWeight: 500,
+              fontWeight: 600,
               color: studioStyle.palette.textPrimary,
             }}
           >
@@ -210,6 +247,7 @@ export const CodePayloadToast: React.FC<CodePayloadToastProps> = ({
           style={{
             fontFamily: monoFontCss,
             fontSize: 10.5,
+            fontVariantNumeric: 'tabular-nums',
             color: studioStyle.palette.textSecondary,
           }}
         >
@@ -219,7 +257,7 @@ export const CodePayloadToast: React.FC<CodePayloadToastProps> = ({
 
       <div
         style={{
-          padding: '12px 16px',
+          padding: '11px 16px',
           fontFamily: monoFontCss,
           fontSize: 12,
           lineHeight: 1.55,
@@ -228,7 +266,7 @@ export const CodePayloadToast: React.FC<CodePayloadToastProps> = ({
       >
         {lines.map((line, idx) => {
           const lineOpacity = interpolate(
-            frame - startFrame,
+            frame - effectiveStart,
             [idx * 2, idx * 2 + 10],
             [0, 1],
             { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
@@ -244,21 +282,21 @@ export const CodePayloadToast: React.FC<CodePayloadToastProps> = ({
             >
               <span
                 style={{
-                  width: 22,
-                  color: `${studioStyle.palette.textSecondary}88`,
+                  width: 24,
+                  color: studioStyle.palette.textSecondary,
+                  opacity: 0.55,
                   userSelect: 'none',
                   fontSize: 10.5,
+                  fontVariantNumeric: 'tabular-nums',
                 }}
               >
-                {idx + 1}
+                {String(idx + 1).padStart(2, '0')}
               </span>
               <span>
                 {renderHighlightedLine(
                   line,
-                  resolvedAccent,
-                  isDark,
-                  studioStyle.palette.textPrimary,
-                  studioStyle.palette.textSecondary
+                  tokens,
+                  studioStyle.palette.textPrimary
                 )}
               </span>
             </div>

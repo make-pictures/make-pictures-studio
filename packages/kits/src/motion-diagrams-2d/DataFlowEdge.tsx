@@ -2,8 +2,9 @@ import React from 'react';
 import { interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import {
   SPRING_PRESETS,
-  THEME,
   formatFontFamilyCss,
+  getTactileSurfaceStyle,
+  resolveStyleOptics,
   useStudioStyle,
 } from '@make-pictures/core';
 
@@ -52,6 +53,27 @@ export function evaluateCubicBezier(
   };
 }
 
+function evaluateCubicBezierAngleDeg(
+  p0: Point2D,
+  p1: Point2D,
+  p2: Point2D,
+  p3: Point2D,
+  t: number,
+  reverse: boolean
+): number {
+  const u = 1 - t;
+  const tx =
+    3 * u * u * (p1.x - p0.x) +
+    6 * u * t * (p2.x - p1.x) +
+    3 * t * t * (p3.x - p2.x);
+  const ty =
+    3 * u * u * (p1.y - p0.y) +
+    6 * u * t * (p2.y - p1.y) +
+    3 * t * t * (p3.y - p2.y);
+  const sign = reverse ? -1 : 1;
+  return (Math.atan2(ty * sign, tx * sign) * 180) / Math.PI;
+}
+
 export const DataFlowEdge: React.FC<DataFlowEdgeProps> = ({
   id,
   from,
@@ -59,7 +81,7 @@ export const DataFlowEdge: React.FC<DataFlowEdgeProps> = ({
   curveOffsetY = -70,
   color,
   secondaryColor,
-  drawStartFrame = 0,
+  drawStartFrame = 2,
   flowStartFrame = 30,
   flowEndFrame = 600,
   packetCount = 2,
@@ -76,6 +98,13 @@ export const DataFlowEdge: React.FC<DataFlowEdgeProps> = ({
   const { fps } = useVideoConfig();
   const studioStyle = useStudioStyle();
 
+  const effectiveDrawStart = Math.max(2, drawStartFrame);
+  if (frame <= 0 || frame < effectiveDrawStart) {
+    return null;
+  }
+
+  const optics = resolveStyleOptics(studioStyle);
+  const grammar = optics.typographyGrammar;
   const resolvedColor = color ?? studioStyle.palette.accentPrimary;
   const endColor =
     secondaryColor ??
@@ -87,7 +116,6 @@ export const DataFlowEdge: React.FC<DataFlowEdgeProps> = ({
   const isDark = studioStyle.surface.isDark;
 
   const dx = to.x - from.x;
-
   const p0 = from;
   const p1: Point2D = {
     x: from.x + dx * 0.36,
@@ -102,7 +130,7 @@ export const DataFlowEdge: React.FC<DataFlowEdgeProps> = ({
   const pathData = `M ${p0.x} ${p0.y} C ${p1.x} ${p1.y}, ${p2.x} ${p2.y}, ${p3.x} ${p3.y}`;
 
   const drawProgress = spring({
-    frame: frame - drawStartFrame,
+    frame: frame - effectiveDrawStart,
     fps,
     config: SPRING_PRESETS.smooth,
   });
@@ -138,7 +166,7 @@ export const DataFlowEdge: React.FC<DataFlowEdgeProps> = ({
 
   const gradId = `edge-grad-${id}`;
 
-  const packets: Array<{ head: Point2D; trail: Point2D[]; opacity: number }> = [];
+  const packets: Array<{ head: Point2D; deg: number; opacity: number }> = [];
   if (flowAlpha > 0.01) {
     for (let i = 0; i < packetCount; i++) {
       const staggerFrames = Math.round((i / packetCount) * traverseFrames);
@@ -155,20 +183,31 @@ export const DataFlowEdge: React.FC<DataFlowEdgeProps> = ({
         }) * flowAlpha;
 
       const head = evaluateCubicBezier(p0, p1, p2, p3, t);
-      const trail: Point2D[] = [];
-      const trailSteps = 5;
-      for (let s = 1; s <= trailSteps; s++) {
-        const dt = s * 0.016 * (direction === 'forward' ? -1 : 1);
-        const clampedT = Math.max(0, Math.min(1, t + dt));
-        trail.push(evaluateCubicBezier(p0, p1, p2, p3, clampedT));
-      }
-
-      packets.push({ head, trail, opacity: edgeFade });
+      const deg = evaluateCubicBezierAngleDeg(
+        p0,
+        p1,
+        p2,
+        p3,
+        t,
+        direction === 'reverse'
+      );
+      packets.push({ head, deg, opacity: edgeFade });
     }
   }
 
+  const plateStyle = getTactileSurfaceStyle(studioStyle, {
+    elevation: 'resting',
+    overrides: {
+      borderRadius: Math.max(0, Math.round(4 * studioStyle.surface.radiusScale)),
+      borderColor:
+        flowAlpha > 0.2 ? resolvedColor : studioStyle.palette.inkBorder,
+      padding: '4px 10px',
+    },
+  });
+
   return (
     <div
+      data-edge-grammar={grammar}
       style={{
         position: 'absolute',
         inset: 0,
@@ -177,10 +216,14 @@ export const DataFlowEdge: React.FC<DataFlowEdgeProps> = ({
       }}
     >
       <svg
-        width={1920}
-        height={1080}
-        viewBox="0 0 1920 1080"
-        style={{ position: 'absolute', inset: 0, overflow: 'visible' }}
+        style={{
+          position: 'absolute',
+          left: 0,
+          top: 0,
+          width: 1,
+          height: 1,
+          overflow: 'visible',
+        }}
       >
         <defs>
           <linearGradient
@@ -199,97 +242,73 @@ export const DataFlowEdge: React.FC<DataFlowEdgeProps> = ({
         <path
           d={pathData}
           fill="none"
-          stroke={isDark ? 'rgba(255, 255, 255, 0.12)' : studioStyle.palette.inkBorder}
+          stroke={isDark ? 'rgba(255, 255, 255, 0.16)' : studioStyle.palette.inkBorder}
           strokeOpacity={isDark ? 1 : 0.45}
-          strokeWidth={2}
+          strokeWidth={1.6}
           strokeDasharray={pathLengthEstimate}
           strokeDashoffset={dashOffset}
-          strokeLinecap="round"
         />
 
         <path
           d={pathData}
           fill="none"
           stroke={`url(#${gradId})`}
-          strokeWidth={2}
-          strokeDasharray="6 10"
-          strokeOpacity={0.32 * drawProgress + 0.35 * flowAlpha}
-          strokeLinecap="round"
+          strokeWidth={1.8}
+          strokeDasharray="6 8"
+          strokeOpacity={0.32 * drawProgress + 0.38 * flowAlpha}
         />
 
         {flowAlpha > 0.01 && (
-          <>
-            <path
-              d={pathData}
-              fill="none"
-              stroke={`url(#${gradId})`}
-              strokeWidth={11}
-              strokeOpacity={0.14 * flowAlpha}
-              strokeLinecap="round"
-            />
-            <path
-              d={pathData}
-              fill="none"
-              stroke={`url(#${gradId})`}
-              strokeWidth={3}
-              strokeOpacity={0.62 * flowAlpha}
-              strokeLinecap="round"
-            />
-          </>
+          <path
+            d={pathData}
+            fill="none"
+            stroke={`url(#${gradId})`}
+            strokeWidth={grammar === 'risograph-poster' ? 3.2 : 2.4}
+            strokeOpacity={0.78 * flowAlpha}
+          />
         )}
 
-        <circle
-          cx={from.x}
-          cy={from.y}
-          r={4.5}
-          fill={resolvedColor}
+        <rect
+          x={from.x - 4}
+          y={from.y - 4}
+          width={8}
+          height={8}
+          fill={studioStyle.palette.bgSurface}
+          stroke={resolvedColor}
+          strokeWidth={1.8}
           opacity={drawProgress}
         />
         <circle
           cx={to.x}
           cy={to.y}
-          r={4.5}
-          fill={endColor}
+          r={4.2}
+          fill={studioStyle.palette.bgSurface}
+          stroke={endColor}
+          strokeWidth={1.8}
           opacity={drawProgress}
         />
 
         {packets.map((pkt, idx) => (
-          <g key={`pkt-${idx}`} opacity={pkt.opacity}>
-            {pkt.trail.map((pt, tIdx) => {
-              const ratio = 1 - (tIdx + 1) / (pkt.trail.length + 1);
-              return (
-                <circle
-                  key={`trail-${tIdx}`}
-                  cx={pt.x}
-                  cy={pt.y}
-                  r={5.2 * ratio}
-                  fill={resolvedColor}
-                  opacity={0.4 * ratio}
-                />
-              );
-            })}
-            <circle
-              cx={pkt.head.x}
-              cy={pkt.head.y}
-              r={16}
-              fill={resolvedColor}
-              opacity={0.14}
-            />
-            <circle
-              cx={pkt.head.x}
-              cy={pkt.head.y}
-              r={10}
-              fill={resolvedColor}
-              opacity={0.28}
-            />
-            <circle
-              cx={pkt.head.x}
-              cy={pkt.head.y}
-              r={5.2}
-              fill={studioStyle.palette.bgSurface}
-              stroke={resolvedColor}
-              strokeWidth={2.5}
-            />
+          <g
+            key={`pkt-${idx}`}
+            opacity={pkt.opacity}
+            transform={`translate(${pkt.head.x.toFixed(2)}, ${pkt.head.y.toFixed(2)}) rotate(${pkt.deg.toFixed(2)})`}
+          >
+            {grammar === 'risograph-poster' ? (
+              <polygon
+                points="9,0 -7,-6.5 -7,6.5"
+                fill={resolvedColor}
+                stroke={studioStyle.palette.inkBorder}
+                strokeWidth={1.5}
+              />
+            ) : grammar === 'optical-gate' ? (
+              <>
+                <rect x={-9} y={-3.2} width={18} height={6.4} fill={resolvedColor} />
+                <rect x={-4} y={-1.2} width={10} height={2.4} fill="#FFFFFF" />
+              </>
+            ) : (
+              <polygon points="8,0 -6,-5 -3.2,0 -6,5" fill={resolvedColor} />
+            )}
           </g>
         ))}
       </svg>
@@ -303,23 +322,14 @@ export const DataFlowEdge: React.FC<DataFlowEdgeProps> = ({
             transform: `translate3d(-50%, -50%, 0) scale(${interpolate(
               drawProgress,
               [0.4, 1],
-              [0.85, 1],
+              [0.9, 1],
               { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
-            )})`,
+            ).toFixed(3)})`,
             opacity: interpolate(drawProgress, [0.4, 0.9], [0, 1], {
               extrapolateLeft: 'clamp',
               extrapolateRight: 'clamp',
             }),
-            padding: '5px 12px',
-            borderRadius: THEME.radii.pill,
-            backgroundColor: studioStyle.palette.bgSurface,
-            border: `1px solid ${
-              flowAlpha > 0.2 ? `${resolvedColor}77` : studioStyle.palette.inkBorder
-            }`,
-            boxShadow:
-              flowAlpha > 0.2
-                ? `0 0 20px ${resolvedColor}33, 0 8px 20px rgba(0,0,0,0.22)`
-                : '0 8px 20px rgba(0,0,0,0.16)',
+            ...plateStyle,
             display: 'flex',
             alignItems: 'center',
             gap: 7,
@@ -330,16 +340,15 @@ export const DataFlowEdge: React.FC<DataFlowEdgeProps> = ({
             style={{
               width: 6,
               height: 6,
-              borderRadius: '50%',
               backgroundColor: resolvedColor,
-              boxShadow: flowAlpha > 0.2 ? `0 0 8px ${resolvedColor}` : 'none',
+              flexShrink: 0,
             }}
           />
           <span
             style={{
               fontFamily: monoFontCss,
               fontSize: 11,
-              fontWeight: 600,
+              fontWeight: 700,
               color: studioStyle.palette.textPrimary,
               letterSpacing: '0.04em',
             }}

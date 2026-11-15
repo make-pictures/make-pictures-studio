@@ -4,16 +4,19 @@ import {
   SPRING_PRESETS,
   STUDIO_THEME,
   THEME,
+  computeCircleOfConfusionPx,
   formatFontFamilyCss,
   getCardChromeStyle,
+  getTactileSurfaceStyle,
+  resolveStyleOptics,
   useStudioStyle,
+  type TactileElevation,
 } from '@make-pictures/core';
+import {
+  useMotionDiagramFocus,
+  type MotionDiagramFocusState,
+} from './MotionDiagramStage2D';
 
-/**
- * Single Source of Truth for node coordinates on the 2D canvas.
- * Use `portTop`, `portBottom`, `portLeft`, and `portRight` to connect SVG edges
- * mathematically to card borders without manual coordinate guessing.
- */
 export interface NodeBox {
   cx: number;
   cy: number;
@@ -43,10 +46,12 @@ export const portBottom = (n: NodeBox, dx = 0) => ({
 
 export interface WorldBoxProps {
   node: NodeBox;
+  nodeId?: string;
+  focusState?: MotionDiagramFocusState;
+  elevation?: TactileElevation;
   scale?: number;
   opacity?: number;
   zIndex?: number;
-  /** Optional explicit surface variant (`'transparent'` | `'dark'` | `'light'`); inherits `StylePreset` card chrome when omitted */
   variant?: 'card' | 'transparent' | 'dark' | 'light';
   style?: React.CSSProperties;
   children?: React.ReactNode;
@@ -54,6 +59,9 @@ export interface WorldBoxProps {
 
 export const WorldBox: React.FC<WorldBoxProps> = ({
   node,
+  nodeId,
+  focusState = 'auto',
+  elevation = 'resting',
   scale = 1,
   opacity = 1,
   zIndex = 2,
@@ -62,10 +70,33 @@ export const WorldBox: React.FC<WorldBoxProps> = ({
   children,
 }) => {
   const studioStyle = useStudioStyle();
+  const focusCtx = useMotionDiagramFocus();
+  const optics = resolveStyleOptics(studioStyle);
   const bodyFontCss = formatFontFamilyCss(
     studioStyle.typography.bodyFont,
     'body'
   );
+
+  const resolvedFocus = focusCtx
+    ? focusCtx.resolveNodeFocus(nodeId, focusState)
+    : focusState === 'recessed'
+      ? (() => {
+          const b = computeCircleOfConfusionPx(-0.28, 0, optics.aperture);
+          return {
+            isRecessed: true,
+            blurPx: b,
+            filterCss: b === 0 ? 'none' : `blur(${b.toFixed(2)}px)`,
+            opacityScale: 0.68,
+            scaleFactor: 0.98,
+          };
+        })()
+      : {
+          isRecessed: false,
+          blurPx: 0,
+          filterCss: 'none',
+          opacityScale: 1,
+          scaleFactor: 1,
+        };
 
   let chromeStyle: React.CSSProperties;
   if (variant === 'transparent') {
@@ -90,11 +121,18 @@ export const WorldBox: React.FC<WorldBoxProps> = ({
       boxShadow: STUDIO_THEME.shadows.cardElevated,
     };
   } else {
-    chromeStyle = getCardChromeStyle(studioStyle);
+    const baseChrome = getCardChromeStyle(studioStyle);
+    const tactile = getTactileSurfaceStyle(studioStyle, { elevation });
+    chromeStyle =
+      studioStyle.surface.cardTreatment === 'brutalist-hard' &&
+      elevation === 'resting'
+        ? { ...tactile, boxShadow: baseChrome.boxShadow }
+        : tactile;
   }
 
   return (
     <div
+      data-focus-state={resolvedFocus.isRecessed ? 'recessed' : 'sharp'}
       style={{
         position: 'absolute',
         left: node.cx - node.w / 2,
@@ -103,8 +141,9 @@ export const WorldBox: React.FC<WorldBoxProps> = ({
         height: node.h,
         boxSizing: 'border-box',
         transformOrigin: 'center center',
-        transform: `scale(${scale})`,
-        opacity,
+        transform: `scale(${Number((scale * resolvedFocus.scaleFactor).toFixed(4))})`,
+        opacity: opacity * resolvedFocus.opacityScale,
+        filter: resolvedFocus.filterCss,
         zIndex,
         fontFamily: bodyFontCss,
         ...chromeStyle,
@@ -119,14 +158,11 @@ export const WorldBox: React.FC<WorldBoxProps> = ({
 export interface FlowCurveProps {
   from: { x: number; y: number };
   to: { x: number; y: number };
-  /** Vertical arch offset for horizontal connections */
   curveY?: number;
-  /** Horizontal detour arch offset for vertical connections (e.g. bypassing section headers) */
   curveX?: number;
   orientation?: 'horizontal' | 'vertical';
   color?: string;
   activeFromFrame: number;
-  /** Packet traversal time in frames @ 60 FPS (recommended: 92..120 frames) */
   packetSpeedFrames?: number;
   packetCount?: number;
   strokeWidth?: number;
@@ -134,10 +170,6 @@ export interface FlowCurveProps {
   blocked?: boolean;
 }
 
-/**
- * Animated SVG Bézier connection line with mathematical port terminals
- * and smooth 60 FPS data packet flow.
- */
 export const FlowCurve: React.FC<FlowCurveProps> = ({
   from,
   to,
@@ -148,15 +180,24 @@ export const FlowCurve: React.FC<FlowCurveProps> = ({
   activeFromFrame,
   packetSpeedFrames = 100,
   packetCount = 2,
-  strokeWidth = 4,
+  strokeWidth = 2.6,
   dashed = false,
   blocked = false,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const studioStyle = useStudioStyle();
+
+  const effectiveStart = Math.max(2, activeFromFrame);
+  if (frame <= 0 || frame < effectiveStart) {
+    return null;
+  }
+
+  const optics = resolveStyleOptics(studioStyle);
+  const grammar = optics.typographyGrammar;
   const resolvedColor = color ?? studioStyle.palette.accentPrimary;
   const terminalFill = studioStyle.palette.bgSurface;
+  const inkBorder = studioStyle.palette.inkBorder;
 
   const dx = to.x - from.x;
   const dy = to.y - from.y;
@@ -174,7 +215,7 @@ export const FlowCurve: React.FC<FlowCurveProps> = ({
   const d = `M ${p0.x} ${p0.y} C ${p1.x} ${p1.y}, ${p2.x} ${p2.y}, ${p3.x} ${p3.y}`;
 
   const drawProgress = spring({
-    frame: frame - activeFromFrame,
+    frame: frame - effectiveStart,
     fps,
     config: SPRING_PRESETS.smooth,
   });
@@ -183,36 +224,44 @@ export const FlowCurve: React.FC<FlowCurveProps> = ({
 
   const evalBezier = (t: number) => {
     const u = 1 - t;
-    return {
-      x:
-        u * u * u * p0.x +
-        3 * u * u * t * p1.x +
-        3 * u * t * t * p2.x +
-        t * t * t * p3.x,
-      y:
-        u * u * u * p0.y +
-        3 * u * u * t * p1.y +
-        3 * u * t * t * p2.y +
-        t * t * t * p3.y,
-    };
+    const x =
+      u * u * u * p0.x +
+      3 * u * u * t * p1.x +
+      3 * u * t * t * p2.x +
+      t * t * t * p3.x;
+    const y =
+      u * u * u * p0.y +
+      3 * u * u * t * p1.y +
+      3 * u * t * t * p2.y +
+      t * t * t * p3.y;
+    const tx =
+      3 * u * u * (p1.x - p0.x) +
+      6 * u * t * (p2.x - p1.x) +
+      3 * t * t * (p3.x - p2.x);
+    const ty =
+      3 * u * u * (p1.y - p0.y) +
+      6 * u * t * (p2.y - p1.y) +
+      3 * t * t * (p3.y - p2.y);
+    const deg = (Math.atan2(ty, tx) * 180) / Math.PI;
+    return { x, y, deg };
   };
 
-  const packets: Array<{ x: number; y: number; alpha: number }> = [];
-  if (!blocked && frame >= activeFromFrame + 10) {
+  const packets: Array<{ x: number; y: number; deg: number; alpha: number }> = [];
+  if (!blocked && frame >= effectiveStart + 8) {
     for (let i = 0; i < packetCount; i++) {
       const offset = (i / packetCount) * packetSpeedFrames;
-      const elapsed = frame - (activeFromFrame + 10) - offset;
+      const elapsed = frame - (effectiveStart + 8) - offset;
       if (elapsed < 0) continue;
       const t = (elapsed % packetSpeedFrames) / packetSpeedFrames;
-      const alpha =
-        t < 0.1 ? t / 0.1 : t > 0.9 ? (1 - t) / 0.1 : 1;
+      const alpha = t < 0.1 ? t / 0.1 : t > 0.9 ? (1 - t) / 0.1 : 1;
       const pt = evalBezier(t);
-      packets.push({ x: pt.x, y: pt.y, alpha });
+      packets.push({ ...pt, alpha });
     }
   }
 
   return (
     <svg
+      data-flow-grammar={grammar}
       style={{
         position: 'absolute',
         left: 0,
@@ -224,52 +273,128 @@ export const FlowCurve: React.FC<FlowCurveProps> = ({
         zIndex: 1,
       }}
     >
+      {/* Guide rail */}
+      <path
+        d={d}
+        fill="none"
+        stroke={inkBorder}
+        strokeWidth={1.2}
+        strokeOpacity={0.38 * drawProgress}
+      />
+      {/* Active schematic bus */}
       <path
         d={d}
         fill="none"
         stroke={resolvedColor}
-        strokeWidth={strokeWidth + 6}
-        strokeOpacity={0.14 * drawProgress}
-        strokeLinecap="round"
+        strokeWidth={grammar === 'risograph-poster' ? strokeWidth + 0.8 : strokeWidth}
+        strokeOpacity={0.9 * drawProgress}
+        strokeDasharray={dashed ? '8 6' : undefined}
+        strokeLinecap="butt"
       />
-      <path
-        d={d}
-        fill="none"
-        stroke={resolvedColor}
-        strokeWidth={strokeWidth}
-        strokeOpacity={0.85 * drawProgress}
-        strokeDasharray={dashed ? '10 10' : undefined}
-        strokeLinecap="round"
-      />
-      <circle
-        cx={from.x}
-        cy={from.y}
-        r={6}
-        fill={terminalFill}
-        stroke={resolvedColor}
-        strokeWidth={3}
-        opacity={drawProgress}
-      />
-      <circle
-        cx={to.x}
-        cy={to.y}
-        r={6}
-        fill={terminalFill}
-        stroke={resolvedColor}
-        strokeWidth={3}
-        opacity={drawProgress}
-      />
-      {packets.map((pkt, idx) => (
-        <g key={idx} opacity={pkt.alpha * drawProgress}>
-          <circle cx={pkt.x} cy={pkt.y} r={12} fill={resolvedColor} opacity={0.22} />
+      {/* Polymorphic Port Terminals */}
+      {grammar === 'risograph-poster' ? (
+        <>
+          <rect
+            x={from.x - 5}
+            y={from.y - 5}
+            width={10}
+            height={10}
+            fill={inkBorder}
+            opacity={drawProgress}
+          />
+          <rect
+            x={to.x - 5}
+            y={to.y - 5}
+            width={10}
+            height={10}
+            fill={resolvedColor}
+            stroke={inkBorder}
+            strokeWidth={1.6}
+            opacity={drawProgress}
+          />
+        </>
+      ) : grammar === 'optical-gate' ? (
+        <>
           <circle
-            cx={pkt.x}
-            cy={pkt.y}
-            r={6.5}
+            cx={from.x}
+            cy={from.y}
+            r={5}
             fill={terminalFill}
             stroke={resolvedColor}
-            strokeWidth={3}
+            strokeWidth={1.8}
+            opacity={drawProgress}
           />
+          <circle
+            cx={to.x}
+            cy={to.y}
+            r={5}
+            fill={terminalFill}
+            stroke={resolvedColor}
+            strokeWidth={1.8}
+            opacity={drawProgress}
+          />
+        </>
+      ) : (
+        <>
+          <rect
+            x={from.x - 4.5}
+            y={from.y - 4.5}
+            width={9}
+            height={9}
+            fill={terminalFill}
+            stroke={resolvedColor}
+            strokeWidth={2}
+            opacity={drawProgress}
+          />
+          <circle
+            cx={to.x}
+            cy={to.y}
+            r={4.5}
+            fill={terminalFill}
+            stroke={resolvedColor}
+            strokeWidth={2}
+            opacity={drawProgress}
+          />
+        </>
+      )}
+
+      {/* Tangent-Aligned Signal Couriers */}
+      {packets.map((pkt, idx) => (
+        <g
+          key={idx}
+          opacity={pkt.alpha * drawProgress}
+          transform={`translate(${pkt.x.toFixed(2)}, ${pkt.y.toFixed(2)}) rotate(${pkt.deg.toFixed(2)})`}
+        >
+          {grammar === 'risograph-poster' ? (
+            <polygon
+              points="9,0 -7,-6.5 -7,6.5"
+              fill={resolvedColor}
+              stroke={inkBorder}
+              strokeWidth={1.6}
+            />
+          ) : grammar === 'optical-gate' ? (
+            <>
+              <rect
+                x={-9}
+                y={-3.5}
+                width={18}
+                height={7}
+                fill={resolvedColor}
+              />
+              <rect
+                x={-4}
+                y={-1.5}
+                width={10}
+                height={3}
+                fill="#FFFFFF"
+              />
+            </>
+          ) : (
+            <polygon
+              points="8,0 -6,-5.2 -3.2,0 -6,5.2"
+              fill={resolvedColor}
+            />
+          )}
         </g>
       ))}
     </svg>

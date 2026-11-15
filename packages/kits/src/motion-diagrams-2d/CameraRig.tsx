@@ -5,7 +5,13 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from 'remotion';
-import { STUDIO_THEME, THEME, useStudioFontsReady } from '@make-pictures/core';
+import {
+  STUDIO_THEME,
+  StageLightingRig,
+  THEME,
+  useStudioFontsReady,
+  useStudioStyle,
+} from '@make-pictures/core';
 
 export interface CameraKeyframe {
   /** Frame when the camera begins moving toward this target */
@@ -31,7 +37,7 @@ export interface CameraRigProps {
   stageWidth?: number;
   stageHeight?: number;
   variant?: 'light' | 'dark';
-  children: React.ReactNode;
+  children?: React.ReactNode;
 }
 
 export function evaluateCameraState(
@@ -100,15 +106,33 @@ export const CameraRig: React.FC<CameraRigProps> = ({
   keyframes,
   stageWidth = 1920,
   stageHeight = 1080,
-  variant = 'light',
+  variant,
   children,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   useStudioFontsReady();
+  const studioStyle = useStudioStyle();
+
+  const isDark =
+    variant === 'dark'
+      ? true
+      : variant === 'light'
+        ? false
+        : studioStyle.surface.isDark;
+
+  const resolvedBgCanvas =
+    variant === 'dark' && !studioStyle.surface.isDark
+      ? THEME.colors.bgPrimary
+      : variant === 'light' && studioStyle.surface.isDark
+        ? STUDIO_THEME.colors.bgCanvas
+        : studioStyle.palette.bgCanvas;
+
+  if (frame <= 0) {
+    return <AbsoluteFill style={{ backgroundColor: resolvedBgCanvas }} />;
+  }
 
   const cam = evaluateCameraState(frame, fps, keyframes);
-
   const centerX = stageWidth / 2;
   const centerY = stageHeight / 2;
 
@@ -117,44 +141,36 @@ export const CameraRig: React.FC<CameraRigProps> = ({
   const gridOffsetX = centerX - cam.x * cam.zoom;
   const gridOffsetY = centerY - cam.y * cam.zoom;
 
-  const isDark = variant === 'dark';
+  const gridLineColor =
+    variant !== undefined
+      ? isDark
+        ? 'rgba(255, 255, 255, 0.05)'
+        : 'rgba(15, 23, 42, 0.05)'
+      : isDark
+        ? 'rgba(255, 255, 255, 0.05)'
+        : `${studioStyle.palette.inkBorder}22`;
+
+  const gridDotColor =
+    variant !== undefined
+      ? isDark
+        ? 'rgba(226, 232, 240, 0.16)'
+        : 'rgba(51, 65, 85, 0.14)'
+      : `${studioStyle.palette.accentPrimary}2E`;
 
   return (
     <AbsoluteFill
       style={{
-        backgroundColor: isDark
-          ? THEME.colors.bgPrimary
-          : STUDIO_THEME.colors.bgCanvas,
+        backgroundColor: resolvedBgCanvas,
         overflow: 'hidden',
       }}
     >
-      <AbsoluteFill
-        style={{
-          backgroundImage: isDark
-            ? `
-            radial-gradient(circle at 20% 25%, rgba(0, 240, 255, 0.14) 0%, transparent 48%),
-            radial-gradient(circle at 80% 30%, rgba(139, 92, 246, 0.16) 0%, transparent 50%),
-            radial-gradient(circle at 50% 82%, rgba(16, 185, 129, 0.12) 0%, transparent 55%)
-          `
-            : `
-            radial-gradient(circle at 20% 25%, rgba(165, 180, 252, 0.35) 0%, transparent 48%),
-            radial-gradient(circle at 80% 30%, rgba(199, 210, 254, 0.32) 0%, transparent 50%),
-            radial-gradient(circle at 50% 82%, rgba(224, 231, 255, 0.42) 0%, transparent 55%)
-          `,
-          pointerEvents: 'none',
-        }}
-      />
+      <StageLightingRig renderBaseFill={false} seed="camera-rig-2d" />
 
       <AbsoluteFill
         style={{
-          backgroundImage: isDark
-            ? `
-            linear-gradient(to right, rgba(255, 255, 255, 0.045) 1px, transparent 1px),
-            linear-gradient(to bottom, rgba(255, 255, 255, 0.045) 1px, transparent 1px)
-          `
-            : `
-            linear-gradient(to right, rgba(15, 23, 42, 0.045) 1px, transparent 1px),
-            linear-gradient(to bottom, rgba(15, 23, 42, 0.045) 1px, transparent 1px)
+          backgroundImage: `
+            linear-gradient(to right, ${gridLineColor} 1px, transparent 1px),
+            linear-gradient(to bottom, ${gridLineColor} 1px, transparent 1px)
           `,
           backgroundSize: `${gridSpacing}px ${gridSpacing}px`,
           backgroundPosition: `${gridOffsetX}px ${gridOffsetY}px`,
@@ -163,9 +179,7 @@ export const CameraRig: React.FC<CameraRigProps> = ({
       />
       <AbsoluteFill
         style={{
-          backgroundImage: isDark
-            ? 'radial-gradient(rgba(56, 189, 248, 0.18) 1.5px, transparent 1.5px)'
-            : 'radial-gradient(rgba(37, 99, 235, 0.14) 1.5px, transparent 1.5px)',
+          backgroundImage: `radial-gradient(${gridDotColor} 1.35px, transparent 1.35px)`,
           backgroundSize: `${dotSpacing}px ${dotSpacing}px`,
           backgroundPosition: `${gridOffsetX + dotSpacing / 2}px ${gridOffsetY + dotSpacing / 2}px`,
           pointerEvents: 'none',

@@ -5,6 +5,8 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from 'remotion';
+import { StageLightingRig } from '../optics/StageLightingRig';
+import { useStudioStyle } from '../style';
 import { STUDIO_THEME, THEME, useStudioFontsReady } from '../theme';
 import { evaluateHandheldNoise, evaluateImpactShake } from './cameraNoise';
 import { DirectorCameraTelemetryProvider } from './DirectorCamera3D';
@@ -291,6 +293,7 @@ export interface DirectorCamera2DProps {
   shots?: ShotSpec2D[];
   stageWidth?: number;
   stageHeight?: number;
+  /** Optional explicit polarity override; inherits `useStudioStyle().surface.isDark` when omitted */
   variant?: 'light' | 'dark';
   /** Automatically centers bounded targets inside the `9:16 Golden Safe Box` when `stageHeight > stageWidth` */
   safeBox9x16Compensation?: boolean;
@@ -299,17 +302,21 @@ export interface DirectorCamera2DProps {
   /** Damped harmonic camera shake impulses */
   impulses?: CameraImpulse[];
   seed?: number;
-  /** Toggle technical blueprint backdrop & grid (default `true`) */
+  /** Toggle technical drafting grid (default `true`) */
   showGrid?: boolean;
+  /** Render solid `bgCanvas` base fill (default `true`; pass `false` over `<StyleProvider renderBackdrop>`) */
+  renderBaseFill?: boolean;
+  /** Render directional `<StageLightingRig />` layer (default `true`) */
+  renderLighting?: boolean;
   /** Optional viewport-pinned HUD / VFX layer (`<CinematicLensOverlay />`, etc.) */
   overlay?: React.ReactNode;
-  children: React.ReactNode;
+  children?: React.ReactNode;
 }
 
 /**
  * Shot-DSL Infinite-Canvas 2D Camera Rig with zero-clipping viewport-pinned
- * blueprint grid, `9:16 Golden Safe Box` auto-framing, deterministic shake,
- * and live `DirectorCameraTelemetryContext`.
+ * drafting grid, directional `<StageLightingRig />`, `9:16 Golden Safe Box`
+ * auto-framing, deterministic shake, and live `DirectorCameraTelemetryContext`.
  */
 export const DirectorCamera2D: React.FC<DirectorCamera2DProps> = ({
   keyframes,
@@ -317,18 +324,21 @@ export const DirectorCamera2D: React.FC<DirectorCamera2DProps> = ({
   shots,
   stageWidth,
   stageHeight,
-  variant = 'light',
+  variant,
   safeBox9x16Compensation = true,
   handheldIntensity = 0.15,
   impulses,
   seed = 2026,
   showGrid = true,
+  renderBaseFill = true,
+  renderLighting = true,
   overlay,
   children,
 }) => {
   const frame = useCurrentFrame();
   const { fps, width, height } = useVideoConfig();
   useStudioFontsReady();
+  const studioStyle = useStudioStyle();
 
   const effectiveWidth = stageWidth ?? width;
   const effectiveHeight = stageHeight ?? height;
@@ -367,6 +377,31 @@ export const DirectorCamera2D: React.FC<DirectorCamera2DProps> = ({
     publishFrameCameraTelemetry(frame, cam.telemetry);
   }, [frame, cam.telemetry]);
 
+  const isDark =
+    variant === 'dark'
+      ? true
+      : variant === 'light'
+        ? false
+        : studioStyle.surface.isDark;
+
+  const resolvedBgCanvas =
+    variant === 'dark' && !studioStyle.surface.isDark
+      ? THEME.colors.bgPrimary
+      : variant === 'light' && studioStyle.surface.isDark
+        ? STUDIO_THEME.colors.bgCanvas
+        : studioStyle.palette.bgCanvas;
+
+  // Clean Frame 0 invariant
+  if (frame <= 0) {
+    return (
+      <DirectorCameraTelemetryProvider telemetry={cam.telemetry}>
+        {renderBaseFill ? (
+          <AbsoluteFill style={{ backgroundColor: resolvedBgCanvas }} />
+        ) : null}
+      </DirectorCameraTelemetryProvider>
+    );
+  }
+
   const centerX = effectiveWidth / 2;
   const centerY = effectiveHeight / 2;
 
@@ -376,49 +411,43 @@ export const DirectorCamera2D: React.FC<DirectorCamera2DProps> = ({
   const gridOffsetX = centerX - cam.x * cam.zoom;
   const gridOffsetY = centerY - cam.y * cam.zoom;
 
-  const isDark = variant === 'dark';
+  const gridLineColor =
+    variant !== undefined
+      ? isDark
+        ? 'rgba(255, 255, 255, 0.05)'
+        : 'rgba(15, 23, 42, 0.05)'
+      : isDark
+        ? 'rgba(255, 255, 255, 0.05)'
+        : `${studioStyle.palette.inkBorder}22`;
+
+  const gridDotColor =
+    variant !== undefined
+      ? isDark
+        ? 'rgba(226, 232, 240, 0.16)'
+        : 'rgba(51, 65, 85, 0.14)'
+      : `${studioStyle.palette.accentPrimary}2E`;
 
   return (
     <DirectorCameraTelemetryProvider telemetry={cam.telemetry}>
       <AbsoluteFill
         style={{
-          backgroundColor: isDark
-            ? THEME.colors.bgPrimary
-            : STUDIO_THEME.colors.bgCanvas,
+          backgroundColor: renderBaseFill ? resolvedBgCanvas : 'transparent',
           overflow: 'hidden',
         }}
       >
-        {/* 1. Viewport-Pinned Infinite Mesh Backdrop */}
-        <AbsoluteFill
-          style={{
-            backgroundImage: isDark
-              ? `
-              radial-gradient(circle at 20% 25%, rgba(0, 240, 255, 0.14) 0%, transparent 48%),
-              radial-gradient(circle at 80% 30%, rgba(139, 92, 246, 0.16) 0%, transparent 50%),
-              radial-gradient(circle at 50% 82%, rgba(16, 185, 129, 0.12) 0%, transparent 55%)
-            `
-              : `
-              radial-gradient(circle at 20% 25%, rgba(165, 180, 252, 0.35) 0%, transparent 48%),
-              radial-gradient(circle at 80% 30%, rgba(199, 210, 254, 0.32) 0%, transparent 50%),
-              radial-gradient(circle at 50% 82%, rgba(224, 231, 255, 0.42) 0%, transparent 55%)
-            `,
-            pointerEvents: 'none',
-          }}
-        />
+        {/* 1. Directional Optical Lighting Rig */}
+        {renderLighting ? (
+          <StageLightingRig renderBaseFill={false} seed={`cam2d-${seed}`} />
+        ) : null}
 
-        {/* 2. Viewport-Pinned Infinite Technical Blueprint Grid (Zero GPU Clipping) */}
+        {/* 2. Viewport-Pinned Infinite Technical Drafting Grid (Zero GPU Clipping) */}
         {showGrid && (
           <>
             <AbsoluteFill
               style={{
-                backgroundImage: isDark
-                  ? `
-                  linear-gradient(to right, rgba(255, 255, 255, 0.045) 1px, transparent 1px),
-                  linear-gradient(to bottom, rgba(255, 255, 255, 0.045) 1px, transparent 1px)
-                `
-                  : `
-                  linear-gradient(to right, rgba(15, 23, 42, 0.045) 1px, transparent 1px),
-                  linear-gradient(to bottom, rgba(15, 23, 42, 0.045) 1px, transparent 1px)
+                backgroundImage: `
+                  linear-gradient(to right, ${gridLineColor} 1px, transparent 1px),
+                  linear-gradient(to bottom, ${gridLineColor} 1px, transparent 1px)
                 `,
                 backgroundSize: `${gridSpacing}px ${gridSpacing}px`,
                 backgroundPosition: `${gridOffsetX}px ${gridOffsetY}px`,
@@ -427,9 +456,7 @@ export const DirectorCamera2D: React.FC<DirectorCamera2DProps> = ({
             />
             <AbsoluteFill
               style={{
-                backgroundImage: isDark
-                  ? 'radial-gradient(rgba(56, 189, 248, 0.18) 1.5px, transparent 1.5px)'
-                  : 'radial-gradient(rgba(37, 99, 235, 0.14) 1.5px, transparent 1.5px)',
+                backgroundImage: `radial-gradient(${gridDotColor} 1.35px, transparent 1.35px)`,
                 backgroundSize: `${dotSpacing}px ${dotSpacing}px`,
                 backgroundPosition: `${gridOffsetX + dotSpacing / 2}px ${gridOffsetY + dotSpacing / 2}px`,
                 pointerEvents: 'none',
