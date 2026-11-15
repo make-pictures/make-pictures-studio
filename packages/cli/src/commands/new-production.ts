@@ -304,6 +304,7 @@ import {
   AbsoluteFill,
   Sequence,
   staticFile,
+  useVideoConfig,
 } from 'remotion';
 import { z } from 'zod';
 import {
@@ -311,9 +312,11 @@ import {
   SoundCue,
   StyleProvider,
   VoiceoverTrack,
+  type OpticalShot2D,
 } from '@make-pictures/core';
 import {
   ChapterTitleCard,
+  EditorialDeskStage,
   EditorialMediaCard,
   HighlightQuoteStage,
   SplitStoryLayout,
@@ -332,59 +335,74 @@ const DIALOGUE_SEGMENTS = [
 ];
 
 export const ${pascalName}: React.FC<${pascalName}Props> = (props) => {
+  const { width, height } = useVideoConfig();
   const introVo = VOICEOVER_MANIFEST['${slug}-intro'];
   const payoffVo = VOICEOVER_MANIFEST['${slug}-payoff'];
   const whooshSfx = SFX_MANIFEST['whoosh-open'];
   const popSfx = SFX_MANIFEST['card-pop'];
+
+  const editorialShots: OpticalShot2D[] = [
+    { fromFrame: 0, x: width / 2, y: height / 2 + 8, zoom: 1.0, focalZ: 0.35, transition: 'cut' },
+    { fromFrame: 8, x: width / 2 - 6, y: height / 2, zoom: 1.025, focalZ: 0, transition: 'glide' },
+    { fromFrame: 220, x: width / 2 + 8, y: height / 2 - 4, zoom: 1.036, focalZ: 0, transition: 'glide' },
+    { fromFrame: 430, x: width / 2, y: height / 2, zoom: 1.048, focalZ: 0, transition: 'glide' },
+  ];
 
   return (
     <StyleProvider style={props.styleId} renderBackdrop>
       <AbsoluteFill>
         ${audioBlock}
 
-        <Sequence from={0} durationInFrames={220}>
-          <ChapterTitleCard
-            chapterLabel={props.badgeLabel}
-            title={props.headline}
-            subtitle={props.subheadline}
-            startFrame={2}
-            accentColor={props.accentColor}
-          />
-        </Sequence>
+        <EditorialDeskStage
+          shots={editorialShots}
+          sheetCode={props.badgeLabel}
+          renderBaseFill={false}
+        >
+          <Sequence from={0} durationInFrames={220}>
+            <ChapterTitleCard
+              chapterLabel={props.badgeLabel}
+              title={props.headline}
+              subtitle={props.subheadline}
+              startFrame={2}
+              accentColor={props.accentColor}
+            />
+          </Sequence>
 
-        <Sequence from={220} durationInFrames={210}>
-          <SplitStoryLayout
-            startFrame={2}
-            primary={
-              <EditorialMediaCard
-                caption={props.headline}
-                sourceTag={props.badgeLabel}
-                startFrame={2}
-                durationInFrames={195}
-              />
-            }
-            secondary={
-              <EditorialMediaCard
-                caption={props.subheadline}
-                sourceTag={props.styleId}
-                startFrame={10}
-                durationInFrames={195}
-                zoomFrom={1.04}
-                zoomTo={1.12}
-              />
-            }
-          />
-        </Sequence>
+          <Sequence from={220} durationInFrames={210}>
+            <SplitStoryLayout
+              startFrame={2}
+              focusShiftFrame={96}
+              primary={
+                <EditorialMediaCard
+                  caption={props.headline}
+                  sourceTag={props.badgeLabel}
+                  startFrame={2}
+                  durationInFrames={195}
+                />
+              }
+              secondary={
+                <EditorialMediaCard
+                  caption={props.subheadline}
+                  sourceTag={props.styleId}
+                  startFrame={10}
+                  durationInFrames={195}
+                  zoomFrom={1.04}
+                  zoomTo={1.12}
+                />
+              }
+            />
+          </Sequence>
 
-        <Sequence from={430} durationInFrames={218}>
-          <HighlightQuoteStage
-            quote={payoffVo?.text || props.subheadline}
-            highlightPhrase="sześćdziesięciu"
-            author={props.headline}
-            startFrame={2}
-            words={payoffVo?.words}
-          />
-        </Sequence>
+          <Sequence from={430} durationInFrames={218}>
+            <HighlightQuoteStage
+              quote={payoffVo?.text || props.subheadline}
+              highlightPhrase="sześćdziesięciu"
+              author={props.headline}
+              startFrame={2}
+              words={payoffVo?.words}
+            />
+          </Sequence>
+        </EditorialDeskStage>
       </AbsoluteFill>
     </StyleProvider>
   );
@@ -401,8 +419,11 @@ import {
 } from 'remotion';
 import { z } from 'zod';
 import {
+  DepthPlane,
+  OpticalStage2D,
   SmartMusicBed,
   SoundCue,
+  StageLightingRig,
   StyleProvider,
   VoiceoverTrack,
 } from '@make-pictures/core';
@@ -438,49 +459,55 @@ export const ${pascalName}: React.FC<${pascalName}Props> = (props) => {
       <AbsoluteFill>
         ${audioBlock}
 
-        <Sequence from={0} durationInFrames={320}>
-          <WordByWordStage
-            sceneId="${slug}-intro"
-            voiceoverManifest={VOICEOVER_MANIFEST}
-            fallbackText={\`\${props.headline} — \${props.subheadline}\`}
-            eyebrow={props.badgeLabel}
-            accentColor={props.accentColor}
-            variant="transparent"
-            startFrame={2}
-          />
-        </Sequence>
+        <StageLightingRig renderBaseFill={false} />
 
-        <Sequence from={320} durationInFrames={328}>
-          <AbsoluteFill
-            style={{
-              justifyContent: isVertical ? 'flex-start' : 'center',
-              alignItems: isVertical ? 'flex-start' : 'center',
-              paddingLeft: isVertical ? 54 : 120,
-              paddingRight: isVertical ? 186 : 120,
-              paddingTop: isVertical ? 260 : 0,
-              gap: 28,
-            }}
-          >
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 28, maxWidth: isVertical ? 830 : 1040 }}>
-              <ImpactKeywordCard
-                keyword={props.headline}
+        <OpticalStage2D startFrame={2}>
+          <DepthPlane z={0}>
+            <Sequence from={0} durationInFrames={320}>
+              <WordByWordStage
+                sceneId="${slug}-intro"
+                voiceoverManifest={VOICEOVER_MANIFEST}
+                fallbackText={\`\${props.headline} — \${props.subheadline}\`}
                 eyebrow={props.badgeLabel}
-                sublabel={props.subheadline}
-                badge="60 FPS"
                 accentColor={props.accentColor}
+                variant="transparent"
                 startFrame={2}
               />
-              <AnimatedMetricCounter
-                value={60}
-                suffix=" FPS"
-                label="Deterministyczny silnik wideo"
-                badge="-14 LUFS"
-                accentColor={props.secondaryColor}
-                startFrame={14}
-              />
-            </div>
-          </AbsoluteFill>
-        </Sequence>
+            </Sequence>
+
+            <Sequence from={320} durationInFrames={328}>
+              <AbsoluteFill
+                style={{
+                  justifyContent: isVertical ? 'flex-start' : 'center',
+                  alignItems: isVertical ? 'flex-start' : 'center',
+                  paddingLeft: isVertical ? 54 : 120,
+                  paddingRight: isVertical ? 186 : 120,
+                  paddingTop: isVertical ? 260 : 0,
+                  gap: 28,
+                }}
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 28, maxWidth: isVertical ? 830 : 1040 }}>
+                  <ImpactKeywordCard
+                    keyword={props.headline}
+                    eyebrow={props.badgeLabel}
+                    sublabel={props.subheadline}
+                    badge="60 FPS"
+                    accentColor={props.accentColor}
+                    startFrame={2}
+                  />
+                  <AnimatedMetricCounter
+                    value={60}
+                    suffix=" FPS"
+                    label="Deterministyczny silnik wideo"
+                    badge="-14 LUFS"
+                    accentColor={props.secondaryColor}
+                    startFrame={14}
+                  />
+                </div>
+              </AbsoluteFill>
+            </Sequence>
+          </DepthPlane>
+        </OpticalStage2D>
       </AbsoluteFill>
     </StyleProvider>
   );

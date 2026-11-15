@@ -134,6 +134,14 @@ test('make-pictures new defaults to vector-scene-2d + minimal-product and genera
       if (kitId === 'isometric-3d') {
         assert.match(tsx, /IsometricStage3D/);
       }
+      if (kitId === 'editorial-collage') {
+        assert.match(tsx, /EditorialDeskStage/);
+        assert.match(tsx, /focusShiftFrame/);
+      }
+      if (kitId === 'kinetic-typography') {
+        assert.match(tsx, /StageLightingRig/);
+        assert.match(tsx, /OpticalStage2D/);
+      }
 
       const normalizedTemplate = tsx
         .replaceAll(`kit-${kitId}`, 'SLUG')

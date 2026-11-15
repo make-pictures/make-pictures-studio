@@ -23,13 +23,20 @@ import {
   Smartphone,
 } from 'lucide-react';
 import {
+  DepthPlane,
+  OpticalStage2D,
+  StageLightingRig,
   StyleProvider,
+  createSeededRandom,
   formatFontFamilyCss,
   formatHeadingText,
   getCardChromeStyle,
   getStyleSpringConfig,
+  getTactileSurfaceStyle,
+  resolveStyleOptics,
   useStudioStyle,
   type BuiltinVisualKitId,
+  type OpticalShot2D,
   type StylePreset,
 } from '@make-pictures/core';
 import { useRemotionPlayer } from '../hooks/useRemotionPlayer';
@@ -101,7 +108,39 @@ const EditorialCollagePreview: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps, width, height } = useVideoConfig();
   const style = useStudioStyle();
+  const optics = resolveStyleOptics(style);
   const bounds = getSafeStageBounds(width, height);
+
+  const shots = useMemo<ReadonlyArray<OpticalShot2D>>(() => {
+    const cx = width / 2;
+    const cy = height / 2;
+    return [
+      {
+        fromFrame: 2,
+        x: cx,
+        y: cy + 8,
+        zoom: 1.0,
+        focalZ: 0.35,
+        transition: 'cut',
+      },
+      {
+        fromFrame: 8,
+        x: cx - 5,
+        y: cy,
+        zoom: 1.024,
+        focalZ: 0,
+        transition: 'glide',
+      },
+      {
+        fromFrame: 150,
+        x: cx + 7,
+        y: cy - 4,
+        zoom: 1.044,
+        focalZ: 0,
+        transition: 'glide',
+      },
+    ];
+  }, [width, height]);
 
   const chapterEnter = spring({
     frame: frame - 2,
@@ -114,237 +153,470 @@ const EditorialCollagePreview: React.FC = () => {
     config: getStyleSpringConfig(style, 'enter'),
   });
   const quoteSweep = spring({
-    frame: frame - 28,
+    frame: frame - 26,
     fps,
     config: getStyleSpringConfig(style, 'emphasis'),
   });
 
-  const kenBurnsScale = interpolate(frame, [2, 300], [1.0, 1.11], {
+  const rawFocusPull = interpolate(
+    frame - 2,
+    [0, 18],
+    [3.4 + optics.aperture * 3.0, 0],
+    { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
+  );
+  const chapterFocusFilter =
+    rawFocusPull < 0.25 ? 'none' : `blur(${rawFocusPull.toFixed(2)}px)`;
+
+  const kenBurnsScale = interpolate(frame, [2, 300], [1.02, 1.11], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
-  const kenBurnsX = interpolate(frame, [2, 300], [0, -18], {
+  const kenBurnsX = interpolate(frame, [2, 300], [0, -16], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
+
+  const effectiveMount =
+    optics.lightingRig === 'darkroom-halation'
+      ? 'slide-mount'
+      : optics.lightingRig === 'studio-macro'
+        ? 'none'
+        : style.id === 'archival-chronicle'
+          ? 'photo-corners'
+          : 'archival-tape';
+  const isSlide = effectiveMount === 'slide-mount';
+  const seededTilt =
+    optics.lightingRig === 'studio-macro'
+      ? 0
+      : Number(
+          ((createSeededRandom(`style-lab-media:${style.id}`)() - 0.5) * 1.6).toFixed(2)
+        );
 
   const displayFont = formatFontFamilyCss(style.typography.displayFont, 'display');
   const bodyFont = formatFontFamilyCss(style.typography.bodyFont, 'body');
   const monoFont = formatFontFamilyCss(style.typography.monoFont, 'mono');
 
+  const markColor = style.surface.isDark
+    ? 'rgba(248, 250, 252, 0.22)'
+    : `${style.palette.inkBorder}AA`;
+  const insetX = bounds.isVertical ? 36 : 64;
+  const insetTop = bounds.isVertical ? 196 : 48;
+  const insetBottom = bounds.isVertical ? 496 : 48;
+
   return (
-    <div
-      style={{
-        position: 'absolute',
-        left: bounds.left,
-        top: bounds.top,
-        width: bounds.width,
-        height: bounds.height,
-        display: 'flex',
-        flexDirection: bounds.isVertical ? 'column' : 'row',
-        gap: bounds.isVertical ? 32 : 48,
-        alignItems: 'stretch',
-        justifyContent: 'center',
-      }}
-    >
-      {/* Left / Top: Chapter + Highlight Quote */}
-      <div
-        style={{
-          flex: bounds.isVertical ? '0 0 auto' : '1.08 1 0%',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
-          gap: 22,
-          opacity: chapterEnter,
-          transform: `translateY(${interpolate(chapterEnter, [0, 1], [26, 0])}px)`,
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <span
-            style={{
-              fontFamily: monoFont,
-              fontSize: 18,
-              fontWeight: 700,
-              letterSpacing: '0.12em',
-              textTransform: 'uppercase',
-              color: style.palette.accentPrimary,
-            }}
-          >
-            ROZDZIAŁ 01 • ARCHIWUM
-          </span>
+    <OpticalStage2D shots={shots} seed={2026} startFrame={2}>
+      {/* Plane z = -0.65: Archival Registration Sheet */}
+      <DepthPlane z={-0.65}>
+        <AbsoluteFill style={{ pointerEvents: 'none' }}>
           <div
             style={{
-              height: 2,
-              flex: 1,
-              maxWidth: 160,
-              backgroundColor: style.palette.inkBorder,
-              transformOrigin: 'left center',
-              transform: `scaleX(${chapterEnter})`,
+              position: 'absolute',
+              left: insetX,
+              right: bounds.isVertical ? 148 : insetX,
+              top: insetTop,
+              bottom: insetBottom,
+              border: `1px solid ${markColor}`,
+              opacity: 0.52,
             }}
           />
-        </div>
-
-        <div
-          style={{
-            fontFamily: displayFont,
-            fontSize: bounds.isVertical ? 54 : 68,
-            fontWeight: 700,
-            lineHeight: 1.08,
-            letterSpacing: `${style.typography.displayTrackingEm}em`,
-            color: style.palette.textPrimary,
-          }}
-        >
-          {formatHeadingText('Sztuka rzemiosła i żywego światła', style)}
-        </div>
-
-        <div
-          style={getCardChromeStyle(style, {
-            padding: bounds.isVertical ? '26px 30px' : '30px 36px',
-            marginTop: 6,
-          })}
-        >
           <div
             style={{
-              fontFamily: bodyFont,
-              fontSize: bounds.isVertical ? 26 : 29,
-              lineHeight: 1.42,
-              color: style.palette.textPrimary,
+              position: 'absolute',
+              left: insetX + 12,
+              top: Math.max(18, insetTop - 26),
+              display: 'flex',
+              alignItems: 'center',
+              gap: 14,
+              fontFamily: monoFont,
+              fontSize: 13,
+              letterSpacing: '0.16em',
+              color: style.palette.textSecondary,
+              opacity: 0.62,
             }}
           >
-            „Każda epoka zapisuje pamięć własną{' '}
-            <span
-              style={{
-                position: 'relative',
-                display: 'inline-block',
-                padding: '0 6px',
-                fontWeight: 700,
-              }}
-            >
+            <span>+</span>
+            <span>ARKUSZ REDAKCYJNY • STYLE LAB</span>
+            <span>•</span>
+            <span>{optics.lightingRig.toUpperCase()}</span>
+          </div>
+        </AbsoluteFill>
+      </DepthPlane>
+
+      {/* Plane z = 0: Crisp Editorial Hero Surface */}
+      <DepthPlane z={0}>
+        <div
+          style={{
+            position: 'absolute',
+            left: bounds.left,
+            top: bounds.top,
+            width: bounds.width,
+            height: bounds.height,
+            display: 'flex',
+            flexDirection: bounds.isVertical ? 'column' : 'row',
+            gap: bounds.isVertical ? 28 : 44,
+            alignItems: 'stretch',
+            justifyContent: 'center',
+          }}
+        >
+          {/* Left / Top: Optical Focus-Pull Chapter + Ink-Brush Press Clipping */}
+          <div
+            style={{
+              flex: bounds.isVertical ? '0 0 auto' : '1.08 1 0%',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
+              gap: 20,
+              opacity: chapterEnter,
+              filter: chapterFocusFilter,
+              transform: `translateY(${interpolate(chapterEnter, [0, 1], [22, 0]).toFixed(2)}px)`,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <span
                 style={{
-                  position: 'absolute',
-                  left: 0,
-                  right: 0,
-                  bottom: 2,
-                  height: '42%',
-                  backgroundColor: `${style.palette.accentPrimary}38`,
+                  fontFamily: monoFont,
+                  fontSize: 17,
+                  fontWeight: 700,
+                  color: style.palette.inkBorder,
+                }}
+              >
+                ┼
+              </span>
+              <span
+                style={{
+                  fontFamily: monoFont,
+                  fontSize: 17,
+                  fontWeight: 700,
+                  letterSpacing: '0.14em',
+                  textTransform: 'uppercase',
+                  color: style.palette.accentPrimary,
+                }}
+              >
+                ROZDZIAŁ 01 • ARCHIWUM
+              </span>
+              <div
+                style={{
+                  height: 1.5,
+                  flex: 1,
+                  maxWidth: 160,
+                  backgroundColor: style.palette.inkBorder,
                   transformOrigin: 'left center',
-                  transform: `scaleX(${quoteSweep})`,
-                  borderRadius: 4,
+                  transform: `scaleX(${chapterEnter.toFixed(4)})`,
                 }}
               />
-              <span style={{ position: 'relative' }}>kreską, fakturą i barwą</span>
-            </span>{' '}
-            opowieści.”
+            </div>
+
+            <div
+              style={{
+                fontFamily: displayFont,
+                fontSize: bounds.isVertical ? 52 : 66,
+                fontWeight: 700,
+                lineHeight: 1.07,
+                letterSpacing: `${style.typography.displayTrackingEm}em`,
+                color: style.palette.textPrimary,
+              }}
+            >
+              {formatHeadingText('Sztuka rzemiosła i żywego światła', style)}
+            </div>
+
+            <div
+              style={getTactileSurfaceStyle(style, {
+                elevation: 'resting',
+                overrides: {
+                  position: 'relative',
+                  padding: bounds.isVertical
+                    ? '24px 28px 24px 38px'
+                    : '28px 34px 28px 44px',
+                  borderRadius: Math.max(0, Math.round(6 * style.surface.radiusScale)),
+                  marginTop: 4,
+                },
+              })}
+            >
+              <div
+                style={{
+                  position: 'absolute',
+                  left: 16,
+                  top: 20,
+                  bottom: 20,
+                  width: 2,
+                  backgroundColor: style.palette.inkBorder,
+                }}
+              >
+                <div
+                  style={{
+                    width: 3,
+                    height: `${Math.round(chapterEnter * 48)}%`,
+                    backgroundColor: style.palette.accentPrimary,
+                  }}
+                />
+              </div>
+
+              <div
+                style={{
+                  fontFamily: bodyFont,
+                  fontSize: bounds.isVertical ? 24 : 27,
+                  lineHeight: 1.42,
+                  color: style.palette.textPrimary,
+                }}
+              >
+                „Każda epoka zapisuje pamięć własną{' '}
+                <span
+                  style={{
+                    position: 'relative',
+                    display: 'inline-block',
+                    padding: '0 6px',
+                    fontWeight: 600,
+                  }}
+                >
+                  <svg
+                    data-ink-brush="true"
+                    viewBox="0 0 220 38"
+                    preserveAspectRatio="none"
+                    style={{
+                      position: 'absolute',
+                      left: -2,
+                      right: -2,
+                      bottom: 1,
+                      width: 'calc(100% + 4px)',
+                      height: style.surface.isDark ? '34%' : '56%',
+                      transformOrigin: 'left center',
+                      transform: `scaleX(${quoteSweep.toFixed(4)})`,
+                      mixBlendMode: style.surface.isDark ? 'screen' : 'multiply',
+                      pointerEvents: 'none',
+                    }}
+                  >
+                    <path
+                      d="M3,20 C44,10 112,14 217,12 C219,21 215,31 211,32 C138,34 58,31 2,33 Z"
+                      fill={style.palette.accentPrimary}
+                      opacity={style.surface.isDark ? 0.52 : 0.28}
+                    />
+                  </svg>
+                  <span style={{ position: 'relative' }}>
+                    kreską, fakturą i barwą
+                  </span>
+                </span>{' '}
+                opowieści.”
+              </div>
+              <div
+                style={{
+                  marginTop: 12,
+                  fontFamily: monoFont,
+                  fontSize: 15,
+                  color: style.palette.textSecondary,
+                }}
+              >
+                — Kronika wzornictwa • Neapol, 1889
+              </div>
+            </div>
           </div>
+
+          {/* Right / Bottom: Mounted Baryta Print or 35mm Positive Slide */}
           <div
-            style={{
-              marginTop: 14,
-              fontFamily: monoFont,
-              fontSize: 16,
-              color: style.palette.textSecondary,
-            }}
+            data-mount-type={effectiveMount}
+            style={getTactileSurfaceStyle(style, {
+              elevation: 'lifted',
+              tiltDeg: seededTilt,
+              overrides: {
+                position: 'relative',
+                flex: bounds.isVertical ? '1 1 0%' : '0.92 1 0%',
+                padding: isSlide ? '18px 20px 22px 20px' : '14px 14px 22px 14px',
+                backgroundColor: isSlide
+                  ? style.surface.isDark
+                    ? '#0B101C'
+                    : '#18181B'
+                  : style.palette.bgSurface,
+                color: isSlide ? '#F8FAFC' : style.palette.textPrimary,
+                borderRadius: Math.max(0, Math.round(6 * style.surface.radiusScale)),
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 14,
+                opacity: mediaEnter,
+                transform: `translateY(${interpolate(mediaEnter, [0, 1], [26, 0]).toFixed(2)}px)`,
+              },
+            })}
           >
-            — Kronika wzornictwa • Neapol, 1889
+            {effectiveMount === 'archival-tape' && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: -11,
+                  left: '50%',
+                  width: 108,
+                  height: 22,
+                  transform: 'translateX(-50%) rotate(-1.8deg)',
+                  backgroundColor: 'rgba(244, 234, 206, 0.78)',
+                  border: `1px solid ${style.palette.inkBorder}`,
+                  zIndex: 3,
+                }}
+              />
+            )}
+
+            {isSlide && (
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  fontFamily: monoFont,
+                  fontSize: 12,
+                  letterSpacing: '0.14em',
+                  color: 'rgba(248, 250, 252, 0.64)',
+                }}
+              >
+                <span>▲ 35MM ARCHIVE POSITIVE</span>
+                <span>KADR 04A</span>
+              </div>
+            )}
+
+            <div
+              style={{
+                flex: 1,
+                minHeight: bounds.isVertical ? 240 : 340,
+                borderRadius: Math.max(0, Math.round(4 * style.surface.radiusScale)),
+                overflow: 'hidden',
+                position: 'relative',
+                backgroundColor: style.palette.bgElevated,
+                border: `1px solid ${isSlide ? 'rgba(255,255,255,0.16)' : style.palette.inkBorder}`,
+              }}
+            >
+              <svg
+                viewBox="0 0 640 400"
+                preserveAspectRatio="xMidYMid slice"
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  display: 'block',
+                  transform: `scale(${kenBurnsScale}) translateX(${kenBurnsX}px)`,
+                  transformOrigin: 'center center',
+                }}
+              >
+                <rect width="640" height="400" fill={style.palette.bgElevated} />
+                {Array.from({ length: 14 }).map((_, i) => (
+                  <line
+                    key={i}
+                    x1={0}
+                    y1={24 + i * 28}
+                    x2={640}
+                    y2={24 + i * 28}
+                    stroke={style.palette.inkBorder}
+                    strokeWidth="0.8"
+                    opacity="0.45"
+                  />
+                ))}
+                <rect
+                  x="36"
+                  y="32"
+                  width="568"
+                  height="336"
+                  fill="none"
+                  stroke={style.palette.inkBorder}
+                  strokeWidth="1.5"
+                />
+                <circle
+                  cx="452"
+                  cy="142"
+                  r="82"
+                  fill={style.palette.accentPrimary}
+                  opacity={0.84}
+                />
+                <path
+                  d="M54 352 L212 200 L334 298 L446 214 L586 352 Z"
+                  fill={style.palette.accentSecondary}
+                  opacity={0.72}
+                />
+              </svg>
+
+              {effectiveMount === 'photo-corners' && (
+                <>
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: 24,
+                      height: 24,
+                      background: `linear-gradient(135deg, ${style.palette.textPrimary}CC 50%, transparent 50%)`,
+                    }}
+                  />
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      right: 0,
+                      width: 24,
+                      height: 24,
+                      background: `linear-gradient(225deg, ${style.palette.textPrimary}CC 50%, transparent 50%)`,
+                    }}
+                  />
+                  <div
+                    style={{
+                      position: 'absolute',
+                      bottom: 0,
+                      left: 0,
+                      width: 24,
+                      height: 24,
+                      background: `linear-gradient(45deg, ${style.palette.textPrimary}CC 50%, transparent 50%)`,
+                    }}
+                  />
+                  <div
+                    style={{
+                      position: 'absolute',
+                      bottom: 0,
+                      right: 0,
+                      width: 24,
+                      height: 24,
+                      background: `linear-gradient(315deg, ${style.palette.textPrimary}CC 50%, transparent 50%)`,
+                    }}
+                  />
+                </>
+              )}
+            </div>
+
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: 12,
+                fontFamily: monoFont,
+                fontSize: 15,
+                color: isSlide ? '#E2E8F0' : style.palette.textSecondary,
+              }}
+            >
+              <span>Ryc. 04 — Odbitka barytowa (Ken Burns)</span>
+              <span style={{ color: style.palette.accentPrimary, fontWeight: 700 }}>
+                latin-ext • PL
+              </span>
+            </div>
           </div>
         </div>
-      </div>
+      </DepthPlane>
 
-      {/* Right / Bottom: Framed Ken Burns Media Card */}
-      <div
-        style={getCardChromeStyle(style, {
-          flex: bounds.isVertical ? '1 1 0%' : '0.92 1 0%',
-          padding: 20,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 16,
-          opacity: mediaEnter,
-          transform: `translateY(${interpolate(mediaEnter, [0, 1], [32, 0])}px)`,
-        })}
-      >
+      {/* Plane z = +0.75: Out-of-Focus Millimeter Ruler (Outside Safe Box) */}
+      <DepthPlane z={0.75}>
         <div
           style={{
-            flex: 1,
-            minHeight: bounds.isVertical ? 280 : 380,
-            borderRadius: Math.max(0, Math.round(14 * style.surface.radiusScale)),
-            overflow: 'hidden',
-            position: 'relative',
-            backgroundColor: style.palette.bgElevated,
-            border: `1px solid ${style.palette.inkBorder}`,
-          }}
-        >
-          <svg
-            viewBox="0 0 600 420"
-            preserveAspectRatio="xMidYMid slice"
-            style={{
-              width: '100%',
-              height: '100%',
-              transform: `scale(${kenBurnsScale}) translateX(${kenBurnsX}px)`,
-              transformOrigin: 'center center',
-            }}
-          >
-            <rect width="600" height="420" fill={style.palette.bgElevated} />
-            <circle
-              cx="430"
-              cy="130"
-              r="96"
-              fill={style.palette.accentPrimary}
-              opacity={0.86}
-            />
-            <path
-              d="M40 360 L195 190 L325 305 L430 215 L570 360 Z"
-              fill={style.palette.accentSecondary}
-              opacity={0.78}
-            />
-            <rect
-              x="56"
-              y="56"
-              width="210"
-              height="110"
-              rx={Math.round(8 * style.surface.radiusScale)}
-              fill={style.palette.bgSurface}
-              stroke={style.palette.inkBorder}
-              strokeWidth="2"
-            />
-            <line
-              x1="80"
-              y1="92"
-              x2="230"
-              y2="92"
-              stroke={style.palette.textPrimary}
-              strokeWidth="6"
-              strokeLinecap="round"
-            />
-            <line
-              x1="80"
-              y1="122"
-              x2="190"
-              y2="122"
-              stroke={style.palette.textSecondary}
-              strokeWidth="4"
-              strokeLinecap="round"
-            />
-          </svg>
-        </div>
-
-        <div
-          style={{
+            position: 'absolute',
+            left: bounds.isVertical ? 44 : 72,
+            bottom: bounds.isVertical ? 120 : 22,
             display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            gap: 12,
-            fontFamily: monoFont,
-            fontSize: 16,
-            color: style.palette.textSecondary,
+            alignItems: 'flex-end',
+            gap: 8,
+            opacity: 0.42,
           }}
         >
-          <span>Ryc. 04 — Ruch Ken Burns (deterministyczny)</span>
-          <span style={{ color: style.palette.accentPrimary, fontWeight: 700 }}>
-            latin-ext • PL
-          </span>
+          {Array.from({ length: 16 }).map((_, idx) => (
+            <div
+              key={idx}
+              style={{
+                width: 1.5,
+                height: idx % 5 === 0 ? 16 : 9,
+                backgroundColor: style.palette.textSecondary,
+              }}
+            />
+          ))}
         </div>
-      </div>
-    </div>
+      </DepthPlane>
+    </OpticalStage2D>
   );
 };
 
@@ -551,132 +823,388 @@ const KineticTypographyPreview: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps, width, height } = useVideoConfig();
   const style = useStudioStyle();
+  const optics = resolveStyleOptics(style);
+  const grammar = optics.typographyGrammar;
   const bounds = getSafeStageBounds(width, height);
 
-  const words = ['Rytm', 'słowa', 'buduje', 'emocję', 'kadru'];
-  const badgePop = spring({
-    frame: frame - 34,
+  const shots = useMemo<ReadonlyArray<OpticalShot2D>>(() => {
+    const cx = width / 2;
+    const cy = height / 2;
+    return [
+      { fromFrame: 2, x: cx, y: cy, zoom: 1.0, focalZ: 0, transition: 'cut' },
+      {
+        fromFrame: 12,
+        x: cx,
+        y: cy - 4,
+        zoom: 1.032,
+        focalZ: 0,
+        transition: 'glide',
+      },
+    ];
+  }, [width, height]);
+
+  const words = ['Rytm', 'słowa', 'buduje', 'głębię', 'kadru'];
+  const activeWordIdx = Math.min(
+    words.length - 1,
+    Math.max(0, Math.floor((frame - 4) / 36) % words.length)
+  );
+
+  const cardEnter = spring({
+    frame: frame - 22,
     fps,
     config: getStyleSpringConfig(style, 'emphasis'),
   });
   const counterProgress = spring({
-    frame: frame - 18,
+    frame: frame - 12,
     fps,
     config: getStyleSpringConfig(style, 'enter'),
   });
   const counterVal = (counterProgress * 98.4).toFixed(1).replace('.', ',');
+  const litTicks = Math.round(counterProgress * 20);
 
   const displayFont = formatFontFamilyCss(style.typography.displayFont, 'display');
   const bodyFont = formatFontFamilyCss(style.typography.bodyFont, 'body');
   const monoFont = formatFontFamilyCss(style.typography.monoFont, 'mono');
 
   return (
-    <div
-      style={{
-        position: 'absolute',
-        left: bounds.left,
-        top: bounds.top,
-        width: bounds.width,
-        height: bounds.height,
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'center',
-        gap: 34,
-      }}
-    >
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '14px 22px' }}>
-        {words.map((word, idx) => {
-          const wSpring = spring({
-            frame: frame - (2 + idx * 6),
-            fps,
-            config: getStyleSpringConfig(style, 'emphasis'),
-          });
-          const isAccent = idx === 1 || idx === 3;
-          return (
-            <span
-              key={word}
-              style={{
-                fontFamily: displayFont,
-                fontSize: bounds.isVertical ? 68 : 88,
-                fontWeight: 800,
-                lineHeight: 1.05,
-                letterSpacing: `${style.typography.displayTrackingEm}em`,
-                color: isAccent
-                  ? style.palette.accentPrimary
-                  : style.palette.textPrimary,
-                opacity: wSpring,
-                transform: `translateY(${interpolate(
-                  wSpring,
-                  [0, 1],
-                  [34, 0]
-                )}px) scale(${interpolate(wSpring, [0, 1], [0.9, 1])})`,
-                display: 'inline-block',
-              }}
-            >
-              {formatHeadingText(word, style)}
-            </span>
-          );
-        })}
-      </div>
-
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: bounds.isVertical ? 'column' : 'row',
-          gap: 24,
-          alignItems: bounds.isVertical ? 'stretch' : 'center',
-        }}
-      >
-        <div
-          style={getCardChromeStyle(style, {
-            padding: '26px 36px',
-            display: 'flex',
-            alignItems: 'baseline',
-            gap: 18,
-            opacity: counterProgress,
-          })}
-        >
-          <span
-            style={{
-              fontFamily: monoFont,
-              fontSize: bounds.isVertical ? 54 : 64,
-              fontWeight: 800,
-              color: style.palette.accentPrimary,
-            }}
-          >
-            {counterVal}%
-          </span>
-          <span
-            style={{
-              fontFamily: bodyFont,
-              fontSize: 24,
-              fontWeight: 600,
-              color: style.palette.textSecondary,
-            }}
-          >
-            utrzymania uwagi widza
-          </span>
-        </div>
-
+    <OpticalStage2D shots={shots} seed={2027} startFrame={2}>
+      {/* Plane z = -0.55: Out-of-Focus Typographic Baseline Index */}
+      <DepthPlane z={-0.55}>
         <div
           style={{
-            padding: '22px 32px',
-            backgroundColor: style.palette.accentPrimary,
-            color: '#FFFFFF',
-            borderRadius: Math.round(16 * style.surface.radiusScale),
+            position: 'absolute',
+            left: bounds.left,
+            top: Math.max(24, bounds.top - 34),
             fontFamily: monoFont,
-            fontSize: 22,
-            fontWeight: 700,
-            letterSpacing: '0.06em',
-            opacity: badgePop,
-            transform: `scale(${interpolate(badgePop, [0, 1], [0.85, 1])})`,
-            textAlign: 'center',
+            fontSize: 13,
+            letterSpacing: '0.16em',
+            color: style.palette.textSecondary,
+            opacity: 0.55,
           }}
         >
-          IMPACT KEYWORD • SŁOWO PO SŁOWIE
+          GRAMMAR: {grammar.toUpperCase()} • RIG: {optics.lightingRig.toUpperCase()}
         </div>
-      </div>
-    </div>
+      </DepthPlane>
+
+      {/* Plane z = 0: Polymorphic Kinetic Stage */}
+      <DepthPlane z={0}>
+        <div
+          data-typography-grammar={grammar}
+          style={{
+            position: 'absolute',
+            left: bounds.left,
+            top: bounds.top,
+            width: bounds.width,
+            height: bounds.height,
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+            alignItems: grammar === 'optical-gate' ? 'center' : 'flex-start',
+            gap: 32,
+          }}
+        >
+          {grammar === 'swiss-spatial' && (
+            <div
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 14,
+              }}
+            >
+              <span
+                style={{
+                  fontFamily: monoFont,
+                  fontSize: 15,
+                  fontWeight: 700,
+                  letterSpacing: '0.14em',
+                  color: style.palette.accentPrimary,
+                }}
+              >
+                01 / 04 • SWISS SPATIAL
+              </span>
+              <div
+                style={{
+                  flex: 1,
+                  height: 1.5,
+                  backgroundColor: style.palette.inkBorder,
+                }}
+              />
+            </div>
+          )}
+
+          {grammar === 'optical-gate' && (
+            <div
+              style={{
+                width: '100%',
+                display: 'flex',
+                justifyContent: 'space-between',
+                fontFamily: monoFont,
+                fontSize: 14,
+                letterSpacing: '0.16em',
+                color: style.palette.accentPrimary,
+              }}
+            >
+              <span>┌ GATE 35MM</span>
+              <span>F:{String(frame).padStart(4, '0')} ┐</span>
+            </div>
+          )}
+
+          <div
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              justifyContent:
+                grammar === 'optical-gate' ? 'center' : 'flex-start',
+              gap: bounds.isVertical ? '12px 18px' : '14px 22px',
+              transform:
+                grammar === 'risograph-poster' ? 'rotate(-1deg)' : undefined,
+            }}
+          >
+            {words.map((word, idx) => {
+              const wSpring = spring({
+                frame: frame - (2 + idx * 5),
+                fps,
+                config: getStyleSpringConfig(style, 'emphasis'),
+              });
+              const isCurrent = idx === activeWordIdx;
+
+              if (grammar === 'risograph-poster') {
+                return (
+                  <span
+                    key={word}
+                    style={{
+                      display: 'inline-block',
+                      fontFamily: displayFont,
+                      fontSize: bounds.isVertical ? 64 : 82,
+                      fontWeight: 800,
+                      lineHeight: 1.06,
+                      letterSpacing: `${style.typography.displayTrackingEm}em`,
+                      padding: isCurrent ? '4px 14px' : '4px 4px',
+                      color: isCurrent ? '#FFFFFF' : style.palette.textPrimary,
+                      backgroundColor: isCurrent
+                        ? style.palette.accentPrimary
+                        : 'transparent',
+                      border: isCurrent
+                        ? `2px solid ${style.palette.inkBorder}`
+                        : '2px solid transparent',
+                      boxShadow: isCurrent
+                        ? `4px 3px 0px ${style.palette.accentSecondary}`
+                        : 'none',
+                      opacity: wSpring,
+                    }}
+                  >
+                    {formatHeadingText(word, style)}
+                  </span>
+                );
+              }
+
+              if (grammar === 'optical-gate') {
+                return (
+                  <span
+                    key={word}
+                    style={{
+                      display: 'inline-block',
+                      fontFamily: displayFont,
+                      fontSize: bounds.isVertical ? 64 : 84,
+                      fontWeight: 800,
+                      lineHeight: 1.08,
+                      letterSpacing: `${style.typography.displayTrackingEm}em`,
+                      color: isCurrent
+                        ? style.palette.accentPrimary
+                        : style.palette.textPrimary,
+                      opacity: isCurrent ? wSpring : wSpring * 0.72,
+                      textShadow:
+                        isCurrent && optics.halation > 0.05
+                          ? `0 0 ${Math.round(16 + optics.halation * 28)}px ${style.palette.accentPrimary}88`
+                          : 'none',
+                    }}
+                  >
+                    {formatHeadingText(word, style)}
+                  </span>
+                );
+              }
+
+              return (
+                <span
+                  key={word}
+                  style={{
+                    position: 'relative',
+                    display: 'inline-block',
+                    fontFamily: displayFont,
+                    fontSize: bounds.isVertical ? 64 : 84,
+                    fontWeight: 700,
+                    lineHeight: 1.08,
+                    letterSpacing: `${style.typography.displayTrackingEm}em`,
+                    color: isCurrent
+                      ? style.palette.accentPrimary
+                      : style.palette.textPrimary,
+                    opacity: wSpring,
+                    transform: `translateY(${interpolate(wSpring, [0, 1], [24, 0]).toFixed(2)}px)`,
+                  }}
+                >
+                  {formatHeadingText(word, style)}
+                  {isCurrent && (
+                    <span
+                      style={{
+                        position: 'absolute',
+                        left: 0,
+                        right: 0,
+                        bottom: -4,
+                        height: 4,
+                        backgroundColor: style.palette.accentPrimary,
+                      }}
+                    />
+                  )}
+                </span>
+              );
+            })}
+          </div>
+
+          {/* Bottom Row: Vernier / Risograph Metric Counter + Statement Keyword Card */}
+          <div
+            style={{
+              width: '100%',
+              display: 'flex',
+              flexDirection: bounds.isVertical ? 'column' : 'row',
+              gap: 24,
+              alignItems: bounds.isVertical ? 'stretch' : 'center',
+            }}
+          >
+            <div
+              style={getTactileSurfaceStyle(style, {
+                elevation: 'resting',
+                overrides: {
+                  padding: '22px 30px',
+                  borderRadius:
+                    grammar === 'risograph-poster'
+                      ? 0
+                      : Math.max(0, Math.round(8 * style.surface.radiusScale)),
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 10,
+                  opacity: counterProgress,
+                },
+              })}
+            >
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 16 }}>
+                <span
+                  style={{
+                    fontFamily: displayFont,
+                    fontVariantNumeric: 'tabular-nums',
+                    fontSize: bounds.isVertical ? 52 : 60,
+                    fontWeight: 800,
+                    color: style.palette.accentPrimary,
+                  }}
+                >
+                  {counterVal}%
+                </span>
+                <span
+                  style={{
+                    fontFamily: bodyFont,
+                    fontSize: 20,
+                    fontWeight: 500,
+                    color: style.palette.textSecondary,
+                  }}
+                >
+                  utrzymania uwagi widza
+                </span>
+              </div>
+
+              {grammar === 'risograph-poster' ? (
+                <div
+                  data-risograph-meter="true"
+                  style={{ display: 'flex', gap: 4 }}
+                >
+                  {Array.from({ length: 12 }).map((_, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        flex: 1,
+                        height: 8,
+                        backgroundColor:
+                          idx < Math.round(counterProgress * 12)
+                            ? style.palette.accentPrimary
+                            : style.palette.bgElevated,
+                        border: `1.5px solid ${style.palette.inkBorder}`,
+                      }}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <svg
+                  data-vernier-scale="true"
+                  viewBox="0 0 240 16"
+                  style={{ width: '100%', height: 16 }}
+                >
+                  {Array.from({ length: 21 }).map((_, idx) => {
+                    const x = (idx / 20) * 236 + 2;
+                    const isMajor = idx % 5 === 0;
+                    const active = idx <= litTicks;
+                    return (
+                      <line
+                        key={idx}
+                        x1={x}
+                        y1={isMajor ? 1 : 5}
+                        x2={x}
+                        y2={15}
+                        stroke={
+                          active
+                            ? style.palette.accentPrimary
+                            : style.palette.inkBorder
+                        }
+                        strokeWidth={isMajor ? 2 : 1.2}
+                        opacity={active ? 1 : 0.45}
+                      />
+                    );
+                  })}
+                </svg>
+              )}
+            </div>
+
+            <div
+              style={getTactileSurfaceStyle(style, {
+                elevation: 'lifted',
+                tiltDeg: grammar === 'risograph-poster' ? -0.7 : 0,
+                overrides: {
+                  padding: '22px 30px',
+                  borderRadius:
+                    grammar === 'risograph-poster'
+                      ? 0
+                      : Math.max(0, Math.round(8 * style.surface.radiusScale)),
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 6,
+                  opacity: cardEnter,
+                },
+              })}
+            >
+              <span
+                style={{
+                  fontFamily: monoFont,
+                  fontSize: 13,
+                  fontWeight: 700,
+                  letterSpacing: '0.12em',
+                  color: style.palette.accentPrimary,
+                }}
+              >
+                OPTYKA • 60 FPS
+              </span>
+              <span
+                style={{
+                  fontFamily: displayFont,
+                  fontSize: bounds.isVertical ? 30 : 34,
+                  fontWeight: 800,
+                  color: style.palette.textPrimary,
+                }}
+              >
+                {formatHeadingText('Głębia ostrości i światło', style)}
+              </span>
+            </div>
+          </div>
+        </div>
+      </DepthPlane>
+    </OpticalStage2D>
   );
 };
 
@@ -1248,12 +1776,18 @@ export const StyleLabPreviewComposition: React.FC<StyleLabCompositionProps> = ({
   kit,
 }) => {
   const frame = useCurrentFrame();
+  const usesOpticalStage =
+    kit === 'editorial-collage' || kit === 'kinetic-typography';
 
-  // Deterministic handheld camera drift preview driven by style.motion.cameraHandheld
+  // Deterministic handheld camera drift preview for kits not yet on OpticalStage2D
   const driftX =
-    frame >= 2 ? Math.sin(frame * 0.045) * style.motion.cameraHandheld * 22 : 0;
+    !usesOpticalStage && frame >= 2
+      ? Math.sin(frame * 0.045) * style.motion.cameraHandheld * 22
+      : 0;
   const driftY =
-    frame >= 2 ? Math.cos(frame * 0.035) * style.motion.cameraHandheld * 14 : 0;
+    !usesOpticalStage && frame >= 2
+      ? Math.cos(frame * 0.035) * style.motion.cameraHandheld * 14
+      : 0;
 
   return (
     <StyleProvider style={style} renderBackdrop>
@@ -1266,6 +1800,13 @@ export const StyleLabPreviewComposition: React.FC<StyleLabCompositionProps> = ({
                 : undefined,
           }}
         >
+          {usesOpticalStage && (
+            <StageLightingRig
+              style={style}
+              seed={`style-lab:${kit}`}
+              renderBaseFill={false}
+            />
+          )}
           {kit === 'editorial-collage' && <EditorialCollagePreview />}
           {kit === 'vector-scene-2d' && <VectorScene2DPreview />}
           {kit === 'kinetic-typography' && <KineticTypographyPreview />}

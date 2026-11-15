@@ -5,12 +5,16 @@ import fs from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { Thumbnail } from '@remotion/player';
 import {
   BUILT_IN_STYLE_IDS,
   BUILT_IN_STYLES,
   StylePresetSchema,
+  type BuiltinVisualKitId,
+  type StylePreset,
 } from '../../core/src/index';
 import {
   makePicturesStudioServerPlugin,
@@ -23,6 +27,7 @@ import {
   STYLE_LAB_KITS,
   StudioApp,
   StyleCatalogSidebar,
+  StyleLabPreviewComposition,
   StyleLabShowcase,
   Topbar,
   introspectZodObject,
@@ -305,4 +310,114 @@ test('StyleCatalogSidebar, STYLE_LAB_KITS, and PropsInspector Zod introspection 
       'optics.halation:range',
     ]
   );
+});
+
+test('StyleLabPreviewComposition renders live 60 FPS optical lighting, editorial mounts, and polymorphic kinetic grammars with clean Frame 0', () => {
+  const renderStyleLabFrame = (
+    style: StylePreset,
+    kit: BuiltinVisualKitId,
+    frameToDisplay: number,
+    compositionWidth = 1080,
+    compositionHeight = 1920
+  ): string => {
+    const BoundPreview: React.FC = () =>
+      React.createElement(StyleLabPreviewComposition, { style, kit });
+    return renderToStaticMarkup(
+      React.createElement(Thumbnail, {
+        component: BoundPreview,
+        compositionWidth,
+        compositionHeight,
+        durationInFrames: STYLE_LAB_DURATION_IN_FRAMES,
+        fps: STYLE_LAB_FPS,
+        frameToDisplay,
+      })
+    );
+  };
+
+  const cases = [
+    {
+      styleId: 'editorial-press',
+      expectedRig: 'window-gobo',
+      expectedMount: 'archival-tape',
+      expectedGrammar: 'swiss-spatial',
+    },
+    {
+      styleId: 'archival-chronicle',
+      expectedRig: 'window-gobo',
+      expectedMount: 'photo-corners',
+      expectedGrammar: 'swiss-spatial',
+    },
+    {
+      styleId: 'cyber-telemetry',
+      expectedRig: 'darkroom-halation',
+      expectedMount: 'slide-mount',
+      expectedGrammar: 'optical-gate',
+    },
+    {
+      styleId: 'brutalist-poster',
+      expectedRig: 'darkroom-halation',
+      expectedMount: 'slide-mount',
+      expectedGrammar: 'risograph-poster',
+    },
+    {
+      styleId: 'minimal-product',
+      expectedRig: 'studio-macro',
+      expectedMount: 'none',
+      expectedGrammar: 'swiss-spatial',
+    },
+  ] as const;
+
+  for (const { styleId, expectedRig, expectedMount, expectedGrammar } of cases) {
+    const preset = BUILT_IN_STYLES[styleId];
+
+    // 1. Editorial Collage in Style Lab: Frame 0 must be pure bgCanvas
+    const editorialFrame0 = renderStyleLabFrame(preset, 'editorial-collage', 0);
+    assert.doesNotMatch(editorialFrame0, /ROZDZIAŁ 01/);
+    assert.doesNotMatch(editorialFrame0, /data-lighting-rig=/);
+
+    // Frame 48 (9:16 & 16:9): directional lighting rig, multi-plane Z, mount, and ink-brush active
+    for (const [w, h] of [
+      [1080, 1920],
+      [1920, 1080],
+    ] as const) {
+      const editorialFrame48 = renderStyleLabFrame(
+        preset,
+        'editorial-collage',
+        48,
+        w,
+        h
+      );
+      assert.match(editorialFrame48, new RegExp(`data-lighting-rig="${expectedRig}"`));
+      assert.match(editorialFrame48, new RegExp(`data-mount-type="${expectedMount}"`));
+      assert.match(editorialFrame48, /data-ink-brush="true"/);
+      assert.match(editorialFrame48, /data-depth-z="-0\.65"/);
+    }
+
+    // 2. Kinetic Typography in Style Lab: Frame 0 clean + Frame 48 switches live across 3 grammars
+    const kineticFrame0 = renderStyleLabFrame(preset, 'kinetic-typography', 0);
+    assert.doesNotMatch(kineticFrame0, /Rytm/);
+    assert.doesNotMatch(kineticFrame0, /data-lighting-rig=/);
+
+    const kineticFrame48 = renderStyleLabFrame(preset, 'kinetic-typography', 48);
+    assert.match(kineticFrame48, new RegExp(`data-lighting-rig="${expectedRig}"`));
+    assert.match(
+      kineticFrame48,
+      new RegExp(`data-typography-grammar="${expectedGrammar}"`)
+    );
+    if (expectedGrammar === 'risograph-poster') {
+      assert.match(kineticFrame48, /data-risograph-meter="true"/);
+    } else {
+      assert.match(kineticFrame48, /data-vernier-scale="true"/);
+    }
+  }
+
+  // Peer boundary & determinism guard on StyleLabShowcase.tsx
+  const testDir = path.dirname(fileURLToPath(import.meta.url));
+  const showcaseSrc = fs.readFileSync(
+    path.resolve(testDir, '../../studio/src/client/components/StyleLabShowcase.tsx'),
+    'utf8'
+  );
+  assert.doesNotMatch(showcaseSrc, /@make-pictures\/kits/);
+  assert.doesNotMatch(showcaseSrc, /@react-three\/fiber|from\s+['"]three['"]/);
+  assert.doesNotMatch(showcaseSrc, /Math\.random\s*\(/);
 });
