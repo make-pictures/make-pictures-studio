@@ -292,7 +292,7 @@ test('introspectZodObject supports style-id, textarea, rgba color, string-array,
   assert.equal(byKey.get('cuesMap')?.kind, 'json-value');
 });
 
-test('StylePresetSchema introspection preserves exact 6 Polish sections, 8 palette colors, and recommendedFor tags', () => {
+test('StylePresetSchema introspection preserves exact 7 Polish sections, 8 palette colors, and recommendedFor tags', () => {
   const sections = introspectZodObject(
     StylePresetSchema,
     BUILT_IN_STYLES['editorial-press'] as unknown as Record<string, unknown>
@@ -306,6 +306,7 @@ test('StylePresetSchema introspection preserves exact 6 Polish sections, 8 palet
       'Typografia',
       'Powierzchnia & Tło',
       'Fizyka ruchu',
+      'Optyka & Światło',
       'Domyślne Audio',
     ]
   );
