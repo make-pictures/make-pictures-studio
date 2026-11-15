@@ -6,6 +6,13 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from 'remotion';
+import { useStudioStyle } from '@make-pictures/core';
+import { ContactShadowDisc3D } from '../vfx/StagePostProcessing3D';
+import {
+  computeIsometricLightRig,
+  resolveIsometricMaterialTokens,
+  type IsometricMaterialPreset,
+} from './isometricMaterials';
 
 export interface CharacterGestureWeights {
   shrug?: number;
@@ -20,20 +27,22 @@ export interface Stylized3DCharacterProps {
   position: [number, number, number];
   /** Base Y rotation in radians (0 = facing +Z) */
   rotationY: number;
-  /** Primary suit/body color (e.g. '#2563EB' or '#059669') */
+  /** Primary suit/body color */
   primaryColor: string;
-  /** Secondary glow/visor accent color */
+  /** Secondary accent color */
   accentColor: string;
-  /** Low-pass smoothed syllable energy (0..1) for visor mouth equalizer */
+  /** Low-pass smoothed syllable energy (0..1) for mouth aperture */
   speechEnergy: number;
   /** Smooth turn-level speaking weight (0..1) across the whole sentence */
   speakingWeight: number;
   /** Smooth spring-interpolated gesture weights (0..1) so poses never snap */
   gestureWeights: CharacterGestureWeights;
-  /** Frame when the character enters the scene */
+  /** Frame when the character enters the scene (default 2) */
   enterFrame?: number;
   /** Smoothly interpolated head yaw offset (rad) */
   headYawOffset?: number;
+  /** Optional explicit maquette finish override */
+  materialPreset?: IsometricMaterialPreset;
 }
 
 export const Stylized3DCharacter: React.FC<Stylized3DCharacterProps> = ({
@@ -46,12 +55,22 @@ export const Stylized3DCharacter: React.FC<Stylized3DCharacterProps> = ({
   gestureWeights,
   enterFrame = 2,
   headYawOffset = 0,
+  materialPreset,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+  const studioStyle = useStudioStyle();
+
+  const effectiveEnter = Math.max(2, enterFrame);
+  if (frame <= 0 || frame < effectiveEnter) {
+    return null;
+  }
+
+  const mat = resolveIsometricMaterialTokens(studioStyle, materialPreset);
+  const lightRig = computeIsometricLightRig(studioStyle);
 
   const enterProgress = spring({
-    frame: frame - enterFrame,
+    frame: frame - effectiveEnter,
     fps,
     config: { damping: 200, stiffness: 55, mass: 1.2 },
   });
@@ -62,6 +81,7 @@ export const Stylized3DCharacter: React.FC<Stylized3DCharacterProps> = ({
   const isCelebrate = gestureWeights.celebrate ?? 0;
   const isNod = gestureWeights.listenNod ?? 0;
 
+  const talkBounce = 0;
   const breath = Math.sin(frame * 0.038) * 0.012;
   const talkCadenceA = Math.sin(frame * 0.048) * speakingWeight;
   const talkCadenceB = Math.cos(frame * 0.038) * speakingWeight;
@@ -72,8 +92,7 @@ export const Stylized3DCharacter: React.FC<Stylized3DCharacterProps> = ({
     isNod * Math.sin(frame * 0.055) * 0.045 +
     isShrug * -0.06;
   const headRoll =
-    isShrug * 0.1 +
-    Math.sin(frame * 0.042) * 0.03 * speakingWeight;
+    isShrug * 0.1 + Math.sin(frame * 0.042) * 0.03 * speakingWeight;
   const headYaw =
     headYawOffset + Math.cos(frame * 0.036) * 0.035 * speakingWeight;
 
@@ -125,17 +144,19 @@ export const Stylized3DCharacter: React.FC<Stylized3DCharacterProps> = ({
   const torsoYaw = isPresentL * 0.12 - isPresentR * 0.12;
 
   const scale = interpolate(enterProgress, [0, 1], [0.001, 1]);
-  const auraScale = 1 + speakingWeight * 0.08;
+  const ringScale = 1 + speakingWeight * 0.05;
   const clampedSpeak = Math.max(0, Math.min(1, speakingWeight));
+  const clampedEnergy = Math.max(0, Math.min(1, speechEnergy));
+
   const floorRingColor = interpolateColors(
     clampedSpeak,
     [0, 1],
-    [primaryColor, accentColor]
+    [mat.jointColor, accentColor]
   );
-  const activeWhiteMix = interpolateColors(
+  const activeSignalMix = interpolateColors(
     clampedSpeak,
     [0, 1],
-    [accentColor, '#FFFFFF']
+    [accentColor, mat.eyeHighlightColor]
   );
 
   return (
@@ -144,216 +165,401 @@ export const Stylized3DCharacter: React.FC<Stylized3DCharacterProps> = ({
       rotation={[0, rotationY, 0]}
       scale={[scale, scale, scale]}
     >
+      {/* Grounded Contact Shadow Disc (y = 0.012, polygonOffset) */}
+      <ContactShadowDisc3D
+        position={[0, 0.012, 0]}
+        radius={0.62}
+        opacity={lightRig.contactShadowOpacity}
+        color={lightRig.contactShadowColor}
+      />
+
+      {/* Calibrated Inlaid Speaker Plinth Ring (y = 0.018 — physically shaded, zero neon glow) */}
       <mesh
-        position={[0, 0.02, 0]}
+        position={[0, 0.018, 0]}
         rotation={[-Math.PI / 2, 0, 0]}
-        scale={[auraScale, auraScale, 1]}
+        scale={[ringScale, ringScale, 1]}
       >
-        <ringGeometry args={[0.42, 0.56, 48]} />
-        <meshBasicMaterial
+        <ringGeometry args={[0.46, 0.515, 48]} />
+        <meshStandardMaterial
           color={floorRingColor}
+          roughness={mat.roughness}
+          metalness={mat.metalness}
           transparent
-          opacity={0.26 + speakingWeight * 0.46}
-        />
-      </mesh>
-      <mesh position={[0, 0.015, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <circleGeometry args={[0.42, 48]} />
-        <meshBasicMaterial
-          color={primaryColor}
-          transparent
-          opacity={0.08 + speakingWeight * 0.14}
+          opacity={0.26 + clampedSpeak * mat.outlineRingOpacity}
         />
       </mesh>
 
+      {/* Left Leg */}
       <group position={[-0.16, 0.9, 0]}>
-        <mesh>
-          <sphereGeometry args={[0.085, 24, 24]} />
-          <meshStandardMaterial color="#1E293B" roughness={0.35} metalness={0.4} />
+        <mesh castShadow>
+          <cylinderGeometry args={[0.076, 0.076, 0.09, 20]} />
+          <meshStandardMaterial
+            color={mat.jointColor}
+            roughness={mat.limbRoughness}
+            metalness={mat.limbMetalness}
+          />
         </mesh>
-        <mesh position={[0, -0.22, 0]}>
-          <capsuleGeometry args={[0.075, 0.28, 16, 24]} />
-          <meshStandardMaterial color="#334155" roughness={0.3} metalness={0.2} />
+        <mesh position={[0, -0.22, 0]} castShadow>
+          <capsuleGeometry args={[0.074, 0.28, 16, 24]} />
+          <meshStandardMaterial
+            color={mat.limbColor}
+            roughness={mat.limbRoughness}
+            metalness={mat.limbMetalness}
+          />
         </mesh>
-        <mesh position={[0, -0.44, 0]}>
-          <sphereGeometry args={[0.08, 24, 24]} />
-          <meshStandardMaterial color={accentColor} roughness={0.25} metalness={0.3} />
+        <mesh position={[0, -0.44, 0]} castShadow>
+          <cylinderGeometry args={[0.072, 0.072, 0.08, 20]} />
+          <meshStandardMaterial
+            color={mat.jointColor}
+            roughness={mat.limbRoughness}
+            metalness={mat.limbMetalness}
+          />
         </mesh>
-        <mesh position={[0, -0.66, 0]}>
-          <capsuleGeometry args={[0.068, 0.28, 16, 24]} />
-          <meshStandardMaterial color="#334155" roughness={0.3} metalness={0.2} />
+        <mesh position={[0, -0.66, 0]} castShadow>
+          <capsuleGeometry args={[0.066, 0.28, 16, 24]} />
+          <meshStandardMaterial
+            color={mat.limbColor}
+            roughness={mat.limbRoughness}
+            metalness={mat.limbMetalness}
+          />
         </mesh>
-        <mesh position={[0, -0.84, 0.06]} rotation={[Math.PI / 2, 0, 0]}>
-          <capsuleGeometry args={[0.075, 0.12, 16, 24]} />
-          <meshStandardMaterial color="#F8FAFC" roughness={0.2} metalness={0.1} />
+        <mesh
+          position={[0, -0.84, 0.05]}
+          rotation={[Math.PI / 2, 0, 0]}
+          castShadow
+        >
+          <capsuleGeometry args={[0.072, 0.12, 16, 24]} />
+          <meshStandardMaterial
+            color={mat.shoeColor}
+            roughness={mat.roughness}
+            metalness={mat.metalness}
+          />
         </mesh>
       </group>
 
+      {/* Right Leg */}
       <group position={[0.16, 0.9, 0]}>
-        <mesh>
-          <sphereGeometry args={[0.085, 24, 24]} />
-          <meshStandardMaterial color="#1E293B" roughness={0.35} metalness={0.4} />
+        <mesh castShadow>
+          <cylinderGeometry args={[0.076, 0.076, 0.09, 20]} />
+          <meshStandardMaterial
+            color={mat.jointColor}
+            roughness={mat.limbRoughness}
+            metalness={mat.limbMetalness}
+          />
         </mesh>
-        <mesh position={[0, -0.22, 0]}>
-          <capsuleGeometry args={[0.075, 0.28, 16, 24]} />
-          <meshStandardMaterial color="#334155" roughness={0.3} metalness={0.2} />
+        <mesh position={[0, -0.22, 0]} castShadow>
+          <capsuleGeometry args={[0.074, 0.28, 16, 24]} />
+          <meshStandardMaterial
+            color={mat.limbColor}
+            roughness={mat.limbRoughness}
+            metalness={mat.limbMetalness}
+          />
         </mesh>
-        <mesh position={[0, -0.44, 0]}>
-          <sphereGeometry args={[0.08, 24, 24]} />
-          <meshStandardMaterial color={accentColor} roughness={0.25} metalness={0.3} />
+        <mesh position={[0, -0.44, 0]} castShadow>
+          <cylinderGeometry args={[0.072, 0.072, 0.08, 20]} />
+          <meshStandardMaterial
+            color={mat.jointColor}
+            roughness={mat.limbRoughness}
+            metalness={mat.limbMetalness}
+          />
         </mesh>
-        <mesh position={[0, -0.66, 0]}>
-          <capsuleGeometry args={[0.068, 0.28, 16, 24]} />
-          <meshStandardMaterial color="#334155" roughness={0.3} metalness={0.2} />
+        <mesh position={[0, -0.66, 0]} castShadow>
+          <capsuleGeometry args={[0.066, 0.28, 16, 24]} />
+          <meshStandardMaterial
+            color={mat.limbColor}
+            roughness={mat.limbRoughness}
+            metalness={mat.limbMetalness}
+          />
         </mesh>
-        <mesh position={[0, -0.84, 0.06]} rotation={[Math.PI / 2, 0, 0]}>
-          <capsuleGeometry args={[0.075, 0.12, 16, 24]} />
-          <meshStandardMaterial color="#F8FAFC" roughness={0.2} metalness={0.1} />
+        <mesh
+          position={[0, -0.84, 0.05]}
+          rotation={[Math.PI / 2, 0, 0]}
+          castShadow
+        >
+          <capsuleGeometry args={[0.072, 0.12, 16, 24]} />
+          <meshStandardMaterial
+            color={mat.shoeColor}
+            roughness={mat.roughness}
+            metalness={mat.metalness}
+          />
         </mesh>
       </group>
 
+      {/* Chamfered Sculptural Torso + Arms + Maquette Bust Head */}
       <group
-        position={[0, 0.94 + breath, 0]}
+        position={[0, 0.94 + breath + talkBounce, 0]}
         rotation={[torsoPitch, torsoYaw, 0]}
       >
-        <mesh position={[0, 0.06, 0]}>
-          <cylinderGeometry args={[0.21, 0.19, 0.12, 32]} />
-          <meshStandardMaterial color="#1E293B" roughness={0.35} metalness={0.45} />
-        </mesh>
-
-        <mesh position={[0, 0.44, 0]}>
-          <capsuleGeometry args={[0.25, 0.42, 24, 32]} />
+        <mesh position={[0, 0.06, 0]} castShadow>
+          <cylinderGeometry args={[0.21, 0.19, 0.12, 24]} />
           <meshStandardMaterial
-            color={primaryColor}
-            roughness={0.24}
-            metalness={0.18}
+            color={mat.jointColor}
+            roughness={mat.limbRoughness}
+            metalness={mat.limbMetalness}
           />
         </mesh>
 
-        <mesh position={[0, 0.48, 0.245]}>
-          <sphereGeometry args={[0.068, 24, 24]} />
-          <meshBasicMaterial color={activeWhiteMix} />
-        </mesh>
-        <mesh position={[0, 0.48, 0.235]}>
-          <ringGeometry args={[0.075, 0.105, 32]} />
-          <meshBasicMaterial color={accentColor} />
-        </mesh>
-
-        <mesh position={[0, 0.84, 0]}>
-          <cylinderGeometry args={[0.16, 0.2, 0.08, 32]} />
-          <meshStandardMaterial color="#E2E8F0" roughness={0.2} metalness={0.6} />
+        {/* Tapered Chamfered Architectural Mantle */}
+        <mesh position={[0, 0.42, 0]} castShadow>
+          <cylinderGeometry args={[0.255, 0.205, 0.52, 12]} />
+          <meshStandardMaterial
+            color={primaryColor}
+            roughness={mat.roughness}
+            metalness={mat.metalness}
+          />
         </mesh>
 
+        {/* Sculpted Upper Shoulder Yoke */}
+        <mesh position={[0, 0.45, 0]} castShadow>
+          <capsuleGeometry args={[0.235, 0.34, 16, 24]} />
+          <meshStandardMaterial
+            color={primaryColor}
+            roughness={mat.roughness}
+            metalness={mat.metalness}
+          />
+        </mesh>
+
+        {/* Subtle Chest Lapel / Telemetry Badge */}
+        <mesh position={[0, 0.54, 0.256]}>
+          <boxGeometry args={[0.14, 0.034, 0.018]} />
+          <meshStandardMaterial
+            color={activeSignalMix}
+            roughness={mat.roughness}
+            metalness={mat.metalness}
+            transparent
+            opacity={0.48 + clampedSpeak * 0.52}
+          />
+        </mesh>
+
+        {/* Architectural Collar Ring */}
+        <mesh position={[0, 0.84, 0]} castShadow>
+          <cylinderGeometry args={[0.165, 0.21, 0.085, 24]} />
+          <meshStandardMaterial
+            color={mat.collarColor}
+            roughness={mat.roughness}
+            metalness={mat.metalness}
+          />
+        </mesh>
+
+        {/* Left Arm */}
         <group
-          position={[-0.34, 0.72, 0]}
+          position={[-0.33, 0.72, 0]}
           rotation={[leftShoulderX, 0, leftShoulderZ]}
         >
-          <mesh>
-            <sphereGeometry args={[0.095, 24, 24]} />
-            <meshStandardMaterial color="#F8FAFC" roughness={0.2} metalness={0.3} />
+          <mesh rotation={[0, 0, Math.PI / 2]} castShadow>
+            <cylinderGeometry args={[0.082, 0.082, 0.08, 20]} />
+            <meshStandardMaterial
+              color={mat.collarColor}
+              roughness={mat.roughness}
+              metalness={mat.metalness}
+            />
           </mesh>
-          <mesh position={[0, -0.19, 0]}>
-            <capsuleGeometry args={[0.068, 0.24, 16, 24]} />
-            <meshStandardMaterial color={primaryColor} roughness={0.25} metalness={0.15} />
+          <mesh position={[0, -0.19, 0]} castShadow>
+            <capsuleGeometry args={[0.066, 0.24, 16, 24]} />
+            <meshStandardMaterial
+              color={primaryColor}
+              roughness={mat.roughness}
+              metalness={mat.metalness}
+            />
           </mesh>
           <group position={[0, -0.38, 0]} rotation={[leftElbowX, 0, 0]}>
-            <mesh>
-              <sphereGeometry args={[0.078, 24, 24]} />
-              <meshStandardMaterial color={accentColor} roughness={0.25} metalness={0.3} />
+            <mesh rotation={[0, 0, Math.PI / 2]} castShadow>
+              <cylinderGeometry args={[0.068, 0.068, 0.075, 20]} />
+              <meshStandardMaterial
+                color={mat.jointColor}
+                roughness={mat.limbRoughness}
+                metalness={mat.limbMetalness}
+              />
             </mesh>
-            <mesh position={[0, -0.18, 0]}>
-              <capsuleGeometry args={[0.062, 0.22, 16, 24]} />
-              <meshStandardMaterial color="#F8FAFC" roughness={0.22} metalness={0.1} />
+            <mesh position={[0, -0.18, 0]} castShadow>
+              <capsuleGeometry args={[0.06, 0.22, 16, 24]} />
+              <meshStandardMaterial
+                color={mat.limbColor}
+                roughness={mat.limbRoughness}
+                metalness={mat.limbMetalness}
+              />
             </mesh>
-            <mesh position={[0, -0.36, 0]}>
-              <sphereGeometry args={[0.092, 24, 24]} />
-              <meshStandardMaterial color="#FFFFFF" roughness={0.18} metalness={0.1} />
+            <mesh
+              position={[0, -0.355, 0]}
+              scale={[0.82, 1, 1.08]}
+              castShadow
+            >
+              <capsuleGeometry args={[0.054, 0.055, 12, 18]} />
+              <meshStandardMaterial
+                color={mat.headColor}
+                roughness={mat.roughness}
+                metalness={mat.metalness}
+              />
             </mesh>
           </group>
         </group>
 
+        {/* Right Arm */}
         <group
-          position={[0.34, 0.72, 0]}
+          position={[0.33, 0.72, 0]}
           rotation={[rightShoulderX, 0, rightShoulderZ]}
         >
-          <mesh>
-            <sphereGeometry args={[0.095, 24, 24]} />
-            <meshStandardMaterial color="#F8FAFC" roughness={0.2} metalness={0.3} />
+          <mesh rotation={[0, 0, Math.PI / 2]} castShadow>
+            <cylinderGeometry args={[0.082, 0.082, 0.08, 20]} />
+            <meshStandardMaterial
+              color={mat.collarColor}
+              roughness={mat.roughness}
+              metalness={mat.metalness}
+            />
           </mesh>
-          <mesh position={[0, -0.19, 0]}>
-            <capsuleGeometry args={[0.068, 0.24, 16, 24]} />
-            <meshStandardMaterial color={primaryColor} roughness={0.25} metalness={0.15} />
+          <mesh position={[0, -0.19, 0]} castShadow>
+            <capsuleGeometry args={[0.066, 0.24, 16, 24]} />
+            <meshStandardMaterial
+              color={primaryColor}
+              roughness={mat.roughness}
+              metalness={mat.metalness}
+            />
           </mesh>
           <group position={[0, -0.38, 0]} rotation={[rightElbowX, 0, 0]}>
-            <mesh>
-              <sphereGeometry args={[0.078, 24, 24]} />
-              <meshStandardMaterial color={accentColor} roughness={0.25} metalness={0.3} />
+            <mesh rotation={[0, 0, Math.PI / 2]} castShadow>
+              <cylinderGeometry args={[0.068, 0.068, 0.075, 20]} />
+              <meshStandardMaterial
+                color={mat.jointColor}
+                roughness={mat.limbRoughness}
+                metalness={mat.limbMetalness}
+              />
             </mesh>
-            <mesh position={[0, -0.18, 0]}>
-              <capsuleGeometry args={[0.062, 0.22, 16, 24]} />
-              <meshStandardMaterial color="#F8FAFC" roughness={0.22} metalness={0.1} />
+            <mesh position={[0, -0.18, 0]} castShadow>
+              <capsuleGeometry args={[0.06, 0.22, 16, 24]} />
+              <meshStandardMaterial
+                color={mat.limbColor}
+                roughness={mat.limbRoughness}
+                metalness={mat.limbMetalness}
+              />
             </mesh>
-            <mesh position={[0, -0.36, 0]}>
-              <sphereGeometry args={[0.092, 24, 24]} />
-              <meshStandardMaterial color="#FFFFFF" roughness={0.18} metalness={0.1} />
+            <mesh
+              position={[0, -0.355, 0]}
+              scale={[0.82, 1, 1.08]}
+              castShadow
+            >
+              <capsuleGeometry args={[0.054, 0.055, 12, 18]} />
+              <meshStandardMaterial
+                color={mat.headColor}
+                roughness={mat.roughness}
+                metalness={mat.metalness}
+              />
             </mesh>
           </group>
         </group>
 
+        {/* Polymorphic Sculpted Maquette Bust Head (zero spherical globes, zero ear muffs) */}
         <group
-          position={[0, 1.24 + Math.sin(frame * 0.038 - 0.4) * 0.008, 0]}
+          position={[0, 1.21 + Math.sin(frame * 0.038 - 0.4) * 0.008, 0]}
           rotation={[headPitch, headYaw, headRoll]}
         >
-          <mesh>
-            <sphereGeometry args={[0.31, 36, 36]} />
+          <mesh scale={[0.96, 1, 0.94]} castShadow>
+            <capsuleGeometry args={[0.265, 0.11, 20, 32]} />
             <meshStandardMaterial
-              color="#FFFFFF"
-              roughness={0.18}
-              metalness={0.08}
+              color={mat.headColor}
+              roughness={mat.roughness}
+              metalness={mat.metalness}
             />
           </mesh>
 
-          <mesh position={[-0.3, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
-            <cylinderGeometry args={[0.09, 0.09, 0.05, 24]} />
-            <meshStandardMaterial color={primaryColor} roughness={0.25} metalness={0.3} />
-          </mesh>
-          <mesh position={[0.3, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
-            <cylinderGeometry args={[0.09, 0.09, 0.05, 24]} />
-            <meshStandardMaterial color={primaryColor} roughness={0.25} metalness={0.3} />
-          </mesh>
-
-          <mesh position={[0, 0.02, 0.165]} scale={[0.86, 0.62, 0.68]}>
-            <sphereGeometry args={[0.295, 32, 32]} />
+          {/* Chamfered Cranial Crown Bevel */}
+          <mesh position={[0, 0.24, 0]} castShadow>
+            <cylinderGeometry args={[0.185, 0.225, 0.055, 12]} />
             <meshStandardMaterial
-              color="#090D16"
-              roughness={0.1}
-              metalness={0.35}
+              color={mat.headColor}
+              roughness={mat.roughness}
+              metalness={mat.metalness}
             />
           </mesh>
 
-          <mesh position={[-0.095, 0.055, 0.355]}>
-            <capsuleGeometry args={[0.028, 0.032, 12, 16]} />
-            <meshBasicMaterial color={accentColor} />
-          </mesh>
-          <mesh position={[0.095, 0.055, 0.355]}>
-            <capsuleGeometry args={[0.028, 0.032, 12, 16]} />
-            <meshBasicMaterial color={accentColor} />
-          </mesh>
-
-          {[-0.055, 0, 0.055].map((xOff, idx) => {
-            const barHeight =
-              0.012 +
-              speechEnergy * (idx === 1 ? 0.046 : 0.028);
-            return (
-              <mesh
-                key={idx}
-                position={[xOff, -0.032, 0.358]}
-                scale={[1, barHeight / 0.012, 1]}
-              >
-                <boxGeometry args={[0.026, 0.012, 0.016]} />
-                <meshBasicMaterial color={activeWhiteMix} />
+          {mat.visorStyle === 'sculpted-band' ? (
+            <>
+              {/* Architectural brow horizon bar + calm acoustic slit */}
+              <mesh position={[0, 0.042, 0.252]}>
+                <boxGeometry args={[0.28, 0.03, 0.028]} />
+                <meshStandardMaterial
+                  color={accentColor}
+                  roughness={mat.roughness}
+                  metalness={mat.metalness}
+                />
               </mesh>
-            );
-          })}
+              <mesh
+                position={[0, -0.042, 0.254]}
+                scale={[1, 1 + clampedEnergy * 2.4, 1]}
+              >
+                <boxGeometry args={[0.125, 0.014, 0.022]} />
+                <meshBasicMaterial
+                  color={mat.visorColor}
+                  transparent
+                  opacity={0.45 + clampedSpeak * 0.55}
+                />
+              </mesh>
+            </>
+          ) : mat.visorStyle === 'slit-visor' ? (
+            <>
+              {/* Anodized recessed telemetry slit visor + 3 precision bars */}
+              <mesh position={[0, 0.022, 0.244]}>
+                <boxGeometry args={[0.34, 0.094, 0.036]} />
+                <meshStandardMaterial
+                  color={mat.visorColor}
+                  roughness={0.18}
+                  metalness={0.45}
+                />
+              </mesh>
+              <mesh position={[0, 0.054, 0.264]}>
+                <boxGeometry args={[0.24, 0.018, 0.014]} />
+                <meshBasicMaterial
+                  color={accentColor}
+                  transparent
+                  opacity={0.55 + clampedSpeak * 0.45}
+                />
+              </mesh>
+              {[-0.05, 0, 0.05].map((xOff, idx) => {
+                const barH =
+                  0.01 + clampedEnergy * (idx === 1 ? 0.042 : 0.026);
+                return (
+                  <mesh
+                    key={idx}
+                    position={[xOff, -0.008, 0.266]}
+                    scale={[1, barH / 0.01, 1]}
+                  >
+                    <boxGeometry args={[0.024, 0.01, 0.012]} />
+                    <meshBasicMaterial color={activeSignalMix} />
+                  </mesh>
+                );
+              })}
+            </>
+          ) : (
+            <>
+              {/* Graphic ink-mask plate for brutalist / craft / sketch */}
+              <mesh position={[0, 0.032, 0.248]}>
+                <boxGeometry args={[0.325, 0.086, 0.032]} />
+                <meshStandardMaterial
+                  color={mat.visorColor}
+                  roughness={0.94}
+                  metalness={0.02}
+                />
+              </mesh>
+              <mesh position={[-0.072, 0.032, 0.266]}>
+                <boxGeometry args={[0.044, 0.024, 0.012]} />
+                <meshBasicMaterial color={mat.eyeHighlightColor} />
+              </mesh>
+              <mesh position={[0.072, 0.032, 0.266]}>
+                <boxGeometry args={[0.044, 0.024, 0.012]} />
+                <meshBasicMaterial color={mat.eyeHighlightColor} />
+              </mesh>
+              <mesh
+                position={[0, -0.052, 0.25]}
+                scale={[
+                  0.75 + clampedEnergy * 0.55,
+                  1 + clampedEnergy * 2.1,
+                  1,
+                ]}
+              >
+                <boxGeometry args={[0.118, 0.018, 0.02]} />
+                <meshBasicMaterial color={accentColor} />
+              </mesh>
+            </>
+          )}
         </group>
       </group>
     </group>

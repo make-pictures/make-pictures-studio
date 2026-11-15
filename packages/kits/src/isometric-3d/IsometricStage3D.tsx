@@ -1,11 +1,20 @@
-import React from 'react';
+import React, { useMemo } from 'react';
+import { useCurrentFrame } from 'remotion';
 import { useStudioStyle } from '@make-pictures/core';
+import {
+  ContactShadowDisc3D,
+  StagePostProcessing3D,
+} from '../vfx/StagePostProcessing3D';
+import { computeIsometricLightRig } from './isometricMaterials';
 
 export interface IsometricStage3DProps {
   radius?: number;
   showGrid?: boolean;
   accentColor?: string;
   surfaceColor?: string;
+  /** Render atmospheric volumetric light cones on window-gobo / darkroom-halation rigs */
+  atmosphericBeams?: boolean;
+  seed?: number;
   children?: React.ReactNode;
 }
 
@@ -14,47 +23,149 @@ export const IsometricStage3D: React.FC<IsometricStage3DProps> = ({
   showGrid = true,
   accentColor,
   surfaceColor,
+  atmosphericBeams,
+  seed = 303,
   children,
 }) => {
+  const frame = useCurrentFrame();
   const style = useStudioStyle();
+
+  const degreeTicks = useMemo(
+    () =>
+      Array.from({ length: 24 }, (_, idx) => {
+        const angle = (idx / 24) * Math.PI * 2;
+        const isCardinal = idx % 6 === 0;
+        const tickLen = isCardinal ? radius * 0.075 : radius * 0.04;
+        const rMid = radius * 0.91 - tickLen * 0.5;
+        return {
+          idx,
+          x: Math.cos(angle) * rMid,
+          z: Math.sin(angle) * rMid,
+          rotY: -angle,
+          len: tickLen,
+          width: isCardinal ? 0.045 : 0.022,
+          isCardinal,
+        };
+      }),
+    [radius]
+  );
+
+  // Clean Frame 0 invariant
+  if (frame <= 0) {
+    return null;
+  }
+
   const resolvedSurface = surfaceColor ?? style.palette.bgSurface;
   const resolvedAccent = accentColor ?? style.palette.accentPrimary;
+  const lightRig = computeIsometricLightRig(style);
+  const showBeams = atmosphericBeams ?? lightRig.enableBeamsByDefault;
 
   return (
-    <group>
-      <ambientLight intensity={style.surface.isDark ? 0.65 : 0.9} />
+    <group name="isometric-stage-3d">
+      <ambientLight intensity={lightRig.ambientIntensity} />
       <directionalLight
-        position={[7, 12, 8]}
-        intensity={style.surface.isDark ? 1.25 : 1.05}
+        position={lightRig.keyPosition}
+        intensity={lightRig.keyIntensity}
+        color={lightRig.keyColor}
         castShadow
       />
       <pointLight
-        position={[-5, 4, -4]}
-        intensity={0.55}
-        color={style.palette.accentSecondary}
+        position={lightRig.rimPosition}
+        intensity={lightRig.rimIntensity}
+        color={lightRig.rimColor}
+      />
+      <pointLight
+        position={lightRig.fillPosition}
+        intensity={lightRig.fillIntensity}
+        color={style.palette.bgElevated}
       />
 
-      {/* Base platform */}
-      <mesh position={[0, -0.18, 0]} receiveShadow>
-        <cylinderGeometry args={[radius, radius * 1.04, 0.32, 48]} />
-        <meshStandardMaterial color={resolvedSurface} roughness={0.82} />
+      <StagePostProcessing3D
+        fogColor={style.palette.bgCanvas}
+        fogDensity={0.012}
+        spotlightBeams={showBeams ? 2 : 0}
+        beamOrigin={lightRig.beamOrigin}
+        beamColor={lightRig.beamColor}
+        beamOpacity={lightRig.beamOpacity}
+        depthHaze={false}
+        seed={seed}
+      />
+
+      {/* Grounded Contact Shadow Disc under Architectural Plinth */}
+      <ContactShadowDisc3D
+        position={[0, -0.382, 0]}
+        radius={radius * 1.16}
+        opacity={lightRig.contactShadowOpacity * 0.85}
+        color={lightRig.contactShadowColor}
+      />
+
+      {/* Lower Architectural Plinth Tier (chamfered frustum) */}
+      <mesh position={[0, -0.24, 0]} receiveShadow>
+        <cylinderGeometry args={[radius * 1.05, radius * 1.09, 0.28, 64]} />
+        <meshStandardMaterial
+          color={style.palette.bgElevated}
+          roughness={0.86}
+          metalness={0.04}
+        />
       </mesh>
 
-      {/* Accent rim */}
-      <mesh position={[0, -0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[radius * 0.94, radius * 0.985, 64]} />
-        <meshBasicMaterial color={resolvedAccent} transparent opacity={0.65} />
+      {/* Upper Calibrated Turntable Deck (chamfered bevel) */}
+      <mesh position={[0, -0.06, 0]} receiveShadow>
+        <cylinderGeometry args={[radius, radius * 1.02, 0.12, 64]} />
+        <meshStandardMaterial
+          color={resolvedSurface}
+          roughness={0.8}
+          metalness={0.04}
+        />
       </mesh>
+
+      {/* Outer Accent Rim (y = 0.004) */}
+      <mesh position={[0, 0.004, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[radius * 0.955, radius * 0.99, 64]} />
+        <meshStandardMaterial
+          color={resolvedAccent}
+          roughness={0.72}
+          metalness={0.08}
+          transparent
+          opacity={0.72}
+        />
+      </mesh>
+
+      {/* Inner Calibration Track (y = 0.006) */}
+      <mesh position={[0, 0.006, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[radius * 0.915, radius * 0.928, 64]} />
+        <meshBasicMaterial
+          color={style.palette.inkBorder}
+          transparent
+          opacity={0.48}
+        />
+      </mesh>
+
+      {/* 24 Angular Degree Ticks (y = 0.009 — distinct Y plane, zero Z-fighting) */}
+      {degreeTicks.map((t) => (
+        <mesh
+          key={t.idx}
+          position={[t.x, 0.009, t.z]}
+          rotation={[-Math.PI / 2, 0, t.rotY]}
+        >
+          <planeGeometry args={[t.len, t.width]} />
+          <meshBasicMaterial
+            color={t.isCardinal ? resolvedAccent : style.palette.inkBorder}
+            transparent
+            opacity={t.isCardinal ? 0.82 : 0.42}
+          />
+        </mesh>
+      ))}
 
       {showGrid ? (
         <gridHelper
           args={[
-            radius * 1.65,
-            12,
+            radius * 1.32,
+            10,
             resolvedAccent,
             style.palette.inkBorder,
           ]}
-          position={[0, 0.005, 0]}
+          position={[0, 0.002, 0]}
         />
       ) : null}
 
