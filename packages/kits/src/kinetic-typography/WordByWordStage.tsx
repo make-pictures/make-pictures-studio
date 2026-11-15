@@ -14,9 +14,11 @@ import {
   formatHeadingText,
   getSceneVoiceover,
   getStyleSpringConfig,
+  resolveStyleOptics,
   useStudioFontsReady,
   useStudioStyle,
   type SceneVoiceoverData,
+  type StyleTypographyGrammar,
   type WordTimestamp,
 } from '@make-pictures/core';
 
@@ -39,11 +41,13 @@ export interface WordByWordStageProps {
   sceneStartFrame?: number;
   /** Target words per visual beat (`3..5` recommended, default `4`) */
   wordsPerBeat?: number;
-  /** Highlight pill accent color (defaults to `studioStyle.palette.accentPrimary`) */
+  /** Typographic choreography grammar (defaults to `studioStyle.optics.typographyGrammar`) */
+  grammar?: StyleTypographyGrammar;
+  /** Primary accent color (defaults to `studioStyle.palette.accentPrimary`) */
   accentColor?: string;
   /** Surface styling mode (`'transparent'` overlays 2D/3D stage cleanly) */
   variant?: 'dark' | 'light' | 'transparent';
-  /** Optional top category pill */
+  /** Optional editorial index / category label */
   eyebrow?: string;
   /** Optional explicit headline font size in px */
   fontSize?: number;
@@ -68,12 +72,18 @@ function buildFallbackWords(
   if (tokens.length === 0) return [];
 
   const usableStart = Math.min(12, Math.floor(durationInFrames * 0.08));
-  const usableSpan = Math.max(tokens.length * 6, durationInFrames - usableStart - 16);
+  const usableSpan = Math.max(
+    tokens.length * 6,
+    durationInFrames - usableStart - 16
+  );
   const perWord = usableSpan / tokens.length;
 
   return tokens.map((token, idx) => {
     const sf = Math.round(usableStart + idx * perWord);
-    const ef = Math.max(sf + 4, Math.round(usableStart + (idx + 0.86) * perWord));
+    const ef = Math.max(
+      sf + 4,
+      Math.round(usableStart + (idx + 0.86) * perWord)
+    );
     return {
       word: token,
       normalizedWord: token
@@ -107,17 +117,21 @@ export function groupWordsIntoBeats(
     if (!bucket.length) return;
     beats.push({
       words: bucket,
-      startFrame: bucket[0].startFrame,
-      endFrame: bucket[bucket.length - 1].endFrame,
+      startFrame: bucket[0]!.startFrame,
+      endFrame: bucket[bucket.length - 1]!.endFrame,
     });
     bucket = [];
   };
 
   for (let i = 0; i < words.length; i++) {
-    const curr = words[i];
+    const curr = words[i]!;
     const prev = bucket[bucket.length - 1];
 
-    if (prev && curr.startFrame - prev.endFrame >= pauseThresholdFrames && bucket.length >= 2) {
+    if (
+      prev &&
+      curr.startFrame - prev.endFrame >= pauseThresholdFrames &&
+      bucket.length >= 2
+    ) {
       flush();
     }
 
@@ -126,7 +140,11 @@ export function groupWordsIntoBeats(
     const endsSentence = /[.!?;:—]$/.test(curr.word);
     const endsClause = /[,–]$/.test(curr.word) && bucket.length >= 3;
 
-    if (bucket.length >= maxWords || (endsSentence && bucket.length >= 2) || endsClause) {
+    if (
+      bucket.length >= maxWords ||
+      (endsSentence && bucket.length >= 2) ||
+      endsClause
+    ) {
       flush();
     }
   }
@@ -136,9 +154,8 @@ export function groupWordsIntoBeats(
 }
 
 /**
- * Rhythmic 60 FPS Kinetic Typography spotlight synced to `WordTimestamp[]`.
- * Features damped active-word scale pop, glowing pill highlight, smart 3–5 word phrase beats,
- * and automatic `9:16 Golden Safe Box` (`x ∈ [40, 910], y ∈ [220, 1380]`) framing.
+ * Polymorphic 60 FPS Film Typography stage (`swiss-spatial`, `optical-gate`, `risograph-poster`).
+ * Syncs multi-beat phrase depth, rack focus, and ink/gate/cutout emphasis directly to `WordTimestamp[]`.
  */
 export const WordByWordStage: React.FC<WordByWordStageProps> = ({
   words,
@@ -147,6 +164,7 @@ export const WordByWordStage: React.FC<WordByWordStageProps> = ({
   fallbackText,
   sceneStartFrame = 0,
   wordsPerBeat = 4,
+  grammar,
   accentColor,
   variant,
   eyebrow,
@@ -160,8 +178,11 @@ export const WordByWordStage: React.FC<WordByWordStageProps> = ({
   const { fps, width, height, durationInFrames } = useVideoConfig();
   useStudioFontsReady();
   const studioStyle = useStudioStyle();
+  const optics = resolveStyleOptics(studioStyle);
+  const resolvedGrammar = grammar ?? optics.typographyGrammar;
 
   const resolvedAccent = accentColor ?? studioStyle.palette.accentPrimary;
+  const secondaryAccent = studioStyle.palette.accentSecondary;
   const displayFontCss = formatFontFamilyCss(
     studioStyle.typography.displayFont,
     'display'
@@ -190,56 +211,55 @@ export const WordByWordStage: React.FC<WordByWordStageProps> = ({
     [resolvedWords, wordsPerBeat, fps]
   );
 
-  // Frame 0 Clean Board Rule
+  const effectiveStart = Math.max(2, startFrame ?? enterFrame ?? 2);
+  if (frame < effectiveStart || beats.length === 0) {
+    return null;
+  }
+
   const stageEnter = spring({
-    frame: frame - Math.max(2, startFrame ?? enterFrame ?? 2),
+    frame: frame - effectiveStart,
     fps,
     config: enterSpring,
   });
-
-  if (stageEnter <= 0.005 || beats.length === 0) {
+  if (stageEnter <= 0.005) {
     return null;
   }
 
   const localFrame = frame - sceneStartFrame;
 
-  // Locate active phrase beat at `localFrame`
   let activeBeatIndex = 0;
   for (let i = 0; i < beats.length; i++) {
-    const b = beats[i];
-    const nextBeat = beats[i + 1];
+    const b = beats[i]!;
+    const nextB = beats[i + 1];
     if (localFrame >= b.startFrame - 4) {
       activeBeatIndex = i;
     }
-    if (nextBeat && localFrame < nextBeat.startFrame - 4) {
+    if (nextB && localFrame < nextB.startFrame - 4) {
       break;
     }
   }
 
-  const activeBeat = beats[activeBeatIndex];
+  const prevBeat = activeBeatIndex > 0 ? beats[activeBeatIndex - 1] : undefined;
+  const activeBeat = beats[activeBeatIndex]!;
+  const nextBeat =
+    activeBeatIndex + 1 < beats.length ? beats[activeBeatIndex + 1] : undefined;
+
+  const framesIntoBeat = Math.max(0, localFrame - (activeBeat.startFrame - 4));
   const beatEnter = spring({
-    frame: Math.max(0, localFrame - (activeBeat.startFrame - 4)),
+    frame: framesIntoBeat,
     fps,
     config: enterSpring,
   });
 
-  // Locate currently spoken word inside `activeBeat`
   let activeWordIdx = -1;
   for (let i = 0; i < activeBeat.words.length; i++) {
-    const w = activeBeat.words[i];
+    const w = activeBeat.words[i]!;
     if (localFrame >= w.startFrame - 1 && localFrame <= w.endFrame + 8) {
       activeWordIdx = i;
     }
   }
 
   const isVertical = height > width;
-  const isLight =
-    variant === 'light'
-      ? true
-      : variant === 'dark'
-        ? false
-        : !studioStyle.surface.isDark;
-
   const textPrimary =
     variant === 'dark'
       ? THEME.colors.textPrimary
@@ -249,6 +269,11 @@ export const WordByWordStage: React.FC<WordByWordStageProps> = ({
           : studioStyle.palette.textPrimary
         : studioStyle.palette.textPrimary;
 
+  const textSecondary =
+    variant === 'dark'
+      ? THEME.colors.textSecondary
+      : studioStyle.palette.textSecondary;
+
   const resolvedBg =
     variant === 'dark'
       ? THEME.colors.bgPrimary
@@ -256,37 +281,366 @@ export const WordByWordStage: React.FC<WordByWordStageProps> = ({
         ? studioStyle.palette.bgCanvas
         : 'transparent';
 
-  const resolvedFontSize = fontSize ?? (isVertical ? 64 : 74);
-  const pillRadius = Math.max(0, Math.round(18 * studioStyle.surface.radiusScale));
+  const resolvedFontSize = fontSize ?? (isVertical ? 64 : 78);
 
   // Golden Safe Box bounds in 9:16: x ∈ [40, 910], y ∈ [220, 1380]
   const containerPaddingStyle: React.CSSProperties =
     isVertical && safeBox9x16
       ? {
-          paddingLeft: Math.round(44 * (width / 1080)),
-          paddingRight: Math.round((1080 - 906) * (width / 1080)),
-          paddingTop: Math.round(230 * (height / 1920)),
-          paddingBottom: Math.round((1920 - 1370) * (height / 1920)),
+          paddingLeft: Math.round(52 * (width / 1080)),
+          paddingRight: Math.round((1080 - 900) * (width / 1080)),
+          paddingTop: Math.round(236 * (height / 1920)),
+          paddingBottom: Math.round((1920 - 1364) * (height / 1920)),
         }
       : {
-          padding: '72px 120px',
+          padding: '84px 140px',
         };
 
-  const beatProgress = interpolate(
-    localFrame,
-    [activeBeat.startFrame, Math.max(activeBeat.startFrame + 1, activeBeat.endFrame)],
-    [0, 1],
-    { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
-  );
+  const beatCounterStr = String(activeBeatIndex + 1).padStart(2, '0');
+  const totalBeatsStr = String(beats.length).padStart(2, '0');
+
+  const renderNeighborLine = (
+    beat: WordPhraseBeat | undefined,
+    position: 'prev' | 'next'
+  ) => {
+    if (!beat) return null;
+    const text = beat.words
+      .map((w) => formatHeadingText(w.word, studioStyle))
+      .join(' ');
+    const blurPx = Math.max(2.6, optics.aperture * 8.5);
+    return (
+      <div
+        aria-hidden="true"
+        style={{
+          fontFamily: displayFontCss,
+          fontSize: Math.round(resolvedFontSize * 0.54),
+          fontWeight: 600,
+          lineHeight: 1.15,
+          letterSpacing: `${studioStyle.typography.displayTrackingEm}em`,
+          color: textSecondary,
+          opacity: position === 'prev' ? 0.28 : 0.18,
+          filter: `blur(${blurPx.toFixed(2)}px)`,
+          transform: `translateY(${position === 'prev' ? -4 : 4}px)`,
+          userSelect: 'none',
+        }}
+      >
+        {text}
+      </div>
+    );
+  };
+
+  // 1. SWISS-SPATIAL GRAMMAR (Editorial Column + Rack-Focus Context + Ink Rule)
+  if (resolvedGrammar === 'swiss-spatial') {
+    return (
+      <AbsoluteFill
+        data-typography-grammar="swiss-spatial"
+        style={{
+          backgroundColor: resolvedBg,
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          alignItems: 'flex-start',
+          boxSizing: 'border-box',
+          opacity: stageEnter,
+          pointerEvents: 'none',
+          ...containerPaddingStyle,
+          ...style,
+        }}
+      >
+        <div
+          style={{
+            position: 'relative',
+            maxWidth: isVertical ? 816 : 1380,
+            width: '100%',
+            paddingLeft: isVertical ? 28 : 42,
+            borderLeft: `2px solid ${studioStyle.palette.inkBorder}`,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: isVertical ? 18 : 22,
+          }}
+        >
+          {/* Active accent cursor along the Swiss column rule */}
+          <div
+            style={{
+              position: 'absolute',
+              left: -2.5,
+              top: 0,
+              width: 3,
+              height: Math.round(68 * beatEnter),
+              backgroundColor: resolvedAccent,
+            }}
+          />
+
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 14,
+              fontFamily: monoFontCss,
+              fontSize: isVertical ? 16 : 17,
+              fontWeight: 600,
+              letterSpacing: '0.14em',
+              textTransform: 'uppercase',
+              color: textSecondary,
+            }}
+          >
+            <span style={{ color: resolvedAccent, fontWeight: 700 }}>
+              {beatCounterStr}/{totalBeatsStr}
+            </span>
+            {eyebrow ? (
+              <>
+                <span>—</span>
+                <span>{eyebrow}</span>
+              </>
+            ) : null}
+          </div>
+
+          {renderNeighborLine(prevBeat, 'prev')}
+
+          <div
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              alignItems: 'baseline',
+              gap: isVertical ? '10px 18px' : '12px 24px',
+              filter: 'none',
+              transform: `translateY(${interpolate(beatEnter, [0, 1], [18, 0]).toFixed(2)}px)`,
+            }}
+          >
+            {activeBeat.words.map((w, idx) => {
+              const isCurrent = idx === activeWordIdx;
+              const isPast = localFrame > w.endFrame + 8;
+              const wordPop = spring({
+                frame: Math.max(0, localFrame - w.startFrame),
+                fps,
+                config: SPRING_PRESETS.micro,
+              });
+              const ruleScale = isCurrent ? wordPop : 0;
+
+              return (
+                <span
+                  key={`${activeBeatIndex}-${idx}-${w.startFrame}`}
+                  style={{
+                    position: 'relative',
+                    display: 'inline-block',
+                    fontFamily: displayFontCss,
+                    fontSize: resolvedFontSize,
+                    fontWeight: 700,
+                    lineHeight: 1.08,
+                    letterSpacing: `${studioStyle.typography.displayTrackingEm}em`,
+                    color: isCurrent ? resolvedAccent : textPrimary,
+                    opacity: isCurrent ? 1 : isPast ? 0.92 : 0.42,
+                    transform: `translateY(${interpolate(wordPop, [0, 1], [8, 0]).toFixed(2)}px)`,
+                  }}
+                >
+                  {formatHeadingText(w.word, studioStyle)}
+                  <span
+                    style={{
+                      position: 'absolute',
+                      left: 0,
+                      right: 0,
+                      bottom: -4,
+                      height: 4,
+                      backgroundColor: resolvedAccent,
+                      transformOrigin: 'left center',
+                      transform: `scaleX(${ruleScale.toFixed(4)})`,
+                    }}
+                  />
+                </span>
+              );
+            })}
+          </div>
+
+          {renderNeighborLine(nextBeat, 'next')}
+        </div>
+      </AbsoluteFill>
+    );
+  }
+
+  // 2. OPTICAL-GATE GRAMMAR (35mm Reticle Gate + Drum Step + Chromatic Impulse)
+  if (resolvedGrammar === 'optical-gate') {
+    const gateFlash = Math.max(0, 1 - framesIntoBeat / 12);
+    const chromaPx = Number((gateFlash * (1.8 + optics.halation * 3.4)).toFixed(2));
+    const gateBlur = gateFlash * 1.6;
+
+    return (
+      <AbsoluteFill
+        data-typography-grammar="optical-gate"
+        style={{
+          backgroundColor: resolvedBg,
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          alignItems: 'center',
+          boxSizing: 'border-box',
+          opacity: stageEnter,
+          pointerEvents: 'none',
+          ...containerPaddingStyle,
+          ...style,
+        }}
+      >
+        <div
+          style={{
+            position: 'relative',
+            maxWidth: isVertical ? 820 : 1380,
+            width: '100%',
+            padding: isVertical ? '36px 28px' : '48px 56px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 20,
+          }}
+        >
+          {/* Optical Gate Corner Reticles */}
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              pointerEvents: 'none',
+              opacity: 0.65,
+            }}
+          >
+            <div
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: 20,
+                height: 20,
+                borderTop: `2px solid ${resolvedAccent}`,
+                borderLeft: `2px solid ${resolvedAccent}`,
+              }}
+            />
+            <div
+              style={{
+                position: 'absolute',
+                top: 0,
+                right: 0,
+                width: 20,
+                height: 20,
+                borderTop: `2px solid ${resolvedAccent}`,
+                borderRight: `2px solid ${resolvedAccent}`,
+              }}
+            />
+            <div
+              style={{
+                position: 'absolute',
+                bottom: 0,
+                left: 0,
+                width: 20,
+                height: 20,
+                borderBottom: `2px solid ${resolvedAccent}`,
+                borderLeft: `2px solid ${resolvedAccent}`,
+              }}
+            />
+            <div
+              style={{
+                position: 'absolute',
+                bottom: 0,
+                right: 0,
+                width: 20,
+                height: 20,
+                borderBottom: `2px solid ${resolvedAccent}`,
+                borderRight: `2px solid ${resolvedAccent}`,
+              }}
+            />
+          </div>
+
+          <div
+            style={{
+              width: '100%',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              fontFamily: monoFontCss,
+              fontSize: 14,
+              fontWeight: 600,
+              letterSpacing: '0.16em',
+              textTransform: 'uppercase',
+              color: textSecondary,
+            }}
+          >
+            <span>{eyebrow ?? 'GATE 35MM'}</span>
+            <span style={{ color: resolvedAccent }}>
+              BEAT {beatCounterStr}/{totalBeatsStr} • F:{String(frame).padStart(4, '0')}
+            </span>
+          </div>
+
+          {renderNeighborLine(prevBeat, 'prev')}
+
+          <div
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              justifyContent: 'center',
+              alignItems: 'center',
+              gap: isVertical ? '12px 18px' : '14px 24px',
+              textAlign: 'center',
+              filter: gateBlur < 0.25 ? 'none' : `blur(${gateBlur.toFixed(2)}px)`,
+              transform: `translateY(${interpolate(beatEnter, [0, 1], [22, 0]).toFixed(2)}px)`,
+            }}
+          >
+            {activeBeat.words.map((w, idx) => {
+              const isCurrent = idx === activeWordIdx;
+              const isPast = localFrame > w.endFrame + 8;
+              const wordPop = spring({
+                frame: Math.max(0, localFrame - w.startFrame),
+                fps,
+                config: SPRING_PRESETS.micro,
+              });
+
+              const halationGlow =
+                isCurrent && optics.halation > 0.05
+                  ? `0 0 ${Math.round(16 + optics.halation * 28)}px ${resolvedAccent}88`
+                  : '';
+              const dispersionShadow =
+                chromaPx > 0.15
+                  ? `${-chromaPx}px 0 0 ${resolvedAccent}AA, ${chromaPx}px 0 0 ${secondaryAccent}AA`
+                  : '';
+              const combinedShadow = [halationGlow, dispersionShadow]
+                .filter(Boolean)
+                .join(', ');
+
+              return (
+                <span
+                  key={`${activeBeatIndex}-${idx}-${w.startFrame}`}
+                  style={{
+                    display: 'inline-block',
+                    fontFamily: displayFontCss,
+                    fontSize: resolvedFontSize,
+                    fontWeight: 800,
+                    lineHeight: 1.1,
+                    letterSpacing: `${studioStyle.typography.displayTrackingEm}em`,
+                    color: isCurrent ? resolvedAccent : textPrimary,
+                    opacity: isCurrent ? 1 : isPast ? 0.88 : 0.36,
+                    textShadow: combinedShadow || 'none',
+                    transform: `scale(${(isCurrent ? interpolate(wordPop, [0, 1], [0.97, 1.045]) : 1).toFixed(4)})`,
+                  }}
+                >
+                  {formatHeadingText(w.word, studioStyle)}
+                </span>
+              );
+            })}
+          </div>
+
+          {renderNeighborLine(nextBeat, 'next')}
+        </div>
+      </AbsoluteFill>
+    );
+  }
+
+  // 3. RISOGRAPH-POSTER GRAMMAR (Cut Poster + Alternating Tilt + Ink Misregistration)
+  const posterTiltDeg = (activeBeatIndex % 2 === 0 ? -1.1 : 1.1) * beatEnter;
 
   return (
     <AbsoluteFill
+      data-typography-grammar="risograph-poster"
       style={{
         backgroundColor: resolvedBg,
         display: 'flex',
         flexDirection: 'column',
-        alignItems: 'center',
         justifyContent: 'center',
+        alignItems: 'flex-start',
         boxSizing: 'border-box',
         opacity: stageEnter,
         pointerEvents: 'none',
@@ -296,44 +650,41 @@ export const WordByWordStage: React.FC<WordByWordStageProps> = ({
     >
       <div
         style={{
-          maxWidth: isVertical ? 840 : 1420,
+          maxWidth: isVertical ? 808 : 1380,
           width: '100%',
           display: 'flex',
           flexDirection: 'column',
-          alignItems: 'center',
-          gap: 24,
-          transform: `translateY(${interpolate(beatEnter, [0, 1], [16, 0]).toFixed(2)}px) scale(${interpolate(stageEnter, [0, 1], [0.95, 1]).toFixed(4)})`,
+          alignItems: 'flex-start',
+          gap: 18,
+          transformOrigin: 'center center',
+          transform: `rotate(${posterTiltDeg.toFixed(2)}deg) translateY(${interpolate(beatEnter, [0, 1], [20, 0]).toFixed(2)}px)`,
         }}
       >
-        {eyebrow && (
+        {eyebrow ? (
           <div
             style={{
               fontFamily: monoFontCss,
-              fontSize: isVertical ? 18 : 19,
+              fontSize: isVertical ? 16 : 17,
               fontWeight: 700,
-              letterSpacing: '0.08em',
+              letterSpacing: '0.12em',
               textTransform: 'uppercase',
-              padding: '8px 18px',
-              borderRadius: 9999,
-              color: isLight ? resolvedAccent : '#FFFFFF',
-              backgroundColor: isLight
-                ? `${resolvedAccent}16`
-                : `${resolvedAccent}33`,
-              border: `1.5px solid ${resolvedAccent}66`,
+              padding: '5px 12px',
+              backgroundColor: studioStyle.palette.bgElevated,
+              color: textPrimary,
+              border: `2px solid ${studioStyle.palette.inkBorder}`,
+              boxShadow: `3px 3px 0px ${studioStyle.palette.inkBorder}`,
             }}
           >
-            {eyebrow}
+            {eyebrow} • {beatCounterStr}
           </div>
-        )}
+        ) : null}
 
         <div
           style={{
             display: 'flex',
             flexWrap: 'wrap',
-            justifyContent: 'center',
             alignItems: 'center',
-            gap: isVertical ? '14px 16px' : '16px 22px',
-            textAlign: 'center',
+            gap: isVertical ? '12px 14px' : '14px 20px',
           }}
         >
           {activeBeat.words.map((w, idx) => {
@@ -344,14 +695,6 @@ export const WordByWordStage: React.FC<WordByWordStageProps> = ({
               fps,
               config: SPRING_PRESETS.micro,
             });
-            const scale = isCurrent
-              ? interpolate(wordPop, [0, 1], [0.96, 1.07])
-              : 1;
-            const yShift =
-              isCurrent || isPast
-                ? 0
-                : interpolate(wordPop, [0, 1], [6, 0]);
-            const wordOpacity = isCurrent ? 1 : isPast ? 0.94 : 0.38;
 
             return (
               <span
@@ -361,49 +704,27 @@ export const WordByWordStage: React.FC<WordByWordStageProps> = ({
                   fontFamily: displayFontCss,
                   fontSize: resolvedFontSize,
                   fontWeight: 800,
-                  lineHeight: 1.15,
+                  lineHeight: 1.06,
                   letterSpacing: `${studioStyle.typography.displayTrackingEm}em`,
-                  padding: isCurrent ? '6px 20px' : '6px 8px',
-                  borderRadius: pillRadius,
+                  padding: isCurrent ? '4px 14px' : '4px 4px',
+                  borderRadius: 0,
                   color: isCurrent ? '#FFFFFF' : textPrimary,
                   backgroundColor: isCurrent ? resolvedAccent : 'transparent',
-                  boxShadow: isCurrent
-                    ? `0 14px 36px ${resolvedAccent}66, 0 0 0 2px rgba(255,255,255,0.22) inset`
+                  border: isCurrent
+                    ? `2px solid ${studioStyle.palette.inkBorder}`
+                    : '2px solid transparent',
+                  boxShadow: isCurrent ? `4px 3px 0px ${secondaryAccent}` : 'none',
+                  textShadow: !isCurrent
+                    ? `1.5px 1px 0px ${secondaryAccent}33`
                     : 'none',
-                  opacity: wordOpacity,
-                  transform: `translateY(${yShift.toFixed(2)}px) scale(${scale.toFixed(4)})`,
-                  textShadow:
-                    !isCurrent && !isLight && (variant === 'transparent' || variant === undefined)
-                      ? '0 4px 22px rgba(9, 10, 15, 0.55)'
-                      : 'none',
+                  opacity: isCurrent ? 1 : isPast ? 0.94 : 0.44,
+                  transform: `scale(${(isCurrent ? interpolate(wordPop, [0, 1], [0.96, 1.04]) : 1).toFixed(4)})`,
                 }}
               >
                 {formatHeadingText(w.word, studioStyle)}
               </span>
             );
           })}
-        </div>
-
-        {/* Subtle Phrase Progress Indicator */}
-        <div
-          style={{
-            width: isVertical ? 220 : 280,
-            height: 5,
-            borderRadius: 9999,
-            backgroundColor: isLight
-              ? `${studioStyle.palette.inkBorder}88`
-              : 'rgba(255, 255, 255, 0.14)',
-            overflow: 'hidden',
-          }}
-        >
-          <div
-            style={{
-              width: `${Math.round(beatProgress * 100)}%`,
-              height: '100%',
-              borderRadius: 9999,
-              backgroundColor: resolvedAccent,
-            }}
-          />
         </div>
       </div>
     </AbsoluteFill>

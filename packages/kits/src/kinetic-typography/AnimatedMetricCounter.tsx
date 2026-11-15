@@ -10,10 +10,12 @@ import {
   STUDIO_THEME,
   THEME,
   formatFontFamilyCss,
-  getCardChromeStyle,
   getStyleSpringConfig,
+  getTactileSurfaceStyle,
+  resolveStyleOptics,
   useStudioFontsReady,
   useStudioStyle,
+  type StyleTypographyGrammar,
 } from '@make-pictures/core';
 
 export interface AnimatedMetricCounterProps {
@@ -33,11 +35,13 @@ export interface AnimatedMetricCounterProps {
   durationInFrames?: number;
   /** Optional concise 2–3 word label below the counter */
   label?: string;
-  /** Optional delta pill badge (e.g. `"+240%"`) */
+  /** Optional delta stamp badge (e.g. `"+240%"`) */
   badge?: string;
+  /** Typographic grammar override (defaults to `studioStyle.optics.typographyGrammar`) */
+  grammar?: StyleTypographyGrammar;
   /** Highlight accent color (defaults to `studioStyle.palette.accentPrimary`) */
   accentColor?: string;
-  /** Presentation mode (`'inline'` renders pure tabular text without card chrome; inherits `StylePreset` card chrome when omitted) */
+  /** Presentation mode (`'inline'` renders pure tabular text without card chrome) */
   variant?: 'dark' | 'light' | 'inline';
   /** Thousands separator character (default `','`) */
   thousandSeparator?: string;
@@ -54,17 +58,21 @@ export function formatTabularMetric(
   const safeDecimals = Math.max(0, Math.min(6, Math.round(decimals)));
   const fixed = val.toFixed(safeDecimals);
   const [intPart, decPart] = fixed.split('.');
-  const sign = intPart.startsWith('-') ? '-' : '';
-  const digits = sign ? intPart.slice(1) : intPart;
+  const sign = intPart!.startsWith('-') ? '-' : '';
+  const digits = sign ? intPart!.slice(1) : intPart!;
   const grouped = thousandSeparator
     ? digits.replace(/\B(?=(\d{3})+(?!\d))/g, thousandSeparator)
     : digits;
-  return decPart !== undefined ? `${sign}${grouped}.${decPart}` : `${sign}${grouped}`;
+  return decPart !== undefined
+    ? `${sign}${grouped}.${decPart}`
+    : `${sign}${grouped}`;
 }
 
+const VERNIER_TICKS = 21;
+
 /**
- * Smooth 60 FPS Interpolated Number / Currency / Percentage Ticker.
- * Uses `tabular-nums` so digits never jump horizontally while counting.
+ * Smooth 60 FPS Interpolated Number / Currency / Percentage Ticker
+ * with precision SVG Vernier scale (`swiss-spatial`, `optical-gate`) or Risograph block meter (`risograph-poster`).
  */
 export const AnimatedMetricCounter: React.FC<AnimatedMetricCounterProps> = ({
   value,
@@ -76,6 +84,7 @@ export const AnimatedMetricCounter: React.FC<AnimatedMetricCounterProps> = ({
   durationInFrames = 54,
   label,
   badge,
+  grammar,
   accentColor,
   variant,
   thousandSeparator = ',',
@@ -86,6 +95,8 @@ export const AnimatedMetricCounter: React.FC<AnimatedMetricCounterProps> = ({
   const { fps, width, height } = useVideoConfig();
   useStudioFontsReady();
   const studioStyle = useStudioStyle();
+  const optics = resolveStyleOptics(studioStyle);
+  const resolvedGrammar = grammar ?? optics.typographyGrammar;
 
   const resolvedAccent = accentColor ?? studioStyle.palette.accentPrimary;
   const displayFontCss = formatFontFamilyCss(
@@ -104,11 +115,14 @@ export const AnimatedMetricCounter: React.FC<AnimatedMetricCounterProps> = ({
   const effectiveStart = Math.max(2, startFrame);
   const dur = Math.max(6, durationInFrames);
 
-  const enter = spring({
-    frame: frame - effectiveStart,
-    fps,
-    config: getStyleSpringConfig(studioStyle, 'enter'),
-  });
+  const enter =
+    frame < effectiveStart
+      ? 0
+      : spring({
+          frame: frame - effectiveStart,
+          fps,
+          config: getStyleSpringConfig(studioStyle, 'enter'),
+        });
 
   const countProgress = interpolate(
     frame,
@@ -129,7 +143,7 @@ export const AnimatedMetricCounter: React.FC<AnimatedMetricCounterProps> = ({
   )}${suffix}`;
 
   if (variant === 'inline') {
-    if (frame === 0 && startFrame >= 1) {
+    if (frame < effectiveStart) {
       return null;
     }
     return (
@@ -163,18 +177,26 @@ export const AnimatedMetricCounter: React.FC<AnimatedMetricCounterProps> = ({
 
   const chromeStyle: React.CSSProperties = hasExplicitVariant
     ? {
-        borderRadius: 24,
+        borderRadius: resolvedGrammar === 'risograph-poster' ? 0 : 8,
         backgroundColor: isLight
           ? STUDIO_THEME.colors.bgSurfaceGlass
-          : 'rgba(13, 15, 26, 0.86)',
+          : 'rgba(13, 15, 26, 0.88)',
         border: isLight
           ? `1.5px solid ${STUDIO_THEME.colors.border.subtle}`
-          : '1.5px solid rgba(255, 255, 255, 0.12)',
+          : '1.5px solid rgba(255, 255, 255, 0.14)',
         boxShadow: isLight
           ? STUDIO_THEME.shadows.cardElevated
-          : THEME.shadows.glow(resolvedAccent, 0.75),
+          : THEME.shadows.glow(resolvedAccent, 0.65),
       }
-    : getCardChromeStyle(studioStyle);
+    : getTactileSurfaceStyle(studioStyle, {
+        elevation: 'resting',
+        overrides: {
+          borderRadius:
+            resolvedGrammar === 'risograph-poster'
+              ? 0
+              : Math.max(0, Math.round(6 * studioStyle.surface.radiusScale)),
+        },
+      });
 
   const textPrimary = hasExplicitVariant
     ? isLight
@@ -188,6 +210,8 @@ export const AnimatedMetricCounter: React.FC<AnimatedMetricCounterProps> = ({
       : THEME.colors.textSecondary
     : studioStyle.palette.textSecondary;
 
+  const litTicks = Math.round(countProgress * (VERNIER_TICKS - 1));
+
   return (
     <div
       style={{
@@ -198,8 +222,14 @@ export const AnimatedMetricCounter: React.FC<AnimatedMetricCounterProps> = ({
         padding: isVertical ? '26px 32px' : '30px 38px',
         boxSizing: 'border-box',
         ...chromeStyle,
+        ...(resolvedGrammar === 'risograph-poster' && !hasExplicitVariant
+          ? {
+              border: `2.5px solid ${studioStyle.palette.inkBorder}`,
+              boxShadow: `5px 5px 0px ${studioStyle.palette.inkBorder}`,
+            }
+          : {}),
         opacity: enter,
-        transform: `translateY(${interpolate(enter, [0, 1], [22, 0]).toFixed(2)}px) scale(${interpolate(enter, [0, 1], [0.94, 1]).toFixed(4)})`,
+        transform: `translateY(${interpolate(enter, [0, 1], [18, 0]).toFixed(2)}px)`,
         ...style,
       }}
     >
@@ -219,29 +249,41 @@ export const AnimatedMetricCounter: React.FC<AnimatedMetricCounterProps> = ({
             lineHeight: 1,
             letterSpacing: '-0.035em',
             color: textPrimary,
+            textShadow:
+              resolvedGrammar === 'optical-gate' && optics.halation > 0.12
+                ? `0 0 ${Math.round(14 + optics.halation * 22)}px ${resolvedAccent}55`
+                : 'none',
           }}
         >
           {formatted}
         </span>
 
-        {badge && (
+        {badge ? (
           <span
             style={{
               fontFamily: monoFontCss,
-              fontSize: 15,
+              fontSize: 14,
               fontWeight: 700,
-              padding: '5px 12px',
-              borderRadius: 9999,
-              color: '#FFFFFF',
-              backgroundColor: resolvedAccent,
+              letterSpacing: '0.06em',
+              padding: '3px 10px',
+              borderRadius: 0,
+              color:
+                resolvedGrammar === 'risograph-poster'
+                  ? '#FFFFFF'
+                  : resolvedAccent,
+              backgroundColor:
+                resolvedGrammar === 'risograph-poster'
+                  ? resolvedAccent
+                  : 'transparent',
+              border: `1.5px solid ${resolvedAccent}`,
             }}
           >
             {badge}
           </span>
-        )}
+        ) : null}
       </div>
 
-      {label && (
+      {label ? (
         <div
           style={{
             fontFamily: bodyFontCss,
@@ -252,30 +294,67 @@ export const AnimatedMetricCounter: React.FC<AnimatedMetricCounterProps> = ({
         >
           {label}
         </div>
-      )}
+      ) : null}
 
-      {/* Animated Progress Underline */}
-      <div
-        style={{
-          width: '100%',
-          height: 5,
-          marginTop: 4,
-          borderRadius: 9999,
-          backgroundColor: isLight
-            ? 'rgba(15, 23, 42, 0.08)'
-            : 'rgba(255, 255, 255, 0.12)',
-          overflow: 'hidden',
-        }}
-      >
+      {/* Vernier Scale Ticks (swiss-spatial / optical-gate) vs Segmented Stamp Meter (risograph-poster) */}
+      {resolvedGrammar === 'risograph-poster' ? (
         <div
+          data-risograph-meter="true"
           style={{
-            width: `${Math.round(countProgress * 100)}%`,
-            height: '100%',
-            borderRadius: 9999,
-            backgroundColor: resolvedAccent,
+            display: 'flex',
+            gap: 4,
+            marginTop: 4,
+            width: '100%',
           }}
-        />
-      </div>
+        >
+          {Array.from({ length: 10 }).map((_, idx) => {
+            const active = idx < Math.round(countProgress * 10);
+            return (
+              <div
+                key={idx}
+                style={{
+                  flex: 1,
+                  height: 8,
+                  backgroundColor: active
+                    ? resolvedAccent
+                    : studioStyle.palette.bgElevated,
+                  border: `1.5px solid ${studioStyle.palette.inkBorder}`,
+                }}
+              />
+            );
+          })}
+        </div>
+      ) : (
+        <svg
+          data-vernier-scale="true"
+          viewBox="0 0 240 16"
+          style={{
+            width: '100%',
+            minWidth: 200,
+            height: 16,
+            marginTop: 4,
+            overflow: 'visible',
+          }}
+        >
+          {Array.from({ length: VERNIER_TICKS }).map((_, idx) => {
+            const x = (idx / (VERNIER_TICKS - 1)) * 236 + 2;
+            const isMajor = idx % 5 === 0;
+            const isActive = idx <= litTicks;
+            return (
+              <line
+                key={idx}
+                x1={x}
+                y1={isMajor ? 1 : 5}
+                x2={x}
+                y2={15}
+                stroke={isActive ? resolvedAccent : studioStyle.palette.inkBorder}
+                strokeWidth={isMajor ? 2 : 1.2}
+                opacity={isActive ? 1 : 0.45}
+              />
+            );
+          })}
+        </svg>
+      )}
     </div>
   );
 };
