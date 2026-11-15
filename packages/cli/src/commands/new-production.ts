@@ -571,9 +571,9 @@ export const ${pascalName}: React.FC<${pascalName}Props> = (props) => {
               style={{
                 justifyContent: isVertical ? 'flex-start' : 'center',
                 alignItems: isVertical ? 'flex-start' : 'center',
-                paddingLeft: isVertical ? 52 : 140,
-                paddingRight: isVertical ? 184 : 140,
-                paddingTop: isVertical ? 250 : 0,
+                paddingLeft: isVertical ? 76 : 140,
+                paddingRight: isVertical ? 216 : 140,
+                paddingTop: isVertical ? 272 : 0,
               }}
             >
               <AnimatedBarRace
@@ -609,9 +609,9 @@ export const ${pascalName}: React.FC<${pascalName}Props> = (props) => {
               style={{
                 justifyContent: isVertical ? 'flex-start' : 'center',
                 alignItems: isVertical ? 'flex-start' : 'center',
-                paddingLeft: isVertical ? 52 : 140,
-                paddingRight: isVertical ? 184 : 140,
-                paddingTop: isVertical ? 248 : 0,
+                paddingLeft: isVertical ? 76 : 140,
+                paddingRight: isVertical ? 216 : 140,
+                paddingTop: isVertical ? 272 : 0,
               }}
             >
               <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
@@ -1157,12 +1157,12 @@ export const ${pascalName}: React.FC<${pascalName}Props> = (props) => {
               style={{
                 justifyContent: isVertical ? 'flex-start' : 'center',
                 alignItems: isVertical ? 'flex-start' : 'center',
-                paddingLeft: isVertical ? 54 : 160,
-                paddingRight: isVertical ? 186 : 160,
+                paddingLeft: isVertical ? 76 : 160,
+                paddingRight: isVertical ? 216 : 160,
                 paddingTop: isVertical ? 280 : 0,
               }}
             >
-              <div style={{ width: '100%', maxWidth: isVertical ? 836 : 980 }}>
+              <div style={{ width: '100%', maxWidth: isVertical ? 788 : 980 }}>
                 <StoryCard2D
                   title={props.headline}
                   subtitle={props.subheadline}

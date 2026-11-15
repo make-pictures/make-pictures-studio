@@ -86,13 +86,13 @@ const preventButtonFocus = (e: React.MouseEvent<HTMLButtonElement>) => {
 function getSafeStageBounds(width: number, height: number) {
   const isVertical = height > width;
   if (isVertical) {
-    // Strictly inside 9:16 Golden Safe Box: x in [40, 910], y in [220, 1380]
+    // Strictly inside 9:16 Golden Safe Box: x in [40, 910], y in [220, 1380] even under optical micro-dolly
     return {
       isVertical: true,
-      left: 56,
-      top: 248,
-      width: 832,
-      height: 1096,
+      left: 74,
+      top: 266,
+      width: 790,
+      height: 1054,
     };
   }
   return {

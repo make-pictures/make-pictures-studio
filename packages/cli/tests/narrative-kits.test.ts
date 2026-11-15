@@ -52,10 +52,13 @@ test('editorial-collage, vector-scene-2d, and @make-pictures/kits root export al
 test('computeSafeSplitBounds and computeSplitStoryVerticalBounds enforce 9:16 Golden Safe Box x in [40, 910], y in [220, 1380]', () => {
   const vertical = computeSafeSplitBounds(1080, 1920);
   assert.equal(vertical.isVertical, true);
-  assert.ok(vertical.left >= 40);
-  assert.ok(vertical.left + vertical.width <= 910);
-  assert.ok(vertical.top >= 220);
-  assert.ok(vertical.top + vertical.height <= 1380);
+  assert.ok(vertical.left >= 70);
+  assert.ok(vertical.left + vertical.width <= 870);
+  assert.ok(vertical.top >= 260);
+  assert.ok(vertical.top + vertical.height <= 1320);
+  // Even under VectorSceneStage2D worst-case optical dolly (camX = 547, zoom = 1.042 + 8px hard shadow)
+  assert.ok(540 + (vertical.left - 547) * 1.042 >= 46);
+  assert.ok(540 + (vertical.left + vertical.width - 535) * 1.042 + 8 <= 904);
 
   const landscape = computeSafeSplitBounds(1920, 1080);
   assert.equal(landscape.isVertical, false);

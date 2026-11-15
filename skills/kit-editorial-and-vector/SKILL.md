@@ -246,7 +246,7 @@ export interface ComparisonSplit2DProps {
 }
 ```
 - **Optical Rack Focus (`< 0.25px` Sharp Deadzone):** When `focusShiftFrame` is provided, `left` begins sharp (`filter: 'none'`) while `right` rests softly defocused (`maxBlur = Math.max(1.6, optics.aperture * 7)` px, `scale(0.982)`, `opacity: 0.80`). At `focusShiftFrame`, `getStyleSpringConfig(style, 'camera')` pulls sharp focus onto `right` (`filter: 'none'` once `blurPx < 0.25`) while receding `left`.
-- **`9:16` Golden Safe Box Guarantee:** `computeSafeSplitBounds(1080, 1920)` places split plates at `left: 54, top: 250, width: 836, height: 1080` — strictly inside `x ∈ [40, 910], y ∈ [220, 1380]`.
+- **`9:16` Golden Safe Box Guarantee:** `computeSafeSplitBounds(1080, 1920)` places split plates at `left: 76, top: 268, width: 788, height: 1040` — strictly inside `x ∈ [40, 910], y ∈ [220, 1380]` even under `VectorSceneStage2D` optical micro-dolly and brutalist shadows.
 
 ---
 

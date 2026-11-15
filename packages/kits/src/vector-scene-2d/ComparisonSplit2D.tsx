@@ -49,10 +49,10 @@ export function computeSafeSplitBounds(
     const scaleY = height / 1920;
     return {
       isVertical: true,
-      left: Math.round(54 * scaleX),
-      top: Math.round(250 * scaleY),
-      width: Math.round(836 * scaleX),
-      height: Math.round(1080 * scaleY),
+      left: Math.round(76 * scaleX),
+      top: Math.round(268 * scaleY),
+      width: Math.round(788 * scaleX),
+      height: Math.round(1040 * scaleY),
     };
   }
   return {

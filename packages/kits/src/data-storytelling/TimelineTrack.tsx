@@ -147,7 +147,9 @@ export const TimelineTrack: React.FC<TimelineTrackProps> = ({
   const activeColor = sorted[activeIdx]?.color ?? resolvedAccent;
 
   const containerWidth =
-    isVerticalViewport && safeBox9x16 ? Math.min(830, width - 90) : 1120;
+    isVerticalViewport && safeBox9x16
+      ? Math.min(788, Math.round(width * 0.73))
+      : 1120;
 
   const computeMilestoneOptics = (idx: number) => {
     const dist = Math.min(2, Math.abs(idx - activeIdx));

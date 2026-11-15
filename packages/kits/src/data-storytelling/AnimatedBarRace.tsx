@@ -253,7 +253,9 @@ export const AnimatedBarRace: React.FC<AnimatedBarRaceProps> = ({
       : studioStyle.palette.inkBorder;
 
   const cardWidth =
-    isVerticalViewport && safeBox9x16 ? Math.min(830, width - 90) : 980;
+    isVerticalViewport && safeBox9x16
+      ? Math.min(788, Math.round(width * 0.73))
+      : 980;
   const rowHeight = isVerticalViewport ? 68 : 72;
   const rowGap = 12;
 
