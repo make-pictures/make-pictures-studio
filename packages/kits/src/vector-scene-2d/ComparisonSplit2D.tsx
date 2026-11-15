@@ -7,10 +7,12 @@ import {
   useVideoConfig,
 } from 'remotion';
 import {
+  createSeededRandom,
   formatFontFamilyCss,
   formatHeadingText,
-  getCardChromeStyle,
   getStyleSpringConfig,
+  getTactileSurfaceStyle,
+  resolveStyleOptics,
   useStudioStyle,
 } from '@make-pictures/core';
 
@@ -25,6 +27,10 @@ export interface ComparisonSplit2DProps {
   right: ComparisonSideSpec;
   startFrame?: number;
   rightDelayFrames?: number;
+  /** Optional composition frame at which optical focus shifts from `left` (baseline) to `right` (payoff) */
+  focusShiftFrame?: number;
+  /** Initial focal behavior before `focusShiftFrame` (`'left'` when `focusShiftFrame` is set, otherwise `'both'`) */
+  initialFocus?: 'both' | 'left';
 }
 
 export function computeSafeSplitBounds(
@@ -63,10 +69,14 @@ export const ComparisonSplit2D: React.FC<ComparisonSplit2DProps> = ({
   right,
   startFrame = 2,
   rightDelayFrames = 14,
+  focusShiftFrame,
+  initialFocus,
 }) => {
   const frame = useCurrentFrame();
   const { fps, width, height } = useVideoConfig();
   const style = useStudioStyle();
+  const optics = resolveStyleOptics(style);
+  const grammar = optics.typographyGrammar;
 
   const effectiveStart = Math.max(2, startFrame);
   if (frame < effectiveStart) return null;
@@ -87,68 +97,143 @@ export const ComparisonSplit2D: React.FC<ComparisonSplit2DProps> = ({
           config: getStyleSpringConfig(style, 'enter'),
         });
 
-  const renderCard = (
-    item: ComparisonSideSpec,
-    progress: number,
-    accent: string
-  ) => (
-    <div
-      style={getCardChromeStyle(style, {
-        boxSizing: 'border-box',
-        flex: 1,
-        minWidth: 0,
-        padding: bounds.isVertical ? '32px 36px' : '44px 48px',
-        opacity: progress,
-        transform: `translateY(${interpolate(progress, [0, 1], [24, 0])}px)`,
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'center',
-        gap: 14,
-      })}
-    >
+  const rackMode =
+    initialFocus ?? (typeof focusShiftFrame === 'number' ? 'left' : 'both');
+
+  const shiftProgress =
+    typeof focusShiftFrame === 'number' && frame >= focusShiftFrame
+      ? spring({
+          frame: frame - focusShiftFrame,
+          fps,
+          config: getStyleSpringConfig(style, 'camera'),
+        })
+      : 0;
+
+  const maxBlur = Math.max(1.6, optics.aperture * 7);
+  const leftBlur =
+    rackMode === 'both' ? 0 : interpolate(shiftProgress, [0, 1], [0, maxBlur]);
+  const rightBlur =
+    rackMode === 'both' ? 0 : interpolate(shiftProgress, [0, 1], [maxBlur, 0]);
+
+  const leftScale =
+    rackMode === 'both' ? 1 : interpolate(shiftProgress, [0, 1], [1, 0.982]);
+  const rightScale =
+    rackMode === 'both' ? 1 : interpolate(shiftProgress, [0, 1], [0.982, 1]);
+
+  const leftDim =
+    rackMode === 'both' ? 1 : interpolate(shiftProgress, [0, 1], [1, 0.8]);
+  const rightDim =
+    rackMode === 'both' ? 1 : interpolate(shiftProgress, [0, 1], [0.8, 1]);
+
+  const tiltSeed = createSeededRandom(
+    `split:${left.title}:${right.title}`
+  )();
+  const maxTilt = bounds.isVertical ? 0.42 : 0.8;
+  const rightTilt =
+    grammar === 'risograph-poster' && optics.lightingRig !== 'studio-macro'
+      ? (tiltSeed - 0.5) * 2 * maxTilt
+      : 0;
+
+  const displayFont = formatFontFamilyCss(style.typography.displayFont, 'display');
+  const bodyFont = formatFontFamilyCss(style.typography.bodyFont, 'body');
+  const monoFont = formatFontFamilyCss(style.typography.monoFont, 'mono');
+
+  const renderPlate = (params: {
+    item: ComparisonSideSpec;
+    side: 'left' | 'right';
+    enter: number;
+    blurPx: number;
+    focusScale: number;
+    focusOpacity: number;
+    tiltDeg: number;
+  }) => {
+    const { item, side, enter, blurPx, focusScale, focusOpacity, tiltDeg } =
+      params;
+    const isPayoff = side === 'right';
+    const accent = isPayoff
+      ? style.palette.accentPrimary
+      : style.palette.textSecondary;
+
+    return (
       <div
-        style={{
-          fontFamily: formatFontFamilyCss(style.typography.monoFont, 'mono'),
-          fontSize: 19,
-          fontWeight: 700,
-          textTransform: 'uppercase',
-          letterSpacing: '0.1em',
-          color: accent,
-        }}
+        style={getTactileSurfaceStyle(style, {
+          elevation: isPayoff ? 'floating' : 'resting',
+          tiltDeg,
+          overrides: {
+            boxSizing: 'border-box',
+            flex: 1,
+            minWidth: 0,
+            minHeight: 0,
+            padding: bounds.isVertical ? '26px 32px' : '40px 44px',
+            borderRadius:
+              grammar === 'risograph-poster'
+                ? 0
+                : Math.max(0, Math.round(6 * style.surface.radiusScale)),
+            borderTop: isPayoff
+              ? `3px solid ${style.palette.accentPrimary}`
+              : undefined,
+            opacity: enter * focusOpacity,
+            filter: blurPx < 0.25 ? 'none' : `blur(${blurPx.toFixed(2)}px)`,
+            transform: `translateY(${Number(interpolate(enter, [0, 1], [20, 0]).toFixed(2))}px) scale(${Number(focusScale.toFixed(4))})`,
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+            gap: bounds.isVertical ? 12 : 16,
+          },
+        })}
       >
-        {item.tag}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            paddingBottom: 8,
+            borderBottom: `1px ${isPayoff ? 'solid' : 'dashed'} ${style.palette.inkBorder}`,
+            fontFamily: monoFont,
+            fontSize: 16,
+            fontWeight: 700,
+            textTransform: 'uppercase',
+            letterSpacing: '0.12em',
+            color: accent,
+          }}
+        >
+          <span>{item.tag}</span>
+          <span style={{ fontSize: 12, opacity: 0.72 }}>
+            {isPayoff ? 'TEZA' : 'BAZA'}
+          </span>
+        </div>
+
+        <div
+          style={{
+            fontFamily: displayFont,
+            fontSize: bounds.isVertical ? 38 : 48,
+            fontWeight: 700,
+            lineHeight: 1.12,
+            letterSpacing: `${style.typography.displayTrackingEm}em`,
+            color: style.palette.textPrimary,
+          }}
+        >
+          {formatHeadingText(item.title, style)}
+        </div>
+
+        <div
+          style={{
+            fontFamily: bodyFont,
+            fontSize: bounds.isVertical ? 22 : 25,
+            lineHeight: 1.38,
+            color: style.palette.textSecondary,
+          }}
+        >
+          {item.detail}
+        </div>
       </div>
-      <div
-        style={{
-          fontFamily: formatFontFamilyCss(
-            style.typography.displayFont,
-            'display'
-          ),
-          fontSize: bounds.isVertical ? 44 : 52,
-          fontWeight: 700,
-          lineHeight: 1.12,
-          letterSpacing: `${style.typography.displayTrackingEm}em`,
-          color: style.palette.textPrimary,
-        }}
-      >
-        {formatHeadingText(item.title, style)}
-      </div>
-      <div
-        style={{
-          fontFamily: formatFontFamilyCss(style.typography.bodyFont, 'body'),
-          fontSize: bounds.isVertical ? 25 : 27,
-          lineHeight: 1.4,
-          color: style.palette.textSecondary,
-        }}
-      >
-        {item.detail}
-      </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <AbsoluteFill style={{ pointerEvents: 'none' }}>
       <div
+        data-comparison-rack={rackMode}
         style={{
           position: 'absolute',
           left: bounds.left,
@@ -158,11 +243,71 @@ export const ComparisonSplit2D: React.FC<ComparisonSplit2DProps> = ({
           boxSizing: 'border-box',
           display: 'flex',
           flexDirection: bounds.isVertical ? 'column' : 'row',
-          gap: 32,
+          alignItems: 'stretch',
+          gap: bounds.isVertical ? 18 : 24,
         }}
       >
-        {renderCard(left, leftEnter, style.palette.textSecondary)}
-        {renderCard(right, rightEnter, style.palette.accentPrimary)}
+        {renderPlate({
+          item: left,
+          side: 'left',
+          enter: leftEnter,
+          blurPx: leftBlur,
+          focusScale: leftScale,
+          focusOpacity: leftDim,
+          tiltDeg: 0,
+        })}
+
+        {/* Central Calibration Axis Divider */}
+        <div
+          data-comparison-axis="true"
+          style={{
+            flexShrink: 0,
+            display: 'flex',
+            flexDirection: bounds.isVertical ? 'row' : 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 10,
+            opacity: Math.max(leftEnter, rightEnter) * 0.78,
+          }}
+        >
+          <div
+            style={{
+              flex: 1,
+              width: bounds.isVertical ? undefined : 1,
+              height: bounds.isVertical ? 1 : undefined,
+              backgroundColor: style.palette.inkBorder,
+            }}
+          />
+          <span
+            style={{
+              fontFamily: monoFont,
+              fontSize: 13,
+              fontWeight: 700,
+              letterSpacing: '0.14em',
+              color: style.palette.accentPrimary,
+            }}
+          >
+            ┼
+          </span>
+          <div
+            style={{
+              flex: 1,
+              width: bounds.isVertical ? undefined : 1,
+              height: bounds.isVertical ? 1 : undefined,
+              backgroundColor: style.palette.inkBorder,
+            }}
+          />
+        </div>
+
+        {renderPlate({
+          item: right,
+          side: 'right',
+          enter: rightEnter,
+          blurPx: rightBlur,
+          focusScale: rightScale,
+          focusOpacity: rightDim,
+          tiltDeg: rightTilt,
+        })}
       </div>
     </AbsoluteFill>
   );
