@@ -1079,7 +1079,8 @@ const HelloIsometricStage: React.FC<HelloStudioProps> = (props) => {
   const turnSwitch = spring({ frame: frame - 320, fps, config: SPRING_PRESETS.smooth });
   const speakerAWeight = interpolate(turnSwitch, [0, 1], [1, 0]);
   const speakerBWeight = interpolate(turnSwitch, [0, 1], [0, 1]);
-  const cadencePulse = 0.45 + 0.35 * Math.sin(frame * 0.16);
+  const cadencePulse =
+    0.42 + 0.28 * Math.sin(frame * 0.048) + 0.16 * Math.cos(frame * 0.036);
 
   return (
     <AbsoluteFill style={{ opacity: stageReveal }}>

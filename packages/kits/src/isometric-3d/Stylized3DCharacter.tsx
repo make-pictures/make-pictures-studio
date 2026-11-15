@@ -36,7 +36,7 @@ export interface Stylized3DCharacterProps {
   /** Smooth turn-level speaking weight (0..1) across the whole sentence */
   speakingWeight: number;
   /** Smooth spring-interpolated gesture weights (0..1) so poses never snap */
-  gestureWeights: CharacterGestureWeights;
+  gestureWeights?: CharacterGestureWeights;
   /** Frame when the character enters the scene (default 2) */
   enterFrame?: number;
   /** Smoothly interpolated head yaw offset (rad) */
@@ -52,7 +52,7 @@ export const Stylized3DCharacter: React.FC<Stylized3DCharacterProps> = ({
   accentColor,
   speechEnergy,
   speakingWeight,
-  gestureWeights,
+  gestureWeights = {},
   enterFrame = 2,
   headYawOffset = 0,
   materialPreset,

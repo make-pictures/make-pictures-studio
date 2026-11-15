@@ -1029,8 +1029,8 @@ const IsometricDialogueScene: React.FC<${pascalName}Props> = (props) => {
           safeBox9x16Compensation
           handheldIntensity={style.motion.cameraHandheld}
           anchors={{
-            speakerA: { position: [-1.5, 0, 0.2], height: 1.55 },
-            speakerB: { position: [1.5, 0, 0.2], height: 1.55 },
+            speakerA: { position: [-1.5, 0, 0.2], height: 2.45 },
+            speakerB: { position: [1.5, 0, 0.2], height: 2.45 },
           }}
           shots={[
             {

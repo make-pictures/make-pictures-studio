@@ -10,6 +10,7 @@ import {
   BUILT_IN_STYLE_IDS,
   BUILT_IN_STYLES,
   StyleProvider,
+  evaluateDirectorCamera3D,
 } from '../../core/src/index';
 import * as kitsRoot from '../../kits/src/index';
 import {
@@ -303,5 +304,123 @@ test('IsometricStage3D and Stylized3DCharacter enforce Clean Frame 0 at runtime 
       freq >= 0.03 && freq <= 0.055,
       `Expected character frequency ${freq} to stay in [0.03, 0.055]`
     );
+  }
+});
+
+test('evaluateDirectorCamera3D frames 2.45m Stylized3DCharacter dialogue strictly inside 9:16 Golden Safe Box', () => {
+  const projectPoint = (
+    camPos: [number, number, number],
+    lookAt: [number, number, number],
+    fovDeg: number,
+    width: number,
+    height: number,
+    pt: [number, number, number]
+  ) => {
+    const fx = lookAt[0] - camPos[0];
+    const fy = lookAt[1] - camPos[1];
+    const fz = lookAt[2] - camPos[2];
+    const fLen = Math.hypot(fx, fy, fz);
+    const fwd = [fx / fLen, fy / fLen, fz / fLen];
+    // right = normalize(cross(fwd, [0, 1, 0])) = normalize([-fwd[2], 0, fwd[0]])
+    // Wait: cross((fx,fy,fz), (0,1,0)) = (-fz, 0, fx)
+    const rxRaw = -fwd[2];
+    const rzRaw = fwd[0];
+    const rLen = Math.hypot(rxRaw, rzRaw);
+    const right = [rxRaw / rLen, 0, rzRaw / rLen];
+    // up = cross(right, fwd)
+    const up = [
+      right[1]! * fwd[2]! - right[2]! * fwd[1]!,
+      right[2]! * fwd[0]! - right[0]! * fwd[2]!,
+      right[0]! * fwd[1]! - right[1]! * fwd[0]!,
+    ];
+    const dx = pt[0] - camPos[0];
+    const dy = pt[1] - camPos[1];
+    const dz = pt[2] - camPos[2];
+    const cx = dx * right[0]! + dy * right[1]! + dz * right[2]!;
+    const cy = dx * up[0]! + dy * up[1]! + dz * up[2]!;
+    const cz = dx * fwd[0]! + dy * fwd[1]! + dz * fwd[2]!;
+    const tanHalfY = Math.tan((fovDeg * Math.PI) / 360);
+    const tanHalfX = (width / height) * tanHalfY;
+    const ndcX = cx / (cz * tanHalfX);
+    const ndcY = cy / (cz * tanHalfY);
+    return {
+      px: (ndcX + 1) * 0.5 * width,
+      py: (1 - ndcY) * 0.5 * height,
+    };
+  };
+
+  const anchors = {
+    speakerA: { position: [-1.5, 0, 0.2] as [number, number, number], height: 2.45 },
+    speakerB: { position: [1.5, 0, 0.2] as [number, number, number], height: 2.45 },
+  };
+  const shots = [
+    {
+      fromFrame: 0,
+      shot: 'medium-two-shot' as const,
+      target: 'speakerA',
+      secondaryTarget: 'speakerB',
+      transition: 'cut' as const,
+    },
+    {
+      fromFrame: 320,
+      shot: 'medium' as const,
+      target: 'speakerB',
+      secondaryTarget: 'speakerA',
+      transition: 'glide' as const,
+    },
+  ];
+
+  const poseTwoShot = evaluateDirectorCamera3D({
+    frame: 120,
+    fps: 60,
+    width: 1080,
+    height: 1920,
+    anchors,
+    shots,
+    handheldIntensity: 0,
+    safeBox9x16Compensation: true,
+  });
+
+  for (const cx of [-1.5, 1.5]) {
+    for (const dx of [-0.6, 0.6]) {
+      for (const dy of [0, 2.48]) {
+        const { px, py } = projectPoint(
+          poseTwoShot.position,
+          poseTwoShot.lookAt,
+          poseTwoShot.fov,
+          1080,
+          1920,
+          [cx + dx, dy, 0.2]
+        );
+        assert.ok(px >= 40 && px <= 910, `Two-shot px=${px} outside [40, 910]`);
+        assert.ok(py >= 360 && py <= 1380, `Two-shot py=${py} outside [360, 1380]`);
+      }
+    }
+  }
+
+  const poseMedium = evaluateDirectorCamera3D({
+    frame: 420,
+    fps: 60,
+    width: 1080,
+    height: 1920,
+    anchors,
+    shots,
+    handheldIntensity: 0,
+    safeBox9x16Compensation: true,
+  });
+
+  for (const dx of [-0.6, 0.6]) {
+    for (const dy of [0, 2.48]) {
+      const { px, py } = projectPoint(
+        poseMedium.position,
+        poseMedium.lookAt,
+        poseMedium.fov,
+        1080,
+        1920,
+        [1.5 + dx, dy, 0.2]
+      );
+      assert.ok(px >= 40 && px <= 910, `Medium px=${px} outside [40, 910]`);
+      assert.ok(py >= 360 && py <= 1380, `Medium py=${py} outside [360, 1380]`);
+    }
   }
 });

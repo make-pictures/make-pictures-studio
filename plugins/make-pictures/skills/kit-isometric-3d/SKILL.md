@@ -137,8 +137,8 @@ const DialogueStage: React.FC<{ frame: number; fps: number }> = ({ frame, fps })
     <DirectorCamera3D
       safeBox9x16Compensation
       anchors={{
-        host: { position: [-1.45, 0, 0], height: 1.55 },
-        guest: { position: [1.45, 0, 0], height: 1.55 },
+        host: { position: [-1.45, 0, 0], height: 2.45 },
+        guest: { position: [1.45, 0, 0], height: 2.45 },
       }}
       shots={[
         { fromFrame: 0, shot: 'medium-two-shot', target: 'host', secondaryTarget: 'guest', transition: 'cut' },

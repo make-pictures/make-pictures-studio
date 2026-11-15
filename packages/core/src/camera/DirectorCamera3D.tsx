@@ -270,7 +270,7 @@ function resolveSingleShotPose(
       case 'medium':
         defaultAngle = 14;
         baseFov = shot.fov ?? 32;
-        dist = Math.max(4.6, r * 4.0 + 1.6);
+        dist = Math.max(4.6, (h - 0.1) * 2.85, r * 4.0 + 1.6);
         camY = primary.position[1] + h * 0.8 + 0.25;
         lookY = primary.position[1] + h * 0.68;
         break;
@@ -284,7 +284,7 @@ function resolveSingleShotPose(
       case 'close-up':
         defaultAngle = 10;
         baseFov = shot.fov ?? 27;
-        dist = Math.max(2.65, r * 2.5 + 0.85);
+        dist = Math.max(2.65, (h - 0.6) * 2.1, r * 2.5 + 0.85);
         camY = primary.position[1] + h * 0.84;
         lookY = primary.position[1] + h * 0.8;
         break;
@@ -359,18 +359,23 @@ function resolveSingleShotPose(
   // well clear of the bottom 480 px YouTube Shorts / Reels UI dead zone.
   if (isVertical9x16 && safeBox9x16Compensation) {
     effectiveFov = clamp(effectiveFov + 7.5, 16, 86);
-    const verticalPullback = 1.32;
+    const isWideTwoShot =
+      shot.shot === 'medium-two-shot' ||
+      shot.shot === 'establishing-wide' ||
+      shot.shot === 'high-crane';
+    const verticalPullback = isWideTwoShot ? 1.95 : 1.45;
     relX *= verticalPullback;
-    relY *= 1.12;
+    relY *= isWideTwoShot ? 1.35 : 1.25;
     relZ *= verticalPullback;
 
     const compensatedDist = Math.hypot(relX, relY, relZ);
     const halfHeightWorld =
       compensatedDist * Math.tan((effectiveFov * Math.PI) / 360);
-    // Shift lookAt.y downward by ~15.5% of frustum half-height -> lifts subject ~150px above screen center
+    // Golden Safe Box: x ∈ [40, 910] (center @ x_ndc = -0.1204 -> +0.068 * halfHeightWorld),
+    // y ∈ [220, 1380] (lifts subject above bottom UI dead zone while preserving top nameplate headroom).
     finalLook = [
-      finalLook[0] + 0.03 * halfHeightWorld,
-      finalLook[1] - 0.155 * halfHeightWorld,
+      finalLook[0] + 0.068 * halfHeightWorld,
+      finalLook[1] - (isWideTwoShot ? 0.1 : 0.11) * halfHeightWorld,
       finalLook[2],
     ];
   }
