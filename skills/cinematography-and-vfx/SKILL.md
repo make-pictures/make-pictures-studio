@@ -44,14 +44,16 @@ Define named subjects once (`Record<string, StageAnchor3D>`: `{ position: [x, y,
 
 ---
 
-## 2. 2D Infinite-Canvas Shot DSL (`<DirectorCamera2D />`)
+## 2. 2D Infinite-Canvas Shot DSL (`<DirectorCamera2D />` & `<MotionDiagramStage2D />`)
 
 ```tsx
 import { DirectorCamera2D, type ShotSpec2D } from '@make-pictures/core';
+import { MotionDiagramStage2D } from '@make-pictures/kits/motion-diagrams-2d';
 ```
 
-- Accepts either explicit `CameraKeyframe2D[]` or named `nodes: Record<string, StageNode2D>` + `shots: ShotSpec2D[]` (`{ fromFrame, target: string | string[], transition?: 'cut' | 'glide' | 'whip', padding?, zoom?, rotateZ?, label? }`).
-- Automatically computes the bounding box of `target` (single node or array of nodes), fits it into `16:9` or the **`9:16` Golden Safe Box**, renders the viewport-pinned infinite technical grid without GPU edge clipping, and publishes live `velocity` telemetry.
+- **`<DirectorCamera2D />`:** Accepts either explicit `CameraKeyframe2D[]` or named `nodes: Record<string, StageNode2D>` + `shots: ShotSpec2D[]` (`{ fromFrame, target: string | string[], transition?: 'cut' | 'glide' | 'whip', padding?, zoom?, rotateZ?, label? }`), plus `renderBaseFill?: boolean` (pass `false` inside `<StyleProvider renderBackdrop>`) and `renderLighting?: boolean` (default `true`, mounting `<StageLightingRig />`).
+- **Clean Frame `0` & Style Inheritance:** On `frame <= 0`, renders pure `style.palette.bgCanvas` (or `null` when `renderBaseFill={false}`). From `frame >= 1`, renders the viewport-pinned calibrated grid (`style.palette.inkBorder`) and directional `<StageLightingRig />` with zero hardcoded cyan/indigo radial blobs and zero GPU edge clipping, while fitting targets into `16:9` or the **`9:16` Golden Safe Box** and publishing live `velocity` telemetry.
+- **`<MotionDiagramStage2D />` (`@make-pictures/kits/motion-diagrams-2d`):** Extends `DirectorCamera2D` with `MotionDiagramFocusContext` (`focusedNodeIds` or automatic shot-target focus interpolation) so off-target `SystemNode` and `WorldBox` modules smoothly recess into Circle-of-Confusion blur (`computeCircleOfConfusionPx`, emitting `filter: 'none'` below `0.25px`).
 
 ---
 
@@ -140,5 +142,5 @@ import {
 
 - **`CinematicLensOverlay`:** Viewport HTML overlay (`pointerEvents: 'none'`) adding subtle `vignetteIntensity` (`0..1`), seeded film `grainOpacity` (`0..0.18`), `warmLightLeak` (`0..1`), and velocity-coupled `chromaticAberration` (automatically peaks during `'whip'` camera transitions via frame-keyed camera telemetry and drops to `0` when steady!).
 - **`ParticleField`:** Pure analytical particle layer (`preset: 'dust-motes' | 'snow' | 'rain' | 'sparks' | 'confetti' | 'speed-lines'`, `count`, `color`, `seed`, `intensity`).
-- **`StagePostProcessing3D` & `ContactShadowDisc3D`:** Drop-in children inside `<ThreeCanvas>` providing exponential atmospheric depth fog (`THREE.FogExp2`), volumetric spotlight dust cones, depth-haze planes, and soft radial contact shadows without extra postprocessing bundle bloat.
+- **`StagePostProcessing3D` & `ContactShadowDisc3D`:** Drop-in children inside `<ThreeCanvas>` providing exponential atmospheric depth fog (`THREE.FogExp2`), volumetric spotlight dust cones, depth-haze planes, and soft radial contact shadows without extra postprocessing bundle bloat (used automatically inside `<IsometricStage3D />` and `<Stylized3DCharacter />` alongside the `optics.lightAngleDeg` key/rim studio lighting rig).
 - **`SceneTransition`:** Declarative transition wipe centered at `atFrame` (`durationInFrames`, `type: 'iris-wipe' | 'whip-pan' | 'paper-curtain' | 'flash-cut' | 'ink-wash'`, `accentColor`). Pair with a `'whoosh'` or `'page-slide'` `<SoundCue />`!
