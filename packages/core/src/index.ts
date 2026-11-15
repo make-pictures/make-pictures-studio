@@ -5,4 +5,5 @@ export * from './utils';
 export * from './audio';
 export * from './camera';
 export * from './style';
+export * from './optics';
 export type { VoiceAcousticPreset } from './types';

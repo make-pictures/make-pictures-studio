@@ -92,6 +92,10 @@ export interface DirectorCameraTelemetry {
   activeShotIndex: number;
   /** Optional human-readable shot label */
   activeShotLabel?: string;
+  /** Active 2.5D focal plane Z coordinate (default 0) */
+  focalZ?: number;
+  /** Active optical aperture in [0, 1] controlling Circle of Confusion outside focalZ */
+  aperture?: number;
 }
 
 export const DEFAULT_CAMERA_TELEMETRY: DirectorCameraTelemetry = {
@@ -121,6 +125,8 @@ export function publishFrameCameraTelemetry(
     prev &&
     Math.abs(prev.velocity - telemetry.velocity) < 1e-4 &&
     Math.abs(prev.focusDistance - telemetry.focusDistance) < 1e-3 &&
+    Math.abs((prev.focalZ ?? 0) - (telemetry.focalZ ?? 0)) < 1e-3 &&
+    Math.abs((prev.aperture ?? 0) - (telemetry.aperture ?? 0)) < 1e-3 &&
     prev.activeShotIndex === telemetry.activeShotIndex
   ) {
     return;
