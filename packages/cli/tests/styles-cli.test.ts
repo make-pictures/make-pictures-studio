@@ -84,6 +84,14 @@ test('make-pictures new defaults to vector-scene-2d + minimal-product and genera
     assert.match(defIndex, /vector-scene-2d/);
     assert.doesNotMatch(defIndex, /paper-diorama-3d/);
 
+    const defTsx = fs.readFileSync(
+      path.join(defProd.productionDir, 'compositions', 'DefaultFilm.tsx'),
+      'utf8'
+    );
+    assert.match(defTsx, /VectorSceneStage2D/);
+    assert.match(defTsx, /foregroundCallouts/);
+    assert.match(defTsx, /focusShiftFrame=\{150\}/);
+
     const defProps = JSON.parse(
       fs.readFileSync(
         path.join(
@@ -141,6 +149,27 @@ test('make-pictures new defaults to vector-scene-2d + minimal-product and genera
       if (kitId === 'kinetic-typography') {
         assert.match(tsx, /StageLightingRig/);
         assert.match(tsx, /OpticalStage2D/);
+      }
+      if (kitId === 'vector-scene-2d') {
+        assert.match(tsx, /VectorSceneStage2D/);
+        assert.match(tsx, /foregroundCallouts/);
+        assert.match(
+          tsx,
+          /<Sequence from=\{0\} durationInFrames=\{320\}>\s*<AnnotatedCallout2D/
+        );
+        assert.match(
+          tsx,
+          /target=\{isVertical \? \[360, 650\] : \[960, 560\]\}/
+        );
+        assert.match(
+          tsx,
+          /labelPosition=\{isVertical \? \[590, 860\] : \[1180, 790\]\}/
+        );
+        assert.match(tsx, /focusShiftFrame=\{150\}/);
+      }
+      if (kitId === 'data-storytelling') {
+        assert.match(tsx, /DataStoryStage2D/);
+        assert.match(tsx, /TimelineTrack/);
       }
 
       const normalizedTemplate = tsx

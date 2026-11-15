@@ -409,6 +409,60 @@ test('StyleLabPreviewComposition renders live 60 FPS optical lighting, editorial
     } else {
       assert.match(kineticFrame48, /data-vernier-scale="true"/);
     }
+
+    // 3. Vector Scene 2D in Style Lab: Frame 0 clean + Frame 64 multi-plane plate, medallion, elbow callout & rack focus
+    const vectorFrame0 = renderStyleLabFrame(preset, 'vector-scene-2d', 0);
+    assert.doesNotMatch(vectorFrame0, /Przejrzysta narracja/);
+    assert.doesNotMatch(vectorFrame0, /data-lighting-rig=/);
+
+    for (const [w, h] of [
+      [1080, 1920],
+      [1920, 1080],
+    ] as const) {
+      const vectorFrame64 = renderStyleLabFrame(
+        preset,
+        'vector-scene-2d',
+        64,
+        w,
+        h
+      );
+      assert.match(vectorFrame64, new RegExp(`data-lighting-rig="${expectedRig}"`));
+      assert.match(
+        vectorFrame64,
+        new RegExp(`data-medallion-grammar="${expectedGrammar}"`)
+      );
+      assert.match(vectorFrame64, /data-callout-reticle="true"/);
+      assert.match(vectorFrame64, /data-depth-z="-0\.6"/);
+      assert.match(vectorFrame64, /data-depth-z="0\.42"/);
+      assert.doesNotMatch(vectorFrame64, /blur\(0(?:\.0+)?px\)/);
+    }
+
+    const vectorFrame140 = renderStyleLabFrame(preset, 'vector-scene-2d', 140);
+    assert.doesNotMatch(vectorFrame140, /blur\(0(?:\.0+)?px\)/);
+
+    // 4. Data Storytelling in Style Lab: Frame 0 clean + Frame 64 tonal grid, 240° dial & vernier rail
+    const dataFrame0 = renderStyleLabFrame(preset, 'data-storytelling', 0);
+    assert.doesNotMatch(dataFrame0, /Indeks czytelności/);
+    assert.doesNotMatch(dataFrame0, /data-lighting-rig=/);
+
+    for (const [w, h] of [
+      [1080, 1920],
+      [1920, 1080],
+    ] as const) {
+      const dataFrame64 = renderStyleLabFrame(
+        preset,
+        'data-storytelling',
+        64,
+        w,
+        h
+      );
+      assert.match(dataFrame64, new RegExp(`data-lighting-rig="${expectedRig}"`));
+      assert.match(dataFrame64, new RegExp(`data-bar-grammar="${expectedGrammar}"`));
+      assert.match(dataFrame64, /data-instrument-arc="240"/);
+      assert.match(dataFrame64, /data-vernier-rail="true"/);
+      assert.match(dataFrame64, /data-depth-z="-0\.58"/);
+      assert.doesNotMatch(dataFrame64, /blur\(0(?:\.0+)?px\)/);
+    }
   }
 
   // Peer boundary & determinism guard on StyleLabShowcase.tsx

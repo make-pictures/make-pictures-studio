@@ -624,198 +624,476 @@ const VectorScene2DPreview: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps, width, height } = useVideoConfig();
   const style = useStudioStyle();
+  const optics = resolveStyleOptics(style);
+  const grammar = optics.typographyGrammar;
   const bounds = getSafeStageBounds(width, height);
+
+  const shots = useMemo<ReadonlyArray<OpticalShot2D>>(() => {
+    const cx = width / 2;
+    const cy = height / 2;
+    return [
+      { fromFrame: 2, x: cx, y: cy + 6, zoom: 1.0, focalZ: 0.32, transition: 'cut' },
+      { fromFrame: 10, x: cx - 5, y: cy, zoom: 1.026, focalZ: 0, transition: 'glide' },
+      { fromFrame: 140, x: cx + 6, y: cy - 4, zoom: 1.04, focalZ: 0, transition: 'glide' },
+    ];
+  }, [width, height]);
 
   const heroEnter = spring({
     frame: frame - 2,
     fps,
     config: getStyleSpringConfig(style, 'enter'),
   });
-  const leftEnter = spring({
+  const calloutEnter = spring({
+    frame: frame - 18,
+    fps,
+    config: getStyleSpringConfig(style, 'emphasis'),
+  });
+  const splitEnter = spring({
     frame: frame - 14,
     fps,
     config: getStyleSpringConfig(style, 'enter'),
   });
-  const rightEnter = spring({
-    frame: frame - 26,
-    fps,
-    config: getStyleSpringConfig(style, 'emphasis'),
-  });
+  const rackShift =
+    frame >= 96
+      ? spring({
+          frame: frame - 96,
+          fps,
+          config: getStyleSpringConfig(style, 'camera'),
+        })
+      : 0;
+
+  const maxBlur = Math.max(1.6, optics.aperture * 6.5);
+  const leftBlur = interpolate(rackShift, [0, 1], [0, maxBlur]);
+  const rightBlur = interpolate(rackShift, [0, 1], [maxBlur, 0]);
 
   const displayFont = formatFontFamilyCss(style.typography.displayFont, 'display');
   const bodyFont = formatFontFamilyCss(style.typography.bodyFont, 'body');
   const monoFont = formatFontFamilyCss(style.typography.monoFont, 'mono');
 
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        left: bounds.left,
-        top: bounds.top,
-        width: bounds.width,
-        height: bounds.height,
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'center',
-        gap: 28,
-      }}
-    >
-      <div
-        style={getCardChromeStyle(style, {
-          padding: bounds.isVertical ? '30px 34px' : '36px 44px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 24,
-          opacity: heroEnter,
-          transform: `translateY(${interpolate(heroEnter, [0, 1], [24, 0])}px)`,
-        })}
-      >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <span
-            style={{
-              fontFamily: monoFont,
-              fontSize: 17,
-              fontWeight: 700,
-              color: style.palette.accentPrimary,
-              letterSpacing: '0.08em',
-            }}
-          >
-            VECTOR SCENE 2D • STORY CARD
-          </span>
-          <div
-            style={{
-              fontFamily: displayFont,
-              fontSize: bounds.isVertical ? 44 : 54,
-              fontWeight: 700,
-              lineHeight: 1.12,
-              letterSpacing: `${style.typography.displayTrackingEm}em`,
-              color: style.palette.textPrimary,
-            }}
-          >
-            {formatHeadingText('Przejrzysta narracja pojęć', style)}
-          </div>
-          <div
-            style={{
-              fontFamily: bodyFont,
-              fontSize: 24,
-              color: style.palette.textSecondary,
-            }}
-          >
-            Zwięzłe karty, wyraźna hierarchia i pełne polskie znaki: zażółć gęślą jaźń.
-          </div>
-        </div>
+  const guideColor = style.surface.isDark
+    ? 'rgba(248, 250, 252, 0.18)'
+    : `${style.palette.inkBorder}99`;
 
+  const tx = bounds.left + Math.round(bounds.width * (bounds.isVertical ? 0.58 : 0.62));
+  const ty = bounds.isVertical ? 556 : 382;
+  const ly = bounds.isVertical ? 472 : 298;
+  const elbowX = tx + Math.abs(ty - ly);
+  const lx = bounds.left + Math.round(bounds.width * (bounds.isVertical ? 0.69 : 0.68));
+
+  const heroTilt =
+    optics.lightingRig === 'studio-macro'
+      ? 0
+      : grammar === 'risograph-poster'
+        ? -0.5
+        : 0;
+
+  return (
+    <OpticalStage2D shots={shots} seed={2028} startFrame={2}>
+      {/* Plane z = -0.6: Construction Plate Axes */}
+      <DepthPlane z={-0.6}>
+        <AbsoluteFill style={{ pointerEvents: 'none' }}>
+          <div
+            style={{
+              position: 'absolute',
+              left: bounds.left,
+              top: bounds.top,
+              width: bounds.width,
+              height: bounds.height,
+              border: `1px solid ${guideColor}`,
+              opacity: 0.48,
+            }}
+          >
+            <div
+              style={{
+                position: 'absolute',
+                left: '38.2%',
+                top: 0,
+                bottom: 0,
+                width: 1,
+                backgroundColor: guideColor,
+                opacity: 0.62,
+              }}
+            />
+            <div
+              style={{
+                position: 'absolute',
+                left: 0,
+                right: 0,
+                top: '50%',
+                height: 1,
+                backgroundColor: guideColor,
+                opacity: 0.52,
+              }}
+            />
+          </div>
+          <div
+            style={{
+              position: 'absolute',
+              left: bounds.left,
+              top: Math.max(22, bounds.top - 24),
+              fontFamily: monoFont,
+              fontSize: 13,
+              letterSpacing: '0.15em',
+              color: style.palette.textSecondary,
+              opacity: 0.58,
+            }}
+          >
+            ┼ TABLICA KONCEPCYJNA • {style.id.toUpperCase()}
+          </div>
+        </AbsoluteFill>
+      </DepthPlane>
+
+      {/* Plane z = 0: Engraved Medallion Plate + Rack-Focus Split */}
+      <DepthPlane z={0}>
         <div
           style={{
-            padding: '10px 20px',
-            borderRadius: Math.round(999 * Math.max(0.15, style.surface.radiusScale)),
-            backgroundColor: `${style.palette.accentPrimary}20`,
-            border: `2px solid ${style.palette.accentPrimary}`,
-            fontFamily: monoFont,
-            fontSize: 20,
-            fontWeight: 700,
-            color: style.palette.accentPrimary,
-            flexShrink: 0,
+            position: 'absolute',
+            left: bounds.left,
+            top: bounds.top,
+            width: bounds.width,
+            height: bounds.height,
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+            gap: bounds.isVertical ? 22 : 26,
           }}
         >
-          60 FPS
-        </div>
-      </div>
+          <div
+            data-medallion-grammar={grammar}
+            style={getTactileSurfaceStyle(style, {
+              elevation: 'lifted',
+              tiltDeg: heroTilt,
+              overrides: {
+                padding: bounds.isVertical ? '24px 28px' : '30px 36px',
+                borderRadius:
+                  grammar === 'risograph-poster'
+                    ? 0
+                    : Math.max(0, Math.round(6 * style.surface.radiusScale)),
+                borderTop:
+                  grammar === 'swiss-spatial'
+                    ? `3px solid ${style.palette.accentPrimary}`
+                    : undefined,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 14,
+                opacity: heroEnter,
+              },
+            })}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                paddingBottom: 8,
+                borderBottom: `1px solid ${style.palette.inkBorder}`,
+                fontFamily: monoFont,
+                fontSize: 14,
+                fontWeight: 700,
+                letterSpacing: '0.12em',
+                color: style.palette.accentPrimary,
+              }}
+            >
+              <span>FIG. 01 // VECTOR SCENE 2D</span>
+              <span style={{ color: style.palette.textSecondary }}>Z +0.00</span>
+            </div>
 
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: bounds.isVertical ? 'column' : 'row',
-          gap: 28,
-        }}
-      >
-        <div
-          style={getCardChromeStyle(style, {
-            flex: 1,
-            padding: '30px 34px',
-            opacity: leftEnter,
-            transform: `translateY(${interpolate(leftEnter, [0, 1], [22, 0])}px)`,
-          })}
-        >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+              <div
+                style={{
+                  position: 'relative',
+                  width: 56,
+                  height: 56,
+                  flexShrink: 0,
+                  boxShadow:
+                    grammar === 'optical-gate' && optics.halation > 0.05
+                      ? `0 0 ${Math.round(12 + optics.halation * 20)}px ${style.palette.accentPrimary}44`
+                      : grammar === 'risograph-poster'
+                        ? `3px 3px 0px ${style.palette.inkBorder}`
+                        : 'none',
+                  backgroundColor:
+                    grammar === 'risograph-poster'
+                      ? style.palette.bgElevated
+                      : 'transparent',
+                  border:
+                    grammar === 'risograph-poster'
+                      ? `1.5px solid ${style.palette.inkBorder}`
+                      : 'none',
+                }}
+              >
+                <svg width="56" height="56" viewBox="0 0 60 60">
+                  {grammar === 'swiss-spatial' && (
+                    <>
+                      <circle
+                        cx="30"
+                        cy="30"
+                        r="26"
+                        fill="none"
+                        stroke={style.palette.inkBorder}
+                        strokeWidth="1.2"
+                        strokeDasharray="3 3"
+                      />
+                      <circle
+                        cx="30"
+                        cy="30"
+                        r="19"
+                        fill="none"
+                        stroke={style.palette.accentPrimary}
+                        strokeWidth="1.6"
+                      />
+                      <line x1="30" y1="0" x2="30" y2="8" stroke={style.palette.textSecondary} strokeWidth="1.2" />
+                      <line x1="30" y1="52" x2="30" y2="60" stroke={style.palette.textSecondary} strokeWidth="1.2" />
+                      <line x1="0" y1="30" x2="8" y2="30" stroke={style.palette.textSecondary} strokeWidth="1.2" />
+                      <line x1="52" y1="30" x2="60" y2="30" stroke={style.palette.textSecondary} strokeWidth="1.2" />
+                    </>
+                  )}
+                  {grammar === 'optical-gate' && (
+                    <>
+                      <path
+                        d="M4 16 V4 H16 M44 4 H56 V16 M56 44 V56 H44 M16 56 H4 V44"
+                        fill="none"
+                        stroke={style.palette.accentPrimary}
+                        strokeWidth="1.6"
+                      />
+                      <circle
+                        cx="30"
+                        cy="30"
+                        r="18"
+                        fill="none"
+                        stroke={style.palette.accentPrimary}
+                        strokeWidth="1.2"
+                        opacity={0.75}
+                      />
+                    </>
+                  )}
+                  {grammar === 'risograph-poster' && (
+                    <rect
+                      x="6"
+                      y="6"
+                      width="48"
+                      height="48"
+                      fill="none"
+                      stroke={style.palette.accentPrimary}
+                      strokeWidth="2"
+                    />
+                  )}
+                  <polygon
+                    points="30,18 41,38 19,38"
+                    fill="none"
+                    stroke={style.palette.accentPrimary}
+                    strokeWidth="1.8"
+                  />
+                </svg>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div
+                  style={{
+                    fontFamily: displayFont,
+                    fontSize: bounds.isVertical ? 38 : 46,
+                    fontWeight: 700,
+                    lineHeight: 1.12,
+                    letterSpacing: `${style.typography.displayTrackingEm}em`,
+                    color: style.palette.textPrimary,
+                  }}
+                >
+                  {formatHeadingText('Przejrzysta narracja pojęć', style)}
+                </div>
+                <div
+                  style={{
+                    fontFamily: bodyFont,
+                    fontSize: 21,
+                    color: style.palette.textSecondary,
+                  }}
+                >
+                  Grawerowany medalion, cień kierunkowy i polskie znaki: zażółć gęślą jaźń.
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Dual Comparison Plates with Live Rack Focus */}
           <div
             style={{
-              fontFamily: monoFont,
-              fontSize: 17,
-              fontWeight: 700,
-              color: style.palette.textSecondary,
-              marginBottom: 10,
+              display: 'flex',
+              flexDirection: bounds.isVertical ? 'column' : 'row',
+              alignItems: 'stretch',
+              gap: 18,
+              opacity: splitEnter,
             }}
           >
-            PRZED ZMIANĄ
+            <div
+              style={getTactileSurfaceStyle(style, {
+                elevation: 'resting',
+                overrides: {
+                  flex: 1,
+                  padding: '22px 26px',
+                  borderRadius:
+                    grammar === 'risograph-poster'
+                      ? 0
+                      : Math.max(0, Math.round(6 * style.surface.radiusScale)),
+                  filter: leftBlur < 0.25 ? 'none' : `blur(${leftBlur.toFixed(2)}px)`,
+                  opacity: interpolate(rackShift, [0, 1], [1, 0.8]),
+                },
+              })}
+            >
+              <div
+                style={{
+                  fontFamily: monoFont,
+                  fontSize: 14,
+                  fontWeight: 700,
+                  color: style.palette.textSecondary,
+                  marginBottom: 6,
+                }}
+              >
+                01 • PRZED (BAZA)
+              </div>
+              <div
+                style={{
+                  fontFamily: displayFont,
+                  fontSize: 30,
+                  fontWeight: 700,
+                  color: style.palette.textPrimary,
+                }}
+              >
+                {formatHeadingText('Sztywny kadr płaski', style)}
+              </div>
+            </div>
+
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontFamily: monoFont,
+                fontSize: 14,
+                color: style.palette.accentPrimary,
+              }}
+            >
+              ┼
+            </div>
+
+            <div
+              style={getTactileSurfaceStyle(style, {
+                elevation: 'floating',
+                overrides: {
+                  flex: 1,
+                  padding: '22px 26px',
+                  borderTop: `3px solid ${style.palette.accentPrimary}`,
+                  borderRadius:
+                    grammar === 'risograph-poster'
+                      ? 0
+                      : Math.max(0, Math.round(6 * style.surface.radiusScale)),
+                  filter: rightBlur < 0.25 ? 'none' : `blur(${rightBlur.toFixed(2)}px)`,
+                  opacity: interpolate(rackShift, [0, 1], [0.82, 1]),
+                },
+              })}
+            >
+              <div
+                style={{
+                  fontFamily: monoFont,
+                  fontSize: 14,
+                  fontWeight: 700,
+                  color: style.palette.accentPrimary,
+                  marginBottom: 6,
+                }}
+              >
+                02 • RACK FOCUS (TEZA)
+              </div>
+              <div
+                style={{
+                  fontFamily: displayFont,
+                  fontSize: 30,
+                  fontWeight: 700,
+                  color: style.palette.textPrimary,
+                }}
+              >
+                {formatHeadingText('Ostrość prowadzi wzrok', style)}
+              </div>
+            </div>
           </div>
-          <div
-            style={{
-              fontFamily: displayFont,
-              fontSize: 36,
+        </div>
+      </DepthPlane>
+
+      {/* Plane z = +0.42: Architectural Elbow Callout + Reticle */}
+      <DepthPlane z={0.42}>
+        <svg
+          width={width}
+          height={height}
+          style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
+        >
+          <g data-callout-reticle="true" opacity={calloutEnter}>
+            <circle
+              cx={tx}
+              cy={ty}
+              r={10}
+              fill="none"
+              stroke={style.palette.accentSecondary}
+              strokeWidth={1.5}
+            />
+            <line
+              x1={tx - 15}
+              y1={ty}
+              x2={tx - 6}
+              y2={ty}
+              stroke={style.palette.accentSecondary}
+              strokeWidth={1.2}
+            />
+            <line
+              x1={tx + 6}
+              y1={ty}
+              x2={tx + 15}
+              y2={ty}
+              stroke={style.palette.accentSecondary}
+              strokeWidth={1.2}
+            />
+            <line
+              x1={tx}
+              y1={ty - 15}
+              x2={tx}
+              y2={ty - 6}
+              stroke={style.palette.accentSecondary}
+              strokeWidth={1.2}
+            />
+            <line
+              x1={tx}
+              y1={ty + 6}
+              x2={tx}
+              y2={ty + 15}
+              stroke={style.palette.accentSecondary}
+              strokeWidth={1.2}
+            />
+            <circle cx={tx} cy={ty} r={2.5} fill={style.palette.accentSecondary} />
+            <polyline
+              points={`${tx},${ty} ${elbowX},${ly} ${lx},${ly}`}
+              fill="none"
+              stroke={style.palette.accentSecondary}
+              strokeWidth={1.6}
+            />
+          </g>
+        </svg>
+        <div
+          style={getTactileSurfaceStyle(style, {
+            elevation: 'floating',
+            overrides: {
+              position: 'absolute',
+              left: lx,
+              top: ly,
+              transform: 'translate(0, -50%)',
+              padding: '8px 14px',
+              borderLeft: `3px solid ${style.palette.accentSecondary}`,
+              borderRadius: 0,
+              fontFamily: monoFont,
+              fontSize: 13,
               fontWeight: 700,
               color: style.palette.textPrimary,
-              marginBottom: 8,
-            }}
-          >
-            {formatHeadingText('Jeden sztywny szablon', style)}
-          </div>
-          <div
-            style={{
-              fontFamily: bodyFont,
-              fontSize: 22,
-              lineHeight: 1.4,
-              color: style.palette.textSecondary,
-            }}
-          >
-            Każdy film dziedziczył tę samą paletę i tekturową scenografię.
-          </div>
-        </div>
-
-        <div
-          style={getCardChromeStyle(style, {
-            flex: 1,
-            padding: '30px 34px',
-            borderColor: style.palette.accentPrimary,
-            opacity: rightEnter,
-            transform: `translateY(${interpolate(rightEnter, [0, 1], [22, 0])}px)`,
+              opacity: calloutEnter,
+            },
           })}
         >
-          <div
-            style={{
-              fontFamily: monoFont,
-              fontSize: 17,
-              fontWeight: 700,
-              color: style.palette.accentPrimary,
-              marginBottom: 10,
-            }}
-          >
-            ART DIRECTION 2.1
-          </div>
-          <div
-            style={{
-              fontFamily: displayFont,
-              fontSize: 36,
-              fontWeight: 700,
-              color: style.palette.textPrimary,
-              marginBottom: 8,
-            }}
-          >
-            {formatHeadingText('Styl dopasowany do treści', style)}
-          </div>
-          <div
-            style={{
-              fontFamily: bodyFont,
-              fontSize: 22,
-              lineHeight: 1.4,
-              color: style.palette.textSecondary,
-            }}
-          >
-            7 kitów scenicznych + autorskie presety w katalogu styles/.
-          </div>
+          DETAL A·1 • Z +0.42
         </div>
-      </div>
-    </div>
+      </DepthPlane>
+    </OpticalStage2D>
   );
 };
 
@@ -1212,7 +1490,18 @@ const DataStorytellingPreview: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps, width, height } = useVideoConfig();
   const style = useStudioStyle();
+  const optics = resolveStyleOptics(style);
+  const grammar = optics.typographyGrammar;
   const bounds = getSafeStageBounds(width, height);
+
+  const shots = useMemo<ReadonlyArray<OpticalShot2D>>(() => {
+    const cx = width / 2;
+    const cy = height / 2;
+    return [
+      { fromFrame: 2, x: cx, y: cy + 5, zoom: 1.0, focalZ: 0.3, transition: 'cut' },
+      { fromFrame: 10, x: cx - 4, y: cy, zoom: 1.024, focalZ: 0, transition: 'glide' },
+    ];
+  }, [width, height]);
 
   const cardEnter = spring({
     frame: frame - 2,
@@ -1221,119 +1510,343 @@ const DataStorytellingPreview: React.FC = () => {
   });
 
   const bars = [
-    { label: 'Wideo z kodem (60 FPS)', target: 94, accent: style.palette.accentPrimary },
-    { label: 'Dokument redakcyjny', target: 78, accent: style.palette.accentSecondary },
-    { label: 'Prezentacja produktowa', target: 63, accent: style.palette.textSecondary },
-    { label: 'Statyczne slajdy', target: 29, accent: style.palette.inkBorder },
+    { label: 'Wideo z kodem (60 FPS)', target: 94, color: style.palette.accentPrimary, leader: true },
+    { label: 'Dokument redakcyjny', target: 74, color: style.palette.accentSecondary, leader: false },
+    { label: 'Statyczne slajdy', target: 31, color: style.palette.textSecondary, leader: false },
   ];
+
+  const eras = [
+    { year: '1998', label: 'Archiwum', active: false },
+    { year: '2026', label: 'Optyka 2.5D', active: true },
+    { year: '2030', label: 'Skala', active: false },
+  ];
+  const offBlur = optics.aperture * 3.4;
 
   const displayFont = formatFontFamilyCss(style.typography.displayFont, 'display');
   const bodyFont = formatFontFamilyCss(style.typography.bodyFont, 'body');
   const monoFont = formatFontFamilyCss(style.typography.monoFont, 'mono');
 
+  const gridLineColor = style.surface.isDark
+    ? 'rgba(248, 250, 252, 0.16)'
+    : `${style.palette.inkBorder}88`;
+
   return (
-    <div
-      style={{
-        position: 'absolute',
-        left: bounds.left,
-        top: bounds.top,
-        width: bounds.width,
-        height: bounds.height,
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'center',
-        gap: 26,
-      }}
-    >
-      <div
-        style={getCardChromeStyle(style, {
-          padding: bounds.isVertical ? '32px 34px' : '40px 46px',
-          opacity: cardEnter,
-          transform: `translateY(${interpolate(cardEnter, [0, 1], [24, 0])}px)`,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 22,
-        })}
-      >
+    <OpticalStage2D shots={shots} seed={2029} startFrame={2}>
+      {/* Plane z = -0.58: Scale Sheet */}
+      <DepthPlane z={-0.58}>
+        <AbsoluteFill style={{ pointerEvents: 'none' }}>
+          <div
+            style={{
+              position: 'absolute',
+              left: bounds.left,
+              top: bounds.top,
+              width: bounds.width,
+              height: bounds.height,
+              border: `1px solid ${gridLineColor}`,
+              opacity: 0.45,
+            }}
+          >
+            {[0.25, 0.5, 0.75].map((pct) => (
+              <div
+                key={pct}
+                style={{
+                  position: 'absolute',
+                  left: `${pct * 100}%`,
+                  top: 0,
+                  bottom: 0,
+                  width: 1,
+                  backgroundColor: gridLineColor,
+                  opacity: 0.55,
+                }}
+              />
+            ))}
+          </div>
+          <div
+            style={{
+              position: 'absolute',
+              left: bounds.left,
+              top: Math.max(22, bounds.top - 24),
+              fontFamily: monoFont,
+              fontSize: 13,
+              letterSpacing: '0.15em',
+              color: style.palette.textSecondary,
+              opacity: 0.58,
+            }}
+          >
+            ∑ KARTOGRAFIA DANYCH • 0 · 25 · 50 · 75 · 100
+          </div>
+        </AbsoluteFill>
+      </DepthPlane>
+
+      {/* Plane z = 0: Tonal Bar Race + 240° Instrument + Vernier Timeline */}
+      <DepthPlane z={0}>
         <div
           style={{
+            position: 'absolute',
+            left: bounds.left,
+            top: bounds.top,
+            width: bounds.width,
+            height: bounds.height,
             display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'baseline',
-            gap: 16,
+            flexDirection: 'column',
+            justifyContent: 'center',
+            gap: 22,
           }}
         >
           <div
-            style={{
-              fontFamily: displayFont,
-              fontSize: bounds.isVertical ? 40 : 48,
-              fontWeight: 700,
-              color: style.palette.textPrimary,
-              letterSpacing: `${style.typography.displayTrackingEm}em`,
-            }}
+            data-bar-grammar={grammar}
+            style={getTactileSurfaceStyle(style, {
+              elevation: 'lifted',
+              overrides: {
+                padding: bounds.isVertical ? '24px 28px' : '30px 36px',
+                borderRadius:
+                  grammar === 'risograph-poster'
+                    ? 0
+                    : Math.max(0, Math.round(6 * style.surface.radiusScale)),
+                opacity: cardEnter,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 16,
+              },
+            })}
           >
-            {formatHeadingText('Indeks czytelności przekazu', style)}
-          </div>
-          <span
-            style={{
-              fontFamily: monoFont,
-              fontSize: 18,
-              fontWeight: 700,
-              color: style.palette.accentPrimary,
-            }}
-          >
-            +3,2× WZROST
-          </span>
-        </div>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: 16,
+                paddingBottom: 10,
+                borderBottom: `1px solid ${style.palette.inkBorder}`,
+              }}
+            >
+              <div
+                style={{
+                  fontFamily: displayFont,
+                  fontSize: bounds.isVertical ? 34 : 40,
+                  fontWeight: 700,
+                  color: style.palette.textPrimary,
+                  letterSpacing: `${style.typography.displayTrackingEm}em`,
+                }}
+              >
+                {formatHeadingText('Indeks czytelności przekazu', style)}
+              </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-          {bars.map((bar, idx) => {
-            const grow = spring({
-              frame: frame - (8 + idx * 7),
-              fps,
-              config: getStyleSpringConfig(style, 'enter'),
-            });
-            const pct = Math.round(bar.target * grow);
-            return (
-              <div key={bar.label} style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-                <div
+              <div
+                data-instrument-arc="240"
+                style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}
+              >
+                <svg width="46" height="36" viewBox="0 0 46 36">
+                  <path
+                    d="M 8 30 A 16 16 0 1 1 38 30"
+                    fill="none"
+                    stroke={style.palette.inkBorder}
+                    strokeWidth="2.5"
+                    strokeLinecap="butt"
+                    strokeDasharray="2 3"
+                  />
+                  <path
+                    d="M 8 30 A 16 16 0 1 1 35 12"
+                    fill="none"
+                    stroke={style.palette.accentPrimary}
+                    strokeWidth="3.2"
+                    strokeLinecap="butt"
+                  />
+                  <line
+                    x1="23"
+                    y1="20"
+                    x2="34"
+                    y2="12"
+                    stroke={style.palette.textPrimary}
+                    strokeWidth="1.6"
+                  />
+                  <circle cx="23" cy="20" r="2.5" fill={style.palette.textPrimary} />
+                </svg>
+                <span
                   style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    fontFamily: bodyFont,
-                    fontSize: 21,
-                    fontWeight: 600,
-                    color: style.palette.textPrimary,
+                    fontFamily: monoFont,
+                    fontVariantNumeric: 'tabular-nums',
+                    fontSize: 15,
+                    fontWeight: 800,
+                    padding: '4px 10px',
+                    border: `1.5px solid ${style.palette.accentPrimary}`,
+                    color:
+                      grammar === 'risograph-poster'
+                        ? '#FFFFFF'
+                        : style.palette.accentPrimary,
+                    backgroundColor:
+                      grammar === 'risograph-poster'
+                        ? style.palette.accentPrimary
+                        : 'transparent',
                   }}
                 >
-                  <span>{bar.label}</span>
-                  <span style={{ fontFamily: monoFont, color: style.palette.textSecondary }}>
-                    {pct} pkt
-                  </span>
-                </div>
+                  Δ +3,0×
+                </span>
+              </div>
+            </div>
+
+            <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {bars.map((bar, idx) => {
+                const grow = spring({
+                  frame: frame - (6 + idx * 6),
+                  fps,
+                  config: getStyleSpringConfig(style, 'enter'),
+                });
+                const pct = Math.round(bar.target * grow);
+                return (
+                  <div key={bar.label} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <span
+                      style={{
+                        width: 28,
+                        fontFamily: monoFont,
+                        fontVariantNumeric: 'tabular-nums',
+                        fontSize: 14,
+                        fontWeight: 700,
+                        textAlign: 'center',
+                        color:
+                          grammar === 'risograph-poster' && bar.leader
+                            ? '#FFFFFF'
+                            : bar.leader
+                              ? style.palette.accentPrimary
+                              : style.palette.textSecondary,
+                        backgroundColor:
+                          grammar === 'risograph-poster' && bar.leader
+                            ? style.palette.accentPrimary
+                            : 'transparent',
+                      }}
+                    >
+                      0{idx + 1}
+                    </span>
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 5 }}>
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          fontFamily: bodyFont,
+                          fontSize: 18,
+                          fontWeight: bar.leader ? 700 : 600,
+                          color: style.palette.textPrimary,
+                        }}
+                      >
+                        <span>{bar.label}</span>
+                        <span style={{ fontFamily: monoFont, fontVariantNumeric: 'tabular-nums' }}>
+                          {pct} pkt
+                        </span>
+                      </div>
+                      <div
+                        style={{
+                          height: bar.leader ? 14 : 11,
+                          backgroundColor: style.palette.bgElevated,
+                          border:
+                            grammar === 'risograph-poster'
+                              ? `1.5px solid ${style.palette.inkBorder}`
+                              : undefined,
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: `${Math.max(3, bar.target * grow)}%`,
+                            height: '100%',
+                            background:
+                              grammar === 'risograph-poster' && !bar.leader
+                                ? `repeating-linear-gradient(-45deg, ${bar.color}, ${bar.color} 3px, transparent 3px, transparent 6px)`
+                                : bar.color,
+                            borderRight: bar.leader
+                              ? `2.5px solid ${style.palette.textPrimary}`
+                              : undefined,
+                            boxShadow:
+                              grammar === 'optical-gate' && bar.leader && optics.halation > 0.05
+                                ? `0 0 ${Math.round(10 + optics.halation * 18)}px ${bar.color}66`
+                                : 'none',
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Vernier Chronicle Rail with Rack Focus */}
+          <div
+            data-vernier-rail="true"
+            style={getTactileSurfaceStyle(style, {
+              elevation: 'resting',
+              overrides: {
+                padding: '16px 24px',
+                borderRadius:
+                  grammar === 'risograph-poster'
+                    ? 0
+                    : Math.max(0, Math.round(6 * style.surface.radiusScale)),
+                borderTop: `2px solid ${style.palette.inkBorder}`,
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: 14,
+                opacity: cardEnter,
+              },
+            })}
+          >
+            {eras.map((e) => {
+              const markerPrefix = e.active
+                ? grammar === 'optical-gate'
+                  ? '◆'
+                  : '▲'
+                : '│';
+              return (
                 <div
-                  style={{
-                    height: 20,
-                    borderRadius: Math.round(10 * style.surface.radiusScale),
-                    backgroundColor: style.palette.bgElevated,
-                    overflow: 'hidden',
-                  }}
+                  key={e.year}
+                  style={
+                    e.active
+                      ? getTactileSurfaceStyle(style, {
+                          elevation: 'floating',
+                          overrides: {
+                            flex: 1,
+                            padding: '8px 12px',
+                            borderLeft: `3px solid ${style.palette.accentPrimary}`,
+                            borderRadius: 0,
+                            filter: 'none',
+                            opacity: 1,
+                          },
+                        })
+                      : {
+                          flex: 1,
+                          padding: '4px 8px',
+                          transform: 'scale(0.96)',
+                          filter: offBlur < 0.25 ? 'none' : `blur(${offBlur.toFixed(2)}px)`,
+                          opacity: 0.65,
+                        }
+                  }
                 >
                   <div
                     style={{
-                      width: `${Math.max(2, bar.target * grow)}%`,
-                      height: '100%',
-                      backgroundColor: bar.accent,
-                      borderRadius: Math.round(10 * style.surface.radiusScale),
+                      fontFamily: monoFont,
+                      fontVariantNumeric: 'tabular-nums',
+                      fontSize: 13,
+                      fontWeight: 700,
+                      color: e.active ? style.palette.accentPrimary : style.palette.textSecondary,
                     }}
-                  />
+                  >
+                    {markerPrefix} {e.year}
+                  </div>
+                  <div
+                    style={{
+                      fontFamily: displayFont,
+                      fontSize: 19,
+                      fontWeight: 700,
+                      color: style.palette.textPrimary,
+                    }}
+                  >
+                    {e.label}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
-      </div>
-    </div>
+      </DepthPlane>
+    </OpticalStage2D>
   );
 };
 
@@ -1777,7 +2290,10 @@ export const StyleLabPreviewComposition: React.FC<StyleLabCompositionProps> = ({
 }) => {
   const frame = useCurrentFrame();
   const usesOpticalStage =
-    kit === 'editorial-collage' || kit === 'kinetic-typography';
+    kit === 'editorial-collage' ||
+    kit === 'kinetic-typography' ||
+    kit === 'vector-scene-2d' ||
+    kit === 'data-storytelling';
 
   // Deterministic handheld camera drift preview for kits not yet on OpticalStage2D
   const driftX =

@@ -531,7 +531,9 @@ import {
 } from '@make-pictures/core';
 import {
   AnimatedBarRace,
+  DataStoryStage2D,
   MetricComparisonCard,
+  TimelineTrack,
 } from '@make-pictures/kits/data-storytelling';
 import {
   MUSIC_MANIFEST,
@@ -560,66 +562,81 @@ export const ${pascalName}: React.FC<${pascalName}Props> = (props) => {
       <AbsoluteFill>
         ${audioBlock}
 
-        <Sequence from={0} durationInFrames={320}>
-          <AbsoluteFill
-            style={{
-              justifyContent: isVertical ? 'flex-start' : 'center',
-              alignItems: isVertical ? 'flex-start' : 'center',
-              paddingLeft: isVertical ? 52 : 140,
-              paddingRight: isVertical ? 184 : 140,
-              paddingTop: isVertical ? 250 : 0,
-            }}
-          >
-            <AnimatedBarRace
-              title={props.headline}
-              subtitle={props.subheadline}
-              valueSuffix=" pkt"
-              startFrame={2}
-              items={[
-                {
-                  id: 'clarity',
-                  label: 'Czytelność narracji',
-                  value: 96,
-                  color: props.accentColor,
-                },
-                {
-                  id: 'sync',
-                  label: 'Synchronizacja audio',
-                  value: 91,
-                  color: props.secondaryColor,
-                },
-                {
-                  id: 'pacing',
-                  label: 'Rytm ujęć 60 FPS',
-                  value: 87,
-                },
-              ]}
-            />
-          </AbsoluteFill>
-        </Sequence>
+        <DataStoryStage2D
+          datasetCode={\`\${props.badgeLabel} • 60 FPS\`}
+          renderBaseFill={false}
+        >
+          <Sequence from={0} durationInFrames={320}>
+            <AbsoluteFill
+              style={{
+                justifyContent: isVertical ? 'flex-start' : 'center',
+                alignItems: isVertical ? 'flex-start' : 'center',
+                paddingLeft: isVertical ? 52 : 140,
+                paddingRight: isVertical ? 184 : 140,
+                paddingTop: isVertical ? 250 : 0,
+              }}
+            >
+              <AnimatedBarRace
+                title={props.headline}
+                subtitle={props.subheadline}
+                valueSuffix=" pkt"
+                startFrame={2}
+                items={[
+                  {
+                    id: 'clarity',
+                    label: 'Czytelność narracji',
+                    value: 96,
+                    color: props.accentColor,
+                  },
+                  {
+                    id: 'sync',
+                    label: 'Synchronizacja audio',
+                    value: 91,
+                    color: props.secondaryColor,
+                  },
+                  {
+                    id: 'pacing',
+                    label: 'Rytm ujęć 60 FPS',
+                    value: 87,
+                  },
+                ]}
+              />
+            </AbsoluteFill>
+          </Sequence>
 
-        <Sequence from={320} durationInFrames={328}>
-          <AbsoluteFill
-            style={{
-              justifyContent: isVertical ? 'flex-start' : 'center',
-              alignItems: isVertical ? 'flex-start' : 'center',
-              paddingLeft: isVertical ? 52 : 140,
-              paddingRight: isVertical ? 184 : 140,
-              paddingTop: isVertical ? 260 : 0,
-            }}
-          >
-            <MetricComparisonCard
-              title={props.headline}
-              beforeLabel="Ręczny montaż"
-              beforeValue={24}
-              afterLabel="Video-as-Code"
-              afterValue={60}
-              unit=" FPS"
-              afterColor={props.accentColor}
-              startFrame={2}
-            />
-          </AbsoluteFill>
-        </Sequence>
+          <Sequence from={320} durationInFrames={328}>
+            <AbsoluteFill
+              style={{
+                justifyContent: isVertical ? 'flex-start' : 'center',
+                alignItems: isVertical ? 'flex-start' : 'center',
+                paddingLeft: isVertical ? 52 : 140,
+                paddingRight: isVertical ? 184 : 140,
+                paddingTop: isVertical ? 248 : 0,
+              }}
+            >
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+                <MetricComparisonCard
+                  title={props.headline}
+                  beforeLabel="Ręczny montaż"
+                  beforeValue={24}
+                  afterLabel="Video-as-Code"
+                  afterValue={60}
+                  unit=" FPS"
+                  afterColor={props.accentColor}
+                  startFrame={2}
+                />
+                <TimelineTrack
+                  startFrame={14}
+                  milestones={[
+                    { id: 'e1', era: 'ETAP 01', label: 'Scenariusz', fromFrame: 14 },
+                    { id: 'e2', era: 'ETAP 02', label: 'Optyka 60 FPS', fromFrame: 96 },
+                    { id: 'e3', era: 'ETAP 03', label: 'Master -14 LUFS', fromFrame: 188 },
+                  ]}
+                />
+              </div>
+            </AbsoluteFill>
+          </Sequence>
+        </DataStoryStage2D>
       </AbsoluteFill>
     </StyleProvider>
   );
@@ -1090,6 +1107,7 @@ import {
   AnnotatedCallout2D,
   ComparisonSplit2D,
   StoryCard2D,
+  VectorSceneStage2D,
 } from '@make-pictures/kits/vector-scene-2d';
 import {
   MUSIC_MANIFEST,
@@ -1118,50 +1136,61 @@ export const ${pascalName}: React.FC<${pascalName}Props> = (props) => {
       <AbsoluteFill>
         ${audioBlock}
 
-        <Sequence from={0} durationInFrames={320}>
-          <AbsoluteFill
-            style={{
-              justifyContent: isVertical ? 'flex-start' : 'center',
-              alignItems: isVertical ? 'flex-start' : 'center',
-              paddingLeft: isVertical ? 54 : 160,
-              paddingRight: isVertical ? 186 : 160,
-              paddingTop: isVertical ? 280 : 0,
-            }}
-          >
-            <div style={{ width: '100%', maxWidth: isVertical ? 836 : 980 }}>
-              <StoryCard2D
-                title={props.headline}
-                subtitle={props.subheadline}
-                badge={props.badgeLabel}
-                accentColor={props.accentColor}
-                startFrame={2}
+        <VectorSceneStage2D
+          plateCode={\`\${props.badgeLabel} • 60 FPS\`}
+          renderBaseFill={false}
+          foregroundCallouts={
+            <Sequence from={0} durationInFrames={320}>
+              <AnnotatedCallout2D
+                target={isVertical ? [360, 650] : [960, 560]}
+                labelPosition={isVertical ? [590, 860] : [1180, 790]}
+                code="DETAL A·1"
+                label="60 FPS • StyleProvider"
+                startFrame={18}
+                accentColor={props.secondaryColor}
               />
-            </div>
-          </AbsoluteFill>
-          <AnnotatedCallout2D
-            target={isVertical ? [472, 680] : [960, 560]}
-            labelPosition={isVertical ? [472, 920] : [960, 820]}
-            label="60 FPS • StyleProvider"
-            startFrame={18}
-            accentColor={props.secondaryColor}
-          />
-        </Sequence>
+            </Sequence>
+          }
+        >
+          <Sequence from={0} durationInFrames={320}>
+            <AbsoluteFill
+              style={{
+                justifyContent: isVertical ? 'flex-start' : 'center',
+                alignItems: isVertical ? 'flex-start' : 'center',
+                paddingLeft: isVertical ? 54 : 160,
+                paddingRight: isVertical ? 186 : 160,
+                paddingTop: isVertical ? 280 : 0,
+              }}
+            >
+              <div style={{ width: '100%', maxWidth: isVertical ? 836 : 980 }}>
+                <StoryCard2D
+                  title={props.headline}
+                  subtitle={props.subheadline}
+                  badge={props.badgeLabel}
+                  accentColor={props.accentColor}
+                  startFrame={2}
+                />
+              </div>
+            </AbsoluteFill>
+          </Sequence>
 
-        <Sequence from={320} durationInFrames={328}>
-          <ComparisonSplit2D
-            startFrame={2}
-            left={{
-              tag: '01 • Scena',
-              title: props.headline,
-              detail: props.subheadline,
-            }}
-            right={{
-              tag: '02 • Kierunek plastyczny',
-              title: props.styleId,
-              detail: 'Spójna typografia, paleta i mastering -14 LUFS',
-            }}
-          />
-        </Sequence>
+          <Sequence from={320} durationInFrames={328}>
+            <ComparisonSplit2D
+              startFrame={2}
+              focusShiftFrame={150}
+              left={{
+                tag: '01 • Baza',
+                title: props.headline,
+                detail: props.subheadline,
+              }}
+              right={{
+                tag: '02 • Kierunek plastyczny',
+                title: props.styleId,
+                detail: 'Spójna typografia, optyka 2.5D i mastering -14 LUFS',
+              }}
+            />
+          </Sequence>
+        </VectorSceneStage2D>
       </AbsoluteFill>
     </StyleProvider>
   );
