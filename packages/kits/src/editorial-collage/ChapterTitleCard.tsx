@@ -65,7 +65,7 @@ export const ChapterTitleCard: React.FC<ChapterTitleCardProps> = ({
         boxSizing: 'border-box',
         justifyContent: isVertical ? 'flex-start' : 'center',
         alignItems: 'flex-start',
-        paddingLeft: isVertical ? 60 : 168,
+        paddingLeft: isVertical ? 68 : 168,
         paddingRight: isVertical ? 196 : 168,
         paddingTop: isVertical ? 312 : 0,
         pointerEvents: 'none',
@@ -73,7 +73,7 @@ export const ChapterTitleCard: React.FC<ChapterTitleCardProps> = ({
     >
       <div
         style={{
-          maxWidth: isVertical ? 804 : 1260,
+          maxWidth: isVertical ? 792 : 1260,
           width: '100%',
           opacity: enter,
           filter: focusFilter,

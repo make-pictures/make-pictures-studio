@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useContext } from 'react';
 import {
   Img,
   interpolate,
@@ -14,6 +14,7 @@ import {
   resolveStyleOptics,
   useStudioStyle,
 } from '@make-pictures/core';
+import { SplitStorySlotContext } from './SplitStoryLayout';
 
 export type EditorialMountType =
   | 'auto'
@@ -64,9 +65,12 @@ export const EditorialMediaCard: React.FC<EditorialMediaCardProps> = ({
   styleOverrides,
 }) => {
   const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
+  const { fps, width, height } = useVideoConfig();
   const style = useStudioStyle();
   const optics = resolveStyleOptics(style);
+  const inSplitSlot = useContext(SplitStorySlotContext);
+  const isVertical = height > width;
+  const isCompactVerticalSlot = inSplitSlot && isVertical;
 
   const effectiveStart = Math.max(2, startFrame);
   if (frame < effectiveStart) return null;
@@ -95,12 +99,13 @@ export const EditorialMediaCard: React.FC<EditorialMediaCardProps> = ({
   );
 
   const seededUnit = createSeededRandom(`editorial-media:${caption}:${sourceTag ?? ''}`)();
+  const tiltSpan = isVertical ? 1.1 : 1.9;
   const resolvedTilt =
     typeof tiltDeg === 'number'
       ? Math.max(-1.2, Math.min(1.2, tiltDeg))
       : optics.lightingRig === 'studio-macro'
         ? 0
-        : Number(((seededUnit - 0.5) * 1.9).toFixed(2));
+        : Number(((seededUnit - 0.5) * tiltSpan).toFixed(2));
 
   const isSlide = effectiveMount === 'slide-mount';
   const bodyFont = formatFontFamilyCss(style.typography.bodyFont, 'body');
@@ -113,7 +118,14 @@ export const EditorialMediaCard: React.FC<EditorialMediaCardProps> = ({
     overrides: {
       position: 'relative',
       boxSizing: 'border-box',
-      padding: isSlide ? '18px 20px 22px 20px' : '14px 14px 24px 14px',
+      margin: isCompactVerticalSlot ? '0 18px' : undefined,
+      padding: isSlide
+        ? isCompactVerticalSlot
+          ? '14px 16px 16px 16px'
+          : '18px 20px 22px 20px'
+        : isCompactVerticalSlot
+          ? '12px 12px 16px 12px'
+          : '14px 14px 24px 14px',
       backgroundColor: isSlide
         ? style.surface.isDark
           ? '#0B101C'
@@ -123,7 +135,7 @@ export const EditorialMediaCard: React.FC<EditorialMediaCardProps> = ({
       borderRadius: Math.max(0, Math.round(6 * style.surface.radiusScale)),
       display: 'flex',
       flexDirection: 'column',
-      gap: 14,
+      gap: isCompactVerticalSlot ? 10 : 14,
       opacity: enter,
       transform: `translateY(${translateY.toFixed(2)}px)`,
       ...styleOverrides,
@@ -175,7 +187,7 @@ export const EditorialMediaCard: React.FC<EditorialMediaCardProps> = ({
           position: 'relative',
           overflow: 'hidden',
           borderRadius: Math.max(0, Math.round(4 * style.surface.radiusScale)),
-          aspectRatio: '16 / 10',
+          aspectRatio: isCompactVerticalSlot ? '16 / 8.2' : '16 / 10',
           backgroundColor: style.palette.bgElevated,
           border: `1px solid ${isSlide ? 'rgba(255,255,255,0.16)' : style.palette.inkBorder}`,
         }}
