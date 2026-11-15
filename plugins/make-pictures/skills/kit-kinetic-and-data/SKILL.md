@@ -2,17 +2,19 @@
 name: kit-kinetic-and-data
 description: >-
   APIs, polymorphic 3-grammar film typography (swiss-spatial, optical-gate,
-  risograph-poster), Vernier/Risograph counters, 60 FPS spring choreography,
-  and 9:16 Golden Safe Box layout rules for @make-pictures/kits/kinetic-typography
-  (WordByWordStage, ImpactKeywordCard, AnimatedMetricCounter) and
-  @make-pictures/kits/data-storytelling (AnimatedBarRace, TimelineTrack,
-  MetricComparisonCard). Use whenever building typographic reels, animated KPI
-  counters, ranked bar races, timelines, or before/after metric cards.
+  risograph-poster), Vernier/Risograph counters, multi-plane data cartography,
+  tonal ranked bar races, chronicle vernier rack-focus timelines, calibrated
+  240° instrument dials, 60 FPS spring choreography, and 9:16 Golden Safe Box
+  layout rules for @make-pictures/kits/kinetic-typography (WordByWordStage,
+  ImpactKeywordCard, AnimatedMetricCounter) and @make-pictures/kits/data-storytelling
+  (DataStoryStage2D, AnimatedBarRace, TimelineTrack, MetricComparisonCard). Use
+  whenever building typographic reels, animated KPI counters, ranked bar races,
+  timelines, or before/after metric comparators.
 ---
 
 # Kit: Kinetic Typography & Data Storytelling (`@make-pictures/kits`)
 
-Build punchy, word-synchronized film typography Shorts/Reels and `60 FPS` animated data visualizations with high-damping spring physics (`damping: 200`), optical depth, and built-in `9:16` Golden Safe Box compliance.
+Build punchy, word-synchronized film typography Shorts/Reels, editorial data cartography, and calibrated `60 FPS` instrument visualizations with high-damping spring physics (`damping: 200`), multi-plane 2.5D optical depth, and built-in `9:16` Golden Safe Box compliance.
 
 ---
 
@@ -23,6 +25,8 @@ import {
   DepthPlane,
   OpticalStage2D,
   StageLightingRig,
+  type OpticalShot2D,
+  type StageNode2D,
   type StyleTypographyGrammar,
 } from '@make-pictures/core';
 
@@ -39,9 +43,19 @@ import {
 } from '@make-pictures/kits/kinetic-typography';
 
 import {
+  DataStoryStage2D,
   AnimatedBarRace,
   TimelineTrack,
   MetricComparisonCard,
+  getSmoothedRanks,
+  resolveTonalBarFill,
+  type DataStoryStage2DProps,
+  type AnimatedBarRaceProps,
+  type BarRaceItem,
+  type BarRaceKeyframe,
+  type TimelineTrackProps,
+  type TimelineMilestone,
+  type MetricComparisonCardProps,
 } from '@make-pictures/kits/data-storytelling';
 ```
 
@@ -79,25 +93,51 @@ Pair `<StageLightingRig renderBaseFill={false} />` with `<OpticalStage2D startFr
 
 ## 2. Data Storytelling (`@make-pictures/kits/data-storytelling`)
 
-### `AnimatedBarRace`
-Crisp `60 FPS` ranked bar chart supporting live rank overtaking:
-- **Props:** `items: BarRaceItem[]` (`{ id, label, value, keyframes?: { frame, value }[], color?, badge?, icon? }`), `orientation?: 'horizontal' | 'vertical'`, `title?: string`, `subtitle?: string`, `valuePrefix?: string`, `valueSuffix?: string`, `decimals?: number`, `maxItems?: number`, `startFrame?: number`.
-- Keep visible series concise (**4–6 ranked items max**) so labels stay large and scannable on mobile.
+Editorial data cartography & calibrated instrument gauges — zero hardcoded rainbow swatches (`FALLBACK_BAR_SWATCHES`), zero rounded glowing `9999px` pills, zero e-commerce `lucide-react` `<Check />` steppers, and zero smartwatch round-cap fitness rings. Automatically adapts across `swiss-spatial`, `optical-gate`, and `risograph-poster` via `resolveStyleOptics(studioStyle)`.
+
+### `DataStoryStage2D`
+Multi-plane 2.5D data cartography stage combining `<StageLightingRig />` and `<OpticalStage2D startFrame={1}>`:
+- **`z = -0.58` (Scale Grid Sheet):** Hairline vertical scale subdivisions (`0 · 25 · 50 · 75 · 100`) and `∑ {datasetCode}` header in `monoFont` (softly defocused when `focalZ = 0`).
+- **`z = 0.00` (Primary Crisp Data Plane):** Hero chart, timeline, or comparator (`children`) rendered sharp (`filter: 'none'`).
+- **`z = +0.68` (`foregroundAccents`):** Subtle 13-tick edge vernier calibration scale strictly outside the `9:16` Golden Safe Box (`foregroundAccents = true`).
+
+```ts
+export interface DataStoryStage2DProps {
+  shots?: ReadonlyArray<OpticalShot2D>;
+  nodes?: Record<string, StageNode2D>;
+  datasetCode?: string;         // default 'ARKUSZ POMIAROWY • 60 FPS'
+  foregroundAccents?: boolean;  // default true
+  renderBaseFill?: boolean;     // default true (pass false inside <StyleProvider renderBackdrop>)
+  seed?: number;                // default 2029
+  children?: React.ReactNode;
+}
+```
+- **Default Camera & Clean Frame `0`:** Executes a 3-shot micro-dolly with an entrance rack-focus pull (`focalZ: 0.34 -> 0` from `frame = 0` to `frame = 6`) when `shots` is omitted. On `frame <= 0`, renders pure `style.palette.bgCanvas` (or `null` when `renderBaseFill={false}`).
+
+### `AnimatedBarRace` (& `getSmoothedRanks`, `resolveTonalBarFill`)
+Ranked `60 FPS` editorial bar chart (`data-bar-grammar={grammar}`, `data-bar-grid="true"`) with raised-cosine rank overtaking (`getSmoothedRanks`), vertical `25% / 50% / 75% / 100%` hairline gridlines, `tabular-nums` figures, and **style-derived tonal hierarchy**:
+- **`getSmoothedRanks(items, frame)`:** Pure deterministic `f(frame)` raised-cosine kernel rank smoother (`radius = 12` frames, zero `useRef` state) so overtaking bars glide cleanly past each other over ~22 frames instead of snapping.
+- **`resolveTonalBarFill(studioStyle, discreteRank, explicitColor?)`:** Returns `explicitColor` when `item.color` is provided, `palette.accentPrimary` for `#1` (`discreteRank <= 0`), `palette.accentSecondary` for `#2` (`discreteRank === 1`), and `palette.textSecondary` tonal step-down for `#3+`.
+- **Polymorphic Bar Finishes:** Sharp rectangular bars with underlined `01..0N` tabular index stamps and a `2.5px` leader end-stop in `'swiss-spatial'`; dark telemetry track with leader-only `optics.halation` glow in `'optical-gate'`; `1.5px` ink borders, inverse `01` leader stamp, and `-45°` diagonal hatch fill on non-leader bars in `'risograph-poster'`.
+- **Props:** `items: ReadonlyArray<BarRaceItem>` (`{ id, label, value, keyframes?: { frame, value }[], color?, badge?, icon? }`), `orientation?: 'horizontal' | 'vertical'` (default `'horizontal'`), `title?: string`, `subtitle?: string`, `valuePrefix?: string`, `valueSuffix?: string`, `decimals?: number`, `maxItems?: number` (default `6` — keep **4–6 items max** for mobile legibility), `staggerFrames?: number`, `startFrame?: number` / `enterFrame?: number` (clamped `>= 2`), `variant?: 'dark' | 'light'`, `safeBox9x16?: boolean`, `style?: React.CSSProperties`.
 
 ### `TimelineTrack`
-Interactive milestone progression rail highlighting the active era or step at `frame`:
-- **Props:** `milestones: TimelineMilestone[]` (`{ id, label, era?, fromFrame?, detail?, color? }`), `orientation?: 'horizontal' | 'vertical'`, `accentColor?: string`, `startFrame?: number`, `variant?: 'dark' | 'light'`, `safeBox9x16?: boolean`.
-- Sync milestone `fromFrame` values directly to spoken years/steps via `getWordTriggerFrame`.
+Chronicle vernier rail (`data-timeline-grammar={grammar}`, `data-vernier-rail="true"`) with 25 minor/major scale subdivisions and **optical rack focus**:
+- **Optical Rack Focus (`< 0.25px` Sharp Deadzone):** The active milestone (`fromFrame <= frame`) lifts onto an elevated tactile card (`elevation: 'floating'`) at sharp **`filter: 'none'`**, while past and future milestones recede (`scale(0.96)`, `opacity: 0.72` / `0.58`, and `rawBlur = Math.min(2, Math.abs(idx - activeIdx)) * optics.aperture * 3.4`, emitting `filter: 'none'` whenever `rawBlur < 0.25`).
+- **Polymorphic Era Markers & `9:16` Layout:** Formats active/inactive `era` markers per grammar (`▲ 2026` / `│ 1998` in `'swiss-spatial'`, `◆ 2026 · LOCK` / `┼ 1998` in `'optical-gate'`, inverse stamp `2026` / `[1998]` in `'risograph-poster'`). Auto-switches on vertical `9:16` viewports from horizontal (`<= 3` milestones) to a vertical chronicle rail (`4+` milestones) inside `x ∈ [40, 910], y ∈ [220, 1380]`. Sync `fromFrame` directly to spoken years/steps via `getWordTriggerFrame`.
+- **Props:** `milestones: ReadonlyArray<TimelineMilestone>` (`{ id, label, era?, fromFrame?, frame?, detail?, color? }`), `orientation?: 'horizontal' | 'vertical'`, `accentColor?: string`, `startFrame?: number` / `enterFrame?: number` (clamped `>= 2`), `variant?: 'dark' | 'light'`, `safeBox9x16?: boolean`, `style?: React.CSSProperties`.
 
 ### `MetricComparisonCard`
-Before/After or A/B visual delta card with animated progress rings or bars:
-- **Props:** `title?: string`, `beforeLabel: string`, `beforeValue: number`, `afterLabel: string`, `afterValue: number`, `prefix?: string`, `unit?: string`, `decimals?: number`, `deltaBadge?: string` (auto-computed when omitted), `mode?: 'rings' | 'bars'`, `startFrame?: number`, `variant?: 'dark' | 'light'`, `safeBox9x16?: boolean`.
+Calibrated `240°` SVG degree-tick instrument dials with rotating indicator needles (`mode="rings"`, default, `data-instrument-arc="240"`) or dual baseline comparator with a **`45°` hatched delta span** (`mode="bars"`, `data-delta-hatch="true"`), paired with a rectangular `monoFont` `tabular-nums` `Δ` stamp:
+- **`mode = 'rings'` (Default):** Two `240°` dials (`25` ticks every `10°`, major ticks every `60°`), sharp `strokeLinecap="butt"` value arcs, indicator needles + pivot pins, `tabular-nums` readouts, and a central **`BAZA ──┼── WYNIK`** technical datum bridge.
+- **`mode = 'bars'`:** Sharp baseline segment paired with a `-45°` hatched delta interval (`beforeFrac -> afterFrac`) capped by a `2.5px` accent cursor.
+- **Props:** `title?: string`, `beforeLabel: string`, `beforeValue: number`, `afterLabel: string`, `afterValue: number`, `maxValue?: number`, `prefix?: string`, `unit?: string`, `decimals?: number`, `deltaBadge?: string` (auto-computed when omitted), `mode?: 'rings' | 'bars'`, `beforeColor?: string`, `afterColor?: string`, `startFrame?: number` / `enterFrame?: number` (clamped `>= 2`), `variant?: 'dark' | 'light'`, `safeBox9x16?: boolean`, `style?: React.CSSProperties`.
 
 ---
 
 ## Design & Editorial Guardrails
 
-1. **Frame `0` Clean Board:** Always keep `startFrame >= 2` (and `<OpticalStage2D startFrame={2}>`) so `frame === 0` renders a clean empty `palette.bgCanvas` background.
-2. **One Focal Metric per Beat & Zero Icon Slop:** Pair one `AnimatedMetricCounter` or `MetricComparisonCard` with a concise 2–3 word label instead of dense multi-column tables, and leave `ImpactKeywordCard`'s `icon` at its `null` default unless a deliberate symbol is needed.
+1. **Frame `0` Clean Board:** Always keep `startFrame >= 2` (and wrap data acts in `<DataStoryStage2D renderBaseFill={false}>` or kinetic acts in `<OpticalStage2D startFrame={2}>`) so `frame === 0` renders a clean empty `palette.bgCanvas` background, and settled focal planes emit `filter: 'none'` (`< 0.25px` deadzone).
+2. **One Focal Metric per Beat & Tonal Discipline:** Pair one `AnimatedMetricCounter` or `MetricComparisonCard` with a concise 2–3 word label instead of dense multi-column tables, let `resolveTonalBarFill` derive bar hierarchy from the active `StylePreset` rather than rainbow color overrides, and leave `ImpactKeywordCard`'s `icon` at its `null` default unless a deliberate symbol is needed.
 3. **Polish Sentence Case (`latin-ext`):** In Polish videos, write labels in *Sentence case* (`Czas odpowiedzi serwera`, never `Czas Odpowiedzi Serwera`); `'uppercase'` styles (`brutalist-poster`) transform headings automatically via `formatHeadingText`.
-4. **Pair Reveals with `<SoundCue />`:** Trigger a subtle `'pop'`, `'click'`, or `'chime'` `<SoundCue />` on the exact word frame when a statement card or metric lands.
+4. **Pair Reveals with `<SoundCue />`:** Trigger a subtle `'pop'`, `'click'`, or `'chime'` `<SoundCue />` on the exact word frame when a statement card, rank overtake, or milestone lands.
