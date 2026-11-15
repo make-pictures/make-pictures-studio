@@ -6,8 +6,8 @@
   "maxRole": "VOICE 2 • 3D ARCHITECT",
   "maxColor": "#059669",
   "showHudCards": true,
-  "cameraZoom": 162,
-  "cameraHeightOffset": 0,
+  "cameraZoom": 114,
+  "cameraHeightOffset": 0.36,
   "voiceoverVolume": 1,
   "sfxVolume": 0.35
 }

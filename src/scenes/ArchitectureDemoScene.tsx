@@ -16,6 +16,7 @@ import {
   FONTS,
   getWordTriggerFrame,
   SPRING_PRESETS,
+  StyleProvider,
   THEME,
   useStudioFontsReady,
   VoiceoverCaptionBar,
@@ -53,6 +54,32 @@ export interface ArchitectureDemoSceneProps
   /** Whether to include scene-level voiceover audio (true when rendered standalone) */
   includeAudio?: boolean;
 }
+
+export const ARCHITECTURE_DEMO_LAYOUT = {
+  nodeWidth: 340,
+  nodeHeight: 188,
+  appNodePos: { x: 266, y: 476 },
+  agentNodePos: { x: 960, y: 440 },
+  dbNodePos: { x: 1654, y: 476 },
+  edge1: {
+    from: { x: 436, y: 436 },
+    to: { x: 790, y: 416 },
+    curveOffsetY: -128,
+    labelT: 0.5,
+    labelOffsetX: 0,
+    labelOffsetY: -36,
+  },
+  edge2: {
+    from: { x: 1130, y: 416 },
+    to: { x: 1484, y: 436 },
+    curveOffsetY: -128,
+    labelT: 0.5,
+    labelOffsetX: 0,
+    labelOffsetY: -36,
+  },
+  toast1: { x: 613, y: 636, width: 420 },
+  toast2: { x: 1307, y: 636, width: 440 },
+} as const;
 
 export const ArchitectureDemoScene: React.FC<ArchitectureDemoSceneProps> = ({
   includeAudio = false,
@@ -92,13 +119,17 @@ export const ArchitectureDemoScene: React.FC<ArchitectureDemoSceneProps> = ({
     525
   );
 
-  // Node center coordinates on the 1920x1080 canvas
-  const nodeWidth = 350;
-  const nodeHeight = 192;
-
-  const appNodePos = { x: 330, y: 470 };
-  const agentNodePos = { x: 960, y: 350 };
-  const dbNodePos = { x: 1590, y: 470 };
+  const {
+    nodeWidth,
+    nodeHeight,
+    appNodePos,
+    agentNodePos,
+    dbNodePos,
+    edge1,
+    edge2,
+    toast1,
+    toast2,
+  } = ARCHITECTURE_DEMO_LAYOUT;
 
   // Header entrance animation (starts at frame - 2 so frame 0 is a clean background)
   const headerProgress = spring({
@@ -263,145 +294,153 @@ export const ArchitectureDemoScene: React.FC<ArchitectureDemoSceneProps> = ({
         </div>
       )}
 
-      {/* SVG Bézier Edge 1: Web Client App -> AI Agent / API */}
-      <DataFlowEdge
-        id="app-to-agent"
-        from={{ x: appNodePos.x + nodeWidth / 2, y: appNodePos.y - 10 }}
-        to={{ x: agentNodePos.x - nodeWidth / 2, y: agentNodePos.y }}
-        curveOffsetY={-75}
-        color={props.primaryGlowColor}
-        secondaryColor={props.secondaryGlowColor}
-        drawStartFrame={24}
-        flowStartFrame={requestTriggerFrame}
-        flowEndFrame={durationInFrames - 25}
-        packetCount={2}
-        traverseFrames={edge1TraverseFrames}
-        direction="forward"
-        label="POST /v1/agent/analyze"
-        subLabel="JSON Stream"
-      />
+      <StyleProvider style="cyber-telemetry">
+        {/* SVG Bézier Edge 1: Web Client App -> AI Agent / API */}
+        <DataFlowEdge
+          id="app-to-agent"
+          from={edge1.from}
+          to={edge1.to}
+          curveOffsetY={edge1.curveOffsetY}
+          color={props.primaryGlowColor}
+          secondaryColor={props.secondaryGlowColor}
+          drawStartFrame={24}
+          flowStartFrame={requestTriggerFrame}
+          flowEndFrame={durationInFrames - 25}
+          packetCount={2}
+          traverseFrames={edge1TraverseFrames}
+          direction="forward"
+          label="POST /v1/agent/analyze"
+          subLabel="JSON Stream"
+          labelT={edge1.labelT}
+          labelOffsetX={edge1.labelOffsetX}
+          labelOffsetY={edge1.labelOffsetY}
+        />
 
-      {/* SVG Bézier Edge 2: AI Agent / API -> PostgreSQL */}
-      <DataFlowEdge
-        id="agent-to-postgres"
-        from={{ x: agentNodePos.x + nodeWidth / 2, y: agentNodePos.y }}
-        to={{ x: dbNodePos.x - nodeWidth / 2, y: dbNodePos.y - 10 }}
-        curveOffsetY={-75}
-        color={props.secondaryGlowColor}
-        secondaryColor={props.tertiaryGlowColor}
-        drawStartFrame={42}
-        flowStartFrame={dbTriggerFrame}
-        flowEndFrame={durationInFrames - 25}
-        packetCount={2}
-        traverseFrames={edge2TraverseFrames}
-        direction="forward"
-        label="INSERT INTO insights"
-        subLabel="pgvector TLS"
-      />
+        {/* SVG Bézier Edge 2: AI Agent / API -> PostgreSQL */}
+        <DataFlowEdge
+          id="agent-to-postgres"
+          from={edge2.from}
+          to={edge2.to}
+          curveOffsetY={edge2.curveOffsetY}
+          color={props.secondaryGlowColor}
+          secondaryColor={props.tertiaryGlowColor}
+          drawStartFrame={42}
+          flowStartFrame={dbTriggerFrame}
+          flowEndFrame={durationInFrames - 25}
+          packetCount={2}
+          traverseFrames={edge2TraverseFrames}
+          direction="forward"
+          label="INSERT INTO insights"
+          subLabel="pgvector TLS"
+          labelT={edge2.labelT}
+          labelOffsetX={edge2.labelOffsetX}
+          labelOffsetY={edge2.labelOffsetY}
+        />
 
-      {/* Node 1: Web Client App */}
-      <SystemNode
-        id="web-client"
-        title={props.appNodeTitle}
-        subtitle="Next.js Edge Runtime • Client Gateway"
-        badge="APP CORE"
-        statusText="IDLE • READY"
-        activeStatusText="DISPATCHING CONTEXT"
-        icon={Cpu}
-        x={appNodePos.x}
-        y={appNodePos.y}
-        width={nodeWidth}
-        height={nodeHeight}
-        accentColor={props.primaryGlowColor}
-        enterFrame={8}
-        activeRanges={[
-          [requestTriggerFrame - 6, agentArrivalFrame + 40],
-          [allSyncedFrame, durationInFrames - 20],
-        ]}
-        metricsLabel="RPS"
-        metricsValue="2,450/s"
-      />
+        {/* Node 1: Web Client App */}
+        <SystemNode
+          id="web-client"
+          title={props.appNodeTitle}
+          subtitle="Next.js Edge Runtime • Client Gateway"
+          badge="APP CORE"
+          statusText="IDLE • READY"
+          activeStatusText="DISPATCHING CONTEXT"
+          icon={Cpu}
+          x={appNodePos.x}
+          y={appNodePos.y}
+          width={nodeWidth}
+          height={nodeHeight}
+          accentColor={props.primaryGlowColor}
+          enterFrame={8}
+          activeRanges={[
+            [requestTriggerFrame - 6, agentArrivalFrame + 40],
+            [allSyncedFrame, durationInFrames - 20],
+          ]}
+          metricsLabel="RPS"
+          metricsValue="2,450/s"
+        />
 
-      {/* Node 2: AI Agent / API */}
-      <SystemNode
-        id="ai-agent"
-        title={props.agentNodeTitle}
-        subtitle="Orchestrator • Structured Tool Calling"
-        badge="LLM ENGINE"
-        statusText="STANDBY • WARM"
-        activeStatusText="INFERENCE • 28ms"
-        icon={Bot}
-        x={agentNodePos.x}
-        y={agentNodePos.y}
-        width={nodeWidth}
-        height={nodeHeight}
-        accentColor={props.secondaryGlowColor}
-        enterFrame={16}
-        activeRanges={[
-          [agentArrivalFrame, postgresArrivalFrame + 30],
-          [allSyncedFrame, durationInFrames - 20],
-        ]}
-        metricsLabel="TOKENS"
-        metricsValue="1,840/s"
-      />
+        {/* Node 2: AI Agent / API */}
+        <SystemNode
+          id="ai-agent"
+          title={props.agentNodeTitle}
+          subtitle="Orchestrator • Structured Tool Calling"
+          badge="LLM ENGINE"
+          statusText="STANDBY • WARM"
+          activeStatusText="INFERENCE • 28ms"
+          icon={Bot}
+          x={agentNodePos.x}
+          y={agentNodePos.y}
+          width={nodeWidth}
+          height={nodeHeight}
+          accentColor={props.secondaryGlowColor}
+          enterFrame={16}
+          activeRanges={[
+            [agentArrivalFrame, postgresArrivalFrame + 30],
+            [allSyncedFrame, durationInFrames - 20],
+          ]}
+          metricsLabel="TOKENS"
+          metricsValue="1,840/s"
+        />
 
-      {/* Node 3: PostgreSQL */}
-      <SystemNode
-        id="postgresql"
-        title={props.dbNodeTitle}
-        subtitle="Primary Cluster + pgvector HNSW Index"
-        badge="STORAGE"
-        statusText="LISTENING :5432"
-        activeStatusText="COMMITTED • ACID OK"
-        icon={Database}
-        x={dbNodePos.x}
-        y={dbNodePos.y}
-        width={nodeWidth}
-        height={nodeHeight}
-        accentColor={props.tertiaryGlowColor}
-        enterFrame={24}
-        activeRanges={[[postgresArrivalFrame, durationInFrames - 20]]}
-        metricsLabel="COMMIT"
-        metricsValue="4.2ms"
-      />
+        {/* Node 3: PostgreSQL */}
+        <SystemNode
+          id="postgresql"
+          title={props.dbNodeTitle}
+          subtitle="Primary Cluster + pgvector HNSW Index"
+          badge="STORAGE"
+          statusText="LISTENING :5432"
+          activeStatusText="COMMITTED • ACID OK"
+          icon={Database}
+          x={dbNodePos.x}
+          y={dbNodePos.y}
+          width={nodeWidth}
+          height={nodeHeight}
+          accentColor={props.tertiaryGlowColor}
+          enterFrame={24}
+          activeRanges={[[postgresArrivalFrame, durationInFrames - 20]]}
+          metricsLabel="COMMIT"
+          metricsValue="4.2ms"
+        />
 
-      {/* Code Payload Toast 1: Request Payload from Web Client to AI Agent */}
-      <CodePayloadToast
-        x={580}
-        y={650}
-        width={430}
-        methodBadge="POST"
-        endpoint="/v1/agent/analyze"
-        latencyText="TLS 1.3 • 14ms"
-        accentColor={THEME.colors.accents.cyan}
-        startFrame={requestTriggerFrame + 14}
-        endFrame={dbTriggerFrame + 35}
-        code={`{
+        {/* Code Payload Toast 1: Request Payload from Web Client to AI Agent */}
+        <CodePayloadToast
+          x={toast1.x}
+          y={toast1.y}
+          width={toast1.width}
+          methodBadge="POST"
+          endpoint="/v1/agent/analyze"
+          latencyText="TLS 1.3 • 14ms"
+          accentColor={THEME.colors.accents.cyan}
+          startFrame={requestTriggerFrame + 14}
+          endFrame={dbTriggerFrame + 35}
+          code={`{
   "requestId": "req_99f2a8c",
   "source": "web-client",
   "intent": "architecture_audit",
   "stream": true
 }`}
-      />
+        />
 
-      {/* Code Payload Toast 2: Persisted Result from AI Agent to PostgreSQL */}
-      <CodePayloadToast
-        x={1340}
-        y={650}
-        width={450}
-        methodBadge="SQL WRITE"
-        endpoint="PostgreSQL • insights"
-        latencyText="200 OK • 4.2ms"
-        accentColor={THEME.colors.accents.emerald}
-        startFrame={dbTriggerFrame + 16}
-        endFrame={durationInFrames - 28}
-        code={`{
+        {/* Code Payload Toast 2: Persisted Result from AI Agent to PostgreSQL */}
+        <CodePayloadToast
+          x={toast2.x}
+          y={toast2.y}
+          width={toast2.width}
+          methodBadge="SQL WRITE"
+          endpoint="PostgreSQL • insights"
+          latencyText="200 OK • 4.2ms"
+          accentColor={THEME.colors.accents.emerald}
+          startFrame={dbTriggerFrame + 16}
+          endFrame={durationInFrames - 28}
+          code={`{
   "table": "agent_insights",
   "status": "committed",
   "vectorDim": 1536,
   "confidence": 0.994
 }`}
-      />
+        />
+      </StyleProvider>
 
       {/* Optional Word-by-Word Voiceover Subtitles */}
       {props.showCaptions && (

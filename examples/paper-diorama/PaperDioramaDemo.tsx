@@ -217,7 +217,7 @@ export const PaperDioramaDemo: React.FC<Partial<PaperDioramaDemoProps>> = (
   const initialCamera = useMemo(
     () => ({
       fov: 32.5,
-      position: [-1.15, 4.03, 10.2] as [number, number, number],
+      position: [-1.15, 4.43, 10.55] as [number, number, number],
     }),
     []
   );
@@ -251,7 +251,7 @@ export const PaperDioramaDemo: React.FC<Partial<PaperDioramaDemoProps>> = (
         >
           <PaperCameraRig3D
             cameraPos={[camX, camY, camZ]}
-            lookAt={[0, 1.75, -1.5]}
+            lookAt={[0, 1.85, -1.75]}
             fov={props.cameraFov}
           />
           <PaperStageLighting3D preset={props.lightingPreset} />
@@ -265,14 +265,14 @@ export const PaperDioramaDemo: React.FC<Partial<PaperDioramaDemoProps>> = (
           />
 
           <PaperCloudCutout3D
-            position={[-4.2 + cloudDrift, 4.2, -3.9]}
-            scale={0.95}
+            position={[-4.8 + cloudDrift, 4.55, -6.6]}
+            scale={1.05}
             tint={props.leftCloudTint}
             idSuffix="left"
           />
           <PaperCloudCutout3D
-            position={[4.0 - cloudDrift, 4.45, -4.2]}
-            scale={1.05}
+            position={[4.8 - cloudDrift, 4.7, -6.7]}
+            scale={1.12}
             tint={props.rightCloudTint}
             idSuffix="right"
           />
@@ -286,18 +286,18 @@ export const PaperDioramaDemo: React.FC<Partial<PaperDioramaDemoProps>> = (
 
           <PopUpHinge3D
             foldProgress={spread1Progress}
-            position={[-4.4, 0, -1.8]}
+            position={[-4.55, 0, -1.85]}
           >
             <PaperPineTree3D position={[0, 0, 0]} scale={1.1} />
           </PopUpHinge3D>
           <PopUpHinge3D
             foldProgress={spread1Progress}
-            position={[4.4, 0, -1.6]}
+            position={[4.55, 0, -1.65]}
           >
             <PaperPineTree3D position={[0, 0, 0]} scale={1.05} />
           </PopUpHinge3D>
 
-          <PopUpHinge3D foldProgress={spread1Progress} position={[0, 0, 0.65]}>
+          <PopUpHinge3D foldProgress={spread1Progress} position={[0, 0, 0.92]}>
             <PaperCutout3D
               cacheKey="demo-banner-sign-spread1"
               cacheDeps={[
@@ -305,30 +305,30 @@ export const PaperDioramaDemo: React.FC<Partial<PaperDioramaDemoProps>> = (
                 props.bannerSubtitle,
                 props.bannerBorderColor,
               ]}
-              width={5.8}
-              height={2.25}
+              width={4.95}
+              height={1.58}
               pixelWidth={680}
-              pixelHeight={268}
-              whiteBorderPx={14}
+              pixelHeight={216}
+              whiteBorderPx={13}
               position={[0, 0, 0]}
               thickness={0.05}
               draw={(ctx) => {
                 ctx.fillStyle = '#FFFDF7';
                 ctx.strokeStyle = props.bannerBorderColor;
-                ctx.lineWidth = 8;
+                ctx.lineWidth = 7;
                 ctx.beginPath();
-                ctx.roundRect(28, 28, 624, 212, 24);
+                ctx.roundRect(26, 24, 628, 168, 22);
                 ctx.fill();
                 ctx.stroke();
 
                 ctx.fillStyle = '#0F172A';
-                ctx.font = '800 42px Inter, sans-serif';
+                ctx.font = '800 38px Inter, sans-serif';
                 ctx.textAlign = 'center';
-                ctx.fillText(props.bannerTitle, 340, 122, 576);
+                ctx.fillText(props.bannerTitle, 340, 102, 576);
 
                 ctx.fillStyle = '#475569';
-                ctx.font = '600 25px Inter, sans-serif';
-                ctx.fillText(props.bannerSubtitle, 340, 174, 576);
+                ctx.font = '600 23px Inter, sans-serif';
+                ctx.fillText(props.bannerSubtitle, 340, 148, 576);
               }}
             />
           </PopUpHinge3D>
@@ -384,34 +384,34 @@ export const PaperDioramaDemo: React.FC<Partial<PaperDioramaDemoProps>> = (
             />
           </PopUpHinge3D>
 
-          <PopUpHinge3D foldProgress={spread2Progress} position={[0, 0, 0.55]}>
+          <PopUpHinge3D foldProgress={spread2Progress} position={[0, 0, 0.88]}>
             <PaperCutout3D
               cacheKey="demo-banner-sign-spread2"
               cacheDeps={[props.bannerBorderColor]}
-              width={5.4}
-              height={2.15}
+              width={4.85}
+              height={1.56}
               pixelWidth={680}
-              pixelHeight={268}
-              whiteBorderPx={14}
+              pixelHeight={216}
+              whiteBorderPx={13}
               position={[0, 0, 0]}
               thickness={0.05}
               draw={(ctx) => {
                 ctx.fillStyle = '#FFFDF7';
                 ctx.strokeStyle = '#2563EB';
-                ctx.lineWidth = 8;
+                ctx.lineWidth = 7;
                 ctx.beginPath();
-                ctx.roundRect(28, 28, 624, 212, 24);
+                ctx.roundRect(26, 24, 628, 168, 22);
                 ctx.fill();
                 ctx.stroke();
 
                 ctx.fillStyle = '#0F172A';
-                ctx.font = '800 42px Inter, sans-serif';
+                ctx.font = '800 38px Inter, sans-serif';
                 ctx.textAlign = 'center';
-                ctx.fillText('VIDEO-AS-CODE @ 60 FPS', 340, 122, 576);
+                ctx.fillText('VIDEO-AS-CODE @ 60 FPS', 340, 102, 576);
 
                 ctx.fillStyle = '#475569';
-                ctx.font = '600 25px Inter, sans-serif';
-                ctx.fillText('Create with make.pictures', 340, 174, 576);
+                ctx.font = '600 23px Inter, sans-serif';
+                ctx.fillText('Create with make.pictures', 340, 148, 576);
               }}
             />
           </PopUpHinge3D>

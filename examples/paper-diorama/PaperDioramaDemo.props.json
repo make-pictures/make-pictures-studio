@@ -9,7 +9,7 @@
   "initialFloorTheme": "mint-plains",
   "nextFloorTheme": "checkerboard-tile",
   "cameraFov": 32.5,
-  "cameraDistanceZ": 9.85,
-  "cameraHeightY": 3.85,
+  "cameraDistanceZ": 10.2,
+  "cameraHeightY": 4.25,
   "voiceoverVolume": 1
 }

@@ -201,7 +201,7 @@ export const IsometricDialogueDemo: React.FC<
   const initialCamera = useMemo(
     () => ({
       position: [11, 9.2, 11] as [number, number, number],
-      zoom: 162,
+      zoom: 114,
       near: -50,
       far: 100,
     }),
@@ -315,7 +315,7 @@ export const IsometricDialogueDemo: React.FC<
           <div
             style={{
               position: 'absolute',
-              top: 38,
+              top: 24,
               left: 0,
               right: 0,
               display: 'flex',

@@ -27,7 +27,10 @@ export interface DataFlowEdgeProps {
   direction?: 'forward' | 'reverse';
   label?: string;
   subLabel?: string;
+  labelT?: number;
+  labelOffsetX?: number;
   labelOffsetY?: number;
+  zIndex?: number;
 }
 
 export function evaluateCubicBezier(
@@ -64,7 +67,10 @@ export const DataFlowEdge: React.FC<DataFlowEdgeProps> = ({
   direction = 'forward',
   label,
   subLabel,
+  labelT = 0.5,
+  labelOffsetX = 0,
   labelOffsetY = -28,
+  zIndex,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -120,7 +126,8 @@ export const DataFlowEdge: React.FC<DataFlowEdgeProps> = ({
   );
   const flowAlpha = isFlowActive ? flowFadeIn * flowFadeOut : 0;
 
-  const midPoint = evaluateCubicBezier(p0, p1, p2, p3, 0.5);
+  const clampedLabelT = Math.max(0, Math.min(1, labelT));
+  const labelAnchor = evaluateCubicBezier(p0, p1, p2, p3, clampedLabelT);
 
   const pathLengthEstimate = 1600;
   const dashOffset = interpolate(
@@ -166,6 +173,7 @@ export const DataFlowEdge: React.FC<DataFlowEdgeProps> = ({
         position: 'absolute',
         inset: 0,
         pointerEvents: 'none',
+        ...(zIndex !== undefined ? { zIndex } : {}),
       }}
     >
       <svg
@@ -290,8 +298,8 @@ export const DataFlowEdge: React.FC<DataFlowEdgeProps> = ({
         <div
           style={{
             position: 'absolute',
-            left: midPoint.x,
-            top: midPoint.y + labelOffsetY,
+            left: labelAnchor.x + labelOffsetX,
+            top: labelAnchor.y + labelOffsetY,
             transform: `translate3d(-50%, -50%, 0) scale(${interpolate(
               drawProgress,
               [0.4, 1],

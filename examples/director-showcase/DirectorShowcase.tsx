@@ -286,14 +286,14 @@ export const DirectorShowcase: React.FC<Partial<DirectorShowcaseProps>> = (
           />
 
           <PaperCloudCutout3D
-            position={[-4.2 + cloudDrift, 4.3, -4.1]}
-            scale={0.95}
+            position={[-4.8 + cloudDrift, 4.45, -6.5]}
+            scale={1.02}
             tint="#E0E7FF"
             idSuffix="dir-left"
           />
           <PaperCloudCutout3D
-            position={[4.1 - cloudDrift, 4.5, -4.3]}
-            scale={1.02}
+            position={[4.7 - cloudDrift, 4.6, -6.6]}
+            scale={1.08}
             tint="#FEF3C7"
             idSuffix="dir-right"
           />
@@ -424,18 +424,25 @@ export const DirectorShowcase: React.FC<Partial<DirectorShowcaseProps>> = (
       {/* Kinetic Typography HUD Cards */}
       {frame >= 2 && (
         <AbsoluteFill style={{ pointerEvents: 'none', opacity: stageOpacity }}>
-          <div style={{ position: 'absolute', bottom: 42, left: 52 }}>
+          <div
+            style={{
+              position: 'absolute',
+              bottom: 42,
+              left: 52,
+              transform: 'scale(0.68)',
+              transformOrigin: 'bottom left',
+            }}
+          >
             <ImpactKeywordCard
               eyebrow={props.eyebrowBadge}
               keyword={props.heroHeadline}
               sublabel="Camera Rig • Lens VFX • Smart Music"
               badge="60 FPS"
-              icon={<Clapperboard size={26} color={props.accentColor} />}
+              icon={<Clapperboard size={26} color="#FFFFFF" strokeWidth={2.3} />}
               accentColor={props.accentColor}
               variant="dark"
               enterFrame={8}
               exitFrame={620}
-              style={{ transform: 'scale(0.68)', transformOrigin: 'bottom left' }}
             />
           </div>
 
