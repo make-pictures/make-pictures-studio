@@ -6,7 +6,16 @@ import { fileURLToPath } from 'node:url';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { Thumbnail } from '@remotion/player';
-import { BUILT_IN_STYLE_IDS, StyleProvider } from '../../core/src/index';
+import { BUILT_IN_STYLE_IDS, BUILT_IN_STYLES, StyleProvider } from '../../core/src/index';
+import {
+  AnimatedBarRace,
+  DataStoryStage2D,
+  MetricComparisonCard,
+  TimelineTrack,
+  getSmoothedRanks,
+  resolveTonalBarFill,
+} from '../../kits/src/data-storytelling';
+import * as kitsRoot from '../../kits/src/index';
 import {
   DioramaStage3D,
   PaperCloudCutout3D,
@@ -306,6 +315,295 @@ test('kinetic-typography renders swiss-spatial, optical-gate, and risograph-post
         assert.match(html, /Żółć i źdźbło|ŻÓŁĆ I ŹDŹBŁO/);
         assert.doesNotMatch(html, /blur\(0(?:\.0+)?px\)/);
       }
+    }
+  }
+});
+
+test('DataStoryStage2D, tonal AnimatedBarRace, vernier rack-focus TimelineTrack, and 240-deg / hatched MetricComparisonCard eliminate SaaS slop across styles', () => {
+  assert.equal(typeof DataStoryStage2D, 'function');
+  assert.equal(typeof getSmoothedRanks, 'function');
+  assert.equal(typeof resolveTonalBarFill, 'function');
+  assert.equal(kitsRoot.DataStoryStage2D, DataStoryStage2D);
+  assert.equal(kitsRoot.getSmoothedRanks, getSmoothedRanks);
+  assert.equal(kitsRoot.resolveTonalBarFill, resolveTonalBarFill);
+
+  const stageSrc = fs.readFileSync(
+    path.resolve(__dirname, '../../kits/src/data-storytelling/DataStoryStage2D.tsx'),
+    'utf8'
+  );
+  const barSrc = fs.readFileSync(
+    path.resolve(__dirname, '../../kits/src/data-storytelling/AnimatedBarRace.tsx'),
+    'utf8'
+  );
+  const timelineSrc = fs.readFileSync(
+    path.resolve(__dirname, '../../kits/src/data-storytelling/TimelineTrack.tsx'),
+    'utf8'
+  );
+  const metricSrc = fs.readFileSync(
+    path.resolve(__dirname, '../../kits/src/data-storytelling/MetricComparisonCard.tsx'),
+    'utf8'
+  );
+
+  assert.match(stageSrc, /frame\s*<=\s*0/);
+  assert.match(stageSrc, /useStudioStyle/);
+  for (const [name, src] of [
+    ['DataStoryStage2D.tsx', stageSrc],
+    ['AnimatedBarRace.tsx', barSrc],
+    ['TimelineTrack.tsx', timelineSrc],
+    ['MetricComparisonCard.tsx', metricSrc],
+  ] as const) {
+    assert.doesNotMatch(src, /Math\.random\s*\(/, `${name} must not use Math.random()`);
+    assert.doesNotMatch(src, /useRef\b/, `${name} must not use mutable useRef`);
+    assert.doesNotMatch(src, /9999/, `${name} must not use borderRadius: 9999 pills`);
+  }
+  assert.doesNotMatch(barSrc, /FALLBACK_BAR_SWATCHES/);
+  assert.doesNotMatch(barSrc, /#10B981|#F59E0B|#F43F5E|#A855F7/);
+  assert.doesNotMatch(timelineSrc, /lucide-react/);
+  assert.doesNotMatch(metricSrc, /lucide-react/);
+  assert.doesNotMatch(metricSrc, /strokeLinecap="round"/);
+
+  // Tonal hierarchy: rank 0 -> accentPrimary, rank 1 -> accentSecondary, explicit color preserved
+  const edStyle = BUILT_IN_STYLES['editorial-press'];
+  assert.equal(resolveTonalBarFill(edStyle, 0), edStyle.palette.accentPrimary);
+  assert.equal(resolveTonalBarFill(edStyle, 1), edStyle.palette.accentSecondary);
+  assert.equal(resolveTonalBarFill(edStyle, 2, '#123456'), '#123456');
+  assert.equal(resolveTonalBarFill(edStyle, 2), edStyle.palette.textSecondary);
+
+  // Deterministic overtaking rank smoother
+  const rankMid = getSmoothedRanks(
+    [
+      { id: 'a', label: 'A', value: 50, keyframes: [{ frame: 0, value: 80 }, { frame: 60, value: 40 }] },
+      { id: 'b', label: 'B', value: 50, keyframes: [{ frame: 0, value: 30 }, { frame: 60, value: 90 }] },
+    ],
+    30
+  );
+  assert.ok((rankMid.get('a') ?? 0) > 0 && (rankMid.get('a') ?? 1) < 1);
+
+  for (const [styleId, expectedGrammar] of [
+    ['editorial-press', 'swiss-spatial'],
+    ['cyber-telemetry', 'optical-gate'],
+    ['brutalist-poster', 'risograph-poster'],
+  ] as const) {
+    const DataScene: React.FC = () =>
+      React.createElement(
+        StyleProvider,
+        { style: styleId },
+        React.createElement(
+          DataStoryStage2D,
+          { datasetCode: 'KARTOGRAFIA DANYCH • 2026' },
+          React.createElement(AnimatedBarRace, {
+            title: 'Udział źródeł energii',
+            subtitle: 'Porównanie kwartalne',
+            valueSuffix: '%',
+            startFrame: 2,
+            items: [
+              { id: 'solar', label: 'Fotowoltaika', value: 94 },
+              { id: 'wind', label: 'Wiatr morski', value: 72 },
+              { id: 'hydro', label: 'Hydroenergia', value: 48 },
+            ],
+          }),
+          React.createElement(TimelineTrack, {
+            startFrame: 2,
+            milestones: [
+              { id: 'm1', era: '1998', label: 'Archiwum analogowe', fromFrame: 2 },
+              { id: 'm2', era: '2026', label: 'Przełom optyczny', fromFrame: 30 },
+              { id: 'm3', era: '2030', label: 'Pełna skala', fromFrame: 90 },
+            ],
+          }),
+          React.createElement(MetricComparisonCard, {
+            title: 'Wydajność potoku',
+            beforeLabel: 'Przed',
+            beforeValue: 24,
+            afterLabel: 'Po zmianie',
+            afterValue: 68,
+            unit: ' FPS',
+            mode: 'rings',
+            startFrame: 2,
+          }),
+          React.createElement(MetricComparisonCard, {
+            beforeLabel: 'Baza',
+            beforeValue: 30,
+            afterLabel: 'Wynik',
+            afterValue: 84,
+            unit: '%',
+            mode: 'bars',
+            startFrame: 2,
+          })
+        )
+      );
+
+    // Frame 0 clean canvas invariant (and startFrame=0 clamp check)
+    const f0 = renderToStaticMarkup(
+      React.createElement(Thumbnail, {
+        component: DataScene,
+        compositionWidth: 1080,
+        compositionHeight: 1920,
+        durationInFrames: 140,
+        fps: 60,
+        frameToDisplay: 0,
+      })
+    );
+    assert.doesNotMatch(f0, /KARTOGRAFIA DANYCH/);
+    assert.doesNotMatch(f0, /Fotowoltaika/);
+    assert.doesNotMatch(f0, /Przełom optyczny/);
+
+    // Frame 54: active milestone m2 ('2026') sharp at filter:none while m1 & m3 blurred; 240-deg arc & hatched delta rendered
+    const f54 = renderToStaticMarkup(
+      React.createElement(Thumbnail, {
+        component: DataScene,
+        compositionWidth: 1080,
+        compositionHeight: 1920,
+        durationInFrames: 140,
+        fps: 60,
+        frameToDisplay: 54,
+      })
+    );
+    assert.match(f54, /KARTOGRAFIA DANYCH • 2026/);
+    assert.match(f54, /data-depth-z="-0\.58"/);
+    assert.match(f54, /data-depth-z="0\.68"/);
+    assert.match(f54, new RegExp(`data-bar-grammar="${expectedGrammar}"`));
+    assert.match(f54, /data-bar-grid="true"/);
+    assert.match(f54, new RegExp(`data-timeline-grammar="${expectedGrammar}"`));
+    assert.match(f54, /data-vernier-rail="true"/);
+    assert.match(f54, /data-instrument-arc="240"/);
+    assert.match(f54, /BAZA ──┼── WYNIK/);
+    assert.match(f54, /data-delta-hatch="true"/);
+    assert.doesNotMatch(f54, /lucide-check/i);
+    assert.doesNotMatch(f54, /lucide-arrow-right/i);
+    assert.doesNotMatch(f54, /border-radius:9999px/);
+    assert.doesNotMatch(f54, /blur\(0(?:\.0+)?px\)/);
+    const timelineChunk54 = f54.split('data-timeline-grammar=')[1] ?? '';
+    assert.match(timelineChunk54, /filter:blur\(/);
+    assert.match(timelineChunk54, /filter:none/);
+  }
+
+  // Zero-aperture deadzone (< 0.25px -> filter: 'none'), renderBaseFill={false}, startFrame=0 guard, and 4-milestone 9:16 vertical TimelineTrack
+  const zeroAperturePreset = {
+    ...BUILT_IN_STYLES['minimal-product'],
+    optics: {
+      ...BUILT_IN_STYLES['minimal-product'].optics!,
+      aperture: 0,
+    },
+  };
+  const EdgeCaseScene: React.FC = () =>
+    React.createElement(
+      StyleProvider,
+      { style: zeroAperturePreset },
+      React.createElement(
+        DataStoryStage2D,
+        { renderBaseFill: false, foregroundAccents: false },
+        React.createElement(AnimatedBarRace, {
+          orientation: 'vertical',
+          startFrame: 0,
+          variant: 'dark',
+          items: [
+            { id: 'c1', label: 'Zażółć', value: 88, badge: 'TOP' },
+            { id: 'c2', label: 'Gęślą', value: 52 },
+          ],
+        }),
+        React.createElement(TimelineTrack, {
+          startFrame: 0,
+          variant: 'light',
+          milestones: [
+            { id: 's1', era: '01', label: 'Etap pierwszy', fromFrame: 2 },
+            { id: 's2', era: '02', label: 'Etap drugi', fromFrame: 20 },
+            { id: 's3', era: '03', label: 'Etap trzeci', fromFrame: 40 },
+            { id: 's4', era: '04', label: 'Etap czwarty', fromFrame: 80 },
+          ],
+        }),
+        React.createElement(MetricComparisonCard, {
+          beforeLabel: 'Przed',
+          beforeValue: 90,
+          afterLabel: 'Po',
+          afterValue: 30,
+          mode: 'bars',
+          startFrame: 0,
+          variant: 'dark',
+        })
+      )
+    );
+
+  const edgeF0 = renderToStaticMarkup(
+    React.createElement(Thumbnail, {
+      component: EdgeCaseScene,
+      compositionWidth: 1080,
+      compositionHeight: 1920,
+      durationInFrames: 120,
+      fps: 60,
+      frameToDisplay: 0,
+    })
+  );
+  assert.doesNotMatch(edgeF0, /Zażółć/);
+  assert.doesNotMatch(edgeF0, /Etap/);
+  assert.doesNotMatch(edgeF0, /background-color:#F8FAFC/i);
+
+  const edgeF1 = renderToStaticMarkup(
+    React.createElement(Thumbnail, {
+      component: EdgeCaseScene,
+      compositionWidth: 1080,
+      compositionHeight: 1920,
+      durationInFrames: 120,
+      fps: 60,
+      frameToDisplay: 1,
+    })
+  );
+  assert.doesNotMatch(edgeF1, /Zażółć/);
+  assert.doesNotMatch(edgeF1, /Etap/);
+
+  const edgeF48 = renderToStaticMarkup(
+    React.createElement(Thumbnail, {
+      component: EdgeCaseScene,
+      compositionWidth: 1080,
+      compositionHeight: 1920,
+      durationInFrames: 120,
+      fps: 60,
+      frameToDisplay: 48,
+    })
+  );
+  assert.match(edgeF48, /Zażółć/);
+  assert.match(edgeF48, /Etap trzeci/);
+  assert.match(edgeF48, /Δ -67%/);
+  const edgeTimelineChunk = edgeF48.split('data-timeline-grammar=')[1] ?? '';
+  assert.doesNotMatch(edgeTimelineChunk, /filter:blur\(/);
+  assert.match(edgeTimelineChunk, /filter:none/);
+  assert.doesNotMatch(edgeF48, /blur\(0(?:\.0+)?px\)/);
+
+  // Verify all 7 BUILT_IN_STYLE_IDS across 16:9 and 9:16
+  for (const styleId of BUILT_IN_STYLE_IDS) {
+    for (const [w, h] of [
+      [1920, 1080],
+      [1080, 1920],
+    ] as const) {
+      const AllStylesDataScene: React.FC = () =>
+        React.createElement(
+          StyleProvider,
+          { style: styleId },
+          React.createElement(
+            DataStoryStage2D,
+            { datasetCode: 'PEŁNA MACIERZ STYLÓW' },
+            React.createElement(AnimatedBarRace, {
+              title: 'Żółw i źródło',
+              startFrame: 2,
+              items: [
+                { id: 'x1', label: 'Jakość obrazu', value: 95 },
+                { id: 'x2', label: 'Płynność ruchu', value: 78 },
+              ],
+            })
+          )
+        );
+      const html = renderToStaticMarkup(
+        React.createElement(Thumbnail, {
+          component: AllStylesDataScene,
+          compositionWidth: w,
+          compositionHeight: h,
+          durationInFrames: 90,
+          fps: 60,
+          frameToDisplay: 36,
+        })
+      );
+      assert.match(html, /PEŁNA MACIERZ STYLÓW/);
+      assert.match(html, /Żółw i źródło|ŻÓŁW I ŹRÓDŁO/);
+      assert.doesNotMatch(html, /blur\(0(?:\.0+)?px\)/);
     }
   }
 });

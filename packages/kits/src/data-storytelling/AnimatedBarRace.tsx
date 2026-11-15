@@ -8,14 +8,14 @@ import {
 } from 'remotion';
 import {
   SPRING_PRESETS,
-  STUDIO_THEME,
-  THEME,
   formatFontFamilyCss,
   formatHeadingText,
-  getCardChromeStyle,
   getStyleSpringConfig,
+  getTactileSurfaceStyle,
+  resolveStyleOptics,
   useStudioFontsReady,
   useStudioStyle,
+  type StylePreset,
 } from '@make-pictures/core';
 
 export interface BarRaceKeyframe {
@@ -52,7 +52,9 @@ export interface AnimatedBarRaceProps {
   style?: React.CSSProperties;
 }
 
-const FALLBACK_BAR_SWATCHES = ['#10B981', '#F59E0B', '#F43F5E', '#A855F7'];
+function sanitizePatternToken(raw: string): string {
+  return raw.replace(/[^a-zA-Z0-9_-]/g, '_');
+}
 
 function evaluateItemValueAtFrame(item: BarRaceItem, f: number): number {
   const kf = item.keyframes;
@@ -60,19 +62,24 @@ function evaluateItemValueAtFrame(item: BarRaceItem, f: number): number {
     return item.value;
   }
   const sorted = [...kf].sort((a, b) => a.frame - b.frame);
-  if (f <= sorted[0].frame) return sorted[0].value;
-  if (f >= sorted[sorted.length - 1].frame) {
-    return sorted[sorted.length - 1].value;
+  if (f <= sorted[0]!.frame) return sorted[0]!.value;
+  if (f >= sorted[sorted.length - 1]!.frame) {
+    return sorted[sorted.length - 1]!.value;
   }
   for (let i = 0; i < sorted.length - 1; i++) {
-    const a = sorted[i];
-    const b = sorted[i + 1];
+    const a = sorted[i]!;
+    const b = sorted[i + 1]!;
     if (f >= a.frame && f <= b.frame) {
-      return interpolate(f, [a.frame, Math.max(a.frame + 1, b.frame)], [a.value, b.value], {
-        easing: Easing.inOut(Easing.cubic),
-        extrapolateLeft: 'clamp',
-        extrapolateRight: 'clamp',
-      });
+      return interpolate(
+        f,
+        [a.frame, Math.max(a.frame + 1, b.frame)],
+        [a.value, b.value],
+        {
+          easing: Easing.inOut(Easing.cubic),
+          extrapolateLeft: 'clamp',
+          extrapolateRight: 'clamp',
+        }
+      );
     }
   }
   return item.value;
@@ -99,7 +106,7 @@ function getExactRanksAtFrame(
  * Pure deterministic raised-cosine kernel rank smoother (`f(frame)` with zero mutable state)
  * so overtaking bars glide cleanly past each other over ~22 frames instead of snapping.
  */
-function getSmoothedRanks(
+export function getSmoothedRanks(
   items: ReadonlyArray<BarRaceItem>,
   frame: number
 ): Map<string, number> {
@@ -129,8 +136,29 @@ function getSmoothedRanks(
 }
 
 /**
- * Crisp 60 FPS Ranked Horizontal / Vertical Bar Race Chart with high-damping
- * spring entrances, dynamic rank overtaking, and tabular value pills.
+ * Resolves disciplined editorial/tonal bar fill from the active `StylePreset`
+ * instead of hardcoded rainbow swatches. Explicit `explicitColor` always wins.
+ */
+export function resolveTonalBarFill(
+  studioStyle: StylePreset,
+  discreteRank: number,
+  explicitColor?: string
+): string {
+  if (explicitColor) {
+    return explicitColor;
+  }
+  if (discreteRank <= 0) {
+    return studioStyle.palette.accentPrimary;
+  }
+  if (discreteRank === 1) {
+    return studioStyle.palette.accentSecondary;
+  }
+  return studioStyle.palette.textSecondary;
+}
+
+/**
+ * Editorial Data Cartography 60 FPS Ranked Bar Chart with tonal hierarchy,
+ * vertical hairline scale gridlines, tabular figures, and polymorphic finishes.
  */
 export const AnimatedBarRace: React.FC<AnimatedBarRaceProps> = ({
   items,
@@ -152,6 +180,22 @@ export const AnimatedBarRace: React.FC<AnimatedBarRaceProps> = ({
   const { fps, width, height } = useVideoConfig();
   useStudioFontsReady();
   const studioStyle = useStudioStyle();
+  const optics = resolveStyleOptics(studioStyle);
+  const grammar = optics.typographyGrammar;
+
+  const effectiveStart = Math.max(2, startFrame ?? enterFrame ?? 2);
+  if (frame < effectiveStart || items.length === 0) {
+    return null;
+  }
+
+  const cardEnter = spring({
+    frame: frame - effectiveStart,
+    fps,
+    config: getStyleSpringConfig(studioStyle, 'enter'),
+  });
+  if (cardEnter <= 0.005) {
+    return null;
+  }
 
   const displayFontCss = formatFontFamilyCss(
     studioStyle.typography.displayFont,
@@ -166,322 +210,482 @@ export const AnimatedBarRace: React.FC<AnimatedBarRaceProps> = ({
     'mono'
   );
 
-  const effectiveStart = Math.max(2, startFrame ?? enterFrame ?? 2);
-  const cardEnter = spring({
-    frame: frame - effectiveStart,
-    fps,
-    config: getStyleSpringConfig(studioStyle, 'enter'),
-  });
-
-  if (cardEnter <= 0.005 || items.length === 0) {
-    return null;
-  }
-
-  const barPalette = [
-    studioStyle.palette.accentPrimary,
-    studioStyle.palette.accentSecondary,
-    ...FALLBACK_BAR_SWATCHES,
-  ];
-
   const visibleCount = Math.min(items.length, Math.max(1, maxItems));
   const smoothedRanks = getSmoothedRanks(items, frame);
 
   const evaluated = items.map((item, idx) => {
     const rawVal = evaluateItemValueAtFrame(item, frame);
     const rank = smoothedRanks.get(item.id) ?? idx;
-    const color = item.color ?? barPalette[idx % barPalette.length];
+    const discreteRank = Math.max(0, Math.round(rank));
+    const color = resolveTonalBarFill(studioStyle, discreteRank, item.color);
     return {
       item,
       idx,
       rawVal,
       rank,
+      discreteRank,
       color,
     };
   });
 
   const maxVal = Math.max(1e-6, ...evaluated.map((e) => e.rawVal));
   const isVerticalViewport = height > width;
-  const hasExplicitVariant = variant !== undefined;
-  const isLight = hasExplicitVariant
-    ? variant === 'light'
-    : !studioStyle.surface.isDark;
+  const isDark =
+    variant !== undefined ? variant === 'dark' : studioStyle.surface.isDark;
 
-  const chromeStyle: React.CSSProperties = hasExplicitVariant
-    ? {
-        borderRadius: 26,
-        backgroundColor: isLight
-          ? STUDIO_THEME.colors.bgSurfaceGlass
-          : 'rgba(13, 15, 26, 0.88)',
-        border: isLight
-          ? `1.5px solid ${STUDIO_THEME.colors.border.subtle}`
-          : '1.5px solid rgba(255, 255, 255, 0.12)',
-        boxShadow: isLight
-          ? STUDIO_THEME.shadows.cardElevated
-          : THEME.shadows.card,
-        backdropFilter: 'blur(16px)',
-      }
-    : getCardChromeStyle(studioStyle);
-
-  const textPrimary = hasExplicitVariant
-    ? isLight
-      ? STUDIO_THEME.colors.text.slate900
-      : THEME.colors.textPrimary
-    : studioStyle.palette.textPrimary;
-
-  const textSecondary = hasExplicitVariant
-    ? isLight
-      ? STUDIO_THEME.colors.text.secondary
-      : THEME.colors.textSecondary
-    : studioStyle.palette.textSecondary;
+  const textPrimary =
+    variant !== undefined
+      ? isDark
+        ? '#F8FAFC'
+        : '#0F172A'
+      : studioStyle.palette.textPrimary;
+  const textSecondary =
+    variant !== undefined
+      ? isDark
+        ? '#94A3B8'
+        : '#475569'
+      : studioStyle.palette.textSecondary;
+  const borderColor =
+    variant !== undefined
+      ? isDark
+        ? 'rgba(148, 163, 184, 0.24)'
+        : 'rgba(15, 23, 42, 0.16)'
+      : studioStyle.palette.inkBorder;
 
   const cardWidth =
     isVerticalViewport && safeBox9x16 ? Math.min(830, width - 90) : 980;
-  const rowHeight = isVerticalViewport ? 72 : 76;
-  const rowGap = 14;
-  const rankRadius = hasExplicitVariant
-    ? 12
-    : Math.max(0, Math.round(12 * studioStyle.surface.radiusScale));
+  const rowHeight = isVerticalViewport ? 68 : 72;
+  const rowGap = 12;
+
+  const surfaceBase = getTactileSurfaceStyle(studioStyle, {
+    elevation: 'lifted',
+    overrides: {
+      width: cardWidth,
+      maxWidth: '100%',
+      padding: isVerticalViewport ? '26px 28px' : '32px 38px',
+      boxSizing: 'border-box',
+      borderRadius:
+        grammar === 'risograph-poster'
+          ? 0
+          : Math.max(0, Math.round(6 * studioStyle.surface.radiusScale)),
+      ...(variant !== undefined
+        ? {
+            backgroundColor: isDark ? '#0D1321' : '#FAF8F4',
+            borderColor,
+          }
+        : {}),
+      opacity: cardEnter,
+      transform: `translateY(${interpolate(cardEnter, [0, 1], [20, 0]).toFixed(2)}px) scale(${interpolate(cardEnter, [0, 1], [0.97, 1]).toFixed(4)})`,
+      ...style,
+    },
+  });
 
   return (
-    <div
-      style={{
-        width: cardWidth,
-        padding: isVerticalViewport ? '28px 30px' : '34px 40px',
-        boxSizing: 'border-box',
-        ...chromeStyle,
-        opacity: cardEnter,
-        transform: `translateY(${interpolate(cardEnter, [0, 1], [24, 0]).toFixed(2)}px) scale(${interpolate(cardEnter, [0, 1], [0.95, 1]).toFixed(4)})`,
-        ...style,
-      }}
-    >
+    <div data-bar-grammar={grammar} style={surfaceBase}>
       {(title || subtitle) && (
-        <div style={{ marginBottom: 24 }}>
-          {title && (
-            <div
-              style={{
-                fontFamily: displayFontCss,
-                fontSize: isVerticalViewport ? 30 : 34,
-                fontWeight: 800,
-                letterSpacing: `${studioStyle.typography.displayTrackingEm}em`,
-                color: textPrimary,
-              }}
-            >
-              {hasExplicitVariant ? title : formatHeadingText(title, studioStyle)}
-            </div>
-          )}
-          {subtitle && (
-            <div
-              style={{
-                marginTop: 4,
-                fontFamily: bodyFontCss,
-                fontSize: 18,
-                fontWeight: 500,
-                color: textSecondary,
-              }}
-            >
-              {subtitle}
-            </div>
-          )}
+        <div
+          style={{
+            marginBottom: 20,
+            paddingBottom: 12,
+            borderBottom: `1px solid ${borderColor}`,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'baseline',
+            gap: 16,
+          }}
+        >
+          <div>
+            {title && (
+              <div
+                style={{
+                  fontFamily: displayFontCss,
+                  fontSize: isVerticalViewport ? 28 : 32,
+                  fontWeight: 700,
+                  letterSpacing: `${studioStyle.typography.displayTrackingEm}em`,
+                  color: textPrimary,
+                }}
+              >
+                {variant !== undefined
+                  ? title
+                  : formatHeadingText(title, studioStyle)}
+              </div>
+            )}
+            {subtitle && (
+              <div
+                style={{
+                  marginTop: 4,
+                  fontFamily: bodyFontCss,
+                  fontSize: 17,
+                  color: textSecondary,
+                }}
+              >
+                {subtitle}
+              </div>
+            )}
+          </div>
+          <span
+            style={{
+              fontFamily: monoFontCss,
+              fontVariantNumeric: 'tabular-nums',
+              fontSize: 13,
+              letterSpacing: '0.12em',
+              color: textSecondary,
+              flexShrink: 0,
+            }}
+          >
+            MAX {valuePrefix}
+            {maxVal.toFixed(decimals)}
+            {valueSuffix}
+          </span>
         </div>
       )}
 
       {orientation === 'horizontal' ? (
-        <div
-          style={{
-            position: 'relative',
-            height: visibleCount * (rowHeight + rowGap) - rowGap,
-          }}
-        >
-          {evaluated.map(({ item, idx, rawVal, rank, color }) => {
-            if (rank > visibleCount - 0.15) return null;
-
-            const barGrow = spring({
-              frame: frame - (effectiveStart + 4 + idx * staggerFrames),
-              fps,
-              config: SPRING_PRESETS.smooth,
-            });
-
-            const fillRatio = Math.max(0.04, (rawVal / maxVal) * barGrow);
-            const displayVal = rawVal * barGrow;
-            const yTop = rank * (rowHeight + rowGap);
-            const rankBadge = Math.min(visibleCount, Math.round(rank) + 1);
-
-            return (
-              <div
-                key={item.id}
-                style={{
-                  position: 'absolute',
-                  left: 0,
-                  right: 0,
-                  top: 0,
-                  height: rowHeight,
-                  transform: `translate3d(0, ${yTop.toFixed(2)}px, 0)`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 16,
-                  opacity: barGrow,
-                }}
-              >
-                {/* Rank Pill */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div
+            style={{
+              position: 'relative',
+              height: visibleCount * (rowHeight + rowGap) - rowGap,
+            }}
+          >
+            {/* Hairline Vertical Reference Gridlines (25% / 50% / 75% / 100%) */}
+            <div
+              data-bar-grid="true"
+              style={{
+                position: 'absolute',
+                left: 48,
+                right: 0,
+                top: 0,
+                bottom: 0,
+                pointerEvents: 'none',
+              }}
+            >
+              {[0.25, 0.5, 0.75, 1].map((tick) => (
                 <div
+                  key={tick}
                   style={{
-                    width: 38,
-                    height: 38,
-                    borderRadius: rankRadius,
-                    flexShrink: 0,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontFamily: monoFontCss,
-                    fontSize: 16,
-                    fontWeight: 800,
-                    color: rankBadge === 1 ? '#FFFFFF' : textSecondary,
-                    backgroundColor:
-                      rankBadge === 1
-                        ? color
-                        : hasExplicitVariant
-                          ? isLight
-                            ? 'rgba(15, 23, 42, 0.07)'
-                            : 'rgba(255, 255, 255, 0.08)'
-                          : studioStyle.palette.bgElevated,
+                    position: 'absolute',
+                    left: `${tick * 100}%`,
+                    top: 0,
+                    bottom: 0,
+                    width: 1,
+                    backgroundColor: borderColor,
+                    opacity: isDark ? 0.32 : 0.45,
                   }}
-                >
-                  {rankBadge}
-                </div>
+                />
+              ))}
+            </div>
 
-                {/* Bar Track + Label + Value Pill */}
-                <div
-                  style={{
-                    flex: 1,
-                    minWidth: 0,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 8,
-                  }}
-                >
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      gap: 12,
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 8,
-                        fontFamily: bodyFontCss,
-                        fontSize: 20,
-                        fontWeight: 700,
-                        color: textPrimary,
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                      }}
-                    >
-                      {item.icon}
-                      <span>{item.label}</span>
-                      {item.badge && (
-                        <span
-                          style={{
-                            fontFamily: monoFontCss,
-                            fontSize: 12,
-                            fontWeight: 700,
-                            padding: '2px 8px',
-                            borderRadius: 9999,
-                            color,
-                            backgroundColor: `${color}22`,
-                          }}
-                        >
-                          {item.badge}
-                        </span>
-                      )}
-                    </div>
+            {evaluated.map(({ item, idx, rawVal, rank, discreteRank, color }) => {
+              if (rank > visibleCount - 0.15) return null;
 
-                    {/* Value Pill */}
-                    <div
-                      style={{
-                        fontFamily: monoFontCss,
-                        fontVariantNumeric: 'tabular-nums',
-                        fontSize: 17,
-                        fontWeight: 700,
-                        padding: '4px 12px',
-                        borderRadius: 9999,
-                        color: '#FFFFFF',
-                        backgroundColor: color,
-                        boxShadow: `0 4px 14px ${color}44`,
-                      }}
-                    >
-                      {valuePrefix}
-                      {displayVal.toFixed(decimals)}
-                      {valueSuffix}
-                    </div>
-                  </div>
-
-                  {/* Animated Bar Track */}
-                  <div
-                    style={{
-                      width: '100%',
-                      height: 16,
-                      borderRadius: 9999,
-                      backgroundColor: isLight
-                        ? 'rgba(15, 23, 42, 0.07)'
-                        : 'rgba(255, 255, 255, 0.08)',
-                      overflow: 'hidden',
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: `${(fillRatio * 100).toFixed(2)}%`,
-                        height: '100%',
-                        borderRadius: 9999,
-                        background: `linear-gradient(90deg, ${color}CC 0%, ${color} 100%)`,
-                        boxShadow: `0 0 18px ${color}66`,
-                      }}
-                    />
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        /* Vertical Column Chart Mode */
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'flex-end',
-            justifyContent: 'space-between',
-            gap: 18,
-            height: isVerticalViewport ? 340 : 320,
-            paddingTop: 28,
-          }}
-        >
-          {[...evaluated]
-            .sort((a, b) => a.rank - b.rank)
-            .slice(0, visibleCount)
-            .map(({ item, idx, rawVal, color }) => {
               const barGrow = spring({
                 frame: frame - (effectiveStart + 4 + idx * staggerFrames),
                 fps,
                 config: SPRING_PRESETS.smooth,
               });
-              const fillRatio = Math.max(0.06, (rawVal / maxVal) * barGrow);
+
+              const fillRatio = Math.max(0.03, (rawVal / maxVal) * barGrow);
               const displayVal = rawVal * barGrow;
+              const yTop = rank * (rowHeight + rowGap);
+              const rankBadge = Math.min(visibleCount, discreteRank + 1);
+              const isLeader = rankBadge === 1;
+              const barOpacity = isLeader
+                ? 1
+                : discreteRank === 1
+                  ? 0.86
+                  : Math.max(0.45, 0.72 - (discreteRank - 2) * 0.1);
+              const patternId = `riso-bar-hatch-${sanitizePatternToken(studioStyle.id)}-${sanitizePatternToken(item.id)}`;
 
               return (
                 <div
                   key={item.id}
                   style={{
+                    position: 'absolute',
+                    left: 0,
+                    right: 0,
+                    top: 0,
+                    height: rowHeight,
+                    transform: `translate3d(0, ${yTop.toFixed(2)}px, 0)`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 14,
+                    opacity: barGrow,
+                  }}
+                >
+                  {/* Tabular Index Stamp (Zero rounded pills) */}
+                  <div
+                    style={{
+                      width: 34,
+                      height: 30,
+                      flexShrink: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontFamily: monoFontCss,
+                      fontVariantNumeric: 'tabular-nums',
+                      fontSize: 15,
+                      fontWeight: 700,
+                      color:
+                        isLeader && grammar === 'risograph-poster'
+                          ? '#FFFFFF'
+                          : isLeader
+                            ? studioStyle.palette.accentPrimary
+                            : textSecondary,
+                      backgroundColor:
+                        isLeader && grammar === 'risograph-poster'
+                          ? color
+                          : 'transparent',
+                      borderBottom:
+                        grammar !== 'risograph-poster'
+                          ? `2px solid ${isLeader ? color : borderColor}`
+                          : undefined,
+                      border:
+                        grammar === 'risograph-poster'
+                          ? `1.5px solid ${borderColor}`
+                          : undefined,
+                    }}
+                  >
+                    {String(rankBadge).padStart(2, '0')}
+                  </div>
+
+                  {/* Label + Sharp Editorial / Telemetry / Risograph Bar */}
+                  <div
+                    style={{
+                      flex: 1,
+                      minWidth: 0,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 6,
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'baseline',
+                        justifyContent: 'space-between',
+                        gap: 12,
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          fontFamily: bodyFontCss,
+                          fontSize: 19,
+                          fontWeight: isLeader ? 700 : 600,
+                          color: textPrimary,
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}
+                      >
+                        {item.icon}
+                        <span>{item.label}</span>
+                        {item.badge ? (
+                          <span
+                            style={{
+                              fontFamily: monoFontCss,
+                              fontSize: 12,
+                              fontWeight: 700,
+                              padding: '1px 6px',
+                              border: `1px solid ${color}`,
+                              color,
+                            }}
+                          >
+                            {item.badge}
+                          </span>
+                        ) : null}
+                      </div>
+
+                      <span
+                        style={{
+                          fontFamily: monoFontCss,
+                          fontVariantNumeric: 'tabular-nums',
+                          fontSize: 18,
+                          fontWeight: isLeader ? 800 : 600,
+                          color: isLeader ? color : textPrimary,
+                        }}
+                      >
+                        {valuePrefix}
+                        {displayVal.toFixed(decimals)}
+                        {valueSuffix}
+                      </span>
+                    </div>
+
+                    {/* Sharp Rectangular Track */}
+                    <div
+                      style={{
+                        position: 'relative',
+                        width: '100%',
+                        height: isLeader ? 15 : 12,
+                        backgroundColor: isDark
+                          ? 'rgba(255, 255, 255, 0.06)'
+                          : 'rgba(15, 23, 42, 0.05)',
+                      }}
+                    >
+                      <div
+                        style={{
+                          position: 'relative',
+                          width: `${(fillRatio * 100).toFixed(2)}%`,
+                          height: '100%',
+                          boxSizing: 'border-box',
+                          opacity: barOpacity,
+                          backgroundColor:
+                            grammar === 'risograph-poster' && !isLeader
+                              ? 'transparent'
+                              : color,
+                          border:
+                            grammar === 'risograph-poster'
+                              ? `1.5px solid ${borderColor}`
+                              : undefined,
+                          borderRight:
+                            grammar === 'swiss-spatial' && isLeader
+                              ? `2.5px solid ${textPrimary}`
+                              : grammar === 'optical-gate' && isLeader
+                                ? '2px solid #FFFFFF'
+                                : undefined,
+                          boxShadow:
+                            grammar === 'optical-gate' &&
+                            isLeader &&
+                            optics.halation > 0.05
+                              ? `0 0 ${Math.round(10 + optics.halation * 18)}px ${color}66`
+                              : 'none',
+                          overflow: 'hidden',
+                        }}
+                      >
+                        {grammar === 'risograph-poster' && !isLeader ? (
+                          <svg
+                            width="100%"
+                            height="100%"
+                            style={{
+                              position: 'absolute',
+                              inset: 0,
+                              display: 'block',
+                            }}
+                          >
+                            <defs>
+                              <pattern
+                                id={patternId}
+                                width="8"
+                                height="8"
+                                patternUnits="userSpaceOnUse"
+                                patternTransform="rotate(45)"
+                              >
+                                <line
+                                  x1="0"
+                                  y1="0"
+                                  x2="0"
+                                  y2="8"
+                                  stroke={color}
+                                  strokeWidth="3.2"
+                                />
+                              </pattern>
+                            </defs>
+                            <rect
+                              width="100%"
+                              height="100%"
+                              fill={`url(#${patternId})`}
+                            />
+                          </svg>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Discreet Scale Axis Footer (25% · 50% · 75% · 100%) */}
+          <div
+            style={{
+              position: 'relative',
+              marginLeft: 48,
+              height: 16,
+              borderTop: `1px solid ${borderColor}`,
+              fontFamily: monoFontCss,
+              fontVariantNumeric: 'tabular-nums',
+              fontSize: 11,
+              letterSpacing: '0.08em',
+              color: textSecondary,
+              opacity: 0.72,
+            }}
+          >
+            {[25, 50, 75, 100].map((pct) => (
+              <span
+                key={pct}
+                style={{
+                  position: 'absolute',
+                  left: `${pct}%`,
+                  top: 3,
+                  transform: pct === 100 ? 'translateX(-100%)' : 'translateX(-50%)',
+                }}
+              >
+                {pct}%
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : (
+        /* Vertical Column Chart Mode */
+        <div
+          data-bar-grid="true"
+          style={{
+            position: 'relative',
+            display: 'flex',
+            alignItems: 'flex-end',
+            justifyContent: 'space-between',
+            gap: 18,
+            height: isVerticalViewport ? 320 : 300,
+            paddingTop: 24,
+            borderBottom: `1.5px solid ${borderColor}`,
+          }}
+        >
+          {/* Horizontal Reference Gridlines (25% / 50% / 75% / 100%) */}
+          {[0.25, 0.5, 0.75, 1].map((tick) => (
+            <div
+              key={tick}
+              style={{
+                position: 'absolute',
+                left: 0,
+                right: 0,
+                bottom: `${tick * 74}%`,
+                height: 1,
+                backgroundColor: borderColor,
+                opacity: isDark ? 0.28 : 0.4,
+                pointerEvents: 'none',
+              }}
+            />
+          ))}
+
+          {[...evaluated]
+            .sort((a, b) => a.rank - b.rank)
+            .slice(0, visibleCount)
+            .map(({ item, idx, rawVal, discreteRank, color }) => {
+              const barGrow = spring({
+                frame: frame - (effectiveStart + 4 + idx * staggerFrames),
+                fps,
+                config: SPRING_PRESETS.smooth,
+              });
+              const fillRatio = Math.max(0.05, (rawVal / maxVal) * barGrow);
+              const displayVal = rawVal * barGrow;
+              const isLeader = discreteRank === 0;
+              const patternId = `riso-col-hatch-${sanitizePatternToken(studioStyle.id)}-${sanitizePatternToken(item.id)}`;
+
+              return (
+                <div
+                  key={item.id}
+                  style={{
+                    position: 'relative',
                     flex: 1,
                     height: '100%',
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
                     justifyContent: 'flex-end',
-                    gap: 10,
+                    gap: 8,
                     opacity: barGrow,
                   }}
                 >
@@ -490,11 +694,8 @@ export const AnimatedBarRace: React.FC<AnimatedBarRaceProps> = ({
                       fontFamily: monoFontCss,
                       fontVariantNumeric: 'tabular-nums',
                       fontSize: 15,
-                      fontWeight: 700,
-                      padding: '3px 10px',
-                      borderRadius: 9999,
-                      color: '#FFFFFF',
-                      backgroundColor: color,
+                      fontWeight: isLeader ? 800 : 600,
+                      color: isLeader ? color : textSecondary,
                     }}
                   >
                     {valuePrefix}
@@ -503,19 +704,66 @@ export const AnimatedBarRace: React.FC<AnimatedBarRaceProps> = ({
                   </div>
                   <div
                     style={{
+                      position: 'relative',
                       width: '100%',
-                      maxWidth: 74,
+                      maxWidth: 68,
                       height: `${(fillRatio * 74).toFixed(2)}%`,
-                      borderRadius: `${Math.round(14 * studioStyle.surface.radiusScale)}px ${Math.round(14 * studioStyle.surface.radiusScale)}px 6px 6px`,
-                      background: `linear-gradient(180deg, ${color} 0%, ${color}AA 100%)`,
-                      boxShadow: `0 8px 24px ${color}44`,
+                      boxSizing: 'border-box',
+                      backgroundColor:
+                        grammar === 'risograph-poster' && !isLeader
+                          ? 'transparent'
+                          : color,
+                      opacity: isLeader ? 1 : 0.78,
+                      borderTop: `2.5px solid ${textPrimary}`,
+                      border:
+                        grammar === 'risograph-poster'
+                          ? `1.5px solid ${borderColor}`
+                          : undefined,
+                      overflow: 'hidden',
                     }}
-                  />
+                  >
+                    {grammar === 'risograph-poster' && !isLeader ? (
+                      <svg
+                        width="100%"
+                        height="100%"
+                        style={{
+                          position: 'absolute',
+                          inset: 0,
+                          display: 'block',
+                        }}
+                      >
+                        <defs>
+                          <pattern
+                            id={patternId}
+                            width="8"
+                            height="8"
+                            patternUnits="userSpaceOnUse"
+                            patternTransform="rotate(45)"
+                          >
+                            <line
+                              x1="0"
+                              y1="0"
+                              x2="0"
+                              y2="8"
+                              stroke={color}
+                              strokeWidth="3.2"
+                            />
+                          </pattern>
+                        </defs>
+                        <rect
+                          width="100%"
+                          height="100%"
+                          fill={`url(#${patternId})`}
+                        />
+                      </svg>
+                    ) : null}
+                  </div>
                   <div
                     style={{
+                      paddingTop: 6,
                       fontFamily: bodyFontCss,
-                      fontSize: 16,
-                      fontWeight: 700,
+                      fontSize: 15,
+                      fontWeight: isLeader ? 700 : 600,
                       textAlign: 'center',
                       color: textPrimary,
                     }}

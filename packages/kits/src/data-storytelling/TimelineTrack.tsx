@@ -1,5 +1,4 @@
 import React from 'react';
-import { Check } from 'lucide-react';
 import {
   interpolate,
   spring,
@@ -8,11 +7,10 @@ import {
 } from 'remotion';
 import {
   SPRING_PRESETS,
-  STUDIO_THEME,
-  THEME,
   formatFontFamilyCss,
-  getCardChromeStyle,
   getStyleSpringConfig,
+  getTactileSurfaceStyle,
+  resolveStyleOptics,
   useStudioFontsReady,
   useStudioStyle,
 } from '@make-pictures/core';
@@ -20,7 +18,7 @@ import {
 export interface TimelineMilestone {
   id: string;
   label: string;
-  /** Concise era, year, or step tag (e.g. `"2024"`, `"Step 01"`) */
+  /** Concise era, year, or step tag (e.g. `"1998"`, `"2026"`) */
   era?: string;
   /** Frame when this milestone becomes active */
   fromFrame?: number;
@@ -43,8 +41,9 @@ export interface TimelineTrackProps {
 }
 
 /**
- * Interactive 60 FPS Milestone Progression Track highlighting the active era/step
- * at `frame` with smooth spring-interpolated rail progress.
+ * Chronicle Vernier Rail & Optical Rack-Focus Timeline (`60 FPS`).
+ * Active milestone lifts onto the crisp focal plane (`filter: 'none'`),
+ * while past and future milestones recede into gentle lens defocus.
  */
 export const TimelineTrack: React.FC<TimelineTrackProps> = ({
   milestones,
@@ -60,6 +59,22 @@ export const TimelineTrack: React.FC<TimelineTrackProps> = ({
   const { fps, width, height } = useVideoConfig();
   useStudioFontsReady();
   const studioStyle = useStudioStyle();
+  const optics = resolveStyleOptics(studioStyle);
+  const grammar = optics.typographyGrammar;
+
+  const effectiveStart = Math.max(2, startFrame ?? enterFrame ?? 2);
+  if (frame < effectiveStart || milestones.length === 0) {
+    return null;
+  }
+
+  const trackEnter = spring({
+    frame: frame - effectiveStart,
+    fps,
+    config: getStyleSpringConfig(studioStyle, 'enter'),
+  });
+  if (trackEnter <= 0.005) {
+    return null;
+  }
 
   const resolvedAccent = accentColor ?? studioStyle.palette.accentPrimary;
   const displayFontCss = formatFontFamilyCss(
@@ -75,17 +90,6 @@ export const TimelineTrack: React.FC<TimelineTrackProps> = ({
     'mono'
   );
 
-  const effectiveStart = Math.max(2, startFrame ?? enterFrame ?? 2);
-  const trackEnter = spring({
-    frame: frame - effectiveStart,
-    fps,
-    config: getStyleSpringConfig(studioStyle, 'enter'),
-  });
-
-  if (trackEnter <= 0.005 || milestones.length === 0) {
-    return null;
-  }
-
   const normalized = milestones.map((m) => ({
     ...m,
     resolvedFrame: m.fromFrame ?? m.frame ?? 0,
@@ -98,61 +102,36 @@ export const TimelineTrack: React.FC<TimelineTrackProps> = ({
     orientation ??
     (isVerticalViewport && sorted.length >= 4 ? 'vertical' : 'horizontal');
 
-  const hasExplicitVariant = variant !== undefined;
-  const isLight = hasExplicitVariant
-    ? variant === 'light'
-    : !studioStyle.surface.isDark;
+  const isDark =
+    variant !== undefined ? variant === 'dark' : studioStyle.surface.isDark;
+  const textPrimary =
+    variant !== undefined
+      ? isDark
+        ? '#F8FAFC'
+        : '#0F172A'
+      : studioStyle.palette.textPrimary;
+  const textSecondary =
+    variant !== undefined
+      ? isDark
+        ? '#94A3B8'
+        : '#475569'
+      : studioStyle.palette.textSecondary;
+  const borderColor =
+    variant !== undefined
+      ? isDark
+        ? 'rgba(148, 163, 184, 0.28)'
+        : 'rgba(15, 23, 42, 0.2)'
+      : studioStyle.palette.inkBorder;
 
-  const chromeStyle: React.CSSProperties = hasExplicitVariant
-    ? {
-        borderRadius: 26,
-        backgroundColor: isLight
-          ? STUDIO_THEME.colors.bgSurfaceGlass
-          : 'rgba(13, 15, 26, 0.88)',
-        border: isLight
-          ? `1.5px solid ${STUDIO_THEME.colors.border.subtle}`
-          : '1.5px solid rgba(255, 255, 255, 0.12)',
-        boxShadow: isLight
-          ? STUDIO_THEME.shadows.cardElevated
-          : THEME.shadows.card,
-      }
-    : getCardChromeStyle(studioStyle);
-
-  const textPrimary = hasExplicitVariant
-    ? isLight
-      ? STUDIO_THEME.colors.text.slate900
-      : THEME.colors.textPrimary
-    : studioStyle.palette.textPrimary;
-
-  const textSecondary = hasExplicitVariant
-    ? isLight
-      ? STUDIO_THEME.colors.text.secondary
-      : THEME.colors.textSecondary
-    : studioStyle.palette.textSecondary;
-
-  const inactiveNodeBg = hasExplicitVariant
-    ? isLight
-      ? '#FFFFFF'
-      : '#1E293B'
-    : studioStyle.palette.bgElevated;
-
-  const inactiveNodeBorder = hasExplicitVariant
-    ? isLight
-      ? '#CBD5E1'
-      : 'rgba(255,255,255,0.2)'
-    : studioStyle.palette.inkBorder;
-
-  // Compute active index & continuous rail progress across milestones
   let activeIdx = 0;
   let continuousIndex = 0;
-
   for (let i = 0; i < sorted.length; i++) {
-    if (frame >= sorted[i].resolvedFrame) {
+    if (frame >= sorted[i]!.resolvedFrame) {
       activeIdx = i;
     }
-    if (i > 0 && frame >= sorted[i].resolvedFrame) {
+    if (i > 0 && frame >= sorted[i]!.resolvedFrame) {
       const segProgress = spring({
-        frame: frame - sorted[i].resolvedFrame,
+        frame: frame - sorted[i]!.resolvedFrame,
         fps,
         config: SPRING_PRESETS.smooth,
       });
@@ -162,155 +141,232 @@ export const TimelineTrack: React.FC<TimelineTrackProps> = ({
 
   const totalSteps = Math.max(1, sorted.length - 1);
   const fillFraction =
-    sorted.length <= 1 ? 1 : Math.min(1, Math.max(0, continuousIndex / totalSteps));
+    sorted.length <= 1
+      ? 1
+      : Math.min(1, Math.max(0, continuousIndex / totalSteps));
   const activeColor = sorted[activeIdx]?.color ?? resolvedAccent;
 
   const containerWidth =
     isVerticalViewport && safeBox9x16 ? Math.min(830, width - 90) : 1120;
 
-  // Calm breathing halo on active milestone (low angular rate per AGENTS.md)
-  const haloScale = 1 + 0.08 * Math.sin(frame * (60 / Math.max(1, fps)) * 0.042);
+  const computeMilestoneOptics = (idx: number) => {
+    const dist = Math.min(2, Math.abs(idx - activeIdx));
+    if (dist === 0) {
+      return { filter: 'none', opacity: 1, scale: 1 };
+    }
+    const rawBlur = dist * optics.aperture * 3.4;
+    return {
+      filter: rawBlur < 0.25 ? 'none' : `blur(${rawBlur.toFixed(2)}px)`,
+      opacity: dist === 1 ? 0.74 : 0.62,
+      scale: 0.96,
+    };
+  };
+
+  const formatEraMarker = (eraText: string, isActive: boolean) => {
+    if (grammar === 'optical-gate') {
+      return isActive ? `◆ ${eraText} · LOCK` : `┼ ${eraText}`;
+    }
+    if (grammar === 'risograph-poster') {
+      return isActive ? `${eraText}` : `[${eraText}]`;
+    }
+    return isActive ? `▲ ${eraText}` : `│ ${eraText}`;
+  };
+
+  const outerSurface = getTactileSurfaceStyle(studioStyle, {
+    elevation: 'resting',
+    overrides: {
+      width:
+        resolvedOrientation === 'vertical'
+          ? Math.min(containerWidth, 680)
+          : containerWidth,
+      maxWidth: '100%',
+      padding: isVerticalViewport ? '24px 26px' : '30px 38px',
+      boxSizing: 'border-box',
+      borderRadius:
+        grammar === 'risograph-poster'
+          ? 0
+          : Math.max(0, Math.round(6 * studioStyle.surface.radiusScale)),
+      ...(variant !== undefined
+        ? {
+            backgroundColor: isDark ? '#0D1321' : '#FAF8F4',
+            borderColor,
+          }
+        : {}),
+      opacity: trackEnter,
+      transform: `translateY(${interpolate(trackEnter, [0, 1], [18, 0]).toFixed(2)}px)`,
+      ...style,
+    },
+  });
 
   if (resolvedOrientation === 'vertical') {
     return (
-      <div
-        style={{
-          width: Math.min(containerWidth, 680),
-          padding: '30px 34px',
-          boxSizing: 'border-box',
-          ...chromeStyle,
-          opacity: trackEnter,
-          transform: `translateY(${interpolate(trackEnter, [0, 1], [22, 0]).toFixed(2)}px)`,
-          ...style,
-        }}
-      >
+      <div data-timeline-grammar={grammar} style={outerSurface}>
         <div
           style={{
             position: 'relative',
             display: 'flex',
             flexDirection: 'column',
-            gap: 28,
+            gap: 20,
           }}
         >
-          {/* Vertical Rail */}
+          {/* Vertical Vernier Chronicle Rail + Minor Subdivisions */}
           <div
+            data-vernier-rail="true"
             style={{
               position: 'absolute',
-              left: 21,
-              top: 22,
-              bottom: 22,
-              width: 4,
-              borderRadius: 9999,
-              backgroundColor: isLight
-                ? 'rgba(15, 23, 42, 0.10)'
-                : 'rgba(255, 255, 255, 0.12)',
+              left: 14,
+              top: 12,
+              bottom: 12,
+              width: 2,
+              backgroundColor: borderColor,
             }}
           >
             <div
               style={{
                 width: '100%',
                 height: `${(fillFraction * 100).toFixed(2)}%`,
-                borderRadius: 9999,
                 backgroundColor: activeColor,
-                boxShadow: `0 0 16px ${activeColor}88`,
+                boxShadow:
+                  grammar === 'optical-gate' && optics.halation > 0.05
+                    ? `0 0 ${Math.round(8 + optics.halation * 16)}px ${activeColor}`
+                    : 'none',
               }}
             />
+            <div
+              style={{
+                position: 'absolute',
+                left: 2,
+                top: 0,
+                bottom: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+              }}
+            >
+              {Array.from({ length: 17 }).map((_, tickIdx) => {
+                const isMajor = tickIdx % 4 === 0;
+                const lit = tickIdx / 16 <= fillFraction + 0.01;
+                return (
+                  <div
+                    key={tickIdx}
+                    style={{
+                      height: isMajor ? 1.5 : 1,
+                      width: isMajor ? 8 : 4,
+                      backgroundColor: lit ? activeColor : borderColor,
+                      opacity: lit ? 0.9 : 0.42,
+                    }}
+                  />
+                );
+              })}
+            </div>
           </div>
 
           {sorted.map((m, idx) => {
-            const isCompleted = idx < activeIdx;
             const isActive = idx === activeIdx;
             const nodeColor = m.color ?? resolvedAccent;
-            const pop = spring({
-              frame: Math.max(0, frame - m.resolvedFrame),
-              fps,
-              config: SPRING_PRESETS.snappy,
-            });
+            const opt = computeMilestoneOptics(idx);
+            const eraStr = m.era ?? String(idx + 1).padStart(2, '0');
 
             return (
               <div
                 key={m.id}
                 style={{
                   position: 'relative',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 20,
-                  zIndex: 2,
+                  paddingLeft: 38,
+                  filter: opt.filter,
+                  opacity: opt.opacity,
+                  transform: `scale(${opt.scale})`,
+                  transformOrigin: 'left center',
                 }}
               >
+                {/* Horizontal Pin Tick on Rail */}
                 <div
                   style={{
-                    width: 46,
-                    height: 46,
-                    borderRadius: 9999,
-                    flexShrink: 0,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    backgroundColor:
-                      isActive || isCompleted ? nodeColor : inactiveNodeBg,
-                    border: `3px solid ${
-                      isActive || isCompleted ? nodeColor : inactiveNodeBorder
-                    }`,
-                    boxShadow: isActive
-                      ? `0 0 28px ${nodeColor}88`
-                      : 'none',
-                    transform: `scale(${isActive ? (haloScale * (0.94 + 0.08 * pop)).toFixed(3) : '1'})`,
+                    position: 'absolute',
+                    left: 8,
+                    top: 16,
+                    width: isActive ? 18 : 12,
+                    height: isActive ? 2.5 : 1.5,
+                    backgroundColor: isActive ? nodeColor : borderColor,
                   }}
-                >
-                  {isCompleted ? (
-                    <Check size={22} color="#FFFFFF" strokeWidth={3} />
-                  ) : (
-                    <span
-                      style={{
-                        fontFamily: monoFontCss,
-                        fontSize: 15,
-                        fontWeight: 800,
-                        color: isActive ? '#FFFFFF' : textSecondary,
-                      }}
-                    >
-                      {idx + 1}
-                    </span>
-                  )}
-                </div>
+                />
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                  {m.era && (
-                    <span
-                      style={{
-                        fontFamily: monoFontCss,
-                        fontSize: 13,
-                        fontWeight: 700,
-                        letterSpacing: '0.07em',
-                        textTransform: 'uppercase',
-                        color: isActive ? nodeColor : textSecondary,
-                      }}
-                    >
-                      {m.era}
-                    </span>
-                  )}
-                  <span
+                <div
+                  style={
+                    isActive
+                      ? getTactileSurfaceStyle(studioStyle, {
+                          elevation: 'floating',
+                          overrides: {
+                            padding: '12px 16px',
+                            borderLeft: `3px solid ${nodeColor}`,
+                            borderRadius: 0,
+                            ...(variant !== undefined
+                              ? {
+                                  backgroundColor: isDark ? '#151F33' : '#FFFFFF',
+                                  borderColor,
+                                }
+                              : {}),
+                          },
+                        })
+                      : { padding: '4px 0' }
+                  }
+                >
+                  <div
+                    style={{
+                      display: 'inline-block',
+                      fontFamily: monoFontCss,
+                      fontSize: 13,
+                      fontWeight: 700,
+                      letterSpacing: '0.1em',
+                      color:
+                        isActive && grammar === 'risograph-poster'
+                          ? '#FFFFFF'
+                          : isActive
+                            ? nodeColor
+                            : textSecondary,
+                      backgroundColor:
+                        isActive && grammar === 'risograph-poster'
+                          ? nodeColor
+                          : 'transparent',
+                      padding:
+                        isActive && grammar === 'risograph-poster'
+                          ? '2px 6px'
+                          : 0,
+                      border:
+                        isActive && grammar === 'risograph-poster'
+                          ? `1px solid ${borderColor}`
+                          : undefined,
+                      boxShadow:
+                        isActive && grammar === 'risograph-poster'
+                          ? `2px 2px 0px ${borderColor}`
+                          : 'none',
+                    }}
+                  >
+                    {formatEraMarker(eraStr, isActive)}
+                  </div>
+                  <div
                     style={{
                       fontFamily: displayFontCss,
-                      fontSize: 22,
-                      fontWeight: 800,
-                      color: isActive || isCompleted ? textPrimary : textSecondary,
+                      fontSize: 21,
+                      fontWeight: 700,
+                      color: textPrimary,
+                      marginTop: 4,
                     }}
                   >
                     {m.label}
-                  </span>
-                  {m.detail && (
-                    <span
+                  </div>
+                  {m.detail ? (
+                    <div
                       style={{
                         fontFamily: bodyFontCss,
-                        fontSize: 16,
-                        fontWeight: 500,
+                        fontSize: 15,
                         color: textSecondary,
+                        marginTop: 2,
                       }}
                     >
                       {m.detail}
-                    </span>
-                  )}
+                    </div>
+                  ) : null}
                 </div>
               </div>
             );
@@ -320,154 +376,169 @@ export const TimelineTrack: React.FC<TimelineTrackProps> = ({
     );
   }
 
-  // Horizontal Progression Track
+  // Horizontal Vernier Chronicle Rail
   return (
-    <div
-      style={{
-        width: containerWidth,
-        padding: isVerticalViewport ? '28px 26px' : '32px 42px',
-        boxSizing: 'border-box',
-        ...chromeStyle,
-        opacity: trackEnter,
-        transform: `translateY(${interpolate(trackEnter, [0, 1], [22, 0]).toFixed(2)}px)`,
-        ...style,
-      }}
-    >
+    <div data-timeline-grammar={grammar} style={outerSurface}>
+      {/* Precision Top Vernier Scale Rail */}
       <div
+        data-vernier-rail="true"
         style={{
           position: 'relative',
-          display: 'flex',
-          alignItems: 'flex-start',
-          justifyContent: 'space-between',
+          height: 20,
+          marginBottom: 14,
+          borderTop: `2px solid ${borderColor}`,
         }}
       >
-        {/* Horizontal Connecting Rail */}
         <div
           style={{
             position: 'absolute',
-            left: '8%',
-            right: '8%',
-            top: 22,
-            height: 5,
-            borderRadius: 9999,
-            backgroundColor: isLight
-              ? 'rgba(15, 23, 42, 0.10)'
-              : 'rgba(255, 255, 255, 0.12)',
-            zIndex: 1,
+            left: 0,
+            top: -2,
+            height: 2.5,
+            width: `${(fillFraction * 100).toFixed(2)}%`,
+            backgroundColor: activeColor,
+            boxShadow:
+              grammar === 'optical-gate' && optics.halation > 0.05
+                ? `0 0 ${Math.round(8 + optics.halation * 16)}px ${activeColor}`
+                : 'none',
+          }}
+        />
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'flex-start',
           }}
         >
-          <div
-            style={{
-              width: `${(fillFraction * 100).toFixed(2)}%`,
-              height: '100%',
-              borderRadius: 9999,
-              backgroundColor: activeColor,
-              boxShadow: `0 0 18px ${activeColor}88`,
-            }}
-          />
+          {Array.from({ length: 25 }).map((_, tickIdx) => {
+            const isMajor = tickIdx % 6 === 0;
+            const lit = tickIdx / 24 <= fillFraction + 0.01;
+            return (
+              <div
+                key={tickIdx}
+                style={{
+                  width: isMajor ? 1.5 : 1,
+                  height: isMajor ? 11 : 6,
+                  backgroundColor: lit ? activeColor : borderColor,
+                  opacity: lit ? 0.95 : 0.45,
+                }}
+              />
+            );
+          })}
         </div>
+      </div>
 
+      {/* Milestones Row */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'stretch',
+          justifyContent: 'space-between',
+          gap: isVerticalViewport ? 12 : 18,
+        }}
+      >
         {sorted.map((m, idx) => {
-          const isCompleted = idx < activeIdx;
           const isActive = idx === activeIdx;
           const nodeColor = m.color ?? resolvedAccent;
+          const opt = computeMilestoneOptics(idx);
+          const eraStr = m.era ?? String(idx + 1).padStart(2, '0');
 
           return (
             <div
               key={m.id}
               style={{
-                position: 'relative',
-                zIndex: 2,
                 flex: 1,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                textAlign: 'center',
-                gap: 10,
-                padding: '0 8px',
+                minWidth: 0,
+                filter: opt.filter,
+                opacity: opt.opacity,
+                transform: `scale(${opt.scale})`,
+                transformOrigin: 'top center',
+                ...(isActive
+                  ? getTactileSurfaceStyle(studioStyle, {
+                      elevation: 'floating',
+                      overrides: {
+                        padding: isVerticalViewport ? '12px 12px' : '14px 18px',
+                        borderTop: `2.5px solid ${nodeColor}`,
+                        borderRadius:
+                          grammar === 'risograph-poster'
+                            ? 0
+                            : Math.max(
+                                0,
+                                Math.round(4 * studioStyle.surface.radiusScale)
+                              ),
+                        ...(variant !== undefined
+                          ? {
+                              backgroundColor: isDark ? '#151F33' : '#FFFFFF',
+                              borderColor,
+                            }
+                          : {}),
+                      },
+                    })
+                  : {
+                      padding: isVerticalViewport ? '8px 6px' : '10px 12px',
+                    }),
               }}
             >
               <div
                 style={{
-                  width: 48,
-                  height: 48,
-                  borderRadius: 9999,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
+                  display: 'inline-block',
+                  fontFamily: monoFontCss,
+                  fontSize: 13,
+                  fontWeight: 700,
+                  letterSpacing: '0.09em',
+                  color:
+                    isActive && grammar === 'risograph-poster'
+                      ? '#FFFFFF'
+                      : isActive
+                        ? nodeColor
+                        : textSecondary,
                   backgroundColor:
-                    isActive || isCompleted ? nodeColor : inactiveNodeBg,
-                  border: `3px solid ${
-                    isActive || isCompleted ? nodeColor : inactiveNodeBorder
-                  }`,
-                  boxShadow: isActive ? `0 0 28px ${nodeColor}99` : 'none',
-                  transform: `scale(${isActive ? haloScale.toFixed(3) : '1'})`,
+                    isActive && grammar === 'risograph-poster'
+                      ? nodeColor
+                      : 'transparent',
+                  padding:
+                    isActive && grammar === 'risograph-poster'
+                      ? '2px 6px'
+                      : 0,
+                  border:
+                    isActive && grammar === 'risograph-poster'
+                      ? `1px solid ${borderColor}`
+                      : undefined,
+                  boxShadow:
+                    isActive && grammar === 'risograph-poster'
+                      ? `2px 2px 0px ${borderColor}`
+                      : 'none',
+                  marginBottom: 6,
                 }}
               >
-                {isCompleted ? (
-                  <Check size={22} color="#FFFFFF" strokeWidth={3} />
-                ) : (
-                  <span
-                    style={{
-                      fontFamily: monoFontCss,
-                      fontSize: 16,
-                      fontWeight: 800,
-                      color: isActive ? '#FFFFFF' : textSecondary,
-                    }}
-                  >
-                    {idx + 1}
-                  </span>
-                )}
+                {formatEraMarker(eraStr, isActive)}
               </div>
-
-              {m.era && (
-                <span
-                  style={{
-                    fontFamily: monoFontCss,
-                    fontSize: 13,
-                    fontWeight: 700,
-                    letterSpacing: '0.07em',
-                    textTransform: 'uppercase',
-                    padding: '2px 10px',
-                    borderRadius: 9999,
-                    color: isActive ? '#FFFFFF' : textSecondary,
-                    backgroundColor: isActive
-                      ? nodeColor
-                      : hasExplicitVariant
-                        ? isLight
-                          ? 'rgba(15, 23, 42, 0.06)'
-                          : 'rgba(255, 255, 255, 0.07)'
-                        : studioStyle.palette.bgElevated,
-                  }}
-                >
-                  {m.era}
-                </span>
-              )}
 
               <div
                 style={{
                   fontFamily: displayFontCss,
-                  fontSize: isVerticalViewport ? 19 : 21,
-                  fontWeight: 800,
+                  fontSize: isVerticalViewport ? 18 : 21,
+                  fontWeight: 700,
                   lineHeight: 1.2,
-                  color: isActive || isCompleted ? textPrimary : textSecondary,
+                  color: textPrimary,
                 }}
               >
                 {m.label}
               </div>
 
-              {m.detail && (
+              {m.detail ? (
                 <div
                   style={{
+                    marginTop: 4,
                     fontFamily: bodyFontCss,
-                    fontSize: 15,
-                    fontWeight: 500,
+                    fontSize: 14,
+                    lineHeight: 1.3,
                     color: textSecondary,
                   }}
                 >
                   {m.detail}
                 </div>
-              )}
+              ) : null}
             </div>
           );
         })}
