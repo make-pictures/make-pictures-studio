@@ -1,16 +1,18 @@
 ---
 name: cinematography-and-vfx
 description: >-
-  Declarative Shot DSL camera direction (DirectorCamera3D & DirectorCamera2D),
-  9:16 Golden Safe Box auto-framing, deterministic handheld/impact camera noise,
-  and 60 FPS VFX primitives (@make-pictures/kits/vfx: CinematicLensOverlay,
-  ParticleField, StagePostProcessing3D, SceneTransition). Use whenever framing
-  2D/3D shots, choreographing transitions, or adding lens/atmospheric effects.
+  Declarative Shot DSL camera direction (DirectorCamera3D, DirectorCamera2D, and
+  2.5D Multi-Plane OpticalStage2D + DepthPlane + StageLightingRig +
+  getTactileSurfaceStyle), 9:16 Golden Safe Box auto-framing, deterministic
+  handheld/impact camera noise, and 60 FPS VFX primitives (@make-pictures/kits/vfx:
+  CinematicLensOverlay, ParticleField, StagePostProcessing3D, SceneTransition).
+  Use whenever framing 2D/2.5D/3D shots, choreographing rack focus or transitions,
+  or adding directional lighting and lens/atmospheric effects.
 ---
 
 # Cinematography & Deterministic VFX (`@make-pictures/core` & `@make-pictures/kits/vfx`)
 
-Direct 3D and 2D cameras using film-grammar shot names instead of raw trigonometry, with automatic `9:16` Golden Safe Box framing and 100% deterministic `60 FPS` visual effects.
+Direct 3D, 2.5D multi-plane optical, and 2D infinite-canvas cameras using film-grammar shot names instead of raw trigonometry, with automatic `9:16` Golden Safe Box framing, Circle-of-Confusion rack focus, and 100% deterministic `60 FPS` visual effects.
 
 ---
 
@@ -53,14 +55,72 @@ import { DirectorCamera2D, type ShotSpec2D } from '@make-pictures/core';
 
 ---
 
+## 2B. 2.5D Multi-Plane Optical Stage (`<OpticalStage2D />`, `<DepthPlane />`, `<StageLightingRig />`)
+
+Pure 2D/CSS/SVG multi-plane optical camera, directional lighting rig, and tactile shadow engine — exported from `@make-pictures/core` (`@make-pictures/core/optics`) and re-exported from `@make-pictures/kits/vfx` (zero `three` or `@react-three/fiber` runtime imports).
+
+```tsx
+import {
+  OpticalStage2D,
+  DepthPlane,
+  StageLightingRig,
+  getTactileSurfaceStyle,
+  useOpticalStage,
+  type OpticalShot2D,
+  type TactileElevation,
+} from '@make-pictures/core'; // also available from '@make-pictures/kits/vfx'
+```
+
+### `OpticalShot2D` & `<OpticalStage2D />`
+Solves `(x, y, zoom, rotateZ)` via `evaluateDirectorCamera2D` (inheriting full `9:16` Golden Safe Box compensation, `style.motion.cameraHandheld`, and `impulses`) while smoothly interpolating **`focalZ`** and **`aperture`** on `getStyleSpringConfig(style, 'camera')` (or instant step on `'cut'`) for physical rack focus:
+
+```ts
+export interface OpticalShot2D {
+  fromFrame: number;
+  target?: string | string[];          // named node(s) in `nodes`, or omit to center on (x, y)
+  x?: number;
+  y?: number;
+  zoom?: number;
+  rotateZ?: number;
+  focalZ?: number;                     // active focal plane Z for this shot (default 0)
+  aperture?: number;                   // per-shot aperture override in [0, 1] (defaults to style.optics.aperture)
+  transition?: 'cut' | 'glide' | 'whip';
+  padding?: number;
+  label?: string;
+}
+```
+- **Props (`OpticalStage2DProps`):** `nodes?: Record<string, StageNode2D>`, `shots?: ReadonlyArray<OpticalShot2D>`, `stageWidth?`, `stageHeight?`, `safeBox9x16Compensation?: boolean` (default `true`), `handheldIntensity?: number`, `impulses?: ReadonlyArray<CameraImpulse>`, `seed?: number` (default `2026`), `startFrame?: number` (default `1` — returns `null` on `frame <= 0` for Clean Frame `0`), `overlay?: React.ReactNode`, `style?: React.CSSProperties`.
+- Publishes `{ velocity, focusDistance, activeShotIndex, activeShotLabel, focalZ, aperture }` into `DirectorCameraTelemetryContext` and exposes camera state to children via `useOpticalStage()`.
+
+### `<DepthPlane z={...} />` (`z ∈ [-2.0, +1.5]`)
+Physical Z-plane inside `<OpticalStage2D />` (`z = 0` primary hero plane, `z < 0` background sheets, `z > 0` foreground accents; optional `disableFocusBlur?: boolean`):
+- **Physical Z-Parallax (`computeParallaxFactor(z)`):** Scales camera translation and zoom by `clamp(1 / Math.max(0.25, 1 - z * 0.28), 0.52, 1.72)` so foreground planes (`z > 0`) sweep faster than `z = 0` and background planes (`z < 0`) drift slower.
+- **Circle of Confusion & `< 0.25px` Sharp Focal Deadzone (`computeCircleOfConfusionPx(z, focalZ, aperture)`):** Computes `rawBlur = Math.abs(z - focalZ) * clamp(aperture, 0, 1) * 14`. Whenever **`rawBlur < 0.25`**, returns `0` and `<DepthPlane />` emits **`filter: 'none'`** (never `'blur(0px)'`), guaranteeing crisp native subpixel rasterization of Google Fonts (`latin-ext`) on the active focal plane; off-focus planes clamp blur to `[0.25, 18]` px with gentle atmospheric opacity falloff (`computePlaneAtmosphericOpacity(z, focalZ) ∈ [0.72, 1]` behind `focalZ - 0.5`).
+
+### `<StageLightingRig />` (`window-gobo`, `darkroom-halation`, `studio-macro`)
+Directional `60 FPS` stage lighting backdrop driven by `resolveStyleOptics(style)` (`rig?: StyleLightingRig`, `seed?: string | number`, `renderBaseFill?: boolean` default `true` — pass `false` when layered over `<StyleProvider renderBackdrop>`):
+- **Clean Frame `0` Invariant:** On `frame <= 0`, renders pure solid `palette.bgCanvas` (or `null` when `renderBaseFill={false}`) with zero patterns, light streaks, or grain.
+- **`'window-gobo'`:** Warm key-light gradient angled by `optics.lightAngleDeg`, softly blurred drifting window-mullion/blind penumbra bars (`mixBlendMode: 'multiply'` on light paper, `'screen'` on dark), and subtle optical vignette.
+- **`'darkroom-halation'`:** Central lightbox / darkroom enlarger glow, edge vignette falloff, and an anamorphic streak coupled to `optics.halation` + `telemetry.velocity`.
+- **`'studio-macro'`:** Clean softbox gradient with a narrow specular highlight sweep coupled to optical camera pan `(camera.x, camera.y)`.
+- **Deterministic Film Grain:** Per-frame seeded grain offset via `createSeededRandom(\`${seed}:f:${frame}\`)` (zero `Math.random()`) scaled by `style.surface.grainOpacity`.
+
+### `getTactileSurfaceStyle(style, { elevation, tiltDeg, lightAngleDeg, overrides })`
+Available from both `@make-pictures/core` and `@make-pictures/kits/vfx`. Replaces flat UI box shadows with physical two-stage table shadows coupled to `style.optics.lightAngleDeg`:
+- **`elevation?: TactileElevation`:** `'flat' | 'resting' | 'lifted' | 'floating'` (default `'resting'`).
+- **Directional Shadow Vector (`computeDirectionalShadowVector`):** Projects cast shadows opposite `lightAngleDeg` (`-28°` top-left light casts `dx > 0, dy > 0` bottom-right shadow), pairing a tight `0 1.5px` **contact shadow** with an elevation-scaled **cast shadow** (or sharp ink offset for `'brutalist-hard'`, or halation rim glow for `isDark` / `'darkroom-halation'`).
+- **`tiltDeg?: number`:** Applies deterministic rotation (keep within `[-1.2°, +1.2°]` in `9:16` so rotated corners stay inside the Golden Safe Box) and cleanly composes with `overrides?.transform`.
+
+---
+
 ## 3. `9:16` Vertical Framing & The Golden Safe Box (`1080×1920`)
 
 Social video players cover huge portions of a `1080×1920` screen with native UI:
 - **Top Dead Zone (`y = 0..220 px`):** Status bar, Dynamic Island, and Shorts/Reels header icons.
 - **Bottom Dead Zone (`y = 1440..1920 px`, i.e. `bottom < 480 px`):** Channel avatar, video title, audio ticker, and *Related video* pill.
 - **Right Dead Zone (`x = 910..1080 px` for `y > 900 px`):** Like / Comment / Share / Remix icon rail (`170 px` wide).
-- **Golden Safe Box:** Keep all titles, cards, character faces, and key visual action inside **`x ∈ [40, 910]`, `y ∈ [220, 1380]`**.
-- Both `<DirectorCamera3D safeBox9x16Compensation />` (enabled by default) and `<DirectorCamera2D />` automatically compensate FOV, distance, and vertical target framing when `height > width` (`isVerticalComposition`). Always confirm safe-box alignment with `npm run qa -- <CompositionId>`.
+- **Golden Safe Box:** Keep all titles, cards, character faces, and key visual action inside **`x ∈ [40, 910]`, `y ∈ [220, 1380]`** (with vertical card `tiltDeg` clamped to `[-1.2°, +1.2°]`).
+- `<DirectorCamera3D safeBox9x16Compensation />` (enabled by default), `<DirectorCamera2D />`, and `<OpticalStage2D />` all automatically compensate FOV, distance, and vertical target framing when `height > width` (`isVerticalComposition`). Always confirm safe-box alignment with `npm run qa -- <CompositionId>`.
 
 ---
 
