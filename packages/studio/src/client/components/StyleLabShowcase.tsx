@@ -27,6 +27,7 @@ import {
   OpticalStage2D,
   StageLightingRig,
   StyleProvider,
+  computeCircleOfConfusionPx,
   createSeededRandom,
   formatFontFamilyCss,
   formatHeadingText,
@@ -1854,150 +1855,412 @@ const MotionDiagrams2DPreview: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps, width, height } = useVideoConfig();
   const style = useStudioStyle();
+  const optics = resolveStyleOptics(style);
+  const grammar = optics.typographyGrammar;
   const bounds = getSafeStageBounds(width, height);
+
+  const shots = useMemo<ReadonlyArray<OpticalShot2D>>(() => {
+    const cx = width / 2;
+    const cy = height / 2;
+    return [
+      {
+        fromFrame: 2,
+        x: cx,
+        y: cy,
+        zoom: 1,
+        focalZ: 0,
+        aperture: optics.aperture,
+        transition: 'cut',
+      },
+      {
+        fromFrame: 120,
+        x: cx + (bounds.isVertical ? 0 : 28),
+        y: cy + (bounds.isVertical ? 26 : 12),
+        zoom: 1.03,
+        focalZ: 0.22,
+        aperture: optics.aperture,
+        transition: 'glide',
+      },
+    ];
+  }, [bounds.isVertical, height, optics.aperture, width]);
 
   const nodeEnter = spring({
     frame: frame - 2,
     fps,
     config: getStyleSpringConfig(style, 'enter'),
   });
-  const toastEnter = spring({
-    frame: frame - 22,
+  const payloadEnter = spring({
+    frame: frame - 18,
     fps,
     config: getStyleSpringConfig(style, 'emphasis'),
   });
 
-  const pulseT = ((frame - 2) % 90) / 90;
+  const activeModuleIdx = frame < 100 ? 0 : frame < 200 ? 1 : 2;
+  const packetT = Math.max(0, ((frame - 6) % 96) / 96);
 
-  const displayFont = formatFontFamilyCss(style.typography.displayFont, 'display');
+  const displayFont = formatFontFamilyCss(
+    style.typography.displayFont,
+    'display'
+  );
   const bodyFont = formatFontFamilyCss(style.typography.bodyFont, 'body');
   const monoFont = formatFontFamilyCss(style.typography.monoFont, 'mono');
+  const tagRadius = Math.max(0, Math.round(4 * style.surface.radiusScale));
 
-  const nodes = [
-    { step: '01 • WEJŚCIE', title: 'Scenariusz JSON', sub: 'production.json' },
-    { step: '02 • STYL', title: 'StyleProvider', sub: `${style.id}` },
-    { step: '03 • MASTER', title: 'Render 60 FPS', sub: '-14 LUFS MP4' },
+  const modules = [
+    {
+      code: 'MOD 01',
+      badge: 'WEJŚCIE',
+      title: 'Scenariusz JSON',
+      sub: 'Walidacja kontraktu scen',
+      metric: '60 FPS',
+    },
+    {
+      code: 'MOD 02',
+      badge: 'OPTYKA',
+      title: 'StyleProvider',
+      sub: `Profil: ${style.id}`,
+      metric: `f/${(1.4 + (1 - optics.aperture) * 4.2).toFixed(1)}`,
+    },
+    {
+      code: 'MOD 03',
+      badge: 'MASTER',
+      title: 'Render 60 FPS',
+      sub: 'Mastering EBU R128 -14 LUFS',
+      metric: '-14 LUFS',
+    },
   ];
 
+  const renderCoupler = (idx: number) => {
+    const isVert = bounds.isVertical;
+    const svgW = isVert ? 36 : 58;
+    const svgH = isVert ? 34 : 28;
+    const x1 = isVert ? svgW / 2 : 2;
+    const y1 = isVert ? 2 : svgH / 2;
+    const x2 = isVert ? svgW / 2 : svgW - 2;
+    const y2 = isVert ? svgH - 2 : svgH / 2;
+    const px = x1 + (x2 - x1) * packetT;
+    const py = y1 + (y2 - y1) * packetT;
+    const deg = isVert ? 90 : 0;
+
+    return (
+      <svg
+        key={`coupler-${idx}`}
+        data-flow-grammar={grammar}
+        width={svgW}
+        height={svgH}
+        viewBox={`0 0 ${svgW} ${svgH}`}
+        style={{ flexShrink: 0, overflow: 'visible' }}
+      >
+        <line
+          x1={x1}
+          y1={y1}
+          x2={x2}
+          y2={y2}
+          stroke={style.palette.inkBorder}
+          strokeWidth={1.2}
+          strokeOpacity={0.42}
+        />
+        <line
+          x1={x1}
+          y1={y1}
+          x2={x2}
+          y2={y2}
+          stroke={style.palette.accentPrimary}
+          strokeWidth={grammar === 'risograph-poster' ? 3 : 2.2}
+        />
+        <rect
+          x={x1 - 3.5}
+          y={y1 - 3.5}
+          width={7}
+          height={7}
+          fill={style.palette.bgSurface}
+          stroke={style.palette.accentPrimary}
+          strokeWidth={1.6}
+        />
+        <circle
+          cx={x2}
+          cy={y2}
+          r={3.5}
+          fill={style.palette.bgSurface}
+          stroke={style.palette.accentPrimary}
+          strokeWidth={1.6}
+        />
+        <g transform={`translate(${px.toFixed(1)}, ${py.toFixed(1)}) rotate(${deg})`}>
+          {grammar === 'risograph-poster' ? (
+            <polygon
+              points="7,0 -6,-5.5 -6,5.5"
+              fill={style.palette.accentPrimary}
+              stroke={style.palette.inkBorder}
+              strokeWidth={1.4}
+            />
+          ) : grammar === 'optical-gate' ? (
+            <>
+              <rect
+                x={-7}
+                y={-3}
+                width={14}
+                height={6}
+                fill={style.palette.accentPrimary}
+              />
+              <rect x={-3} y={-1.2} width={8} height={2.4} fill="#FFFFFF" />
+            </>
+          ) : (
+            <polygon
+              points="7,0 -5,-4.5 -2.5,0 -5,4.5"
+              fill={style.palette.accentPrimary}
+            />
+          )}
+        </g>
+      </svg>
+    );
+  };
+
   return (
-    <div
-      style={{
-        position: 'absolute',
-        left: bounds.left,
-        top: bounds.top,
-        width: bounds.width,
-        height: bounds.height,
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'center',
-        gap: 28,
-      }}
+    <OpticalStage2D
+      shots={shots}
+      handheldIntensity={style.motion.cameraHandheld}
+      seed={410}
     >
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: bounds.isVertical ? 'column' : 'row',
-          alignItems: 'center',
-          gap: 22,
-          opacity: nodeEnter,
-        }}
-      >
-        {nodes.map((node, idx) => (
-          <React.Fragment key={node.step}>
-            <div
-              style={getCardChromeStyle(style, {
-                flex: 1,
-                width: bounds.isVertical ? '100%' : undefined,
-                padding: '28px 30px',
-                borderColor:
-                  idx === 1 ? style.palette.accentPrimary : style.palette.inkBorder,
-              })}
-            >
-              <div
-                style={{
-                  fontFamily: monoFont,
-                  fontSize: 15,
-                  fontWeight: 700,
-                  color:
-                    idx === 1
-                      ? style.palette.accentPrimary
-                      : style.palette.textSecondary,
-                  marginBottom: 8,
-                }}
-              >
-                {node.step}
-              </div>
-              <div
-                style={{
-                  fontFamily: displayFont,
-                  fontSize: 32,
-                  fontWeight: 700,
-                  color: style.palette.textPrimary,
-                  marginBottom: 6,
-                }}
-              >
-                {formatHeadingText(node.title, style)}
-              </div>
-              <div
-                style={{
-                  fontFamily: bodyFont,
-                  fontSize: 19,
-                  color: style.palette.textSecondary,
-                }}
-              >
-                {node.sub}
-              </div>
-            </div>
+      {/* Background Drafting Sheet Plane */}
+      <DepthPlane z={-0.56}>
+        <div
+          style={{
+            position: 'absolute',
+            left: bounds.left,
+            top: bounds.top,
+            width: bounds.width,
+            height: bounds.height,
+            border: `1px solid ${style.palette.inkBorder}40`,
+            backgroundImage: `linear-gradient(to right, ${style.palette.inkBorder}22 1px, transparent 1px), linear-gradient(to bottom, ${style.palette.inkBorder}22 1px, transparent 1px)`,
+            backgroundSize: '48px 48px',
+            boxSizing: 'border-box',
+            pointerEvents: 'none',
+          }}
+        >
+          <div
+            style={{
+              position: 'absolute',
+              left: 18,
+              top: 14,
+              padding: '4px 10px',
+              backgroundColor: style.palette.bgSurface,
+              border: `1px solid ${style.palette.inkBorder}`,
+              borderLeft: `3px solid ${style.palette.accentPrimary}`,
+              fontFamily: monoFont,
+              fontSize: 13,
+              fontWeight: 700,
+              letterSpacing: '0.07em',
+              color: style.palette.textSecondary,
+            }}
+          >
+            SCHEMAT 01 • ARCHITEKTURA PRZEPŁYWU
+          </div>
+        </div>
+      </DepthPlane>
 
-            {idx < nodes.length - 1 && (
-              <div
-                style={{
-                  position: 'relative',
-                  width: bounds.isVertical ? 4 : 64,
-                  height: bounds.isVertical ? 36 : 4,
-                  backgroundColor: style.palette.inkBorder,
-                  flexShrink: 0,
-                }}
-              >
+      {/* Primary Schematic Topology Plane */}
+      <DepthPlane z={0} disableFocusBlur>
+        <div
+          style={{
+            position: 'absolute',
+            left: bounds.left,
+            top: bounds.top + (bounds.isVertical ? 54 : 52),
+            width: bounds.width,
+            height: bounds.height - (bounds.isVertical ? 230 : 210),
+            display: 'flex',
+            flexDirection: bounds.isVertical ? 'column' : 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            opacity: nodeEnter,
+          }}
+        >
+          {modules.map((mod, idx) => {
+            const isFocused = idx === activeModuleIdx;
+            const blurPx = isFocused
+              ? 0
+              : computeCircleOfConfusionPx(-0.24, 0, optics.aperture);
+            const filterCss =
+              blurPx < 0.25 ? 'none' : `blur(${blurPx.toFixed(2)}px)`;
+
+            return (
+              <React.Fragment key={mod.code}>
                 <div
-                  style={{
-                    position: 'absolute',
-                    width: 14,
-                    height: 14,
-                    borderRadius: '50%',
-                    backgroundColor: style.palette.accentPrimary,
-                    left: bounds.isVertical ? -5 : `${pulseT * 82}%`,
-                    top: bounds.isVertical ? `${pulseT * 70}%` : -5,
-                  }}
-                />
-              </div>
-            )}
-          </React.Fragment>
-        ))}
-      </div>
+                  data-focus-state={isFocused ? 'sharp' : 'recessed'}
+                  style={getTactileSurfaceStyle(style, {
+                    elevation: isFocused ? 'lifted' : 'resting',
+                    overrides: {
+                      flex: bounds.isVertical ? undefined : 1,
+                      width: bounds.isVertical ? '100%' : undefined,
+                      padding: bounds.isVertical ? '18px 22px' : '22px 24px',
+                      borderColor: isFocused
+                        ? style.palette.accentPrimary
+                        : style.palette.inkBorder,
+                      position: 'relative',
+                      boxSizing: 'border-box',
+                      filter: filterCss,
+                      opacity: isFocused ? 1 : 0.76,
+                      transform: `scale(${isFocused ? 1.015 : 0.985})`,
+                    },
+                  })}
+                >
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      height: grammar === 'risograph-poster' ? 5 : 3,
+                      backgroundColor: isFocused
+                        ? style.palette.accentPrimary
+                        : style.palette.inkBorder,
+                    }}
+                  />
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginBottom: 8,
+                    }}
+                  >
+                    <span
+                      style={{
+                        padding: '2px 8px',
+                        borderRadius: tagRadius,
+                        border: `1px solid ${
+                          isFocused
+                            ? style.palette.accentPrimary
+                            : style.palette.inkBorder
+                        }`,
+                        backgroundColor: style.palette.bgElevated,
+                        fontFamily: monoFont,
+                        fontSize: 12,
+                        fontWeight: 700,
+                        letterSpacing: '0.06em',
+                        color: isFocused
+                          ? style.palette.accentPrimary
+                          : style.palette.textSecondary,
+                      }}
+                    >
+                      {mod.code} • {mod.badge}
+                    </span>
+                    <span
+                      style={{
+                        fontFamily: monoFont,
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: style.palette.textSecondary,
+                      }}
+                    >
+                      {mod.metric}
+                    </span>
+                  </div>
+                  <div
+                    style={{
+                      fontFamily: displayFont,
+                      fontSize: bounds.isVertical ? 26 : 28,
+                      fontWeight: 700,
+                      color: style.palette.textPrimary,
+                      lineHeight: 1.16,
+                      marginBottom: 4,
+                    }}
+                  >
+                    {formatHeadingText(mod.title, style)}
+                  </div>
+                  <div
+                    style={{
+                      fontFamily: bodyFont,
+                      fontSize: 16,
+                      color: style.palette.textSecondary,
+                    }}
+                  >
+                    {mod.sub}
+                  </div>
+                </div>
+                {idx < modules.length - 1 && renderCoupler(idx)}
+              </React.Fragment>
+            );
+          })}
+        </div>
+      </DepthPlane>
 
-      <div
-        style={getCardChromeStyle(style, {
-          padding: '20px 28px',
-          backgroundColor: style.palette.bgElevated,
-          fontFamily: monoFont,
-          fontSize: 19,
-          color: style.palette.textPrimary,
-          opacity: toastEnter,
-          transform: `translateY(${interpolate(toastEnter, [0, 1], [16, 0])}px)`,
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-        })}
-      >
-        <span>
-          {`{ kit: "motion-diagrams-2d", backdrop: "${style.surface.backdropType}" }`}
-        </span>
-        <span style={{ color: style.palette.accentSecondary, fontWeight: 700 }}>
-          FLOW READY
-        </span>
-      </div>
-    </div>
+      {/* Foreground Tactile Payload Plate */}
+      <DepthPlane z={0.28}>
+        <div
+          data-payload-plate="true"
+          style={getTactileSurfaceStyle(style, {
+            elevation: 'floating',
+            overrides: {
+              position: 'absolute',
+              left: bounds.left,
+              top: bounds.top + bounds.height - (bounds.isVertical ? 148 : 136),
+              width: bounds.width,
+              boxSizing: 'border-box',
+              overflow: 'hidden',
+              opacity: payloadEnter,
+              transform: `translateY(${interpolate(
+                payloadEnter,
+                [0, 1],
+                [14, 0]
+              ).toFixed(1)}px)`,
+            },
+          })}
+        >
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '8px 16px',
+              backgroundColor: style.palette.bgElevated,
+              borderBottom: `1px solid ${style.palette.inkBorder}`,
+              borderLeft: `3px solid ${style.palette.accentPrimary}`,
+              fontFamily: monoFont,
+              fontSize: 13,
+              fontWeight: 700,
+            }}
+          >
+            <span style={{ color: style.palette.textPrimary }}>
+              POST /v1/render/commit
+            </span>
+            <span style={{ color: style.palette.accentSecondary }}>
+              14ms • DETERMINISTIC
+            </span>
+          </div>
+          <div
+            style={{
+              padding: '12px 16px',
+              fontFamily: monoFont,
+              fontSize: 15,
+              color: style.palette.textPrimary,
+              display: 'flex',
+              gap: 14,
+            }}
+          >
+            <span style={{ color: style.palette.textSecondary, opacity: 0.6 }}>
+              01
+            </span>
+            <span>
+              <span style={{ color: style.palette.accentPrimary, fontWeight: 700 }}>
+                {'"grammar"'}
+              </span>
+              {': '}
+              <span style={{ color: style.palette.accentSecondary }}>
+                {`"${grammar}"`}
+              </span>
+              {', '}
+              <span style={{ color: style.palette.accentPrimary, fontWeight: 700 }}>
+                {'"rig"'}
+              </span>
+              {': '}
+              <span style={{ color: style.palette.accentSecondary }}>
+                {`"${optics.lightingRig}"`}
+              </span>
+            </span>
+          </div>
+        </div>
+      </DepthPlane>
+    </OpticalStage2D>
   );
 };
 
@@ -2144,143 +2407,443 @@ const Isometric3DPreview: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps, width, height } = useVideoConfig();
   const style = useStudioStyle();
+  const optics = resolveStyleOptics(style);
   const bounds = getSafeStageBounds(width, height);
+
+  const isoMaterial: 'ceramic-maquette' | 'anodized-telemetry' | 'ink-figurine' =
+    style.surface.cardTreatment === 'brutalist-hard' ||
+    style.id === 'tactile-craft' ||
+    style.id === 'sketch-notebook'
+      ? 'ink-figurine'
+      : style.surface.isDark || optics.lightingRig === 'darkroom-halation'
+        ? 'anodized-telemetry'
+        : 'ceramic-maquette';
+
+  const shots = useMemo<ReadonlyArray<OpticalShot2D>>(() => {
+    const cx = width / 2;
+    const cy = height / 2;
+    return [
+      {
+        fromFrame: 2,
+        x: cx,
+        y: cy,
+        zoom: 1,
+        focalZ: 0,
+        aperture: optics.aperture,
+        transition: 'cut',
+      },
+      {
+        fromFrame: 150,
+        x: cx + (bounds.isVertical ? 0 : 20),
+        y: cy - 8,
+        zoom: 1.035,
+        focalZ: 0,
+        aperture: optics.aperture,
+        transition: 'glide',
+      },
+    ];
+  }, [bounds.isVertical, height, optics.aperture, width]);
 
   const stageEnter = spring({
     frame: frame - 2,
     fps,
     config: getStyleSpringConfig(style, 'enter'),
   });
-  const speakerAActive = frame % 150 < 75;
-  const energyWave = 0.5 + 0.5 * Math.sin(frame * 0.22);
 
-  const displayFont = formatFontFamilyCss(style.typography.displayFont, 'display');
+  const speakerASpeaking = frame < 150;
+  // Strictly inside 0.03..0.055 rad/frame calm studio cadence (zero vertical bounce)
+  const breathA = Math.sin(frame * 0.042);
+  const breathB = Math.sin(frame * 0.039 + 1.4);
+  const syllableMod =
+    0.42 + 0.32 * Math.sin(frame * 0.052) + 0.18 * Math.cos(frame * 0.036);
+
+  const displayFont = formatFontFamilyCss(
+    style.typography.displayFont,
+    'display'
+  );
   const bodyFont = formatFontFamilyCss(style.typography.bodyFont, 'body');
   const monoFont = formatFontFamilyCss(style.typography.monoFont, 'mono');
 
-  const renderSpeaker = (
-    name: string,
-    role: string,
-    color: string,
-    isSpeaking: boolean
-  ) => (
-    <div
-      style={getCardChromeStyle(style, {
-        flex: 1,
-        padding: '28px 30px',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        gap: 14,
-        borderColor: isSpeaking ? color : style.palette.inkBorder,
-        transform: `translateY(${isSpeaking ? -6 * energyWave : 0}px)`,
-      })}
-    >
-      <div
-        style={{
-          width: 84,
-          height: 84,
-          borderRadius: '50%',
-          backgroundColor: `${color}24`,
-          border: `3px solid ${color}`,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          boxShadow: isSpeaking ? `0 0 0 ${Math.round(8 * energyWave)}px ${color}28` : 'none',
-        }}
+  const bodyFill =
+    isoMaterial === 'anodized-telemetry' ? style.palette.bgElevated : style.palette.bgSurface;
+  const strokeInk = style.palette.inkBorder;
+  const strokeWidth = isoMaterial === 'ink-figurine' ? 3 : 1.8;
+
+  const renderMaquetteFigure = (
+    cx: number,
+    cy: number,
+    primary: string,
+    secondary: string,
+    isSpeaking: boolean,
+    breath: number
+  ) => {
+    const blurPx = isSpeaking
+      ? 0
+      : computeCircleOfConfusionPx(-0.18, 0, optics.aperture);
+    const filterCss = blurPx < 0.25 ? 'none' : `blur(${blurPx.toFixed(2)}px)`;
+    const headTiltDeg = (isSpeaking ? 2.2 : -1.2) + breath * 1.4;
+
+    return (
+      <g
+        transform={`translate(${cx}, ${cy})`}
+        style={{ filter: filterCss, opacity: isSpeaking ? 1 : 0.84 }}
       >
-        <div
-          style={{
-            width: 38,
-            height: 38,
-            borderRadius: Math.round(10 * style.surface.radiusScale),
-            backgroundColor: color,
-          }}
+        {/* Ground Contact Shadow Ellipse */}
+        <ellipse
+          cx={0}
+          cy={76}
+          rx={52}
+          ry={15}
+          fill="#0F172A"
+          opacity={style.surface.isDark ? 0.52 : 0.2}
         />
-      </div>
-      <div
-        style={{
-          fontFamily: displayFont,
-          fontSize: 30,
-          fontWeight: 700,
-          color: style.palette.textPrimary,
-        }}
-      >
-        {formatHeadingText(name, style)}
-      </div>
-      <div
-        style={{
-          fontFamily: monoFont,
-          fontSize: 15,
-          fontWeight: 700,
-          color: isSpeaking ? color : style.palette.textSecondary,
-        }}
-      >
-        {isSpeaking ? '● AKTYWNA WYPOWIEDŹ' : role}
-      </div>
-    </div>
-  );
+        {/* Calibrated Speaker Plinth Ring */}
+        <ellipse
+          cx={0}
+          cy={76}
+          rx={56}
+          ry={17}
+          fill="none"
+          stroke={isSpeaking ? primary : strokeInk}
+          strokeWidth={isSpeaking ? 2.6 : 1.4}
+          opacity={isSpeaking ? 0.92 : 0.45}
+        />
+
+        {/* Chamfered Architectural Torso Column */}
+        <path
+          d="M -32,68 L -26,-6 Q -24,-18 -12,-18 L 12,-18 Q 24,-18 26,-6 L 32,68 Z"
+          fill={primary}
+          stroke={strokeInk}
+          strokeWidth={strokeWidth}
+        />
+        {/* Lapel / Chest Plate */}
+        <rect
+          x={-16}
+          y={-6}
+          width={32}
+          height={22}
+          rx={isoMaterial === 'ink-figurine' ? 0 : 4}
+          fill={bodyFill}
+          stroke={strokeInk}
+          strokeWidth={1.4}
+        />
+        <rect x={-11} y={1} width={22} height={4} fill={secondary} />
+
+        {/* Sculpted Head Maquette (zero spherical ear muffs) */}
+        <g transform={`translate(0, -54) rotate(${headTiltDeg.toFixed(2)})`}>
+          <rect
+            x={-28}
+            y={-28}
+            width={56}
+            height={52}
+            rx={isoMaterial === 'ink-figurine' ? 4 : 18}
+            fill={bodyFill}
+            stroke={strokeInk}
+            strokeWidth={strokeWidth}
+          />
+          {isoMaterial === 'ceramic-maquette' ? (
+            <>
+              <rect x={-18} y={-8} width={36} height={4.5} fill={secondary} />
+              <rect
+                x={-9}
+                y={6}
+                width={18}
+                height={isSpeaking ? 3 + syllableMod * 4 : 2.2}
+                fill={style.palette.textPrimary}
+                opacity={isSpeaking ? 0.9 : 0.45}
+              />
+            </>
+          ) : isoMaterial === 'anodized-telemetry' ? (
+            <>
+              <rect
+                x={-21}
+                y={-11}
+                width={42}
+                height={18}
+                rx={5}
+                fill="#070B12"
+                stroke={secondary}
+                strokeWidth={1.2}
+              />
+              {[-8, 0, 8].map((bx, bIdx) => {
+                const bh = isSpeaking
+                  ? 4 + syllableMod * (bIdx === 1 ? 8 : 5)
+                  : 2.5;
+                return (
+                  <rect
+                    key={bIdx}
+                    x={bx - 2}
+                    y={-2 - bh / 2}
+                    width={4}
+                    height={bh}
+                    fill={isSpeaking ? secondary : primary}
+                  />
+                );
+              })}
+            </>
+          ) : (
+            <>
+              <rect x={-20} y={-11} width={40} height={14} fill="#111111" />
+              <rect x={-12} y={-6} width={6} height={4} fill={style.palette.bgSurface} />
+              <rect x={6} y={-6} width={6} height={4} fill={style.palette.bgSurface} />
+              <rect
+                x={-8}
+                y={8}
+                width={16}
+                height={isSpeaking ? 3 + syllableMod * 4 : 2.5}
+                fill={secondary}
+              />
+            </>
+          )}
+        </g>
+      </g>
+    );
+  };
+
+  const ticks = Array.from({ length: 24 }, (_, idx) => {
+    const rad = (idx / 24) * Math.PI * 2;
+    const isMajor = idx % 6 === 0;
+    const rOuterX = 290;
+    const rOuterY = 78;
+    const rInnerX = isMajor ? 268 : 278;
+    const rInnerY = isMajor ? 71 : 74;
+    return {
+      idx,
+      isMajor,
+      x1: 360 + Math.cos(rad) * rInnerX,
+      y1: 210 + Math.sin(rad) * rInnerY,
+      x2: 360 + Math.cos(rad) * rOuterX,
+      y2: 210 + Math.sin(rad) * rOuterY,
+    };
+  });
 
   return (
-    <div
-      style={{
-        position: 'absolute',
-        left: bounds.left,
-        top: bounds.top,
-        width: bounds.width,
-        height: bounds.height,
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'center',
-        gap: 26,
-        opacity: stageEnter,
-      }}
+    <OpticalStage2D
+      shots={shots}
+      handheldIntensity={style.motion.cameraHandheld}
+      seed={520}
     >
-      <div style={{ textAlign: 'center' }}>
+      {/* Background Studio Key-Beam & Metadata Header */}
+      <DepthPlane z={-0.54}>
         <div
           style={{
-            fontFamily: monoFont,
-            fontSize: 17,
-            fontWeight: 700,
-            color: style.palette.accentPrimary,
-            marginBottom: 8,
+            position: 'absolute',
+            left: bounds.left,
+            top: bounds.top,
+            width: bounds.width,
+            height: bounds.height,
+            opacity: stageEnter,
+            pointerEvents: 'none',
           }}
         >
-          ISOMETRIC STAGE 3D • DIALOG WIELOOSOBOWY
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background: `linear-gradient(${
+                optics.lightAngleDeg + 90
+              }deg, ${style.palette.accentPrimary}18 0%, transparent 62%)`,
+              border: `1px solid ${style.palette.inkBorder}38`,
+            }}
+          />
+          <div style={{ padding: '20px 24px' }}>
+            <div
+              style={{
+                fontFamily: monoFont,
+                fontSize: 14,
+                fontWeight: 700,
+                letterSpacing: '0.08em',
+                color: style.palette.accentPrimary,
+                marginBottom: 6,
+              }}
+            >
+              SCENA 3D • MAKIETA ARCHITEKTONICZNA ({isoMaterial.toUpperCase()})
+            </div>
+            <div
+              style={{
+                fontFamily: bodyFont,
+                fontSize: 20,
+                color: style.palette.textSecondary,
+              }}
+            >
+              Głos: <strong>{style.audioDefaults.voiceArchetype}</strong> •
+              Światło kierunkowe: <strong>{optics.lightAngleDeg}°</strong>
+            </div>
+          </div>
         </div>
-        <div
-          style={{
-            fontFamily: bodyFont,
-            fontSize: 24,
-            color: style.palette.textSecondary,
-          }}
-        >
-          Domyślny archetyp głosu: <strong>{style.audioDefaults.voiceArchetype}</strong> •
-          Muzyka: <strong>{style.audioDefaults.musicMood}</strong>
-        </div>
-      </div>
+      </DepthPlane>
 
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: bounds.isVertical ? 'column' : 'row',
-          gap: 28,
-        }}
-      >
-        {renderSpeaker(
-          'Prowadząca',
-          'GŁOS GŁÓWNY',
-          style.palette.accentPrimary,
-          speakerAActive
-        )}
-        {renderSpeaker(
-          'Gość studia',
-          'KOMENTARZ',
-          style.palette.accentSecondary,
-          !speakerAActive
-        )}
-      </div>
-    </div>
+      {/* Primary Calibrated 3D Turntable Plinth & Maquette Figures */}
+      <DepthPlane z={0} disableFocusBlur>
+        <div
+          data-iso-material={isoMaterial}
+          data-iso-plinth="calibrated-24"
+          style={{
+            position: 'absolute',
+            left: bounds.left,
+            top: bounds.top + (bounds.isVertical ? 96 : 74),
+            width: bounds.width,
+            height: bounds.height - (bounds.isVertical ? 110 : 84),
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            opacity: stageEnter,
+          }}
+        >
+          <svg
+            viewBox="0 0 720 320"
+            style={{
+              width: '100%',
+              maxWidth: bounds.isVertical ? 760 : 880,
+              height: bounds.isVertical ? 420 : 390,
+              overflow: 'visible',
+            }}
+          >
+            {/* Outer Base Bevel */}
+            <ellipse
+              cx={360}
+              cy={224}
+              rx={308}
+              ry={84}
+              fill={style.palette.bgElevated}
+              stroke={strokeInk}
+              strokeWidth={2}
+            />
+            {/* Upper Calibrated Turntable Deck */}
+            <ellipse
+              cx={360}
+              cy={210}
+              rx={294}
+              ry={80}
+              fill={style.palette.bgSurface}
+              stroke={strokeInk}
+              strokeWidth={2}
+            />
+            {/* Inner Acoustic Ring */}
+            <ellipse
+              cx={360}
+              cy={210}
+              rx={208}
+              ry={55}
+              fill="none"
+              stroke={style.palette.accentPrimary}
+              strokeWidth={1.4}
+              strokeOpacity={0.55}
+            />
+            {/* 24 Engraved Degree Ticks */}
+            {ticks.map((t) => (
+              <line
+                key={t.idx}
+                x1={t.x1}
+                y1={t.y1}
+                x2={t.x2}
+                y2={t.y2}
+                stroke={
+                  t.isMajor ? style.palette.accentPrimary : strokeInk
+                }
+                strokeWidth={t.isMajor ? 2.2 : 1.2}
+                strokeOpacity={t.isMajor ? 0.85 : 0.45}
+              />
+            ))}
+
+            {renderMaquetteFigure(
+              235,
+              126,
+              style.palette.accentPrimary,
+              style.palette.accentSecondary,
+              speakerASpeaking,
+              breathA
+            )}
+            {renderMaquetteFigure(
+              485,
+              126,
+              style.palette.accentSecondary,
+              style.palette.accentPrimary,
+              !speakerASpeaking,
+              breathB
+            )}
+          </svg>
+
+          {/* Speaker Nameplates */}
+          <div
+            style={{
+              width: '100%',
+              display: 'flex',
+              flexDirection: bounds.isVertical ? 'column' : 'row',
+              gap: 18,
+            }}
+          >
+            {[
+              {
+                name: 'Prowadząca',
+                role: 'GŁOS GŁÓWNY',
+                color: style.palette.accentPrimary,
+                active: speakerASpeaking,
+              },
+              {
+                name: 'Gość studia',
+                role: 'KOMENTARZ',
+                color: style.palette.accentSecondary,
+                active: !speakerASpeaking,
+              },
+            ].map((sp) => (
+              <div
+                key={sp.name}
+                style={getTactileSurfaceStyle(style, {
+                  elevation: sp.active ? 'lifted' : 'resting',
+                  overrides: {
+                    flex: 1,
+                    padding: '16px 22px',
+                    borderColor: sp.active ? sp.color : style.palette.inkBorder,
+                    borderLeft: `4px solid ${
+                      sp.active ? sp.color : style.palette.inkBorder
+                    }`,
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    boxSizing: 'border-box',
+                  },
+                })}
+              >
+                <div>
+                  <div
+                    style={{
+                      fontFamily: displayFont,
+                      fontSize: 24,
+                      fontWeight: 700,
+                      color: style.palette.textPrimary,
+                    }}
+                  >
+                    {formatHeadingText(sp.name, style)}
+                  </div>
+                  <div
+                    style={{
+                      fontFamily: monoFont,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      letterSpacing: '0.06em',
+                      color: sp.active ? sp.color : style.palette.textSecondary,
+                    }}
+                  >
+                    {sp.active ? '▪ AKTYWNA WYPOWIEDŹ' : sp.role}
+                  </div>
+                </div>
+                <span
+                  style={{
+                    fontFamily: monoFont,
+                    fontSize: 12,
+                    color: style.palette.textSecondary,
+                  }}
+                >
+                  0.042 rad/kl
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </DepthPlane>
+    </OpticalStage2D>
   );
 };
 
@@ -2293,7 +2856,9 @@ export const StyleLabPreviewComposition: React.FC<StyleLabCompositionProps> = ({
     kit === 'editorial-collage' ||
     kit === 'kinetic-typography' ||
     kit === 'vector-scene-2d' ||
-    kit === 'data-storytelling';
+    kit === 'data-storytelling' ||
+    kit === 'motion-diagrams-2d' ||
+    kit === 'isometric-3d';
 
   // Deterministic handheld camera drift preview for kits not yet on OpticalStage2D
   const driftX =

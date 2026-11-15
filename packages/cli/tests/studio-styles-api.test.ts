@@ -463,6 +463,86 @@ test('StyleLabPreviewComposition renders live 60 FPS optical lighting, editorial
       assert.match(dataFrame64, /data-depth-z="-0\.58"/);
       assert.doesNotMatch(dataFrame64, /blur\(0(?:\.0+)?px\)/);
     }
+
+    // 5. Motion Diagrams 2D in Style Lab: Frame 0 clean + Frame 64 schematic bus, rack focus & payload plate
+    const diagramsFrame0 = renderStyleLabFrame(preset, 'motion-diagrams-2d', 0);
+    assert.doesNotMatch(diagramsFrame0, /Scenariusz JSON|SCHEMAT/);
+    assert.doesNotMatch(diagramsFrame0, /data-lighting-rig=/);
+
+    for (const [w, h] of [
+      [1080, 1920],
+      [1920, 1080],
+    ] as const) {
+      const diagramsFrame64 = renderStyleLabFrame(
+        preset,
+        'motion-diagrams-2d',
+        64,
+        w,
+        h
+      );
+      assert.match(
+        diagramsFrame64,
+        new RegExp(`data-lighting-rig="${expectedRig}"`)
+      );
+      assert.match(
+        diagramsFrame64,
+        new RegExp(`data-flow-grammar="${expectedGrammar}"`)
+      );
+      assert.match(diagramsFrame64, /data-payload-plate="true"/);
+      assert.match(diagramsFrame64, /data-depth-z="-0\.56"/);
+      assert.match(diagramsFrame64, /data-depth-z="0\.28"/);
+      assert.doesNotMatch(diagramsFrame64, /blur\(0(?:\.0+)?px\)/);
+    }
+
+    // 6. Isometric 3D in Style Lab: Frame 0 clean + Frame 64 calibrated 24-tick plinth & sculptural maquette
+    const isoFrame0 = renderStyleLabFrame(preset, 'isometric-3d', 0);
+    assert.doesNotMatch(isoFrame0, /Prowadząca|MAKIETA/);
+    assert.doesNotMatch(isoFrame0, /data-lighting-rig=/);
+
+    const expectedIsoMaterial =
+      styleId === 'brutalist-poster'
+        ? 'ink-figurine'
+        : styleId === 'cyber-telemetry'
+          ? 'anodized-telemetry'
+          : 'ceramic-maquette';
+
+    for (const [w, h] of [
+      [1080, 1920],
+      [1920, 1080],
+    ] as const) {
+      const isoFrame64 = renderStyleLabFrame(preset, 'isometric-3d', 64, w, h);
+      assert.match(
+        isoFrame64,
+        new RegExp(`data-lighting-rig="${expectedRig}"`)
+      );
+      assert.match(
+        isoFrame64,
+        new RegExp(`data-iso-material="${expectedIsoMaterial}"`)
+      );
+      assert.match(isoFrame64, /data-iso-plinth="calibrated-24"/);
+      assert.match(isoFrame64, /data-depth-z="-0\.54"/);
+      assert.doesNotMatch(isoFrame64, /blur\(0(?:\.0+)?px\)/);
+    }
+  }
+
+  // Zero-aperture deadzone (< 0.25px -> filter:none) on Wave 3 previews
+  const zeroApertureSample: StylePreset = {
+    ...BUILT_IN_STYLES['minimal-product'],
+    optics: {
+      ...BUILT_IN_STYLES['minimal-product'].optics!,
+      lightingRig: 'studio-macro',
+      aperture: 0,
+    },
+  };
+  for (const w3Kit of ['motion-diagrams-2d', 'isometric-3d'] as const) {
+    const flatMarkup = renderStyleLabFrame(zeroApertureSample, w3Kit, 64);
+    assert.match(flatMarkup, /data-lighting-rig="studio-macro"/);
+    assert.doesNotMatch(flatMarkup, /blur\(0(?:\.0+)?px\)/);
+    if (w3Kit === 'motion-diagrams-2d') {
+      assert.match(flatMarkup, /data-focus-state="recessed"[^>]*filter:none/);
+    } else {
+      assert.match(flatMarkup, /style="filter:none;opacity:0\.84"/);
+    }
   }
 
   // Peer boundary & determinism guard on StyleLabShowcase.tsx
@@ -474,4 +554,5 @@ test('StyleLabPreviewComposition renders live 60 FPS optical lighting, editorial
   assert.doesNotMatch(showcaseSrc, /@make-pictures\/kits/);
   assert.doesNotMatch(showcaseSrc, /@react-three\/fiber|from\s+['"]three['"]/);
   assert.doesNotMatch(showcaseSrc, /Math\.random\s*\(/);
+  assert.doesNotMatch(showcaseSrc, /frame\s*\*\s*0\.22/);
 });

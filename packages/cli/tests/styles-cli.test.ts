@@ -141,6 +141,15 @@ test('make-pictures new defaults to vector-scene-2d + minimal-product and genera
       }
       if (kitId === 'isometric-3d') {
         assert.match(tsx, /IsometricStage3D/);
+        assert.match(tsx, /DirectorCamera3D/);
+        assert.match(tsx, /Stylized3DCharacter/);
+        assert.doesNotMatch(tsx, /frame\s*\*\s*0\.16/);
+      }
+      if (kitId === 'motion-diagrams-2d') {
+        assert.match(tsx, /MotionDiagramStage2D/);
+        assert.match(tsx, /SystemNode/);
+        assert.match(tsx, /FlowCurve/);
+        assert.match(tsx, /CodePayloadToast/);
       }
       if (kitId === 'editorial-collage') {
         assert.match(tsx, /EditorialDeskStage/);

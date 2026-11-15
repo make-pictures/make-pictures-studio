@@ -647,29 +647,26 @@ export const ${pascalName}: React.FC<${pascalName}Props> = (props) => {
       return `import React from 'react';
 import {
   AbsoluteFill,
-  spring,
   staticFile,
-  useCurrentFrame,
   useVideoConfig,
 } from 'remotion';
 import { z } from 'zod';
 import {
-  DirectorCamera2D,
   SmartMusicBed,
   SoundCue,
   StyleProvider,
   VoiceoverTrack,
-  formatFontFamilyCss,
-  formatHeadingText,
-  getCardChromeStyle,
-  getStyleSpringConfig,
   useStudioStyle,
 } from '@make-pictures/core';
 import {
+  CodePayloadToast,
   FlowCurve,
-  WorldBox,
+  MotionDiagramStage2D,
+  SystemNode,
+  portBottom,
   portLeft,
   portRight,
+  portTop,
   type NodeBox,
 } from '@make-pictures/kits/motion-diagrams-2d';
 import {
@@ -685,118 +682,104 @@ const DIALOGUE_SEGMENTS = [
   { sceneId: '${slug}-payoff', fromFrame: 324, durationInFrames: 306 },
 ];
 
-const SOURCE_NODE: NodeBox = { cx: 560, cy: 540, w: 460, h: 230 };
-const TARGET_NODE: NodeBox = { cx: 1360, cy: 540, w: 460, h: 230 };
+const HORIZONTAL_NODES = {
+  source: { cx: 560, cy: 460, w: 430, h: 196 },
+  target: { cx: 1360, cy: 460, w: 430, h: 196 },
+  payload: { cx: 1360, cy: 730, w: 430, h: 168 },
+} satisfies Record<string, NodeBox>;
+
+const VERTICAL_NODES = {
+  source: { cx: 475, cy: 580, w: 620, h: 188 },
+  target: { cx: 475, cy: 860, w: 620, h: 188 },
+  payload: { cx: 475, cy: 1120, w: 620, h: 164 },
+} satisfies Record<string, NodeBox>;
 
 const DiagramCanvas: React.FC<${pascalName}Props> = (props) => {
-  const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
+  const { width, height } = useVideoConfig();
   const style = useStudioStyle();
-
-  const sourceEnter =
-    frame < 2
-      ? 0
-      : spring({
-          frame: frame - 2,
-          fps,
-          config: getStyleSpringConfig(style, 'enter'),
-        });
-  const targetEnter =
-    frame < 14
-      ? 0
-      : spring({
-          frame: frame - 14,
-          fps,
-          config: getStyleSpringConfig(style, 'enter'),
-        });
+  const isVertical = height > width;
+  const nodes = isVertical ? VERTICAL_NODES : HORIZONTAL_NODES;
 
   return (
-    <DirectorCamera2D
-      nodes={{ source: SOURCE_NODE, target: TARGET_NODE }}
+    <MotionDiagramStage2D
+      diagramCode={\`\${props.badgeLabel} • 60 FPS\`}
+      renderBaseFill={false}
+      nodes={nodes}
       shots={[
-        { fromFrame: 0, target: ['source', 'target'], padding: 140 },
-        { fromFrame: 320, target: 'target', padding: 180, transition: 'glide' },
+        {
+          fromFrame: 0,
+          target: ['source', 'target'],
+          transition: 'cut',
+          padding: isVertical ? 120 : 140,
+        },
+        {
+          fromFrame: 320,
+          target: ['target', 'payload'],
+          transition: 'glide',
+          padding: isVertical ? 120 : 150,
+        },
       ]}
-      showGrid={false}
       handheldIntensity={style.motion.cameraHandheld}
     >
       <FlowCurve
-        from={portRight(SOURCE_NODE)}
-        to={portLeft(TARGET_NODE)}
-        curveY={-48}
+        from={isVertical ? portBottom(nodes.source) : portRight(nodes.source)}
+        to={isVertical ? portTop(nodes.target) : portLeft(nodes.target)}
+        orientation={isVertical ? 'vertical' : 'horizontal'}
+        curveY={isVertical ? 0 : -44}
         color={props.accentColor}
         activeFromFrame={18}
         packetSpeedFrames={96}
       />
 
-      <WorldBox
-        node={SOURCE_NODE}
-        opacity={sourceEnter}
-        scale={0.94 + 0.06 * sourceEnter}
-        style={getCardChromeStyle(style, {
-          padding: '28px 32px',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
-          gap: 10,
-        })}
-      >
-        <div
-          style={{
-            fontFamily: formatFontFamilyCss(style.typography.monoFont, 'mono'),
-            fontSize: 16,
-            fontWeight: 700,
-            color: props.accentColor,
-          }}
-        >
-          {props.badgeLabel}
-        </div>
-        <div
-          style={{
-            fontFamily: formatFontFamilyCss(style.typography.displayFont, 'display'),
-            fontSize: 34,
-            fontWeight: 700,
-            color: style.palette.textPrimary,
-          }}
-        >
-          {formatHeadingText(props.headline, style)}
-        </div>
-      </WorldBox>
+      <SystemNode
+        id="source"
+        moduleCode="MOD 01"
+        badge={props.badgeLabel}
+        title={props.headline}
+        subtitle="Wejście deterministycznego potoku"
+        statusText="Gotowość 60 FPS"
+        activeStatusText="Transmisja aktywna"
+        x={nodes.source.cx}
+        y={nodes.source.cy}
+        width={nodes.source.w}
+        height={nodes.source.h}
+        accentColor={props.accentColor}
+        enterFrame={4}
+        activeRanges={[[12, 310]]}
+      />
 
-      <WorldBox
-        node={TARGET_NODE}
-        opacity={targetEnter}
-        scale={0.94 + 0.06 * targetEnter}
-        style={getCardChromeStyle(style, {
-          padding: '28px 32px',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
-          gap: 10,
-        })}
-      >
-        <div
-          style={{
-            fontFamily: formatFontFamilyCss(style.typography.monoFont, 'mono'),
-            fontSize: 16,
-            fontWeight: 700,
-            color: props.secondaryColor,
-          }}
-        >
-          60 FPS • -14 LUFS
-        </div>
-        <div
-          style={{
-            fontFamily: formatFontFamilyCss(style.typography.bodyFont, 'body'),
-            fontSize: 24,
-            lineHeight: 1.35,
-            color: style.palette.textSecondary,
-          }}
-        >
-          {props.subheadline}
-        </div>
-      </WorldBox>
-    </DirectorCamera2D>
+      <SystemNode
+        id="target"
+        moduleCode="MOD 02"
+        badge="MASTER"
+        title="Silnik wyjściowy"
+        subtitle={props.subheadline}
+        statusText="Oczekiwanie"
+        activeStatusText="Zapis -14 LUFS"
+        x={nodes.target.cx}
+        y={nodes.target.cy}
+        width={nodes.target.w}
+        height={nodes.target.h}
+        accentColor={props.secondaryColor}
+        enterFrame={14}
+        activeRanges={[[120, 620]]}
+        metricsLabel="LUFS"
+        metricsValue="-14.0"
+      />
+
+      <CodePayloadToast
+        x={nodes.payload.cx}
+        y={nodes.target.cy + nodes.target.h / 2 + 24}
+        width={nodes.payload.w}
+        methodBadge="POST"
+        endpoint="/v1/studio/commit"
+        latencyText="14ms"
+        code={\`{\\n  "style": "\${props.styleId}",\\n  "fps": 60\\n}\`}
+        accentColor={props.accentColor}
+        startFrame={332}
+        endFrame={624}
+      />
+    </MotionDiagramStage2D>
   );
 };
 
@@ -978,11 +961,16 @@ import {
 } from 'remotion';
 import { z } from 'zod';
 import {
+  DirectorCamera3D,
   SPRING_PRESETS,
   SmartMusicBed,
   SoundCue,
   StyleProvider,
   VoiceoverTrack,
+  formatFontFamilyCss,
+  formatHeadingText,
+  getTactileSurfaceStyle,
+  useStudioStyle,
 } from '@make-pictures/core';
 import {
   IsometricStage3D,
@@ -1004,6 +992,8 @@ const DIALOGUE_SEGMENTS = [
 const IsometricDialogueScene: React.FC<${pascalName}Props> = (props) => {
   const frame = useCurrentFrame();
   const { fps, width, height } = useVideoConfig();
+  const style = useStudioStyle();
+  const isVertical = height > width;
 
   if (frame < 2) {
     return null;
@@ -1023,7 +1013,9 @@ const IsometricDialogueScene: React.FC<${pascalName}Props> = (props) => {
 
   const speakerAWeight = interpolate(turnSwitch, [0, 1], [1, 0]);
   const speakerBWeight = interpolate(turnSwitch, [0, 1], [0, 1]);
-  const cadencePulse = 0.45 + 0.35 * Math.sin(frame * 0.16);
+  // Calm <= 0.055 rad/frame syllable envelope fallback before real TTS words
+  const cadencePulse =
+    0.42 + 0.28 * Math.sin(frame * 0.048) + 0.16 * Math.cos(frame * 0.036);
 
   return (
     <AbsoluteFill style={{ opacity: stageReveal }}>
@@ -1031,15 +1023,39 @@ const IsometricDialogueScene: React.FC<${pascalName}Props> = (props) => {
         width={width}
         height={height}
         shadows
-        camera={{ position: [0, 4.6, 8.6], fov: 35 }}
+        camera={{ position: [0, 4.4, 8.8], fov: 35 }}
       >
+        <DirectorCamera3D
+          safeBox9x16Compensation
+          handheldIntensity={style.motion.cameraHandheld}
+          anchors={{
+            speakerA: { position: [-1.5, 0, 0.2], height: 1.55 },
+            speakerB: { position: [1.5, 0, 0.2], height: 1.55 },
+          }}
+          shots={[
+            {
+              fromFrame: 0,
+              shot: 'medium-two-shot',
+              target: 'speakerA',
+              secondaryTarget: 'speakerB',
+              transition: 'cut',
+            },
+            {
+              fromFrame: 320,
+              shot: 'medium',
+              target: 'speakerB',
+              secondaryTarget: 'speakerA',
+              transition: 'glide',
+            },
+          ]}
+        />
         <IsometricStage3D
           radius={5.2}
           showGrid
           accentColor={props.accentColor}
         >
           <Stylized3DCharacter
-            position={[-1.55, 0, 0.25]}
+            position={[-1.5, 0, 0.2]}
             rotationY={0.42}
             primaryColor={props.accentColor}
             accentColor={props.secondaryColor}
@@ -1052,7 +1068,7 @@ const IsometricDialogueScene: React.FC<${pascalName}Props> = (props) => {
             enterFrame={4}
           />
           <Stylized3DCharacter
-            position={[1.55, 0, 0.25]}
+            position={[1.5, 0, 0.2]}
             rotationY={-0.42}
             primaryColor={props.secondaryColor}
             accentColor={props.accentColor}
@@ -1066,6 +1082,55 @@ const IsometricDialogueScene: React.FC<${pascalName}Props> = (props) => {
           />
         </IsometricStage3D>
       </ThreeCanvas>
+
+      {/* Architectural Conversation Nameplate (strictly inside 9:16 Safe Box) */}
+      <div
+        style={getTactileSurfaceStyle(style, {
+          elevation: 'resting',
+          overrides: {
+            position: 'absolute',
+            left: isVertical ? 76 : 72,
+            top: isVertical ? 256 : 56,
+            width: isVertical ? 788 : 560,
+            padding: '14px 20px',
+            borderLeft: \`4px solid \${
+              frame < 320 ? props.accentColor : props.secondaryColor
+            }\`,
+            boxSizing: 'border-box',
+            pointerEvents: 'none',
+          },
+        })}
+      >
+        <div
+          style={{
+            fontFamily: formatFontFamilyCss(style.typography.monoFont, 'mono'),
+            fontSize: 12,
+            fontWeight: 700,
+            letterSpacing: '0.07em',
+            color: frame < 320 ? props.accentColor : props.secondaryColor,
+            marginBottom: 4,
+          }}
+        >
+          {props.badgeLabel} • {frame < 320 ? 'GŁOS 01' : 'GŁOS 02'}
+        </div>
+        <div
+          style={{
+            fontFamily: formatFontFamilyCss(
+              style.typography.displayFont,
+              'display'
+            ),
+            fontSize: isVertical ? 26 : 28,
+            fontWeight: 700,
+            color: style.palette.textPrimary,
+            lineHeight: 1.18,
+          }}
+        >
+          {formatHeadingText(
+            frame < 320 ? props.headline : props.subheadline,
+            style
+          )}
+        </div>
+      </div>
     </AbsoluteFill>
   );
 };
