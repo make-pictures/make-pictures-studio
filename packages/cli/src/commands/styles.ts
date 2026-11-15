@@ -5,6 +5,7 @@ import {
   BUILT_IN_STYLES,
   StylePresetSchema,
   isBuiltInStyleId,
+  withNormalizedStyleOptics,
   type StylePreset,
 } from '../../../core/src/style/presets';
 import { SCENES_KIT_IDS, type ScaffoldKitId } from './new-production';
@@ -129,7 +130,7 @@ export function loadWorkspaceCustomStyles(studioDir: string): {
         );
         continue;
       }
-      styles.push(parsed.data);
+      styles.push(withNormalizedStyleOptics(parsed.data));
     } catch (err) {
       warnings.push(
         `Nie udało się odczytać styles/${file}: ${err instanceof Error ? err.message : String(err)}`
@@ -248,12 +249,14 @@ export async function runStyleNewCommand(options: {
     .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
     .join(' ');
 
-  const preset = StylePresetSchema.parse({
-    ...basePreset,
-    id: cleanSlug,
-    name: humanName,
-    description: `Autorski kierunek plastyczny na bazie ${basePreset.name}.`,
-  });
+  const preset = withNormalizedStyleOptics(
+    StylePresetSchema.parse({
+      ...basePreset,
+      id: cleanSlug,
+      name: humanName,
+      description: `Autorski kierunek plastyczny na bazie ${basePreset.name}.`,
+    })
+  );
 
   fs.writeFileSync(targetPath, `${JSON.stringify(preset, null, 2)}\n`, 'utf8');
   console.log(`✓ Utworzono własny styl: styles/${cleanSlug}.style.json`);

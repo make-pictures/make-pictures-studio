@@ -285,10 +285,24 @@ test('StyleCatalogSidebar, STYLE_LAB_KITS, and PropsInspector Zod introspection 
     'Typografia',
     'Powierzchnia & Tło',
     'Fizyka ruchu',
+    'Optyka & Światło',
     'Domyślne Audio',
   ]);
   const colorFields = sections
     .find((s) => s.title === 'Paleta kolorów')
     ?.fields.filter((f) => f.kind === 'color');
   assert.equal(colorFields?.length, 8);
+
+  const opticsFields = sections.find((s) => s.title === 'Optyka & Światło')?.fields;
+  assert.equal(opticsFields?.length, 5);
+  assert.deepEqual(
+    opticsFields?.map((f) => `${f.key}:${f.kind}`),
+    [
+      'optics.lightingRig:enum',
+      'optics.typographyGrammar:enum',
+      'optics.lightAngleDeg:range',
+      'optics.aperture:range',
+      'optics.halation:range',
+    ]
+  );
 });

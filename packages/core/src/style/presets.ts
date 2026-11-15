@@ -53,6 +53,13 @@ export const BUILT_IN_STYLES: Record<BuiltInStyleId, StylePreset> = {
       profile: 'snappy-product',
       cameraHandheld: 0,
     },
+    optics: {
+      lightingRig: 'studio-macro',
+      typographyGrammar: 'swiss-spatial',
+      lightAngleDeg: -20,
+      aperture: 0.36,
+      halation: 0.08,
+    },
     audioDefaults: {
       musicMood: 'upbeat-launch',
       voiceArchetype: 'crisp-tech',
@@ -92,6 +99,13 @@ export const BUILT_IN_STYLES: Record<BuiltInStyleId, StylePreset> = {
     motion: {
       profile: 'editorial-calm',
       cameraHandheld: 0.04,
+    },
+    optics: {
+      lightingRig: 'window-gobo',
+      typographyGrammar: 'swiss-spatial',
+      lightAngleDeg: -28,
+      aperture: 0.45,
+      halation: 0.16,
     },
     audioDefaults: {
       musicMood: 'news-pulse',
@@ -133,6 +147,13 @@ export const BUILT_IN_STYLES: Record<BuiltInStyleId, StylePreset> = {
       profile: 'cinematic-fluid',
       cameraHandheld: 0.06,
     },
+    optics: {
+      lightingRig: 'window-gobo',
+      typographyGrammar: 'swiss-spatial',
+      lightAngleDeg: -34,
+      aperture: 0.54,
+      halation: 0.26,
+    },
     audioDefaults: {
       musicMood: 'warm-story',
       voiceArchetype: 'documentary-warm',
@@ -172,6 +193,13 @@ export const BUILT_IN_STYLES: Record<BuiltInStyleId, StylePreset> = {
     motion: {
       profile: 'snappy-product',
       cameraHandheld: 0,
+    },
+    optics: {
+      lightingRig: 'darkroom-halation',
+      typographyGrammar: 'optical-gate',
+      lightAngleDeg: -24,
+      aperture: 0.5,
+      halation: 0.58,
     },
     audioDefaults: {
       musicMood: 'ambient-tech',
@@ -213,6 +241,13 @@ export const BUILT_IN_STYLES: Record<BuiltInStyleId, StylePreset> = {
       profile: 'tactile-pop',
       cameraHandheld: 0.05,
     },
+    optics: {
+      lightingRig: 'darkroom-halation',
+      typographyGrammar: 'risograph-poster',
+      lightAngleDeg: -38,
+      aperture: 0.32,
+      halation: 0.28,
+    },
     audioDefaults: {
       musicMood: 'upbeat-launch',
       voiceArchetype: 'storyteller-expressive',
@@ -253,6 +288,13 @@ export const BUILT_IN_STYLES: Record<BuiltInStyleId, StylePreset> = {
       profile: 'tactile-pop',
       cameraHandheld: 0.03,
     },
+    optics: {
+      lightingRig: 'window-gobo',
+      typographyGrammar: 'risograph-poster',
+      lightAngleDeg: -26,
+      aperture: 0.38,
+      halation: 0.12,
+    },
     audioDefaults: {
       musicMood: 'warm-story',
       voiceArchetype: 'storyteller-expressive',
@@ -292,6 +334,13 @@ export const BUILT_IN_STYLES: Record<BuiltInStyleId, StylePreset> = {
     motion: {
       profile: 'tactile-pop',
       cameraHandheld: 0.05,
+    },
+    optics: {
+      lightingRig: 'window-gobo',
+      typographyGrammar: 'risograph-poster',
+      lightAngleDeg: -30,
+      aperture: 0.48,
+      halation: 0.2,
     },
     audioDefaults: {
       musicMood: 'paper-expedition',

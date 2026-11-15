@@ -3,7 +3,11 @@ import {
   BUILT_IN_STYLES,
   isBuiltInStyleId,
 } from './presets';
-import { StylePresetSchema, type StylePreset } from './schema';
+import {
+  StylePresetSchema,
+  withNormalizedStyleOptics,
+  type StylePreset,
+} from './schema';
 
 const customStyleMap = new Map<string, StylePreset>();
 
@@ -12,7 +16,10 @@ export function registerCustomStyles(styles: StylePreset[]): void {
     const parsed = StylePresetSchema.safeParse(candidate);
     if (!parsed.success) continue;
     if (isBuiltInStyleId(parsed.data.id)) continue;
-    customStyleMap.set(parsed.data.id, parsed.data);
+    customStyleMap.set(
+      parsed.data.id,
+      withNormalizedStyleOptics(parsed.data)
+    );
   }
 }
 
@@ -45,7 +52,9 @@ export function resolveStudioStyle(
   }
   if (typeof styleOrId === 'object') {
     const parsed = StylePresetSchema.safeParse(styleOrId);
-    return parsed.success ? parsed.data : BUILT_IN_STYLES['minimal-product'];
+    return parsed.success
+      ? withNormalizedStyleOptics(parsed.data)
+      : BUILT_IN_STYLES['minimal-product'];
   }
   const trimmed = styleOrId.trim();
   const fromCustom = customStyleMap.get(trimmed);

@@ -18,6 +18,7 @@ import type {
 } from '../../../core/src/index';
 import {
   StylePresetSchema,
+  withNormalizedStyleOptics,
   type StylePreset,
 } from '../../../core/src/style/schema';
 import { isBuiltInStyleId } from '../../../core/src/style/presets';
@@ -542,7 +543,7 @@ export function readCustomStylesFromDisk(studioDir: string): {
         );
         continue;
       }
-      styles.push(parsed.data);
+      styles.push(withNormalizedStyleOptics(parsed.data));
     } catch (err) {
       warnings.push(
         `Nie udało się sparsować styles/${fileName}: ${
@@ -627,8 +628,9 @@ export function saveCustomStyleToDisk(
     };
   }
 
+  const normalized = withNormalizedStyleOptics(parsed.data);
   fs.mkdirSync(stylesDir, { recursive: true });
-  const formatted = `${JSON.stringify(parsed.data, null, 2)}\n`;
+  const formatted = `${JSON.stringify(normalized, null, 2)}\n`;
   const tmpPath = `${resolvedTarget}.tmp-${process.pid}`;
   fs.writeFileSync(tmpPath, formatted, 'utf8');
   fs.renameSync(tmpPath, resolvedTarget);
@@ -639,7 +641,7 @@ export function saveCustomStyleToDisk(
       ok: true,
       slug: rawSlug,
       styleFile: `styles/${rawSlug}.style.json`,
-      style: parsed.data,
+      style: normalized,
       savedAt: new Date().toISOString(),
     },
   };

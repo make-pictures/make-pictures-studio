@@ -7,10 +7,12 @@ import {
   BUILT_IN_STYLES,
   STYLE_FONT_FAMILIES,
   StyleBackdrop,
+  StyleOpticsSchema,
   StylePresetSchema,
   StyleProvider,
   buildGoogleFontsStylesheetUrl,
   clearCustomStyles,
+  deriveDefaultOpticsForSurface,
   formatFontFamilyCss,
   formatHeadingText,
   getCardChromeStyle,
@@ -19,6 +21,7 @@ import {
   listAllStudioStyles,
   registerCustomStyles,
   resolveStudioStyle,
+  resolveStyleOptics,
   useStudioStyle,
 } from '../../core/src/index';
 
@@ -175,4 +178,113 @@ test('StyleProvider exposes resolved style via useStudioStyle and exports StyleB
   );
   assert.match(providedMarkup, /data-style="editorial-press"/);
   assert.match(providedMarkup, /Editorial Press/);
+});
+
+test('StyleOpticsSchema, BUILT_IN_STYLES optics, and surface-aware legacy migration work deterministically', () => {
+  const expectedOptics: Record<
+    string,
+    {
+      lightingRig: string;
+      typographyGrammar: string;
+      lightAngleDeg: number;
+      aperture: number;
+      halation: number;
+    }
+  > = {
+    'minimal-product': {
+      lightingRig: 'studio-macro',
+      typographyGrammar: 'swiss-spatial',
+      lightAngleDeg: -20,
+      aperture: 0.36,
+      halation: 0.08,
+    },
+    'editorial-press': {
+      lightingRig: 'window-gobo',
+      typographyGrammar: 'swiss-spatial',
+      lightAngleDeg: -28,
+      aperture: 0.45,
+      halation: 0.16,
+    },
+    'archival-chronicle': {
+      lightingRig: 'window-gobo',
+      typographyGrammar: 'swiss-spatial',
+      lightAngleDeg: -34,
+      aperture: 0.54,
+      halation: 0.26,
+    },
+    'cyber-telemetry': {
+      lightingRig: 'darkroom-halation',
+      typographyGrammar: 'optical-gate',
+      lightAngleDeg: -24,
+      aperture: 0.5,
+      halation: 0.58,
+    },
+    'brutalist-poster': {
+      lightingRig: 'darkroom-halation',
+      typographyGrammar: 'risograph-poster',
+      lightAngleDeg: -38,
+      aperture: 0.32,
+      halation: 0.28,
+    },
+    'sketch-notebook': {
+      lightingRig: 'window-gobo',
+      typographyGrammar: 'risograph-poster',
+      lightAngleDeg: -26,
+      aperture: 0.38,
+      halation: 0.12,
+    },
+    'tactile-craft': {
+      lightingRig: 'window-gobo',
+      typographyGrammar: 'risograph-poster',
+      lightAngleDeg: -30,
+      aperture: 0.48,
+      halation: 0.2,
+    },
+  };
+
+  for (const id of BUILT_IN_STYLE_IDS) {
+    const preset = BUILT_IN_STYLES[id];
+    assert.ok(preset.optics, `Expected ${id} to define optics`);
+    assert.deepEqual(preset.optics, StyleOpticsSchema.parse(expectedOptics[id]));
+  }
+
+  // Legacy JSON without `optics` still parses and receives surface-matched defaults via registry
+  const { optics: _omitted, ...legacyArchivalWithoutOptics } =
+    BUILT_IN_STYLES['archival-chronicle'];
+  const parsedLegacy = StylePresetSchema.parse({
+    ...legacyArchivalWithoutOptics,
+    id: 'legacy-editorial',
+  });
+  assert.equal(parsedLegacy.optics, undefined);
+
+  const derivedEditorial = deriveDefaultOpticsForSurface(parsedLegacy.surface);
+  assert.equal(derivedEditorial.lightingRig, 'window-gobo');
+  assert.equal(derivedEditorial.typographyGrammar, 'swiss-spatial');
+
+  const derivedDark = deriveDefaultOpticsForSurface(
+    BUILT_IN_STYLES['cyber-telemetry'].surface
+  );
+  assert.equal(derivedDark.lightingRig, 'darkroom-halation');
+  assert.equal(derivedDark.typographyGrammar, 'optical-gate');
+
+  const derivedBrutalist = deriveDefaultOpticsForSurface(
+    BUILT_IN_STYLES['brutalist-poster'].surface
+  );
+  assert.equal(derivedBrutalist.typographyGrammar, 'risograph-poster');
+
+  const derivedMinimal = deriveDefaultOpticsForSurface(
+    BUILT_IN_STYLES['minimal-product'].surface
+  );
+  assert.equal(derivedMinimal.lightingRig, 'studio-macro');
+  assert.equal(derivedMinimal.typographyGrammar, 'swiss-spatial');
+
+  clearCustomStyles();
+  registerCustomStyles([parsedLegacy]);
+  try {
+    const resolvedLegacy = resolveStudioStyle('legacy-editorial');
+    assert.deepEqual(resolvedLegacy.optics, derivedEditorial);
+    assert.deepEqual(resolveStyleOptics(parsedLegacy), derivedEditorial);
+  } finally {
+    clearCustomStyles();
+  }
 });

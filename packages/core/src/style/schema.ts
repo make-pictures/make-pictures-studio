@@ -74,6 +74,47 @@ export const StyleMusicMoodSchema = z.enum([
 ]);
 export type StyleMusicMood = z.infer<typeof StyleMusicMoodSchema>;
 
+export const StyleLightingRigSchema = z.enum([
+  'window-gobo',
+  'darkroom-halation',
+  'studio-macro',
+]);
+export type StyleLightingRig = z.infer<typeof StyleLightingRigSchema>;
+
+export const StyleTypographyGrammarSchema = z.enum([
+  'swiss-spatial',
+  'optical-gate',
+  'risograph-poster',
+]);
+export type StyleTypographyGrammar = z.infer<
+  typeof StyleTypographyGrammarSchema
+>;
+
+export const StyleOpticsSchema = z.object({
+  lightingRig: StyleLightingRigSchema.describe(
+    'Optyka & Światło :: Reżim oświetlenia sceny'
+  ),
+  typographyGrammar: StyleTypographyGrammarSchema.describe(
+    'Optyka & Światło :: Gramatyka typografii kinetycznej'
+  ),
+  lightAngleDeg: z
+    .number()
+    .min(-60)
+    .max(60)
+    .describe('Optyka & Światło :: Kąt głównego światła (°)'),
+  aperture: z
+    .number()
+    .min(0)
+    .max(1)
+    .describe('Optyka & Światło :: Przysłona / płytkość ostrości (0–1)'),
+  halation: z
+    .number()
+    .min(0)
+    .max(1)
+    .describe('Optyka & Światło :: Halacja i rozproszenie świateł (0–1)'),
+});
+export type StyleOptics = z.infer<typeof StyleOpticsSchema>;
+
 export const StylePresetSchema = z.object({
   id: z
     .string()
@@ -153,6 +194,8 @@ export const StylePresetSchema = z.object({
       .describe('Fizyka ruchu :: Drganie kamery z ręki (0–0.35)'),
   }),
 
+  optics: StyleOpticsSchema.optional(),
+
   audioDefaults: z.object({
     musicMood: StyleMusicMoodSchema.describe(
       'Domyślne Audio :: Nastrój muzyki'
@@ -164,3 +207,61 @@ export const StylePresetSchema = z.object({
 });
 
 export type StylePreset = z.infer<typeof StylePresetSchema>;
+
+export function deriveDefaultOpticsForSurface(
+  surface: StylePreset['surface']
+): StyleOptics {
+  if (surface.isDark) {
+    return {
+      lightingRig: 'darkroom-halation',
+      typographyGrammar: 'optical-gate',
+      lightAngleDeg: -24,
+      aperture: 0.48,
+      halation: 0.52,
+    };
+  }
+  if (
+    surface.backdropType === 'halftone-dots' ||
+    surface.cardTreatment === 'brutalist-hard' ||
+    surface.cardTreatment === 'tactile-cutout'
+  ) {
+    return {
+      lightingRig: 'window-gobo',
+      typographyGrammar: 'risograph-poster',
+      lightAngleDeg: -32,
+      aperture: 0.38,
+      halation: 0.16,
+    };
+  }
+  if (
+    surface.backdropType === 'editorial-paper' ||
+    surface.cardTreatment === 'editorial-ink'
+  ) {
+    return {
+      lightingRig: 'window-gobo',
+      typographyGrammar: 'swiss-spatial',
+      lightAngleDeg: -28,
+      aperture: 0.46,
+      halation: 0.18,
+    };
+  }
+  return {
+    lightingRig: 'studio-macro',
+    typographyGrammar: 'swiss-spatial',
+    lightAngleDeg: -22,
+    aperture: 0.36,
+    halation: 0.08,
+  };
+}
+
+export function resolveStyleOptics(style: StylePreset): StyleOptics {
+  return style.optics ?? deriveDefaultOpticsForSurface(style.surface);
+}
+
+export function withNormalizedStyleOptics(style: StylePreset): StylePreset {
+  if (style.optics) return style;
+  return {
+    ...style,
+    optics: deriveDefaultOpticsForSurface(style.surface),
+  };
+}
