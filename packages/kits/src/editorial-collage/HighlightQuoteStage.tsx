@@ -7,9 +7,11 @@ import {
   useVideoConfig,
 } from 'remotion';
 import {
+  createSeededRandom,
   formatFontFamilyCss,
-  getCardChromeStyle,
   getStyleSpringConfig,
+  getTactileSurfaceStyle,
+  resolveStyleOptics,
   useStudioStyle,
   type WordTimestamp,
 } from '@make-pictures/core';
@@ -62,6 +64,7 @@ export const HighlightQuoteStage: React.FC<HighlightQuoteStageProps> = ({
   const frame = useCurrentFrame();
   const { fps, width, height } = useVideoConfig();
   const style = useStudioStyle();
+  const optics = resolveStyleOptics(style);
   const inSplitSlot = useContext(SplitStorySlotContext);
   const isEmbedded = embedded ?? inSplitSlot;
   const isVertical = height > width;
@@ -91,6 +94,13 @@ export const HighlightQuoteStage: React.FC<HighlightQuoteStageProps> = ({
           config: getStyleSpringConfig(style, 'emphasis'),
         });
 
+  const seededTilt =
+    optics.lightingRig === 'studio-macro'
+      ? 0
+      : Number(
+          ((createSeededRandom(`quote:${quote}`)() - 0.5) * 1.1).toFixed(2)
+        );
+
   const renderQuoteWithHighlight = () => {
     if (!highlightPhrase || !quote.includes(highlightPhrase)) {
       return quote;
@@ -98,43 +108,97 @@ export const HighlightQuoteStage: React.FC<HighlightQuoteStageProps> = ({
     const idx = quote.indexOf(highlightPhrase);
     const before = quote.slice(0, idx);
     const after = quote.slice(idx + highlightPhrase.length);
+    const isDark = style.surface.isDark;
+
     return (
       <>
         {before}
         <span
           style={{
-            backgroundImage: `linear-gradient(120deg, ${style.palette.accentPrimary}38 0%, ${style.palette.accentPrimary}38 100%)`,
-            backgroundRepeat: 'no-repeat',
-            backgroundSize: `${Math.round(markSweep * 100)}% 88%`,
-            backgroundPosition: '0 82%',
+            position: 'relative',
+            display: 'inline-block',
             padding: '0 6px',
+            textShadow:
+              isDark && markSweep > 0.05
+                ? `0 0 ${Math.round(14 + optics.halation * 24)}px ${style.palette.accentPrimary}88`
+                : 'none',
           }}
         >
-          {highlightPhrase}
+          <svg
+            data-ink-brush="true"
+            viewBox="0 0 220 38"
+            preserveAspectRatio="none"
+            style={{
+              position: 'absolute',
+              left: -2,
+              right: -2,
+              bottom: 1,
+              width: 'calc(100% + 4px)',
+              height: isDark ? '34%' : '56%',
+              transformOrigin: 'left center',
+              transform: `scaleX(${markSweep.toFixed(4)})`,
+              mixBlendMode: isDark ? 'screen' : 'multiply',
+              pointerEvents: 'none',
+            }}
+          >
+            <path
+              d="M3,20 C44,10 112,14 217,12 C219,21 215,31 211,32 C138,34 58,31 2,33 Z"
+              fill={style.palette.accentPrimary}
+              opacity={isDark ? 0.52 : 0.28}
+            />
+          </svg>
+          <span style={{ position: 'relative' }}>{highlightPhrase}</span>
         </span>
         {after}
       </>
     );
   };
 
+  const translateY = interpolate(enter, [0, 1], [22, 0]);
   const quoteCard = (
     <div
-      style={getCardChromeStyle(style, {
-        boxSizing: 'border-box',
-        width: isEmbedded ? '100%' : undefined,
-        maxWidth: isEmbedded ? undefined : isVertical ? 830 : 1220,
-        padding: isEmbedded
-          ? isVertical
-            ? '32px 36px'
-            : '40px 48px'
-          : isVertical
-            ? '42px 44px'
-            : '54px 64px',
-        opacity: enter,
-        transform: `translateY(${interpolate(enter, [0, 1], [24, 0])}px)`,
-        ...styleOverrides,
+      style={getTactileSurfaceStyle(style, {
+        elevation: isEmbedded ? 'resting' : 'lifted',
+        tiltDeg: isEmbedded ? 0 : seededTilt,
+        overrides: {
+          position: 'relative',
+          boxSizing: 'border-box',
+          width: isEmbedded ? '100%' : undefined,
+          maxWidth: isEmbedded ? undefined : isVertical ? 824 : 1220,
+          padding: isEmbedded
+            ? isVertical
+              ? '30px 34px 30px 42px'
+              : '38px 46px 38px 54px'
+            : isVertical
+              ? '40px 42px 40px 52px'
+              : '52px 62px 52px 72px',
+          borderRadius: Math.max(0, Math.round(6 * style.surface.radiusScale)),
+          opacity: enter,
+          transform: `translateY(${translateY.toFixed(2)}px)`,
+          ...styleOverrides,
+        },
       })}
     >
+      {/* Editorial Margin Column Hairline + Accent Lead */}
+      <div
+        style={{
+          position: 'absolute',
+          left: isEmbedded ? 18 : 26,
+          top: 24,
+          bottom: 24,
+          width: 2,
+          backgroundColor: style.palette.inkBorder,
+        }}
+      >
+        <div
+          style={{
+            width: 3,
+            height: `${Math.round(enter * 44)}%`,
+            backgroundColor: style.palette.accentPrimary,
+          }}
+        />
+      </div>
+
       <div
         style={{
           fontFamily: formatFontFamilyCss(
@@ -143,11 +207,11 @@ export const HighlightQuoteStage: React.FC<HighlightQuoteStageProps> = ({
           ),
           fontSize: isEmbedded
             ? isVertical
-              ? 36
-              : 44
+              ? 35
+              : 42
             : isVertical
-              ? 48
-              : 58,
+              ? 46
+              : 56,
           fontWeight: 600,
           lineHeight: 1.24,
           color: style.palette.textPrimary,
@@ -158,10 +222,11 @@ export const HighlightQuoteStage: React.FC<HighlightQuoteStageProps> = ({
       {author ? (
         <div
           style={{
-            marginTop: isEmbedded ? 20 : 26,
+            marginTop: isEmbedded ? 18 : 24,
             fontFamily: formatFontFamilyCss(style.typography.monoFont, 'mono'),
-            fontSize: isEmbedded ? 19 : 21,
+            fontSize: isEmbedded ? 17 : 19,
             fontWeight: 600,
+            letterSpacing: '0.04em',
             color: style.palette.textSecondary,
           }}
         >
@@ -182,7 +247,7 @@ export const HighlightQuoteStage: React.FC<HighlightQuoteStageProps> = ({
         justifyContent: isVertical ? 'flex-start' : 'center',
         alignItems: isVertical ? 'flex-start' : 'center',
         paddingLeft: isVertical ? 56 : 160,
-        paddingRight: isVertical ? 186 : 160,
+        paddingRight: isVertical ? 190 : 160,
         paddingTop: isVertical ? 300 : 0,
         pointerEvents: 'none',
       }}

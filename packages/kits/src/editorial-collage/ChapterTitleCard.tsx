@@ -10,6 +10,7 @@ import {
   formatFontFamilyCss,
   formatHeadingText,
   getStyleSpringConfig,
+  resolveStyleOptics,
   useStudioStyle,
 } from '@make-pictures/core';
 
@@ -31,81 +32,138 @@ export const ChapterTitleCard: React.FC<ChapterTitleCardProps> = ({
   const frame = useCurrentFrame();
   const { fps, width, height } = useVideoConfig();
   const style = useStudioStyle();
+  const optics = resolveStyleOptics(style);
   const isVertical = height > width;
 
   const effectiveStart = Math.max(2, startFrame);
   if (frame < effectiveStart) return null;
 
+  const localFrame = frame - effectiveStart;
   const enter = spring({
-    frame: frame - effectiveStart,
+    frame: localFrame,
     fps,
     config: getStyleSpringConfig(style, 'enter'),
   });
 
+  // Optical lens focus pull: settles from soft 5px defocus into crisp filter:none within ~18 frames
+  const rawFocusPullBlur = interpolate(
+    localFrame,
+    [0, 18],
+    [3.6 + optics.aperture * 3.2, 0],
+    { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
+  );
+  const focusFilter =
+    rawFocusPullBlur < 0.25 ? 'none' : `blur(${rawFocusPullBlur.toFixed(2)}px)`;
+
   const accent = accentColor ?? style.palette.accentPrimary;
-  const translateY = interpolate(enter, [0, 1], [28, 0]);
+  const translateY = interpolate(enter, [0, 1], [18, 0]);
+  const focusScale = interpolate(enter, [0, 1], [1.038, 1]);
 
   return (
     <AbsoluteFill
       style={{
         boxSizing: 'border-box',
         justifyContent: isVertical ? 'flex-start' : 'center',
-        alignItems: isVertical ? 'flex-start' : 'center',
-        paddingLeft: isVertical ? 64 : 140,
-        paddingRight: isVertical ? 190 : 140,
-        paddingTop: isVertical ? 320 : 0,
+        alignItems: 'flex-start',
+        paddingLeft: isVertical ? 60 : 168,
+        paddingRight: isVertical ? 196 : 168,
+        paddingTop: isVertical ? 312 : 0,
         pointerEvents: 'none',
       }}
     >
       <div
         style={{
-          maxWidth: isVertical ? 810 : 1240,
+          maxWidth: isVertical ? 804 : 1260,
+          width: '100%',
           opacity: enter,
-          transform: `translateY(${translateY}px)`,
+          filter: focusFilter,
+          transformOrigin: 'left center',
+          transform: `translateY(${translateY.toFixed(2)}px) scale(${focusScale.toFixed(4)})`,
         }}
       >
+        {/* Editorial Crop-Mark Registration Row */}
         <div
           style={{
-            fontFamily: formatFontFamilyCss(style.typography.monoFont, 'mono'),
-            fontSize: isVertical ? 24 : 22,
-            fontWeight: 600,
-            letterSpacing: '0.14em',
-            textTransform: 'uppercase',
-            color: accent,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 14,
             marginBottom: 18,
           }}
         >
-          {chapterLabel}
+          <span
+            style={{
+              fontFamily: formatFontFamilyCss(style.typography.monoFont, 'mono'),
+              fontSize: 18,
+              fontWeight: 700,
+              color: style.palette.inkBorder,
+            }}
+          >
+            ┼
+          </span>
+          <span
+            style={{
+              fontFamily: formatFontFamilyCss(style.typography.monoFont, 'mono'),
+              fontSize: isVertical ? 21 : 20,
+              fontWeight: 600,
+              letterSpacing: '0.15em',
+              textTransform: 'uppercase',
+              color: accent,
+            }}
+          >
+            {chapterLabel}
+          </span>
         </div>
+
+        {/* Hairline Cutter Rule + Accent Lead */}
         <div
           style={{
-            width: Math.round(140 * enter),
-            height: 4,
-            backgroundColor: accent,
-            marginBottom: 26,
+            position: 'relative',
+            width: '100%',
+            maxWidth: isVertical ? 760 : 920,
+            height: 1.5,
+            backgroundColor: style.palette.inkBorder,
+            transformOrigin: 'left center',
+            transform: `scaleX(${enter.toFixed(4)})`,
+            marginBottom: 28,
           }}
-        />
+        >
+          <div
+            style={{
+              width: Math.round(132 * enter),
+              height: 3.5,
+              marginTop: -1,
+              backgroundColor: accent,
+            }}
+          />
+        </div>
+
         <div
           style={{
             fontFamily: formatFontFamilyCss(
               style.typography.displayFont,
               'display'
             ),
-            fontSize: isVertical ? 76 : 92,
+            fontSize: isVertical ? 74 : 92,
             fontWeight: 700,
             lineHeight: 1.06,
             letterSpacing: `${style.typography.displayTrackingEm}em`,
             color: style.palette.textPrimary,
+            textShadow:
+              style.surface.isDark && optics.halation > 0.2
+                ? `0 0 ${Math.round(20 * optics.halation)}px ${accent}44`
+                : 'none',
           }}
         >
           {formatHeadingText(title, style)}
         </div>
+
         {subtitle ? (
           <div
             style={{
               marginTop: 22,
+              maxWidth: isVertical ? 780 : 980,
               fontFamily: formatFontFamilyCss(style.typography.bodyFont, 'body'),
-              fontSize: isVertical ? 32 : 34,
+              fontSize: isVertical ? 30 : 33,
               lineHeight: 1.4,
               color: style.palette.textSecondary,
             }}

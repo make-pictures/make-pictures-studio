@@ -1,3 +1,4 @@
+export * from './EditorialDeskStage';
 export * from './ChapterTitleCard';
 export * from './EditorialMediaCard';
 export * from './HighlightQuoteStage';

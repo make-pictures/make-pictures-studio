@@ -3,8 +3,13 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { Thumbnail } from '@remotion/player';
+import { StyleProvider } from '../../core/src/index';
 import {
   ChapterTitleCard,
+  EditorialDeskStage,
   EditorialMediaCard,
   HighlightQuoteStage,
   SplitStoryLayout,
@@ -22,6 +27,7 @@ import * as kitsRoot from '../../kits/src/index';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 test('editorial-collage, vector-scene-2d, and @make-pictures/kits root export all narrative components', () => {
+  assert.equal(typeof EditorialDeskStage, 'function');
   assert.equal(typeof ChapterTitleCard, 'function');
   assert.equal(typeof EditorialMediaCard, 'function');
   assert.equal(typeof HighlightQuoteStage, 'function');
@@ -30,6 +36,7 @@ test('editorial-collage, vector-scene-2d, and @make-pictures/kits root export al
   assert.equal(typeof AnnotatedCallout2D, 'function');
   assert.equal(typeof ComparisonSplit2D, 'function');
 
+  assert.equal(kitsRoot.EditorialDeskStage, EditorialDeskStage);
   assert.equal(kitsRoot.ChapterTitleCard, ChapterTitleCard);
   assert.equal(kitsRoot.EditorialMediaCard, EditorialMediaCard);
   assert.equal(kitsRoot.HighlightQuoteStage, HighlightQuoteStage);
@@ -143,4 +150,147 @@ test('packages/kits/package.json and scripts/build-packages.ts register both new
   );
   assert.match(buildScript, /editorial-collage\/index/);
   assert.match(buildScript, /vector-scene-2d\/index/);
+});
+
+test('EditorialDeskStage, baryta/slide EditorialMediaCard, ink-brush HighlightQuoteStage, and SplitStoryLayout rack focus render cleanly across styles and 9:16', () => {
+  const deskStageSrc = fs.readFileSync(
+    path.resolve(__dirname, '../../kits/src/editorial-collage/EditorialDeskStage.tsx'),
+    'utf8'
+  );
+  assert.doesNotMatch(
+    deskStageSrc,
+    /Math\.random\s*\(/,
+    'Forbidden Math.random() found in EditorialDeskStage.tsx'
+  );
+  assert.match(
+    deskStageSrc,
+    /frame\s*<=\s*0/,
+    'Expected Clean Frame 0 guard (frame <= 0) in EditorialDeskStage.tsx'
+  );
+
+  for (const styleId of [
+    'editorial-press',
+    'archival-chronicle',
+    'cyber-telemetry',
+    'minimal-product',
+  ] as const) {
+    const SceneComp: React.FC = () =>
+      React.createElement(
+        StyleProvider,
+        { style: styleId },
+        React.createElement(
+          EditorialDeskStage,
+          { sheetCode: 'ARKUSZ 04 • KRONIKA' },
+          React.createElement(SplitStoryLayout, {
+            startFrame: 2,
+            focusShiftFrame: 40,
+            initialFocus: 'primary',
+            primary: React.createElement(EditorialMediaCard, {
+              caption: 'Rękopis z żółtą pieczęcią cechową',
+              sourceTag: 'ARCHIWUM • 1889',
+              startFrame: 2,
+            }),
+            secondary: React.createElement(HighlightQuoteStage, {
+              quote: 'Każda warstwa papieru niesie ślad światła i dłoni.',
+              highlightPhrase: 'ślad światła',
+              author: 'Kronika rzemiosła',
+              startFrame: 2,
+              highlightFrame: 18,
+            }),
+          })
+        )
+      );
+
+    // Frame 0 invariant: pure bgCanvas, zero card text
+    const htmlF0 = renderToStaticMarkup(
+      React.createElement(Thumbnail, {
+        component: SceneComp,
+        compositionWidth: 1080,
+        compositionHeight: 1920,
+        durationInFrames: 120,
+        fps: 60,
+        frameToDisplay: 0,
+      })
+    );
+    assert.doesNotMatch(htmlF0, /Rękopis z żółtą/);
+    assert.doesNotMatch(htmlF0, /ARKUSZ 04/);
+
+    // Frame 24 (before focusShiftFrame=40): primary sharp, contact-sheet SVG fallback rendered, ink-brush SVG present
+    const htmlF24 = renderToStaticMarkup(
+      React.createElement(Thumbnail, {
+        component: SceneComp,
+        compositionWidth: 1080,
+        compositionHeight: 1920,
+        durationInFrames: 120,
+        fps: 60,
+        frameToDisplay: 24,
+      })
+    );
+    assert.match(htmlF24, /Rękopis z żółtą pieczęcią cechową/);
+    assert.match(htmlF24, /data-mount-type="/);
+    assert.match(htmlF24, /data-contact-sheet="true"/);
+    assert.match(htmlF24, /data-ink-brush="true"/);
+    assert.doesNotMatch(htmlF24, /blur\(0(?:\.0+)?px\)/);
+
+    // Frame 90 (after focusShiftFrame=40): rack focus shifted cleanly
+    const htmlF90 = renderToStaticMarkup(
+      React.createElement(Thumbnail, {
+        component: SceneComp,
+        compositionWidth: 1920,
+        compositionHeight: 1080,
+        durationInFrames: 120,
+        fps: 60,
+        frameToDisplay: 90,
+      })
+    );
+    assert.match(htmlF90, /Każda warstwa papieru/);
+    assert.doesNotMatch(htmlF90, /blur\(0(?:\.0+)?px\)/);
+    if (styleId === 'editorial-press') {
+      assert.match(htmlF90, /data-mount-type="archival-tape"/);
+    }
+    if (styleId === 'cyber-telemetry') {
+      assert.match(htmlF90, /data-mount-type="slide-mount"/);
+    }
+    if (styleId === 'archival-chronicle') {
+      assert.match(htmlF90, /data-mount-type="photo-corners"/);
+    }
+    if (styleId === 'minimal-product') {
+      assert.match(htmlF90, /data-mount-type="none"/);
+    }
+  }
+
+  // ChapterTitleCard optical focus pull settles to crisp filter:none
+  const ChapterComp: React.FC = () =>
+    React.createElement(
+      StyleProvider,
+      { style: 'editorial-press' },
+      React.createElement(ChapterTitleCard, {
+        chapterLabel: 'Rozdział 01',
+        title: 'Zażółć gęślą jaźń',
+        subtitle: 'Szlachetna typografia i światło boczne',
+        startFrame: 2,
+      })
+    );
+  const chapterEarly = renderToStaticMarkup(
+    React.createElement(Thumbnail, {
+      component: ChapterComp,
+      compositionWidth: 1920,
+      compositionHeight: 1080,
+      durationInFrames: 120,
+      fps: 60,
+      frameToDisplay: 4,
+    })
+  );
+  const chapterSettled = renderToStaticMarkup(
+    React.createElement(Thumbnail, {
+      component: ChapterComp,
+      compositionWidth: 1920,
+      compositionHeight: 1080,
+      durationInFrames: 120,
+      fps: 60,
+      frameToDisplay: 48,
+    })
+  );
+  assert.match(chapterEarly, /filter:blur\(/);
+  assert.match(chapterSettled, /filter:none/);
 });
