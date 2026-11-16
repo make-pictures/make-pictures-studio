@@ -15,6 +15,7 @@ import {
 } from '../src/commands/styles';
 import { runInitCommand } from '../src/commands/init';
 import { FALLBACK_AGENTS_MD } from '../src/commands/workspace-paths';
+import { auditCompositionDirection } from '../src/director/audit-direction';
 import { runCli } from '../src/index';
 import {
   createMakePicturesApp,
@@ -146,9 +147,10 @@ test('make-pictures new defaults to vector-scene-2d + minimal-product and genera
         assert.match(tsx, /AtelierDeskCutout3D/);
       }
       if (kitId === 'isometric-3d') {
-        assert.match(tsx, /IsometricStage3D/);
+        assert.match(tsx, /StudioHdrRig3D/);
+        assert.match(tsx, /PodcastStudioSet3D/);
         assert.match(tsx, /DirectorCamera3D/);
-        assert.match(tsx, /Stylized3DCharacter/);
+        assert.match(tsx, /ClayCharacter3D/);
         assert.doesNotMatch(tsx, /showGrid/);
         assert.doesNotMatch(tsx, /frame\s*\*\s*0\.16/);
       }
@@ -313,6 +315,40 @@ test('createMakePicturesApp and init scaffold styles/README.md, registerCustomSt
     // Fallback AGENTS.md includes new skills
     assert.match(FALLBACK_AGENTS_MD, /style-and-art-direction/);
     assert.match(FALLBACK_AGENTS_MD, /kit-editorial-and-vector/);
+
+    // CLI --space=2d/2.5d/3d scaffolds via runCli(['new', ...]) pass auditCompositionDirection (allowFastCuts: false)
+    const spaceCliDir = path.join(tmpDir, 'space-cli-studio');
+    fs.mkdirSync(spaceCliDir, { recursive: true });
+    for (const [slug, flags, expectedToken] of [
+      ['cli-retro-2d', ['--space=2d', '--style=retro-pc'], 'RetroPcWindowStage2D'],
+      ['cli-cutout-25d', ['--space=2.5d'], 'DioramaStage3D'],
+      ['cli-clay-3d', ['--space=3d'], 'PodcastStudioSet3D'],
+    ] as const) {
+      await runCli(['new', slug, ...flags, '--lang=pl', `--cwd=${spaceCliDir}`]);
+      const compId = slug
+        .split('-')
+        .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
+        .join('');
+      const compTsx = fs.readFileSync(
+        path.join(spaceCliDir, 'productions', slug, 'compositions', `${compId}.tsx`),
+        'utf8'
+      );
+      assert.match(compTsx, new RegExp(`<${expectedToken}\\b`));
+
+      const audit = auditCompositionDirection({
+        studioDir: spaceCliDir,
+        rootDir: spaceCliDir,
+        compositionId: compId,
+        origin: 'production',
+        productionId: slug,
+        propsFile: `productions/${slug}/compositions/${compId}.props.json`,
+        durationInFrames: 720,
+        fps: 60,
+        allowFastCuts: false,
+      });
+      assert.equal(audit.ok, true);
+      assert.equal(audit.violations.length, 0);
+    }
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }

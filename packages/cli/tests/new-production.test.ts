@@ -128,8 +128,9 @@ test('all 7 new-production kit scaffolds (PL & EN) generate 720-frame Continuous
         }
 
         if (kit === 'isometric-3d') {
-          assert.match(tsxSrc, /<IsometricStage3D\b/);
-          assert.match(tsxSrc, /<Stylized3DCharacter\b/);
+          assert.match(tsxSrc, /<StudioHdrRig3D\b/);
+          assert.match(tsxSrc, /<PodcastStudioSet3D\b/);
+          assert.match(tsxSrc, /<ClayCharacter3D\b/);
           assert.doesNotMatch(tsxSrc, /\bshowGrid\b/);
         }
 
@@ -238,5 +239,95 @@ test('all 7 create-make-pictures starter kits generate 720-frame HelloStudio cap
     }
   } finally {
     fs.rmSync(tmpRoot, { recursive: true, force: true });
+  }
+});
+
+test('--space=2d/2.5d/3d scaffolds (including --style=retro-pc, paper-diorama-3d, and soft-clay) pass auditCompositionDirection with allowFastCuts: false', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mp-space-scaffolds-'));
+  try {
+    const spaceCases = [
+      {
+        slug: 'retro-space-2d',
+        space: '2d' as const,
+        style: 'retro-pc',
+        expectedPattern: /<RetroPcWindowStage2D\b/,
+      },
+      {
+        slug: 'diorama-space-25d',
+        space: '2.5d' as const,
+        style: undefined,
+        expectedPattern: /<DioramaStage3D\b/,
+      },
+      {
+        slug: 'clay-space-3d',
+        space: '3d' as const,
+        style: undefined,
+        expectedPattern: /<PodcastStudioSet3D\b/,
+      },
+    ] as const;
+
+    for (const lang of ['pl', 'en'] as const) {
+      for (const tc of spaceCases) {
+        const slug = `${tc.slug}-${lang}`;
+        const { productionDir, compositionId } = await runNewProductionCommand({
+          cwd: tmpDir,
+          slug,
+          space: tc.space,
+          style: tc.style,
+          lang,
+          prepopulateTimestamps: true,
+        });
+
+        const tsxSrc = fs.readFileSync(
+          path.join(productionDir, 'compositions', `${compositionId}.tsx`),
+          'utf8'
+        );
+        assert.match(tsxSrc, tc.expectedPattern);
+        assert.doesNotMatch(tsxSrc, /Math\.random\s*\(/);
+
+        const propsJson = JSON.parse(
+          fs.readFileSync(
+            path.join(
+              productionDir,
+              'compositions',
+              `${compositionId}.props.json`
+            ),
+            'utf8'
+          )
+        ) as { styleId: string };
+
+        if (tc.space === '2d') assert.equal(propsJson.styleId, 'retro-pc');
+        if (tc.space === '2.5d') assert.equal(propsJson.styleId, 'tactile-craft');
+        if (tc.space === '3d') assert.equal(propsJson.styleId, 'soft-clay');
+
+        const auditRes = auditCompositionDirection({
+          studioDir: tmpDir,
+          rootDir: tmpDir,
+          compositionId,
+          origin: 'production',
+          productionId: slug,
+          propsFile: `productions/${slug}/compositions/${compositionId}.props.json`,
+          durationInFrames: 720,
+          fps: 60,
+          allowFastCuts: false,
+          sceneTimeline: [
+            {
+              sceneId: `${slug}-intro`,
+              fromFrame: 12,
+              durationInFrames: 252,
+            },
+            {
+              sceneId: `${slug}-payoff`,
+              fromFrame: 360,
+              durationInFrames: 252,
+            },
+          ],
+        });
+        assert.equal(auditRes.ok, true);
+        assert.equal(auditRes.violations.length, 0);
+      }
+    }
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
   }
 });

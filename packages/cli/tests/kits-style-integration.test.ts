@@ -268,7 +268,7 @@ test('kinetic-typography renders swiss-spatial, optical-gate, and risograph-post
   assert.match(iconF24, /data-custom-mark="true"/);
   assert.doesNotMatch(iconF24, /linear-gradient\(135deg/);
 
-  // Verify all 7 BUILT_IN_STYLES × explicit 3 grammars render cleanly in both 16:9 and 9:16 with Polish diacritics
+  // Verify all 10 BUILT_IN_STYLES × explicit 3 grammars render cleanly in both 16:9 and 9:16 with Polish diacritics
   for (const styleId of BUILT_IN_STYLE_IDS) {
     for (const grammar of [
       'swiss-spatial',
@@ -568,7 +568,7 @@ test('DataStoryStage2D, tonal AnimatedBarRace, vernier rack-focus TimelineTrack,
   assert.match(edgeTimelineChunk, /filter:none/);
   assert.doesNotMatch(edgeF48, /blur\(0(?:\.0+)?px\)/);
 
-  // Verify all 7 BUILT_IN_STYLE_IDS across 16:9 and 9:16
+  // Verify all 10 BUILT_IN_STYLE_IDS across 16:9 and 9:16
   for (const styleId of BUILT_IN_STYLE_IDS) {
     for (const [w, h] of [
       [1920, 1080],

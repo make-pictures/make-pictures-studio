@@ -25,10 +25,11 @@ import {
   type IsometricMaterialMode,
   type IsometricMaterialPreset,
 } from '../../kits/src/isometric-3d';
+import { projectPoint } from './_helpers/camera-projection';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-test('resolveIsometricMaterialPreset, resolveIsometricMaterialTokens, and computeIsometricLightRig map all 7 styles deterministically without WebGL', () => {
+test('resolveIsometricMaterialPreset, resolveIsometricMaterialTokens, and computeIsometricLightRig map all 10 styles deterministically without WebGL', () => {
   assert.equal(typeof IsometricStage3D, 'function');
   assert.equal(typeof Stylized3DCharacter, 'function');
   assert.equal(typeof IsometricStudioEnvironment, 'function');
@@ -83,6 +84,18 @@ test('resolveIsometricMaterialPreset, resolveIsometricMaterialTokens, and comput
   assert.equal(
     resolveIsometricMaterialPreset(BUILT_IN_STYLES['tactile-craft']),
     'ink-figurine'
+  );
+  assert.equal(
+    resolveIsometricMaterialPreset(BUILT_IN_STYLES['retro-pc']),
+    'ink-figurine'
+  );
+  assert.equal(
+    resolveIsometricMaterialPreset(BUILT_IN_STYLES['soft-clay']),
+    'ceramic-maquette'
+  );
+  assert.equal(
+    resolveIsometricMaterialPreset(BUILT_IN_STYLES['glass-studio']),
+    'ceramic-maquette'
   );
 
   // Dark custom presets resolve to anodized-telemetry even without darkroom-halation
@@ -308,47 +321,6 @@ test('IsometricStage3D and Stylized3DCharacter enforce Clean Frame 0 at runtime 
 });
 
 test('evaluateDirectorCamera3D frames 2.45m Stylized3DCharacter dialogue strictly inside 9:16 Golden Safe Box', () => {
-  const projectPoint = (
-    camPos: [number, number, number],
-    lookAt: [number, number, number],
-    fovDeg: number,
-    width: number,
-    height: number,
-    pt: [number, number, number]
-  ) => {
-    const fx = lookAt[0] - camPos[0];
-    const fy = lookAt[1] - camPos[1];
-    const fz = lookAt[2] - camPos[2];
-    const fLen = Math.hypot(fx, fy, fz);
-    const fwd = [fx / fLen, fy / fLen, fz / fLen];
-    // right = normalize(cross(fwd, [0, 1, 0])) = normalize([-fwd[2], 0, fwd[0]])
-    // Wait: cross((fx,fy,fz), (0,1,0)) = (-fz, 0, fx)
-    const rxRaw = -fwd[2];
-    const rzRaw = fwd[0];
-    const rLen = Math.hypot(rxRaw, rzRaw);
-    const right = [rxRaw / rLen, 0, rzRaw / rLen];
-    // up = cross(right, fwd)
-    const up = [
-      right[1]! * fwd[2]! - right[2]! * fwd[1]!,
-      right[2]! * fwd[0]! - right[0]! * fwd[2]!,
-      right[0]! * fwd[1]! - right[1]! * fwd[0]!,
-    ];
-    const dx = pt[0] - camPos[0];
-    const dy = pt[1] - camPos[1];
-    const dz = pt[2] - camPos[2];
-    const cx = dx * right[0]! + dy * right[1]! + dz * right[2]!;
-    const cy = dx * up[0]! + dy * up[1]! + dz * up[2]!;
-    const cz = dx * fwd[0]! + dy * fwd[1]! + dz * fwd[2]!;
-    const tanHalfY = Math.tan((fovDeg * Math.PI) / 360);
-    const tanHalfX = (width / height) * tanHalfY;
-    const ndcX = cx / (cz * tanHalfX);
-    const ndcY = cy / (cz * tanHalfY);
-    return {
-      px: (ndcX + 1) * 0.5 * width,
-      py: (1 - ndcY) * 0.5 * height,
-    };
-  };
-
   const anchors = {
     speakerA: { position: [-1.5, 0, 0.2] as [number, number, number], height: 2.45 },
     speakerB: { position: [1.5, 0, 0.2] as [number, number, number], height: 2.45 },

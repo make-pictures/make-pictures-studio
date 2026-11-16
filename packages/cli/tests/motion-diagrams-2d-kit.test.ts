@@ -309,7 +309,7 @@ test('MotionDiagramStage2D, SystemNode, WorldBox, FlowCurve, DataFlowEdge, CodeP
     assert.doesNotMatch(f64, /blur\(0(?:\.0+)?px\)/);
   }
 
-  // Zero-aperture deadzone (< 0.25px -> filter: 'none' even when recessed) across all 7 styles
+  // Zero-aperture deadzone (< 0.25px -> filter: 'none' even when recessed) across all 10 styles
   for (const styleId of BUILT_IN_STYLE_IDS) {
     const zeroApStyle = {
       ...BUILT_IN_STYLES[styleId],
@@ -532,4 +532,80 @@ test('RetroPcWindowStage2D enforces Clean Frame 0, offline symbolic safety, 16:9
   assert.match(doneVertHtml, /data-retro-layout="vertical"/);
   assert.match(doneVertHtml, /data-retro-status-complete="true"/);
   assert.match(doneVertHtml, /200 OK • Strona gotowa w 18 ms/);
+});
+
+test('RetroPcWindowStage2D renders bilingual chrome labels for lang="en" vs lang="pl"', () => {
+  const hopsEn: ReadonlyArray<RetroPcHopSpec> = [
+    {
+      id: 'browser',
+      title: 'Your browser',
+      subtitle: 'Sends page request',
+      badge: 'STEP 01',
+      latencyMs: 3,
+      icon: 'browser',
+    },
+    {
+      id: 'directory',
+      title: 'Name directory',
+      subtitle: 'Resolves target route',
+      badge: 'STEP 02',
+      latencyMs: 5,
+      icon: 'directory',
+    },
+    {
+      id: 'server',
+      title: 'App server',
+      subtitle: 'Returns live page',
+      badge: 'STEP 03',
+      latencyMs: 9,
+      icon: 'server',
+    },
+  ];
+
+  const renderWithLang = (lang: 'pl' | 'en', progress: number) => {
+    const Probe: React.FC = () =>
+      React.createElement(
+        StyleProvider,
+        { style: 'retro-pc', renderBackdrop: false },
+        React.createElement(RetroPcWindowStage2D, {
+          windowTitle: 'Packet Inspector',
+          addressLabel: 'GET https://example.app',
+          hops: hopsEn,
+          statusBanner: '200 OK • Ready in 17 ms',
+          progress,
+          lang,
+          enterFrame: 2,
+        })
+      );
+    return renderToStaticMarkup(
+      React.createElement(Thumbnail, {
+        component: Probe,
+        compositionWidth: 1920,
+        compositionHeight: 1080,
+        durationInFrames: 120,
+        fps: 60,
+        frameToDisplay: 36,
+      })
+    );
+  };
+
+  const midEn = renderWithLang('en', 0.45);
+  assert.match(midEn, /\bREADY\b/);
+  assert.match(midEn, /\bACTIVE\b/);
+  assert.match(midEn, /\bWAITING\b/);
+  assert.doesNotMatch(midEn, /\bGOTOWY\b|\bAKTYWNY\b|\bOCZEKUJE\b/);
+
+  const doneEn = renderWithLang('en', 0.95);
+  assert.match(doneEn, /\bDONE\b/);
+  assert.doesNotMatch(doneEn, /\bGOTOWE\b/);
+
+  const midPl = renderWithLang('pl', 0.45);
+  assert.match(midPl, /\bGOTOWY\b/);
+  assert.match(midPl, /\bAKTYWNY\b/);
+  assert.match(midPl, /\bOCZEKUJE\b/);
+  assert.doesNotMatch(midPl, /\bREADY\b|\bACTIVE\b|\bWAITING\b/);
+
+  const donePl = renderWithLang('pl', 0.95);
+  assert.match(donePl, /\bGOTOWE\b/);
+  assert.doesNotMatch(donePl, /\bDONE\b/);
 });

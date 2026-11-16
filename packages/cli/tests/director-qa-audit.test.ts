@@ -13,6 +13,7 @@ import {
   verifyCleanFrameZeroImage,
   type DirectorAuditResult,
 } from '../src/director/audit-direction';
+import { selectQaSampleFrames } from '../src/commands/qa-contact-sheet';
 import { runCli } from '../src/index';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -693,4 +694,51 @@ test('scanTsxForUnclippedCardBars catches ternary height bars (height: cond ? 6 
 
   const v2 = scanTsxForUnclippedCardBars(onlyPortPins, 'NodeWithOnlyPortPins.tsx');
   assert.equal(v2.length, 0);
+});
+
+test('selectQaSampleFrames samples f=0, early prompt/entrance beats, settled ~68% payoff beats, and end-settle across a 5-scene timeline', () => {
+  const nominal5Scenes = [
+    { fromFrame: 0, durationInFrames: 450 },
+    { fromFrame: 450, durationInFrames: 480 },
+    { fromFrame: 930, durationInFrames: 540 },
+    { fromFrame: 1470, durationInFrames: 540 },
+    { fromFrame: 2010, durationInFrames: 330 },
+  ];
+  assert.deepEqual(selectQaSampleFrames(2340, 12, nominal5Scenes), [
+    0, 24, 306, 474, 776, 954, 1297, 1494, 1837, 2034, 2234, 2316,
+  ]);
+
+  // Voiceover-offset 5-scene Showreel timeline (scene starts [0, 390, 930, 1470, 2010], VO starts [14, 414, 954, 1494, 2028])
+  const showreelVoTimeline = [
+    { fromFrame: 14, durationInFrames: 325 },
+    { fromFrame: 414, durationInFrames: 417 },
+    { fromFrame: 954, durationInFrames: 341 },
+    { fromFrame: 1494, durationInFrames: 392 },
+    { fromFrame: 2028, durationInFrames: 244 },
+  ];
+  const samples = selectQaSampleFrames(2340, 12, showreelVoTimeline);
+  assert.equal(samples.length, 12);
+  assert.equal(samples[0], 0);
+  assert.equal(samples[11], 2316);
+
+  // Every scene's settled ~68% payoff beat must be sampled well past the 138f PromptCard hold!
+  const sceneBounds = [
+    { start: 0, end: 390, minPayoffLocal: 240 },
+    { start: 390, end: 930, minPayoffLocal: 300 },
+    { start: 930, end: 1470, minPayoffLocal: 300 },
+    { start: 1470, end: 2010, minPayoffLocal: 300 },
+    { start: 2010, end: 2340, minPayoffLocal: 200 },
+  ] as const;
+
+  for (const scene of sceneBounds) {
+    const inScene = samples.filter((f) => f > scene.start && f < scene.end);
+    assert.ok(
+      inScene.length >= 2,
+      `Expected both early and payoff sample frames inside [${scene.start}, ${scene.end}), got ${JSON.stringify(inScene)}`
+    );
+    assert.ok(
+      inScene.some((f) => f - scene.start >= scene.minPayoffLocal),
+      `Expected settled ~68% payoff sample >= ${scene.start + scene.minPayoffLocal} in [${scene.start}, ${scene.end}), got ${JSON.stringify(inScene)}`
+    );
+  }
 });

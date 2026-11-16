@@ -1,4 +1,4 @@
-import test from 'node:test';
+import test, { before } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -8,6 +8,30 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MONOREPO_ROOT = path.resolve(__dirname, '..', '..', '..');
+
+const REQUIRED_DIST_FILES = [
+  path.join(MONOREPO_ROOT, 'packages', 'core', 'dist', 'index.mjs'),
+  path.join(MONOREPO_ROOT, 'packages', 'studio', 'dist', 'server', 'index.mjs'),
+  path.join(MONOREPO_ROOT, 'packages', 'cli', 'dist', 'bin.mjs'),
+] as const;
+
+before(() => {
+  const missingDist = REQUIRED_DIST_FILES.some((f) => !fs.existsSync(f));
+  if (missingDist) {
+    const tsxCli = path.join(
+      MONOREPO_ROOT,
+      'node_modules',
+      'tsx',
+      'dist',
+      'cli.mjs'
+    );
+    execFileSync(
+      process.execPath,
+      [tsxCli, path.join(MONOREPO_ROOT, 'scripts', 'build-packages.ts')],
+      { cwd: MONOREPO_ROOT, stdio: 'inherit' }
+    );
+  }
+});
 
 function copyBuiltPackageIntoNodeModules(
   pkgDirName: string,
