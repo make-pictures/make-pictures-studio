@@ -357,47 +357,50 @@ function copyDirRecursive(srcDir: string, destDir: string): void {
 
 export const FALLBACK_AGENTS_MD = `# AGENTS.md — Core Studio Rulebook (make.pictures)
 
-Uniwersalne niezmienniki studia **make.pictures** (\`60 FPS\` Video-as-Code). Szczegółowe reguły geometrii, audio, kamer i zestawów wizualnych ładuj progresywnie ze skilli w \`.agents/plugins/make-pictures/skills/\` (lub \`plugins/make-pictures/skills/\`).
+Uniwersalne niezmienniki studia **make.pictures** (\`60 FPS\` Video-as-Code). Szczegółowe reguły kierunku plastycznego, geometrii, audio, kamer i zestawów wizualnych ładuj progresywnie z **9 skilli** w \`.agents/plugins/make-pictures/skills/\` (lub \`plugins/make-pictures/skills/\`).
 
 ## 1. Konfiguracja (\`onboard\` i \`ELEVENLABS_API_KEY\`)
 1. Uruchom \`npx make-pictures onboard --json\` (lub \`npm run onboard -- --json\`) i wykonuj kroki JSON (\`next\`, \`run\`, \`say\`) — w interaktywnym terminalu użytkownika zwykłe \`npm run onboard\` uruchamia czytelny kreator dla człowieka.
 2. Narzędzie weryfikuje \`node_modules\` i \`ffmpeg\`, po czym wywołuje \`@elevenlabs/cli@latest onboard connect --env-path .env.local\` (jeden klucz \`ELEVENLABS_API_KEY\` zasila TTS, Music i SFX). **Nigdy** nie proś o klucz na czacie ani nie wypisuj \`.env.local\`.
-3. Po \`npx make-pictures onboard check\` zaproponuj \`npx make-pictures studio\` (\`http://127.0.0.1:3000\`) lub pierwszy film.
+3. Po \`npx make-pictures onboard check\` zaproponuj \`npx make-pictures studio\` (\`http://127.0.0.1:3000\`, z podglądem **🎨 Style Lab** \`[ 2D ] [ 2.5D ] [ 3D ]\` pod \`?view=styles\`) lub pierwszy film.
 
-## 2. Architektura Kapsuł (\`productions/<slug>/\`) i Tryby Projektu
-- **Silnik:** \`@make-pictures/core\`, \`@make-pictures/kits\`, \`@make-pictures/studio\`, \`@make-pictures/cli\`.
+## 2. Bramka Art Direction (\`DimensionalSpace × StylePreset\`), Kapsuły (\`productions/<slug>/\`) i Style (\`styles/*.style.json\`)
+- **Silnik:** \`@make-pictures/core\` (w tym \`@make-pictures/core/style\`), \`@make-pictures/kits\`, \`@make-pictures/studio\`, \`@make-pictures/cli\`.
+- **Obowiązkowa Bramka Art Direction (Krok 1 — \`style-and-art-direction\`):** **Zakaz ślepego wybierania \`paper-diorama-3d\`.** Dopasuj temat, epokę i markę na dwuosiowej matrycy **\`DimensionalSpace ('2d' | '2.5d' | '3d') × StylePreset\`**:
+  - **Przestrzeń wymiarowa (\`--space=2d|2.5d|3d\`) i 7 kitów scenicznych:** \`vector-scene-2d\`, \`editorial-collage\`, \`kinetic-typography\`, \`data-storytelling\`, \`motion-diagrams-2d\`, \`paper-diorama-3d\`, \`isometric-3d\`, oraz
+  - **10 stylów wbudowanych (\`BUILT_IN_STYLES\`):** \`minimal-product\`, \`sketch-notebook\`, \`retro-pc\`, \`brutalist-poster\`, \`cyber-telemetry\`, \`tactile-craft\`, \`editorial-press\`, \`archival-chronicle\`, \`soft-clay\`, \`glass-studio\` — albo dowolną liczbę własnych presetów w \`styles/*.style.json\` (\`npx make-pictures styles --space=3d\`, \`npx make-pictures style new <slug> --from=soft-clay\`, zakładka **🎨 Style Lab** w Studio Web).
 - **3 tryby pracy CLI (\`npx make-pictures ...\` lub skrypty \`npm run ...\`):**
-  1. **Standalone Studio (\`npx create-make-pictures my-films\`):** \`productions/<slug>/\` to kod źródłowy użytkownika śledzony w Git; silnik działa z \`node_modules/@make-pictures/*\`.
-  2. **Wewnątrz istniejącej aplikacji SaaS (\`npx make-pictures init --dir=videos\`):** przekazuj \`--dir=videos\` do komend (\`npx make-pictures new <slug> --dir=videos\`, \`npx make-pictures studio --dir=videos\`).
+  1. **Standalone Studio (\`npx create-make-pictures my-films\`):** \`productions/<slug>/\` i \`styles/*.style.json\` to kod źródłowy użytkownika śledzony w Git; silnik działa z \`node_modules/@make-pictures/*\`.
+  2. **Wewnątrz istniejącej aplikacji SaaS (\`npx make-pictures init --dir=videos\`):** przekazuj \`--dir=videos\` do komend (\`npx make-pictures new <slug> --space=3d --dir=videos\`, \`npx make-pictures studio --dir=videos\`).
   3. **Monorepo silnika (\`make-pictures-studio\`):** pokazy żyją w \`examples/*\`, a filmy użytkownika w izolowanym \`productions/<slug>/\`. Zakaz zaszywania ID scen filmów w kodzie silnika.
-- Tworzenie nowego filmu: \`npx make-pictures new <slug> --kit=vector-scene-2d --style=minimal-product --lang=pl\` (\`production.json\`, \`compositions/\`, \`assets/\`, \`generated/audio-manifest.ts\`).
-- Style i kierunek plastyczny: \`npx make-pictures styles\` oraz \`npx make-pictures style new <slug> --from=editorial-press\` (\`styles/*.style.json\`, zakładka **🎨 Style Lab** w Studio Web).
+- Tworzenie nowego filmu: \`npx make-pictures new <slug> --space=3d --lang=pl\`, \`npx make-pictures new <slug> --space=2.5d --lang=pl\`, \`npx make-pictures new <slug> --space=2d --style=retro-pc --lang=pl\` lub \`npx make-pictures new <slug> --kit=vector-scene-2d --style=minimal-product --lang=pl\`.
 
-## 3. Determinizm \`60 FPS\` i Kontrakt \`zod\` ↔ \`*.props.json\`
-- **Czysta klatka \`0\`:** Pierwsza klatka to puste tło; animacje wejścia startuj od \`frame - 2\`.
-- **Sprężyny i determinizm:** Używaj \`SPRING_PRESETS\` (\`damping: 200\`) oraz \`createSeededRandom(seed)\` z \`@make-pictures/core\`. Całkowity **zakaz \`Math.random()\`** i akumulacji stanu w \`useRef\` między klatkami (\`--concurrency=100%\`).
-- **Props Inspector:** Eksportuj \`z.object\` z opisami \`.describe('Sekcja :: Etykieta')\` i trzymaj wartości domyślne w \`<CompositionId>.props.json\`. **Zawsze odczytaj \`*.props.json\` z dysku przed edycją**, by zachować zmiany z \`Studio Web\`.
+## 3. Determinizm \`60 FPS\`, Płynny Montaż (\`>= 4.5 s\`) i Kontrakt \`zod\` ↔ \`*.props.json\`
+- **Czysta klatka \`0\`:** Pierwsza klatka to puste tło (\`bgCanvas\`); animacje wejścia startuj od \`frame - 2\`.
+- **Płynny przepływ scen (\`>= 4.5 s\` / \`>= 270\` klatek):** Łącz sceny przez \`<ContinuousSceneFlow />\` i \`<OpticalCrossDissolve />\` (z \`<ClippedSurfaceChrome />\` dla zaokrąglonych kart \`overflow: 'visible'\`); każda scena wizualna trwa **\`>= 4.5 s\` (\`>= 270\` klatek)** — weryfikowane przez twardą bramkę reżyserską \`npx make-pictures qa\`.
+- **Sprężyny i determinizm:** Używaj \`<StyleProvider style={styleId} renderBackdrop>\`, \`CINEMATIC_SPRINGS\` / \`SPRING_PRESETS\` (\`damping: 200\`) oraz \`createSeededRandom(seed)\` z \`@make-pictures/core\`. Całkowity **zakaz \`Math.random()\`** i akumulacji stanu w \`useRef\` między klatkami (\`--concurrency=100%\`).
+- **Props Inspector i Style Lab:** Eksportuj \`z.object\` z opisami \`.describe('Sekcja :: Etykieta')\` i trzymaj wartości domyślne w \`<CompositionId>.props.json\`. **Zawsze odczytaj \`*.props.json\` oraz \`styles/*.style.json\` z dysku przed edycją**, by zachować zmiany z \`Studio Web\`.
 - **Higiena puli \`<Audio />\`:** Używaj \`<VoiceoverTrack />\` i \`<SoundCue />\` z \`@make-pictures/core\`; **zakaz** montowania \`<Audio />\` wewnątrz \`<Sequence>\` bez jawnego \`durationInFrames\`.
-- **Typografia:** Domyślnie bez dolnych napisów; karty *Ikona + 2–3 słowa*; po polsku *Sentence case* (bez *Title Case*).
+- **Typografia (\`latin-ext\`):** Domyślnie bez dolnych napisów; karty *Ikona + 2–3 słowa*; po polsku *Sentence case* (bez *Title Case*).
 
 ## 4. Obowiązkowe Bramki Jakości przed Renderem
 1. **Odsłuch Audio:** Po \`npx make-pictures audio --production=<slug>\` (lub \`npm run audio -- --production=<slug>\`) odsłuchaj wygenerowane \`.mp3\` przez \`read_file\`.
-2. **Contact-Sheet QA:** Uruchom \`npx make-pictures qa <CompositionId>\` (lub \`npm run qa -- <CompositionId>\`) i obejrzyj 12-klatkowy \`out/qa-<CompositionId>.png\` przez \`read_file\` (\`f=0\` puste tło, brak kolizji/Z-fightingu, w \`9:16\` karty w **Golden Safe Box \`x ∈ [40, 910], y ∈ [220, 1380]\`**).
+2. **Twarda Bramka Reżyserska i Contact-Sheet QA:** Uruchom \`npx make-pictures qa <CompositionId>\` (lub \`npm run qa -- <CompositionId>\`) i obejrzyj 12-klatkowy \`out/qa-<CompositionId>.png\` przez \`read_file\` (\`f=0\` puste tło, brak kolizji/Z-fightingu, w \`9:16\` karty w **Golden Safe Box \`x ∈ [40, 910], y ∈ [220, 1380]\`**).
 3. **Typy i Render (\`-14 LUFS\`):** \`npm run typecheck\`, a następnie \`npx make-pictures render <CompositionId>\` (lub \`npm run render -- <CompositionId>\`).
 
-## 5. Tablica Routingu Skilli (Załaduj przed Pisaniem Scen!)
+## 5. Tablica Routingu 9 Skilli (Załaduj przed Pisaniem Scen!)
 | Zadanie / Warstwa | Skill (\`.agents/plugins/make-pictures/skills/<skill>/SKILL.md\`) | Zakres |
 | :--- | :--- | :--- |
-| Nowy film, \`production.json\`, QA, render | \`make-pictures-director\` | 6 kroków produkcji, tryby CLI, rytm ujęć 3–5 s |
-| Dobór stylu, fontów, palety i \`styles/*.style.json\` | \`style-and-art-direction\` | 7 stylów wbudowanych, \`StyleProvider\`, \`Style Lab\`, \`make-pictures style new\` |
-| Dokument, kolaż redakcyjny i narracja 2D | \`kit-editorial-and-vector\` | \`editorial-collage\` (\`ChapterTitleCard\`, \`EditorialMediaCard\`, \`HighlightQuoteStage\`), \`vector-scene-2d\` (\`StoryCard2D\`, \`ComparisonSplit2D\`) |
-| Teatrzyk 2.5D Pop-Up Book | \`kit-paper-diorama-3d\` | \`DioramaStage3D\`, \`PaperCutout3D\`, \`ImageCutout3D\`, \`PopUpHinge3D\`, \`Δz\` |
-| Diagramy 2D i nieskończone płótno | \`kit-motion-diagrams-2d\` | \`NodeBox\`, \`FlowCurve\`, \`DirectorCamera2D\` |
+| Nowy film, \`production.json\`, QA, render | \`make-pictures-director\` | 6 kroków produkcji, tryby CLI (\`new --space=2d\\|2.5d\\|3d\`), \`ContinuousSceneFlow\` + \`OpticalCrossDissolve\`, sceny \`>= 4.5 s\` (\`>= 270\` klatek) weryfikowane przez twardą bramkę reżyserską \`npx make-pictures qa\` |
+| Dobór przestrzeni i stylu, 10 \`BUILT_IN_STYLES\`, \`styles/*.style.json\` | \`style-and-art-direction\` | Dwuosiowa matryca \`DimensionalSpace ('2d' \\| '2.5d' \\| '3d') × StylePreset\` (10 stylów wbudowanych + \`styles/*.style.json\`), \`StyleProvider\`, \`material3d\`, \`Style Lab\` |
+| Dokument, kolaż redakcyjny i narracja 2D | \`kit-editorial-and-vector\` | \`editorial-collage\` (\`ChapterTitleCard\`, \`EditorialMediaCard\`, \`HighlightQuoteStage\`, \`SplitStoryLayout\`), \`vector-scene-2d\` (\`StoryCard2D\`, \`AnnotatedCallout2D\`, \`ComparisonSplit2D\`) |
+| Wycinanki 2.5D na neutralnej scenie 3D | \`kit-paper-diorama-3d\` | \`DioramaStage3D\`, \`PaperCutout3D\`, \`ImageCutout3D\`, \`PopUpHinge3D\`, 9 \`ScenicCutoutMotifs\` (w tym Apollo 11: \`StarryCosmosBackdropCutout3D\`, \`EarthriseCutout3D\`, \`LunarCraterRidgeCutout3D\`, \`LunarLanderCutout3D\`), \`Δz >= 0.45\` |
+| Diagramy 2D, Retro-PC i nieskończone płótno | \`kit-motion-diagrams-2d\` | \`RetroPcWindowStage2D\`, \`MotionDiagramStage2D\`, \`SystemNode\`, \`DataFlowEdge\`, \`NodeBox\`, \`FlowCurve\`, pakiety \`92–120\` kl. |
 | Nagrania ekranu SaaS \`.mp4\` (screencasty) | \`kit-motion-diagrams-2d\` + \`make-pictures-director\` | \`@make-pictures/kits/product-frames\`: \`BrowserFrame\`, \`PhoneFrame\`, \`ScreenSpotlightOverlay\` (\`<OffthreadVideo />\`, \`assets/videos/\`) |
-| Izometryczne studio 3D i dialogi | \`kit-isometric-3d\` | \`IsometricStage3D\`, \`Stylized3DCharacter\`, \`speakingWeight\` vs \`speechEnergy\` |
-| Kinetyczna typografia i wykresy | \`kit-kinetic-and-data\` | \`WordByWordStage\`, \`AnimatedBarRace\`, \`TimelineTrack\`, \`MetricComparisonCard\` |
-| Lektor, fonetyka, muzyka AI i SFX | \`sound-and-music-design\` | \`VoiceoverTrack\`, \`SmartMusicBed\`, \`SoundCue\`, \`VoiceAcousticPreset\`, \`-14 LUFS\` |
-| Kamera Shot DSL (2D/3D) i VFX | \`cinematography-and-vfx\` | \`DirectorCamera3D/2D\`, \`9:16\` Safe Box, \`CinematicLensOverlay\`, \`ParticleField\`, \`SceneTransition\` |
+| Studio 3D Soft-Clay, IBL i architektura dialogu | \`kit-isometric-3d\` | \`StudioHdrRig3D\`, \`ClayCharacter3D\`, \`PodcastStudioSet3D\`, \`IsometricStage3D\`, \`Stylized3DCharacter\`, \`speakingWeight\` vs \`speechEnergy\` |
+| Kinetyczna typografia i wykresy | \`kit-kinetic-and-data\` | \`WordByWordStage\`, \`ImpactKeywordCard\`, \`AnimatedMetricCounter\`, \`AnimatedBarRace\`, \`TimelineTrack\`, \`MetricComparisonCard\` |
+| Lektor, fonetyka, muzyka AI i SFX | \`sound-and-music-design\` | \`VoiceoverTrack\`, \`SmartMusicBed\` (7 \`moodPreset\`), \`SoundCue\`, \`VoiceAcousticPreset\`, \`-14 LUFS\` |
+| Kamera Shot DSL (2D/3D), przepływ scen i VFX | \`cinematography-and-vfx\` | \`ContinuousSceneFlow\`, \`OpticalCrossDissolve\`, \`ClippedSurfaceChrome\`, \`ScenicBackdropLayers\`, \`DirectorCamera3D/2D\`, \`9:16\` Safe Box, \`CinematicLensOverlay\`, \`ParticleField\`, \`StagePostProcessing3D\` |
 `;
 
 const FALLBACK_PLUGIN_JSON = {
@@ -417,33 +420,34 @@ export const FALLBACK_CLAUDE_MD = `# CLAUDE.md — Claude Code Instructions for 
 
 Read [\`AGENTS.md\`](./AGENTS.md) alongside this file for universal \`60 FPS\` Video-as-Code invariants, and load domain skills progressively from [\`.claude/skills/\`](./.claude/skills/) (mirrored from \`.agents/plugins/make-pictures/skills/\`).
 
-## Capsule Architecture & Determinism
+## Capsule Architecture, 2D/2.5D/3D Art Direction & Determinism
 - **Isolated Capsules (\`productions/<slug>/\`):** Keep every film self-contained (\`production.json\`, \`compositions/\`, \`assets/\`, \`generated/audio-manifest.ts\`). In embedded SaaS repos (\`--dir=videos\`), capsules live in \`videos/productions/<slug>/\`.
-- **Art Direction (\`styles/*.style.json\`):** Match every film's topic to one of the 7 visual kits and either a built-in style or a custom \`styles/<slug>.style.json\` preset wrapped in \`<StyleProvider style={props.styleId} renderBackdrop>\`.
-- **60 FPS Determinism:** Frame \`0\` must render a clean empty background (start entrance springs at \`frame - 2\`). Never use \`Math.random()\` or cross-frame \`useRef\` state — use \`SPRING_PRESETS\` and \`createSeededRandom(seed)\` from \`@make-pictures/core\`.
+- **2-Axis Art Direction (\`DimensionalSpace ('2d' | '2.5d' | '3d') × StylePreset\`):** Never default blindly to \`paper-diorama-3d\`. Match every film's topic across \`--space=2d|2.5d|3d\`, the **7 visual kits**, and the **10 built-in styles** (\`minimal-product\`, \`sketch-notebook\`, \`retro-pc\`, \`brutalist-poster\`, \`cyber-telemetry\`, \`tactile-craft\`, \`editorial-press\`, \`archival-chronicle\`, \`soft-clay\`, \`glass-studio\`) or unlimited custom \`styles/*.style.json\` presets wrapped in \`<StyleProvider style={props.styleId} renderBackdrop>\`.
+- **Calm Continuous Scene Flow (\`>= 4.5 s\` / \`>= 270\` Frames):** Compose multi-scene films via \`<ContinuousSceneFlow />\` + \`<OpticalCrossDissolve />\` (with \`<ClippedSurfaceChrome />\` on \`overflow: 'visible'\` rounded cards); every visual scene must span \`>= 4.5 s\` (\`>= 270\` frames), enforced by the hard \`npx make-pictures qa\` Director Gate.
+- **60 FPS Determinism:** Frame \`0\` must render a clean empty background (start entrance springs at \`frame - 2\`). Never use \`Math.random()\`, cross-frame \`useRef\` state, or remote \`<Environment preset="..." />\` HDR fetches — use \`CINEMATIC_SPRINGS\` / \`SPRING_PRESETS\`, \`createSeededRandom(seed)\`, and offline \`<StudioHdrRig3D />\`.
 - **Audio Tag Pool Hygiene:** Use \`<VoiceoverTrack />\` and \`<SoundCue />\` from \`@make-pictures/core\`; never wrap raw \`<Audio />\` inside \`<Sequence>\` without an explicit finite \`durationInFrames\`.
-- **Props Inspector (\`zod\` ↔ \`*.props.json\`):** Always read \`<CompositionId>.props.json\` from disk before editing so live tweaks from Studio Web are preserved. Never open or print \`.env.local\`.
+- **Props Inspector (\`zod\` ↔ \`*.props.json\` & \`styles/*.style.json\`):** Always read \`<CompositionId>.props.json\` and \`styles/*.style.json\` from disk before editing so live tweaks from Studio Web are preserved. Never open or print \`.env.local\`.
 
 ## CLI Commands (\`npx make-pictures\`)
 - \`npx make-pictures onboard\` / \`npx make-pictures doctor\` — Verify Node.js, FFmpeg, and ElevenLabs OAuth (\`.env.local\`).
-- \`npx make-pictures init --dir=videos\` — Initialize capsules + AI skills inside an existing app repo.
-- \`npx make-pictures styles\` / \`npx make-pictures style new <slug> --from=editorial-press\` — List or create reusable Art Direction presets.
-- \`npx make-pictures new <slug> --kit=vector-scene-2d --style=minimal-product --lang=en\` — Scaffold a new \`60 FPS\` production capsule.
+- \`npx make-pictures init --dir=videos [--space=2d|2.5d|3d]\` — Initialize capsules + AI skills inside an existing app repo.
+- \`npx make-pictures styles [--space=2d|2.5d|3d]\` / \`npx make-pictures style new <slug> --from=soft-clay\` — List all 10 built-in & custom presets (e.g. \`npx make-pictures styles --space=3d\`) or fork a custom preset.
+- \`npx make-pictures new <slug> --space=3d --lang=en\` (or \`--space=2d --style=retro-pc\`, \`--kit=vector-scene-2d --style=minimal-product\`) — Scaffold a new \`60 FPS\` production capsule.
 - \`npx make-pictures audio --production=<slug> [--mock]\` — Synthesize ElevenLabs TTS + word timestamps + AI Music + AI SFX.
-- \`npx make-pictures studio [--port=3000] [--dir=.]\` — Launch local \`60 FPS\` Studio Web workstation (\`http://127.0.0.1:3000\`, including 🎨 Style Lab).
-- \`npx make-pictures qa <CompositionId>\` — Render 12-frame Contact-Sheet PNG (\`out/qa-<CompositionId>.png\`) and inspect via \`Read\` (\`9:16\` Golden Safe Box \`x ∈ [40, 910], y ∈ [220, 1380]\`).
+- \`npx make-pictures studio [--port=3000] [--dir=.]\` — Launch local \`60 FPS\` Studio Web workstation (\`http://127.0.0.1:3000\`, including 🎨 Style Lab \`[ 2D ] [ 2.5D ] [ 3D ]\`).
+- \`npx make-pictures qa <CompositionId>\` — Run the hard Director QA Gate and render a 12-frame Contact-Sheet PNG (\`out/qa-<CompositionId>.png\`) for visual inspection (\`9:16\` Golden Safe Box \`x ∈ [40, 910], y ∈ [220, 1380]\`).
 - \`npm run typecheck\` && \`npx make-pictures render <CompositionId>\` — Typecheck and render \`60 FPS\` MP4 mastered to \`-14 LUFS\`.
 
 ## Auto-Discovered Skills (\`.claude/skills/<skill>/SKILL.md\`)
-1. \`make-pictures-director\` — 6-step production workflow, \`production.json\`, CLI modes, and QA gates.
-2. \`style-and-art-direction\` — Art Direction gate, 7 built-in styles, \`StyleProvider\`, \`Style Lab\`, and \`styles/*.style.json\`.
+1. \`make-pictures-director\` — 6-step production workflow, \`--space=2d|2.5d|3d\`, \`ContinuousSceneFlow\` (\`>= 4.5 s\` / \`>= 270f\`), and hard \`qa\` gates.
+2. \`style-and-art-direction\` — 2-axis \`DimensionalSpace ('2d' | '2.5d' | '3d') × 10 BUILT_IN_STYLES\` + \`styles/*.style.json\`, \`StyleProvider\`, \`material3d\`, and \`Style Lab\`.
 3. \`kit-editorial-and-vector\` — Universal 2D narrative kits: \`editorial-collage\` & \`vector-scene-2d\`.
-4. \`kit-paper-diorama-3d\` — 2.5D pop-up stage (\`DioramaStage3D\`, \`PaperCutout3D\`, \`ImageCutout3D\`, \`PopUpHinge3D\`, \`Δz\` layering).
-5. \`kit-motion-diagrams-2d\` — 2D infinite-canvas diagrams (\`NodeBox\` ports, \`FlowCurve\`, \`92–120f\` packets), plus SaaS \`.mp4\` screencasts via \`@make-pictures/kits/product-frames\` (\`BrowserFrame\`, \`PhoneFrame\`, \`ScreenSpotlightOverlay\`).
-6. \`kit-isometric-3d\` — 3D isometric dialogue (\`IsometricStage3D\`, \`Stylized3DCharacter\`, \`speakingWeight\` vs \`speechEnergy\`).
-7. \`kit-kinetic-and-data\` — Kinetic typography & data charts (\`WordByWordStage\`, \`AnimatedBarRace\`, \`TimelineTrack\`).
-8. \`sound-and-music-design\` — ElevenLabs voices, PL/EN phonetics, \`SmartMusicBed\` auto-ducking, \`SoundCue\`, \`-14 LUFS\`.
-9. \`cinematography-and-vfx\` — Shot DSL (\`DirectorCamera3D/2D\`), \`9:16\` Safe Box, deterministic particles & transitions.
+4. \`kit-paper-diorama-3d\` — 2.5D layered cutout stage (\`DioramaStage3D\`, \`PaperCutout3D\`, \`PopUpHinge3D\`, and the 9 \`ScenicCutoutMotifs\` including Apollo 11 \`StarryCosmosBackdropCutout3D\`, \`EarthriseCutout3D\`, \`LunarCraterRidgeCutout3D\`, \`LunarLanderCutout3D\`).
+5. \`kit-motion-diagrams-2d\` — 2D infinite-canvas & Retro-PC diagrams (\`RetroPcWindowStage2D\`, \`MotionDiagramStage2D\`, \`SystemNode\`, \`DataFlowEdge\`, \`NodeBox\` ports, \`FlowCurve\`), plus SaaS \`.mp4\` screencasts via \`@make-pictures/kits/product-frames\` (\`BrowserFrame\`, \`PhoneFrame\`, \`ScreenSpotlightOverlay\`).
+6. \`kit-isometric-3d\` — 3D Soft-Clay, offline spatial IBL & isometric studio (\`StudioHdrRig3D\`, \`ClayCharacter3D\`, \`PodcastStudioSet3D\`, \`IsometricStage3D\`, \`Stylized3DCharacter\`).
+7. \`kit-kinetic-and-data\` — Kinetic typography & data charts (\`WordByWordStage\`, \`ImpactKeywordCard\`, \`AnimatedMetricCounter\`, \`AnimatedBarRace\`, \`TimelineTrack\`, \`MetricComparisonCard\`).
+8. \`sound-and-music-design\` — ElevenLabs voices, PL/EN phonetics, \`SmartMusicBed\` auto-ducking (7 \`moodPreset\`s), \`SoundCue\`, \`-14 LUFS\`.
+9. \`cinematography-and-vfx\` — \`ContinuousSceneFlow\`, \`OpticalCrossDissolve\`, \`ClippedSurfaceChrome\`, \`ScenicBackdropLayers\`, \`DirectorCamera3D/2D\`, \`9:16\` Safe Box & deterministic VFX.
 `;
 
 function ensureClaudeSkillsLink(
@@ -494,7 +498,7 @@ function ensureClaudeSkillsLink(
 
 /**
  * Copies the bundled `make-pictures` AI Plugin (`plugin.json`, `.claude-plugin/plugin.json`,
- * `rules/AGENTS.md`, `skills/<skill>/SKILL.md`) into `<rootDir>/.agents/plugins/make-pictures/`,
+ * `rules/AGENTS.md`, `rules/CLAUDE.md`, `skills/<skill>/SKILL.md`) into `<rootDir>/.agents/plugins/make-pictures/`,
  * links `<rootDir>/.claude/skills` -> `../.agents/plugins/make-pictures/skills`,
  * and creates `<rootDir>/AGENTS.md` + `<rootDir>/CLAUDE.md` if absent.
  */
@@ -566,6 +570,11 @@ export function syncBundledAiPluginToProject(
       FALLBACK_AGENTS_MD,
       'utf8'
     );
+    fs.writeFileSync(
+      path.join(pluginDestDir, 'rules', 'CLAUDE.md'),
+      FALLBACK_CLAUDE_MD,
+      'utf8'
+    );
   }
 
   const agentsMdPath = path.join(rootDir, 'AGENTS.md');
@@ -579,7 +588,11 @@ export function syncBundledAiPluginToProject(
 
   const claudeMdPath = path.join(rootDir, 'CLAUDE.md');
   if (!fs.existsSync(claudeMdPath) || options?.force) {
-    fs.writeFileSync(claudeMdPath, FALLBACK_CLAUDE_MD, 'utf8');
+    const rulesClaudePath = path.join(pluginDestDir, 'rules', 'CLAUDE.md');
+    const claudeContent = fs.existsSync(rulesClaudePath)
+      ? fs.readFileSync(rulesClaudePath, 'utf8')
+      : FALLBACK_CLAUDE_MD;
+    fs.writeFileSync(claudeMdPath, claudeContent, 'utf8');
   }
 
   const claudeSkillsPath = ensureClaudeSkillsLink(

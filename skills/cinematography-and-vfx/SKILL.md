@@ -74,6 +74,7 @@ Define named subjects once (`Record<string, StageAnchor3D>`: `{ position: [x, y,
   - `'whip'` — fast energetic whip-pan with subtle banking roll (automatically drives `CinematicLensOverlay` chromatic aberration via `DirectorCameraTelemetryContext`!),
   - `'orbit'` — continuous turntable arc (`orbitSpeedDegPerSec`).
 - **Vertigo / Dolly-Zoom (`dollyZoomDeltaFov`):** Counter-scales camera distance inversely to $\tan(\text{fov}/2)$ so the target subject stays locked in size while background depth dramatically expands or compresses.
+- **Pre-Roll Alignment Inside `<ContinuousSceneFlow />` (`frameOffsetInSequence`):** When a 3D scene (`usesThree: true`) follows a 2D scene (`!usesThree`) inside `<ContinuousSceneFlow crossDissolveFrames={54}>`, `computeContinuousSceneWindows` mounts the incoming `<Sequence>` early by `const frameOffsetInSequence = win.nominalStart - win.mountFrom` (`Math.floor(crossDissolveFrames / 2)`, e.g., `27` frames; `0` on `3D → 3D` luminous-veil seams). Because `useCurrentFrame()` inside that `<Sequence>` starts at `0` at `win.mountFrom`, keep the opening shot at `fromFrame: 0` (so `<ThreeCanvas>` is already framed during the dissolve-in) and offset subsequent scene-local `ShotSpec3D.fromFrame` cuts and speech/pose cues by `+ frameOffsetInSequence` so every move aligns with `win.nominalStart`!
 - **Timeline Export:** Pass `shotsToCameraTimeline(SHOTS, durationInFrames)` into `StudioCompositionEntry.cameraTimeline` so **Studio Web** renders every camera cut in the Multi-Track Director Timeline.
 
 ### Deterministic Handheld Sway & Trauma Shake
@@ -169,16 +170,17 @@ Social video players cover huge portions of a `1080×1920` screen with native UI
 **Absolute Determinism Law:** Remotion renders frames out-of-order across CPU cores (`--concurrency=100%`). Never accumulate particle positions or velocities in `useRef`! Every VFX component in `@make-pictures/kits/vfx` is a pure function `f(frame, fps, seed)`:
 
 ```tsx
+import { ContinuousSceneFlow, OpticalCrossDissolve } from '@make-pictures/core';
 import {
   CinematicLensOverlay,
   ParticleField,
   StagePostProcessing3D,
   ContactShadowDisc3D,
-  SceneTransition,
 } from '@make-pictures/kits/vfx';
 ```
 
+- **Scene Transitions (`<ContinuousSceneFlow />` & `<OpticalCrossDissolve />` — Standard):** Always sequence scenes (`>= 4.5 s` / `>= 270` frames) via `<ContinuousSceneFlow />` or `<OpticalCrossDissolve />` from `@make-pictures/core` instead of legacy geometric wipes.
 - **`CinematicLensOverlay`:** Viewport HTML overlay (`pointerEvents: 'none'`) adding subtle `vignetteIntensity` (`0..1`), seeded film `grainOpacity` (`0..0.18`), `warmLightLeak` (`0..1`), and velocity-coupled `chromaticAberration` (automatically peaks during `'whip'` camera transitions via frame-keyed camera telemetry and drops to `0` when steady!).
 - **`ParticleField`:** Pure analytical particle layer (`preset: 'dust-motes' | 'snow' | 'rain' | 'sparks' | 'confetti' | 'speed-lines'`, `count`, `color`, `seed`, `intensity`).
-- **`StagePostProcessing3D` & `ContactShadowDisc3D`:** Drop-in children inside `<ThreeCanvas>` providing exponential atmospheric depth fog (`THREE.FogExp2`), volumetric spotlight dust cones, depth-haze planes, and soft radial contact shadows without extra postprocessing bundle bloat (used automatically inside `<IsometricStage3D />` and `<Stylized3DCharacter />` alongside the `optics.lightAngleDeg` key/rim studio lighting rig).
-- **`SceneTransition` *(Legacy / Special Exceptions Only)*:** Declarative transition wipe (`durationInFrames`, `type: 'iris-wipe' | 'whip-pan' | 'paper-curtain' | 'flash-cut' | 'ink-wash'`). **Important:** The hard `npx make-pictures qa` Director Gate **blocks** choppy `type="flash-cut" | "paper-curtain" | "iris-wipe"` and `durationInFrames < 30` in `origin: 'production'` films (unless `--allow-fast-cuts` is explicitly passed) — always compose scene transitions with `<ContinuousSceneFlow />` / `<OpticalCrossDissolve />` instead!
+- **`StagePostProcessing3D` & `ContactShadowDisc3D`:** Drop-in children inside `<ThreeCanvas>` providing exponential atmospheric depth fog (`THREE.FogExp2`), volumetric spotlight dust cones, depth-haze planes, and soft radial contact shadows without extra postprocessing bundle bloat (used automatically inside `<StudioHdrRig3D />`, `<IsometricStage3D />`, and `<Stylized3DCharacter />`).
+- **`SceneTransition` *(Legacy — Avoid in `productions/*`)*:** Legacy wipe component (`@make-pictures/kits/vfx`). **Important:** The hard `npx make-pictures qa` Director Gate **blocks** choppy `type="flash-cut" | "paper-curtain" | "iris-wipe"` and `durationInFrames < 30` in `origin: 'production'` films (unless `--allow-fast-cuts` is explicitly passed) — always prefer `<ContinuousSceneFlow />` + `<OpticalCrossDissolve />`!

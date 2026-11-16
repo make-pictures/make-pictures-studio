@@ -28,8 +28,9 @@ npm run studio
 ## Options
 
 ```bash
-npx create-make-pictures@latest my-films --kit=paper-diorama-3d --lang=pl
-npx create-make-pictures@latest my-films --kit=motion-diagrams-2d --no-install
+npx create-make-pictures@latest my-films --space=3d --lang=pl
+npx create-make-pictures@latest my-films --space=2d --style=retro-pc
+npx create-make-pictures@latest my-films --space=2.5d --style=tactile-craft --no-install
 ```
 
 ## Links

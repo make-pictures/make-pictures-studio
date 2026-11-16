@@ -45,22 +45,22 @@ Przygotuj dla mnie studio filmowe make.pictures: uruchom `npx -y @make-pictures/
 </p>
 
 <p align="center">
-  <img src="./docs/showcase/style-lab-grid.png" alt="make.pictures Style Lab — podgląd i edycja 7 gotowych stylów wizualnych" width="920" />
+  <img src="./docs/showcase/style-lab-grid.png" alt="make.pictures Style Lab — podgląd i edycja 10 stylów wizualnych w przestrzeniach 2D, 2.5D i 3D" width="920" />
   <br />
-  <sub><strong>🎨 Style Lab</strong> (<code>?view=styles</code>) — przełączaj 7 gotowych stylów kierownictwa artystycznego albo zapisz własny styl marki na żywo.</sub>
+  <sub><strong>🎨 Style Lab</strong> (<code>?view=styles</code>) — przełączaj przestrzenie <strong>2D / 2.5D / 3D</strong> oraz <strong>10 wbudowanych stylów kierownictwa artystycznego</strong> (w tym <em>Soft-Clay 3D</em>, <em>Retro-PC</em> i <em>Glass Studio</em>) albo zapisz własny styl marki <code>styles/*.style.json</code> na żywo.</sub>
 </p>
 
 ---
 
 ## 🎬 Co stworzysz w kilkanaście minut
 
-| Dema produktów i SaaS (`product-frames`) | Przepływy danych i systemy (`motion-diagrams-2d`) |
+| Dema produktów i SaaS (`product-frames`) | Przepływy systemowe i Retro-PC (`motion-diagrams-2d`) |
 | :---: | :---: |
-| <img src="./docs/showcase/kit-product-promo.png" alt="Prezentacja interfejsu aplikacji SaaS" width="440" /> | <img src="./docs/showcase/kit-architecture-2d.png" alt="Animowany diagram przepływu danych 2D" width="440" /> |
-| **Opowieści 2.5D Pop-Up (`paper-diorama-3d`)** | **Dialogi i wyjaśnienia 3D (`isometric-3d`)** |
-| <img src="./docs/showcase/kit-paper-diorama-3d.png" alt="Rozkładana papierowa makieta 2.5D" width="440" /> | <img src="./docs/showcase/kit-isometric-dialogue-3d.png" alt="Izometryczna rozmowa postaci 3D" width="440" /> |
+| <img src="./docs/showcase/kit-product-promo.png" alt="Prezentacja interfejsu aplikacji SaaS" width="440" /> | <img src="./docs/showcase/kit-architecture-2d.png" alt="Animowany diagram przepływu danych 2D i Retro-PC" width="440" /> |
+| **Opowieści i dioramy 2.5D (`paper-diorama-3d`)** | **Podcasty Soft-Clay 3D i dialogi (`isometric-3d`)** |
+| <img src="./docs/showcase/kit-paper-diorama-3d.png" alt="Rozkładana papierowa makieta 2.5D" width="440" /> | <img src="./docs/showcase/kit-isometric-dialogue-3d.png" alt="Rozmowa postaci Soft-Clay 3D i Isometric 3D" width="440" /> |
 
-<sub>Oraz gotowe zestawy **Editorial Collage** (eseje i dokumenty), **Vector Scene 2D**, **Kinetic Typography** (dynamiczne napisy do Shorts), **Data Storytelling** (wyścigi słupków i osie czasu) i **VFX** — w poziomym `16:9` oraz pionowym `9:16` (`Golden Safe Box`).</sub>
+<sub>Uporządkowane w przestrzeniach **`2D` / `2.5D` / `3D`** (`--space=2d|2.5d|3d`) z gotowymi zestawami **Editorial Collage**, **Vector Scene 2D**, **Kinetic Typography**, **Data Storytelling** (wyścigi słupków i osie czasu), **Retro-PC**, **Soft-Clay 3D** (offline `<Lightformer>` IBL), **Glass Studio** i **VFX** — w poziomym `16:9` oraz pionowym `9:16` (`Golden Safe Box`).</sub>
 
 ---
 
@@ -102,20 +102,20 @@ npx skills add make-pictures/make-pictures-studio
 
 | Pakiet | Rola |
 | :--- | :--- |
-| `create-make-pictures` | Szybki kreator projektu (`npx create-make-pictures@latest <katalog>`) |
-| `@make-pictures/core` | Silnik `60 FPS`, 7 stylów `StylePreset`, kamery `DirectorCamera3D/2D`, `SmartMusicBed`, `SoundCue` |
-| `@make-pictures/kits` | 7 zestawów scenicznych + `product-frames` + efekty optyczne `vfx` |
-| `@make-pictures/studio` | Lokalny warsztat **Studio Web** i **🎨 Style Lab** (interfejs `Liquid Glass`, oś czasu, inspektor) |
+| `create-make-pictures` | Szybki kreator projektu (`npx create-make-pictures@latest <katalog> [--space=2d\|2.5d\|3d]`) |
+| `@make-pictures/core` | Silnik `60 FPS`, matryca `2D / 2.5D / 3D` × 10 stylów `StylePreset`, `ContinuousSceneFlow`, `DirectorCamera3D/2D`, `SmartMusicBed`, `SoundCue` |
+| `@make-pictures/kits` | 7 zestawów scenicznych (`Soft-Clay 3D`, `Retro-PC`, `Glass Studio`, wycinanki 2.5D, redakcja i wykresy) + `product-frames` + optyczne `vfx` |
+| `@make-pictures/studio` | Lokalny warsztat **Studio Web** i **🎨 Style Lab** (`[ 2D ] [ 2.5D ] [ 3D ]`, interfejs `Liquid Glass`, oś czasu, inspektor) |
 | `@make-pictures/cli` | Narzędzie `make-pictures` + 9 automatycznie wykrywanych skilli `SKILL.md` dla Antigravity i Claude Code |
 
 | Komenda | Działanie |
 | :--- | :--- |
 | `npx make-pictures onboard` | Logowanie do ElevenLabs w przeglądarce i konfiguracja studia |
 | `npx make-pictures studio` | Uruchomienie **Studio Web** i **🎨 Style Lab** na `http://127.0.0.1:3000` |
-| `npx make-pictures new <slug>` | Nowa kapsuła filmu (`--kit=...`, `--style=...`, `--lang=pl\|en`) |
-| `npx make-pictures styles` | Lista gotowych i własnych stylów `styles/*.style.json` (`style new <slug>` tworzy nowy) |
+| `npx make-pictures new <slug>` | Nowa kapsuła filmu (`--space=2d\|2.5d\|3d`, `--kit=...`, `--style=...`, `--lang=pl\|en`) |
+| `npx make-pictures styles` | Lista 10 wbudowanych i własnych stylów `styles/*.style.json` (`--space=2d\|2.5d\|3d`, `style new <slug>` tworzy nowy) |
 | `npx make-pictures audio` | Generowanie lektora z czasami słów, muzyki z auto-duckingiem i efektów SFX |
-| `npx make-pictures qa <Id>` | Styk 12 klatek kontrolnych PNG (`out/qa-<Id>.png`) z ramkami `9:16` |
+| `npx make-pictures qa <Id>` | Twarda bramka reżyserska i styk 12 klatek kontrolnych PNG (`out/qa-<Id>.png`) z ramkami `9:16` |
 | `npx make-pictures render <Id>` | Eksport filmu MP4 `60 FPS` zmasterowanego do `-14 LUFS` |
 
 </details>

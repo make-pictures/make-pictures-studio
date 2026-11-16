@@ -10,15 +10,17 @@
 
 # `@make-pictures/kits`
 
-Composable **60 FPS Visual Kits** for [`make.pictures`](https://make.pictures):
+Composable **60 FPS Visual Kits** across **`2D` / `2.5D` / `3D`** dimensional spaces for [`make.pictures`](https://make.pictures):
 
-- `@make-pictures/kits/paper-diorama-3d` — 2.5D Pop-Up Book theater (`PaperCutout3D`, `ImageCutout3D`, `PopUpHinge3D`, `PopUpBookBase3D`, `PaperStageLighting3D`).
-- `@make-pictures/kits/isometric-3d` — Multi-character 3D isometric dialogue stage (`Stylized3DCharacter`, `IsometricStudioEnvironment`).
-- `@make-pictures/kits/motion-diagrams-2d` — Infinite-canvas architecture & telemetry diagrams (`NodeBox`, `FlowCurve`, `CameraRig`, `SystemNode`, `DataFlowEdge`).
-- `@make-pictures/kits/kinetic-typography` — Rhythmic phrase beats & tickers (`WordByWordStage`, `ImpactKeywordCard`, `AnimatedMetricCounter`).
-- `@make-pictures/kits/data-storytelling` — Animated charts & benchmarks (`AnimatedBarRace`, `TimelineTrack`, `MetricComparisonCard`).
-- `@make-pictures/kits/vfx` — Velocity-coupled optical overlays & 3D volumetric atmosphere (`CinematicLensOverlay`, `ParticleField`, `StagePostProcessing3D`, `SceneTransition`).
+- `@make-pictures/kits/editorial-collage` — Documentary essays, Ken Burns media frames & ink-brush quotes (`EditorialDeskStage`, `ChapterTitleCard`, `EditorialMediaCard`, `HighlightQuoteStage`, `SplitStoryLayout`).
+- `@make-pictures/kits/vector-scene-2d` — Universal 2D narrative cards, callouts & comparisons (`VectorSceneStage2D`, `StoryCard2D`, `AnnotatedCallout2D`, `ComparisonSplit2D`).
+- `@make-pictures/kits/motion-diagrams-2d` — Infinite-canvas architecture & Retro-PC packet flows (`MotionDiagramStage2D`, `RetroPcWindowStage2D`, `SystemNode`, `DataFlowEdge`, `NodeBox`, `FlowCurve`).
+- `@make-pictures/kits/kinetic-typography` — Polymorphic 3-grammar phrase beats & counters (`WordByWordStage`, `ImpactKeywordCard`, `AnimatedMetricCounter`).
+- `@make-pictures/kits/data-storytelling` — Animated bar races, timelines & metric cards (`DataStoryStage2D`, `AnimatedBarRace`, `TimelineTrack`, `MetricComparisonCard`).
+- `@make-pictures/kits/paper-diorama-3d` — 2.5D layered cutout theater (`DioramaStage3D`, `PaperCutout3D`, `ImageCutout3D`, `PopUpHinge3D`, `PaperStageLighting3D`, plus 9 `ScenicCutoutMotifs` including Apollo 11 lunar motifs).
+- `@make-pictures/kits/isometric-3d` — 3D Soft-Clay podcast studio, offline `<Lightformer>` IBL & architectural turntable (`StudioHdrRig3D`, `PodcastStudioSet3D`, `ClayCharacter3D`, `IsometricStage3D`, `Stylized3DCharacter`).
 - `@make-pictures/kits/product-frames` — Product Frames for SaaS `.mp4` screen recordings (`BrowserFrame`, `PhoneFrame`, `ScreenSpotlightOverlay`) rendered via Remotion `<OffthreadVideo />`.
+- `@make-pictures/kits/vfx` — Velocity-coupled optical overlays & 3D volumetric atmosphere (`CinematicLensOverlay`, `ParticleField`, `StagePostProcessing3D`, `ContactShadowDisc3D`).
 
 ## Install
 

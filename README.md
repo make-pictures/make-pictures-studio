@@ -45,22 +45,22 @@ Set up make.pictures video studio for me: run `npx -y @make-pictures/cli@latest 
 </p>
 
 <p align="center">
-  <img src="./docs/showcase/style-lab-grid.png" alt="make.pictures Style Lab — preview and customize 7 visual styles live" width="920" />
+  <img src="./docs/showcase/style-lab-grid.png" alt="make.pictures Style Lab — preview and customize 10 built-in styles across 2D, 2.5D and 3D spaces live" width="920" />
   <br />
-  <sub><strong>🎨 Style Lab</strong> (<code>?view=styles</code>) — switch between 7 built-in art direction styles or fork your own brand preset in real time.</sub>
+  <sub><strong>🎨 Style Lab</strong> (<code>?view=styles</code>) — explore <strong>2D / 2.5D / 3D</strong> dimensional spaces across <strong>10 built-in art direction styles</strong> (including <em>Soft-Clay 3D</em>, <em>Retro-PC</em>, and <em>Glass Studio</em>) or fork your own <code>styles/*.style.json</code> brand preset in real time.</sub>
 </p>
 
 ---
 
 ## 🎬 What you can make in minutes
 
-| Product &amp; SaaS Demos (`product-frames`) | System &amp; Data Flows (`motion-diagrams-2d`) |
+| Product &amp; SaaS Demos (`product-frames`) | System &amp; Retro-PC Flows (`motion-diagrams-2d`) |
 | :---: | :---: |
-| <img src="./docs/showcase/kit-product-promo.png" alt="SaaS UI product demo frame" width="440" /> | <img src="./docs/showcase/kit-architecture-2d.png" alt="2D system architecture and packet flow" width="440" /> |
-| **2.5D Pop-Up Stories (`paper-diorama-3d`)** | **3D Dialogues &amp; Explainers (`isometric-3d`)** |
-| <img src="./docs/showcase/kit-paper-diorama-3d.png" alt="2.5D paper pop-up book diorama" width="440" /> | <img src="./docs/showcase/kit-isometric-dialogue-3d.png" alt="Isometric 3D character dialogue" width="440" /> |
+| <img src="./docs/showcase/kit-product-promo.png" alt="SaaS UI product demo frame" width="440" /> | <img src="./docs/showcase/kit-architecture-2d.png" alt="2D system architecture and Retro-PC packet flow" width="440" /> |
+| **2.5D Pop-Up &amp; Cosmic Cutouts (`paper-diorama-3d`)** | **Soft-Clay 3D Podcasts &amp; Dialogues (`isometric-3d`)** |
+| <img src="./docs/showcase/kit-paper-diorama-3d.png" alt="2.5D paper pop-up book diorama" width="440" /> | <img src="./docs/showcase/kit-isometric-dialogue-3d.png" alt="Soft-Clay 3D and Isometric 3D character dialogue" width="440" /> |
 
-<sub>Plus built-in kits for **Editorial Collage**, **Vector Scene 2D**, **Kinetic Typography**, **Data Storytelling** (bar races &amp; timelines), and **Optical VFX** — in both `16:9` and `9:16` Shorts (`Golden Safe Box`).</sub>
+<sub>Organized across **`2D` / `2.5D` / `3D`** dimensional spaces (`--space=2d|2.5d|3d`) with built-in kits for **Editorial Collage**, **Vector Scene 2D**, **Kinetic Typography**, **Data Storytelling** (bar races &amp; timelines), **Retro-PC**, **Soft-Clay 3D** (offline `<Lightformer>` IBL), **Glass Studio**, and **Optical VFX** — in both `16:9` and `9:16` Shorts (`Golden Safe Box`).</sub>
 
 ---
 
@@ -102,20 +102,20 @@ npx skills add make-pictures/make-pictures-studio
 
 | Package | Purpose |
 | :--- | :--- |
-| `create-make-pictures` | Zero-config project scaffolder (`npx create-make-pictures@latest <dir>`) |
-| `@make-pictures/core` | `60 FPS` runtime, 7 `StylePreset` themes, `DirectorCamera3D/2D`, `SmartMusicBed`, `SoundCue` |
-| `@make-pictures/kits` | 7 visual kits + `product-frames` + deterministic `vfx` |
-| `@make-pictures/studio` | Local **Studio Web** &amp; **🎨 Style Lab** (`Liquid Glass` UI, timeline, 3-tab inspector) |
+| `create-make-pictures` | Zero-config project scaffolder (`npx create-make-pictures@latest <dir> [--space=2d\|2.5d\|3d]`) |
+| `@make-pictures/core` | `60 FPS` runtime, `2D / 2.5D / 3D` × 10 `StylePreset` themes, `ContinuousSceneFlow`, `DirectorCamera3D/2D`, `SmartMusicBed`, `SoundCue` |
+| `@make-pictures/kits` | 7 visual kits (`Soft-Clay 3D`, `Retro-PC`, `Glass Studio`, 2.5D cutouts, editorial &amp; data) + `product-frames` + deterministic `vfx` |
+| `@make-pictures/studio` | Local **Studio Web** &amp; **🎨 Style Lab** (`[ 2D ] [ 2.5D ] [ 3D ]` previewer, `Liquid Glass` UI, timeline, 3-tab inspector) |
 | `@make-pictures/cli` | Unified `make-pictures` CLI + 9 auto-discovered `SKILL.md` modules for Antigravity &amp; Claude Code |
 
 | Command | Action |
 | :--- | :--- |
 | `npx make-pictures onboard` | Browser sign-in for ElevenLabs + studio setup |
 | `npx make-pictures studio` | Launch **Studio Web** &amp; **🎨 Style Lab** at `http://127.0.0.1:3000` |
-| `npx make-pictures new <slug>` | Create a new video capsule (`--kit=...`, `--style=...`, `--lang=en\|pl`) |
-| `npx make-pictures styles` | List built-in &amp; custom `styles/*.style.json` presets (`style new <slug>` to fork) |
+| `npx make-pictures new <slug>` | Create a new video capsule (`--space=2d\|2.5d\|3d`, `--kit=...`, `--style=...`, `--lang=en\|pl`) |
+| `npx make-pictures styles` | List 10 built-in &amp; custom `styles/*.style.json` presets (`--space=2d\|2.5d\|3d`, `style new <slug>` to fork) |
 | `npx make-pictures audio` | Generate word-aligned voiceovers, sidechain-ducked music &amp; SFX |
-| `npx make-pictures qa <Id>` | Render a 12-frame Contact-Sheet PNG (`out/qa-<Id>.png`) with `9:16` safe zones |
+| `npx make-pictures qa <Id>` | Run hard Director QA gate &amp; render a 12-frame Contact-Sheet PNG (`out/qa-<Id>.png`) with `9:16` safe zones |
 | `npx make-pictures render <Id>` | Export `60 FPS` MP4 mastered to `-14 LUFS` |
 
 </details>

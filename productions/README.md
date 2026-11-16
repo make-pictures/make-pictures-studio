@@ -4,9 +4,11 @@ Every user-created film or client episode lives inside its own self-contained ca
 
 ## Quick Start
 
-1. **Scaffold a new isolated production capsule:**
+1. **Scaffold a new isolated production capsule (`--space=2d|2.5d|3d`):**
    ```bash
-   npm run new -- my-episode --kit=paper-diorama-3d
+   npx make-pictures new my-episode --space=2d
+   # or Soft-Clay 3D studio dialogue:
+   npx make-pictures new studio-talk --space=3d
    ```
 2. **Generate voiceovers, AI music score & AI SFX:**
    ```bash
@@ -32,7 +34,7 @@ productions/<slug>/
 ├── compositions/
 │   ├── <PascalSlug>.tsx            # 60 FPS Remotion composition + Zod schema
 │   └── <PascalSlug>.props.json     # Live-editable Props Inspector defaults
-├── assets/                         #Mirrored via symlink at `public/_productions/<slug>/`
+├── assets/                         # Mirrored via symlink at `public/_productions/<slug>/`
 │   ├── voiceovers/                 # Cached .mp3 + word-level alignment .json
 │   ├── music/                      # Cached ElevenLabs Music / procedural fallback score
 │   └── sfx/                        # Cached ElevenLabs SFX / procedural fallback foley
