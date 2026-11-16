@@ -1,15 +1,20 @@
 import React, { useMemo } from 'react';
 import { useCurrentFrame } from 'remotion';
-import { useStudioStyle } from '@make-pictures/core';
+import { useStudioStyle, type ArtWorld } from '@make-pictures/core';
 import {
   ContactShadowDisc3D,
   StagePostProcessing3D,
 } from '../vfx/StagePostProcessing3D';
+import { IsometricScenicSet3D } from './IsometricScenicSet3D';
 import { computeIsometricLightRig } from './isometricMaterials';
 
 export interface IsometricStage3DProps {
   radius?: number;
   showGrid?: boolean;
+  /** Mount the 3D architectural studio room behind & around speakers (default `true`) */
+  showScenicSet?: boolean;
+  /** Optional explicit scenic room world override (`'auto'` uses `resolveArtWorld(style)`) */
+  scenicVariant?: 'auto' | ArtWorld;
   accentColor?: string;
   surfaceColor?: string;
   /** Render atmospheric volumetric light cones on window-gobo / darkroom-halation rigs */
@@ -20,7 +25,9 @@ export interface IsometricStage3DProps {
 
 export const IsometricStage3D: React.FC<IsometricStage3DProps> = ({
   radius = 5.4,
-  showGrid = true,
+  showGrid = false,
+  showScenicSet = true,
+  scenicVariant = 'auto',
   accentColor,
   surfaceColor,
   atmosphericBeams,
@@ -160,12 +167,21 @@ export const IsometricStage3D: React.FC<IsometricStage3DProps> = ({
       {showGrid ? (
         <gridHelper
           args={[
-            radius * 1.32,
-            10,
+            radius * 0.96,
+            8,
             resolvedAccent,
             style.palette.inkBorder,
           ]}
           position={[0, 0.002, 0]}
+        />
+      ) : null}
+
+      {showScenicSet ? (
+        <IsometricScenicSet3D
+          radius={radius}
+          variant={scenicVariant}
+          accentColor={resolvedAccent}
+          surfaceColor={surfaceColor}
         />
       ) : null}
 
