@@ -30,6 +30,7 @@ export type StyleSpaceFilterMode = 'all' | DimensionalSpace;
 export interface ProjectPickerPopoverProps {
   isOpen?: boolean;
   onClose: () => void;
+  triggerRef?: React.RefObject<HTMLElement | null>;
   viewMode?: ProjectPickerViewMode;
   spaceFilter?: StyleSpaceFilterMode;
   onChangeSpaceFilter?: (space: StyleSpaceFilterMode) => void;
@@ -85,6 +86,7 @@ type FlatPopoverItem = FlatFilmItem | FlatStyleItem;
 export const ProjectPickerPopover: React.FC<ProjectPickerPopoverProps> = ({
   isOpen = true,
   onClose,
+  triggerRef,
   viewMode = 'films',
   spaceFilter,
   onChangeSpaceFilter,
@@ -125,6 +127,24 @@ export const ProjectPickerPopover: React.FC<ProjectPickerPopoverProps> = ({
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const dupInputRef = useRef<HTMLInputElement | null>(null);
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+  const wasOpenRef = useRef<boolean>(false);
+
+  const restoreTriggerFocus = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    const target = triggerRef?.current ?? previousFocusRef.current;
+    if (!target) return;
+    window.requestAnimationFrame(() => {
+      if (typeof target.focus === 'function') {
+        target.focus();
+      }
+    });
+  }, [triggerRef]);
+
+  const handleRequestClose = useCallback(() => {
+    onClose();
+    restoreTriggerFocus();
+  }, [onClose, restoreTriggerFocus]);
 
   const resolvedBuiltInStyles = useMemo<StylePreset[]>(
     () =>
@@ -283,9 +303,24 @@ export const ProjectPickerPopover: React.FC<ProjectPickerPopoverProps> = ({
     [activeComposition?.id, resolvedActiveStyleId]
   );
 
-  // Reset transient state when opened or mode changes
+  // Reset transient state when opened or mode changes, and restore trigger focus on close
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      if (wasOpenRef.current) {
+        wasOpenRef.current = false;
+        restoreTriggerFocus();
+      }
+      return;
+    }
+    if (!wasOpenRef.current) {
+      wasOpenRef.current = true;
+      previousFocusRef.current =
+        triggerRef?.current ??
+        (typeof document !== 'undefined' &&
+        document.activeElement instanceof HTMLElement
+          ? document.activeElement
+          : null);
+    }
     setQuery('');
     setIsDuplicating(false);
     setLocalError(null);
@@ -293,7 +328,7 @@ export const ProjectPickerPopover: React.FC<ProjectPickerPopoverProps> = ({
       searchInputRef.current?.focus();
     });
     return () => window.cancelAnimationFrame(id);
-  }, [isOpen, viewMode]);
+  }, [isOpen, viewMode, triggerRef, restoreTriggerFocus]);
 
   // Keep focusedIndex aligned with active selection / filtered list bounds
   useEffect(() => {
@@ -335,32 +370,32 @@ export const ProjectPickerPopover: React.FC<ProjectPickerPopoverProps> = ({
       if (e.key === 'Escape') {
         e.preventDefault();
         e.stopPropagation();
-        onClose();
+        handleRequestClose();
       }
     };
     window.addEventListener('keydown', onWindowKeyDown);
     return () => window.removeEventListener('keydown', onWindowKeyDown);
-  }, [isOpen, onClose]);
+  }, [isOpen, handleRequestClose]);
 
   const selectFlatItem = useCallback(
     (entry: FlatPopoverItem | undefined) => {
       if (!entry) return;
       if (entry.kind === 'film') {
         onSelectComposition?.(entry.comp.id);
-        onClose();
+        handleRequestClose();
       } else {
         onSelectStyle?.(entry.preset.id);
-        onClose();
+        handleRequestClose();
       }
     },
-    [onSelectComposition, onSelectStyle, onClose]
+    [onSelectComposition, onSelectStyle, handleRequestClose]
   );
 
   const handlePopoverKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key === 'Escape') {
       e.preventDefault();
       e.stopPropagation();
-      onClose();
+      handleRequestClose();
       return;
     }
 
@@ -426,7 +461,7 @@ export const ProjectPickerPopover: React.FC<ProjectPickerPopoverProps> = ({
     setLocalError(null);
     await onDuplicateStyle(cleaned, resolvedActiveStyle);
     setIsDuplicating(false);
-    onClose();
+    handleRequestClose();
   };
 
   if (!isOpen) {
@@ -458,7 +493,7 @@ export const ProjectPickerPopover: React.FC<ProjectPickerPopoverProps> = ({
         onMouseEnter={() => setFocusedIndex(itemIndex)}
         onClick={() => {
           onSelectStyle?.(preset.id);
-          onClose();
+          handleRequestClose();
         }}
       >
         <span
@@ -539,7 +574,7 @@ export const ProjectPickerPopover: React.FC<ProjectPickerPopoverProps> = ({
     <>
       <div
         className="mp-popover-backdrop"
-        onClick={onClose}
+        onClick={handleRequestClose}
         aria-hidden="true"
       />
 
@@ -622,13 +657,12 @@ export const ProjectPickerPopover: React.FC<ProjectPickerPopoverProps> = ({
               <div className="mp-popover-tabs">
                 <div
                   className="mp-segmented is-full"
-                  role="tablist"
+                  role="group"
                   aria-label="Filtr źródła kompozycji"
                 >
                   <button
                     type="button"
-                    role="tab"
-                    aria-selected={effectiveOriginFilter === 'all'}
+                    aria-pressed={effectiveOriginFilter === 'all'}
                     className={`mp-segmented-btn ${
                       effectiveOriginFilter === 'all' ? 'is-active' : ''
                     }`}
@@ -639,8 +673,7 @@ export const ProjectPickerPopover: React.FC<ProjectPickerPopoverProps> = ({
                   </button>
                   <button
                     type="button"
-                    role="tab"
-                    aria-selected={effectiveOriginFilter === 'production'}
+                    aria-pressed={effectiveOriginFilter === 'production'}
                     className={`mp-segmented-btn ${
                       effectiveOriginFilter === 'production' ? 'is-active' : ''
                     }`}
@@ -653,8 +686,7 @@ export const ProjectPickerPopover: React.FC<ProjectPickerPopoverProps> = ({
                   </button>
                   <button
                     type="button"
-                    role="tab"
-                    aria-selected={effectiveOriginFilter === 'example'}
+                    aria-pressed={effectiveOriginFilter === 'example'}
                     className={`mp-segmented-btn ${
                       effectiveOriginFilter === 'example' ? 'is-active' : ''
                     }`}
@@ -729,7 +761,7 @@ export const ProjectPickerPopover: React.FC<ProjectPickerPopoverProps> = ({
                           onMouseEnter={() => setFocusedIndex(itemIndex)}
                           onClick={() => {
                             onSelectComposition?.(comp.id);
-                            onClose();
+                            handleRequestClose();
                           }}
                         >
                           <span
@@ -793,7 +825,7 @@ export const ProjectPickerPopover: React.FC<ProjectPickerPopoverProps> = ({
             <div className="mp-popover-tabs">
               <div
                 className="mp-segmented is-full"
-                role="tablist"
+                role="group"
                 aria-label="Filtr przestrzeni stylu (2D / 2.5D / 3D)"
               >
                 {(
@@ -809,8 +841,7 @@ export const ProjectPickerPopover: React.FC<ProjectPickerPopoverProps> = ({
                     <button
                       key={tab.id}
                       type="button"
-                      role="tab"
-                      aria-selected={active}
+                      aria-pressed={active}
                       data-space-filter={tab.id}
                       className={`mp-segmented-btn ${active ? 'is-active' : ''}`}
                       onClick={() => handleSelectSpaceFilter(tab.id)}

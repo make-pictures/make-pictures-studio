@@ -304,6 +304,39 @@ function parseDescription(
   };
 }
 
+interface ZodCheckDef {
+  kind?: string;
+  value?: number;
+  regex?: RegExp;
+}
+
+interface ZodInternalDef {
+  typeName?: string;
+  description?: string;
+  defaultValue?: () => unknown;
+  innerType?: ZodTypeAny;
+  schema?: ZodTypeAny;
+  values?: unknown;
+  value?: unknown;
+  options?: ZodTypeAny[];
+  optionsMap?: Map<unknown, ZodTypeAny>;
+  checks?: ZodCheckDef[];
+  type?: ZodTypeAny;
+  items?: ZodTypeAny[];
+  rest?: ZodTypeAny | null;
+}
+
+function getZodDef(schema: unknown): ZodInternalDef | undefined {
+  if (!schema || typeof schema !== 'object' || !('_def' in schema)) {
+    return undefined;
+  }
+  const rawDef = (schema as { _def?: unknown })._def;
+  if (!rawDef || typeof rawDef !== 'object') {
+    return undefined;
+  }
+  return rawDef as ZodInternalDef;
+}
+
 function unwrapZodType(schema: ZodTypeAny): {
   core: ZodTypeAny;
   description?: string;
@@ -315,15 +348,14 @@ function unwrapZodType(schema: ZodTypeAny): {
 
   // Unwrap wrappers (ZodDefault, ZodOptional, ZodNullable, ZodEffects, ZodReadonly)
   for (let depth = 0; depth < 8; depth++) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const def = (current as any)?._def;
+    const def = getZodDef(current);
     if (!def) break;
     if (!description && typeof def.description === 'string') {
       description = def.description;
     }
 
     const typeName: string | undefined = def.typeName;
-    if (typeName === 'ZodDefault') {
+    if (typeName === 'ZodDefault' && def.innerType) {
       if (defaultValue === undefined && typeof def.defaultValue === 'function') {
         try {
           defaultValue = def.defaultValue();
@@ -338,9 +370,10 @@ function unwrapZodType(schema: ZodTypeAny): {
       continue;
     }
     if (
-      typeName === 'ZodOptional' ||
-      typeName === 'ZodNullable' ||
-      typeName === 'ZodReadonly'
+      (typeName === 'ZodOptional' ||
+        typeName === 'ZodNullable' ||
+        typeName === 'ZodReadonly') &&
+      def.innerType
     ) {
       current = def.innerType;
       if (!description && current?.description) {
@@ -348,7 +381,7 @@ function unwrapZodType(schema: ZodTypeAny): {
       }
       continue;
     }
-    if (typeName === 'ZodEffects') {
+    if (typeName === 'ZodEffects' && def.schema) {
       current = def.schema;
       if (!description && current?.description) {
         description = current.description;
@@ -385,18 +418,17 @@ function extractNativeEnumOptions(rawValues: unknown): string[] {
 
 function tryExtractEnumLikeOptions(schema: ZodTypeAny): string[] | null {
   const { core } = unwrapZodType(schema);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const def = (core as any)?._def;
+  const def = getZodDef(core);
   const typeName: string = def?.typeName ?? '';
 
   if (typeName === 'ZodLiteral') {
-    return [String(def.value)];
+    return [String(def?.value)];
   }
   if (typeName === 'ZodEnum') {
-    return Array.isArray(def.values) ? def.values.map(String) : [];
+    return Array.isArray(def?.values) ? def.values.map(String) : [];
   }
   if (typeName === 'ZodNativeEnum') {
-    return extractNativeEnumOptions(def.values);
+    return extractNativeEnumOptions(def?.values);
   }
   return null;
 }
@@ -484,8 +516,7 @@ export function introspectZodObject(
     )) {
       const path = [...prefix, key];
       const { core, description, defaultValue } = unwrapZodType(rawFieldSchema);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const def = (core as any)?._def;
+      const def = getZodDef(core);
       const typeName: string = def?.typeName ?? '';
       const currentVal = getNestedValue(sampleProps, path);
       const effectiveVal =
@@ -517,7 +548,7 @@ export function introspectZodObject(
       }
 
       if (typeName === 'ZodEnum') {
-        const options: string[] = Array.isArray(def.values)
+        const options: string[] = Array.isArray(def?.values)
           ? def.values.map(String)
           : [];
         const meta = parseDescription(description, key, 'enum', parentSection);
@@ -533,7 +564,7 @@ export function introspectZodObject(
       }
 
       if (typeName === 'ZodLiteral') {
-        const options = [String(def.value)];
+        const options = [String(def?.value)];
         const meta = parseDescription(description, key, 'enum', parentSection);
         fields.push({
           path,
@@ -547,7 +578,7 @@ export function introspectZodObject(
       }
 
       if (typeName === 'ZodNativeEnum') {
-        const options = extractNativeEnumOptions(def.values);
+        const options = extractNativeEnumOptions(def?.values);
         const meta = parseDescription(description, key, 'enum', parentSection);
         fields.push({
           path,
@@ -564,9 +595,9 @@ export function introspectZodObject(
         typeName === 'ZodUnion' ||
         typeName === 'ZodDiscriminatedUnion'
       ) {
-        const rawOptions: ZodTypeAny[] = Array.isArray(def.options)
+        const rawOptions: ZodTypeAny[] = Array.isArray(def?.options)
           ? def.options
-          : def.optionsMap instanceof Map
+          : def?.optionsMap instanceof Map
           ? Array.from(def.optionsMap.values())
           : [];
 
@@ -616,9 +647,7 @@ export function introspectZodObject(
       }
 
       if (typeName === 'ZodNumber') {
-        const checks: Array<{ kind: string; value?: number }> = Array.isArray(
-          def.checks
-        )
+        const checks: ZodCheckDef[] = Array.isArray(def?.checks)
           ? def.checks
           : [];
         let min: number | undefined;
@@ -653,11 +682,9 @@ export function introspectZodObject(
       }
 
       if (typeName === 'ZodString') {
-        const checks: Array<{
-          kind: string;
-          value?: number;
-          regex?: RegExp;
-        }> = Array.isArray(def.checks) ? def.checks : [];
+        const checks: ZodCheckDef[] = Array.isArray(def?.checks)
+          ? def.checks
+          : [];
 
         let maxLen: number | undefined;
         let hasColorRegex = false;
@@ -705,11 +732,10 @@ export function introspectZodObject(
       }
 
       if (typeName === 'ZodArray') {
-        const elemSchema: ZodTypeAny | undefined = def.type;
+        const elemSchema: ZodTypeAny | undefined = def?.type;
         if (elemSchema) {
           const unwrappedElem = unwrapZodType(elemSchema).core;
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const elemDef = (unwrappedElem as any)?._def;
+          const elemDef = getZodDef(unwrappedElem);
           const elemTypeName: string = elemDef?.typeName ?? '';
 
           if (elemTypeName === 'ZodString') {
@@ -730,7 +756,7 @@ export function introspectZodObject(
           }
 
           if (elemTypeName === 'ZodEnum') {
-            const options: string[] = Array.isArray(elemDef.values)
+            const options: string[] = Array.isArray(elemDef?.values)
               ? elemDef.values.map(String)
               : [];
             const meta = parseDescription(
@@ -768,26 +794,24 @@ export function introspectZodObject(
       }
 
       if (typeName === 'ZodTuple') {
-        const items: ZodTypeAny[] = Array.isArray(def.items) ? def.items : [];
-        const hasRest = Boolean(def.rest);
+        const items: ZodTypeAny[] = Array.isArray(def?.items) ? def.items : [];
+        const hasRest = Boolean(def?.rest);
         const allNumbers =
           !hasRest &&
           items.length >= 2 &&
           items.length <= 4 &&
           items.every((item) => {
             const unwrappedItem = unwrapZodType(item).core;
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            return (unwrappedItem as any)?._def?.typeName === 'ZodNumber';
+            return getZodDef(unwrappedItem)?.typeName === 'ZodNumber';
           });
 
         if (allNumbers) {
           const allInts = items.every((item) => {
             const unwrappedItem = unwrapZodType(item).core;
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const itemChecks = (unwrappedItem as any)?._def?.checks;
+            const itemChecks = getZodDef(unwrappedItem)?.checks;
             return (
               Array.isArray(itemChecks) &&
-              itemChecks.some((c: { kind?: string }) => c.kind === 'int')
+              itemChecks.some((c) => c.kind === 'int')
             );
           });
           const meta = parseDescription(

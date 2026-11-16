@@ -642,17 +642,25 @@ export const PropsInspector: React.FC<PropsInspectorProps> = ({
           ? rawVal.trim()
           : 'minimal-product';
 
+      const labelId = `${inputId}-label`;
+
       return (
         <div key={field.key} className="mp-field">
           <div className="mp-field-label-row">
-            <label className="mp-field-label">{field.label}</label>
+            <span id={labelId} className="mp-field-label">
+              {field.label}
+            </span>
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
               <span className="mp-field-val-tag">{currentStyleId}</span>
               {resetBtn}
             </div>
           </div>
 
-          <div className="mp-style-picker-grid" role="radiogroup" aria-label={field.label}>
+          <div
+            className="mp-style-picker-grid"
+            role="radiogroup"
+            aria-labelledby={labelId}
+          >
             {stylesCatalog.map(({ preset, origin }) => {
               const isSelected = preset.id === currentStyleId;
               return (
