@@ -7,6 +7,7 @@ import {
 import {
   DepthPlane,
   OpticalStage2D,
+  ScenicBackdropLayers,
   StageLightingRig,
   formatFontFamilyCss,
   useStudioStyle,
@@ -17,8 +18,10 @@ import {
 export interface EditorialDeskStageProps {
   shots?: ReadonlyArray<OpticalShot2D>;
   nodes?: Record<string, StageNode2D>;
-  /** Archival registration code printed on the background proof sheet (`z = -0.65`) */
+  /** Optional archival registration code on background sheet (`z = -0.65`); omitted by default */
   sheetCode?: string;
+  /** Render 3-ArtWorld `<ScenicBackdropLayers />` behind the optical stage (default `true`) */
+  showScenicBackdrop?: boolean;
   /** Render subtle out-of-focus foreground accents on plane `z = +0.75` outside Safe Box (default `true`) */
   foregroundAccents?: boolean;
   /** Render base fill inside StageLightingRig (default `true`) */
@@ -28,16 +31,17 @@ export interface EditorialDeskStageProps {
 }
 
 /**
- * Multi-plane 2.5D Analog Editorial Desk / Lightbox Stage.
- * Combines `<StageLightingRig />` with `<OpticalStage2D />` across 3 Z-planes:
- * - `z = -0.65`: Archival proof sheet with crop marks & column registration rules
+ * Multi-plane 2.5D Analog Editorial Desk / Gallery Stage.
+ * Combines `<StageLightingRig />` + `<ScenicBackdropLayers />` with `<OpticalStage2D />` across 3 Z-planes:
+ * - `z = -0.65`: Archival passe-partout registration sheet
  * - `z =  0.00`: Primary editorial content (`children`)
- * - `z = +0.75`: Edge-safe optical foreground millimeter ruler & stamp bokeh
+ * - `z = +0.75`: Edge-safe optical foreground millimeter ruler bokeh
  */
 export const EditorialDeskStage: React.FC<EditorialDeskStageProps> = ({
   shots,
   nodes,
-  sheetCode = 'ARKUSZ REDAKCYJNY • 60 FPS',
+  sheetCode,
+  showScenicBackdrop = true,
   foregroundAccents = true,
   renderBaseFill = true,
   seed = 2026,
@@ -91,10 +95,11 @@ export const EditorialDeskStage: React.FC<EditorialDeskStageProps> = ({
     ) : null;
   }
 
+  const cleanSheetCode = sheetCode?.trim() ? sheetCode.trim() : undefined;
   const monoFont = formatFontFamilyCss(style.typography.monoFont, 'mono');
   const markColor = style.surface.isDark
-    ? 'rgba(248, 250, 252, 0.22)'
-    : `${style.palette.inkBorder}AA`;
+    ? 'rgba(248, 250, 252, 0.2)'
+    : `${style.palette.inkBorder}88`;
 
   const insetX = isVertical ? 36 : 64;
   const insetTop = isVertical ? 196 : 48;
@@ -108,13 +113,20 @@ export const EditorialDeskStage: React.FC<EditorialDeskStageProps> = ({
         renderBaseFill={renderBaseFill}
       />
 
+      {showScenicBackdrop ? (
+        <ScenicBackdropLayers
+          style={style}
+          seed={`editorial-desk:${seed}`}
+        />
+      ) : null}
+
       <OpticalStage2D
         nodes={nodes}
         shots={shots && shots.length > 0 ? shots : defaultShots}
         seed={seed}
         startFrame={1}
       >
-        {/* Plane z = -0.65: Background Archival Registration Sheet */}
+        {/* Plane z = -0.65: Background Passe-Partout Registration Sheet */}
         <DepthPlane z={-0.65}>
           <AbsoluteFill style={{ pointerEvents: 'none' }}>
             <div
@@ -125,37 +137,36 @@ export const EditorialDeskStage: React.FC<EditorialDeskStageProps> = ({
                 top: insetTop,
                 bottom: insetBottom,
                 border: `1px solid ${markColor}`,
-                opacity: 0.55,
+                opacity: 0.42,
               }}
             />
-            {/* Top registration header */}
-            <div
-              style={{
-                position: 'absolute',
-                left: insetX + 12,
-                top: Math.max(18, insetTop - 26),
-                display: 'flex',
-                alignItems: 'center',
-                gap: 16,
-                fontFamily: monoFont,
-                fontSize: 13,
-                letterSpacing: '0.16em',
-                color: style.palette.textSecondary,
-                opacity: 0.62,
-              }}
-            >
-              <span>+</span>
-              <span>{sheetCode}</span>
-              <span>•</span>
-              <span>{style.id.toUpperCase()}</span>
-            </div>
+            {cleanSheetCode ? (
+              <div
+                style={{
+                  position: 'absolute',
+                  left: insetX + 12,
+                  top: Math.max(18, insetTop - 26),
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 14,
+                  fontFamily: monoFont,
+                  fontSize: 13,
+                  letterSpacing: '0.14em',
+                  color: style.palette.textSecondary,
+                  opacity: 0.62,
+                }}
+              >
+                <span>+</span>
+                <span>{cleanSheetCode}</span>
+              </div>
+            ) : null}
           </AbsoluteFill>
         </DepthPlane>
 
         {/* Plane z = 0.0: Primary Crisp Editorial Surface */}
         <DepthPlane z={0}>{children}</DepthPlane>
 
-        {/* Plane z = +0.75: Out-of-Focus Edge Millimeter Scale (Strictly Outside Safe Box) */}
+        {/* Plane z = +0.75: Out-of-Focus Edge Scale (Strictly Outside Safe Box) */}
         {foregroundAccents && (
           <DepthPlane z={0.75}>
             <div
@@ -166,7 +177,7 @@ export const EditorialDeskStage: React.FC<EditorialDeskStageProps> = ({
                 display: 'flex',
                 alignItems: 'flex-end',
                 gap: 8,
-                opacity: 0.42,
+                opacity: 0.34,
               }}
             >
               {Array.from({ length: 16 }).map((_, idx) => (
@@ -174,7 +185,7 @@ export const EditorialDeskStage: React.FC<EditorialDeskStageProps> = ({
                   key={idx}
                   style={{
                     width: 1.5,
-                    height: idx % 5 === 0 ? 16 : 9,
+                    height: idx % 5 === 0 ? 15 : 8,
                     backgroundColor: style.palette.textSecondary,
                   }}
                 />

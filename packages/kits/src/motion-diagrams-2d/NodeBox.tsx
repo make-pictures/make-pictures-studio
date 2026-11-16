@@ -1,6 +1,7 @@
 import React from 'react';
 import { spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import {
+  ClippedSurfaceChrome,
   SPRING_PRESETS,
   STUDIO_THEME,
   THEME,
@@ -53,6 +54,9 @@ export interface WorldBoxProps {
   opacity?: number;
   zIndex?: number;
   variant?: 'card' | 'transparent' | 'dark' | 'light';
+  topBarHeight?: number;
+  topBarColor?: string;
+  specularRim?: boolean;
   style?: React.CSSProperties;
   children?: React.ReactNode;
 }
@@ -66,6 +70,9 @@ export const WorldBox: React.FC<WorldBoxProps> = ({
   opacity = 1,
   zIndex = 2,
   variant,
+  topBarHeight,
+  topBarColor,
+  specularRim,
   style,
   children,
 }) => {
@@ -77,17 +84,38 @@ export const WorldBox: React.FC<WorldBoxProps> = ({
     'body'
   );
 
+  const isDarkSurface =
+    variant === 'dark'
+      ? true
+      : variant === 'light'
+        ? false
+        : studioStyle.surface.isDark;
+
   const resolvedFocus = focusCtx
     ? focusCtx.resolveNodeFocus(nodeId, focusState)
     : focusState === 'recessed'
       ? (() => {
-          const b = computeCircleOfConfusionPx(-0.28, 0, optics.aperture);
+          const rawB = computeCircleOfConfusionPx(-0.28, 0, optics.aperture);
+          if (rawB === 0) {
+            return {
+              isRecessed: true,
+              blurPx: 0,
+              filterCss: 'none',
+              opacityScale: isDarkSurface ? 0.72 : 0.88,
+              scaleFactor: isDarkSurface ? 0.98 : 0.985,
+            };
+          }
+          const b = isDarkSurface
+            ? rawB
+            : Number(Math.min(1.85, rawB).toFixed(2));
           return {
             isRecessed: true,
             blurPx: b,
-            filterCss: b === 0 ? 'none' : `blur(${b.toFixed(2)}px)`,
-            opacityScale: 0.68,
-            scaleFactor: 0.98,
+            filterCss: isDarkSurface
+              ? `blur(${b.toFixed(2)}px)`
+              : `blur(${b.toFixed(2)}px) saturate(0.88)`,
+            opacityScale: isDarkSurface ? 0.72 : 0.88,
+            scaleFactor: isDarkSurface ? 0.98 : 0.985,
           };
         })()
       : {
@@ -150,6 +178,13 @@ export const WorldBox: React.FC<WorldBoxProps> = ({
         ...style,
       }}
     >
+      {variant !== 'transparent' ? (
+        <ClippedSurfaceChrome
+          topBarHeight={topBarHeight}
+          topBarColor={topBarColor}
+          specularRim={specularRim ?? !isDarkSurface}
+        />
+      ) : null}
       {children}
     </div>
   );
@@ -286,7 +321,9 @@ export const FlowCurve: React.FC<FlowCurveProps> = ({
         d={d}
         fill="none"
         stroke={resolvedColor}
-        strokeWidth={grammar === 'risograph-poster' ? strokeWidth + 0.8 : strokeWidth}
+        strokeWidth={
+          grammar === 'risograph-poster' ? strokeWidth + 0.8 : strokeWidth
+        }
         strokeOpacity={0.9 * drawProgress}
         strokeDasharray={dashed ? '8 6' : undefined}
         strokeLinecap="butt"

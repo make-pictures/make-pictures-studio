@@ -7,6 +7,7 @@ import {
   useVideoConfig,
 } from 'remotion';
 import {
+  ClippedSurfaceChrome,
   SPRING_PRESETS,
   formatFontFamilyCss,
   formatHeadingText,
@@ -262,6 +263,7 @@ export const AnimatedBarRace: React.FC<AnimatedBarRaceProps> = ({
   const surfaceBase = getTactileSurfaceStyle(studioStyle, {
     elevation: 'lifted',
     overrides: {
+      position: 'relative',
       width: cardWidth,
       maxWidth: '100%',
       padding: isVerticalViewport ? '26px 28px' : '32px 38px',
@@ -284,9 +286,22 @@ export const AnimatedBarRace: React.FC<AnimatedBarRaceProps> = ({
 
   return (
     <div data-bar-grammar={grammar} style={surfaceBase}>
+      <ClippedSurfaceChrome
+        topBarHeight={grammar === 'risograph-poster' ? 5 : 3}
+        topBarColor={studioStyle.palette.accentPrimary}
+        specularRim={!isDark}
+        tintGradient={
+          isDark
+            ? 'linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, transparent 48%)'
+            : 'linear-gradient(180deg, rgba(255, 255, 255, 0.62) 0%, rgba(255, 255, 255, 0) 48%)'
+        }
+      />
+
       {(title || subtitle) && (
         <div
           style={{
+            position: 'relative',
+            zIndex: 1,
             marginBottom: 20,
             paddingBottom: 12,
             borderBottom: `1px solid ${borderColor}`,
@@ -343,7 +358,15 @@ export const AnimatedBarRace: React.FC<AnimatedBarRaceProps> = ({
       )}
 
       {orientation === 'horizontal' ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div
+          style={{
+            position: 'relative',
+            zIndex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 8,
+          }}
+        >
           <div
             style={{
               position: 'relative',
@@ -636,6 +659,7 @@ export const AnimatedBarRace: React.FC<AnimatedBarRaceProps> = ({
           data-bar-grid="true"
           style={{
             position: 'relative',
+            zIndex: 1,
             display: 'flex',
             alignItems: 'flex-end',
             justifyContent: 'space-between',

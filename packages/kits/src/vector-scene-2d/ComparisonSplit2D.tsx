@@ -7,6 +7,7 @@ import {
   useVideoConfig,
 } from 'remotion';
 import {
+  ClippedSurfaceChrome,
   createSeededRandom,
   formatFontFamilyCss,
   formatHeadingText,
@@ -77,6 +78,7 @@ export const ComparisonSplit2D: React.FC<ComparisonSplit2DProps> = ({
   const style = useStudioStyle();
   const optics = resolveStyleOptics(style);
   const grammar = optics.typographyGrammar;
+  const isDark = style.surface.isDark;
 
   const effectiveStart = Math.max(2, startFrame);
   if (frame < effectiveStart) return null;
@@ -109,21 +111,35 @@ export const ComparisonSplit2D: React.FC<ComparisonSplit2DProps> = ({
         })
       : 0;
 
-  const maxBlur = Math.max(1.6, optics.aperture * 7);
-  const leftBlur =
-    rackMode === 'both' ? 0 : interpolate(shiftProgress, [0, 1], [0, maxBlur]);
-  const rightBlur =
-    rackMode === 'both' ? 0 : interpolate(shiftProgress, [0, 1], [maxBlur, 0]);
+  // Dignified light-mode rack focus: cap blur <= 2.0px & preserve opacity >= 0.88 on light surfaces
+  const maxBlur = isDark
+    ? Math.max(1.6, optics.aperture * 6.5)
+    : Math.min(2.0, Math.max(1.5, optics.aperture * 4.2));
+  const recessedOpacity = isDark ? 0.78 : 0.88;
+
+  const leftRecess = rackMode === 'both' ? 0 : shiftProgress;
+  const rightRecess = rackMode === 'both' ? 0 : 1 - shiftProgress;
+
+  const leftBlur = leftRecess * maxBlur;
+  const rightBlur = rightRecess * maxBlur;
 
   const leftScale =
-    rackMode === 'both' ? 1 : interpolate(shiftProgress, [0, 1], [1, 0.982]);
+    rackMode === 'both'
+      ? 1
+      : interpolate(shiftProgress, [0, 1], [1, isDark ? 0.982 : 0.986]);
   const rightScale =
-    rackMode === 'both' ? 1 : interpolate(shiftProgress, [0, 1], [0.982, 1]);
+    rackMode === 'both'
+      ? 1
+      : interpolate(shiftProgress, [0, 1], [isDark ? 0.982 : 0.986, 1]);
 
   const leftDim =
-    rackMode === 'both' ? 1 : interpolate(shiftProgress, [0, 1], [1, 0.8]);
+    rackMode === 'both'
+      ? 1
+      : interpolate(shiftProgress, [0, 1], [1, recessedOpacity]);
   const rightDim =
-    rackMode === 'both' ? 1 : interpolate(shiftProgress, [0, 1], [0.8, 1]);
+    rackMode === 'both'
+      ? 1
+      : interpolate(shiftProgress, [0, 1], [recessedOpacity, 1]);
 
   const tiltSeed = createSeededRandom(
     `split:${left.title}:${right.title}`
@@ -134,21 +150,40 @@ export const ComparisonSplit2D: React.FC<ComparisonSplit2DProps> = ({
       ? (tiltSeed - 0.5) * 2 * maxTilt
       : 0;
 
-  const displayFont = formatFontFamilyCss(style.typography.displayFont, 'display');
+  const displayFont = formatFontFamilyCss(
+    style.typography.displayFont,
+    'display'
+  );
   const bodyFont = formatFontFamilyCss(style.typography.bodyFont, 'body');
   const monoFont = formatFontFamilyCss(style.typography.monoFont, 'mono');
+
+  const formatRackFilter = (blurPx: number, recessWeight: number): string => {
+    if (blurPx < 0.25) return 'none';
+    if (isDark) return `blur(${blurPx.toFixed(2)}px)`;
+    const sat = Number((1 - 0.12 * Math.max(0, Math.min(1, recessWeight))).toFixed(2));
+    return `blur(${blurPx.toFixed(2)}px) saturate(${sat})`;
+  };
 
   const renderPlate = (params: {
     item: ComparisonSideSpec;
     side: 'left' | 'right';
     enter: number;
     blurPx: number;
+    recessWeight: number;
     focusScale: number;
     focusOpacity: number;
     tiltDeg: number;
   }) => {
-    const { item, side, enter, blurPx, focusScale, focusOpacity, tiltDeg } =
-      params;
+    const {
+      item,
+      side,
+      enter,
+      blurPx,
+      recessWeight,
+      focusScale,
+      focusOpacity,
+      tiltDeg,
+    } = params;
     const isPayoff = side === 'right';
     const accent = isPayoff
       ? style.palette.accentPrimary
@@ -160,6 +195,7 @@ export const ComparisonSplit2D: React.FC<ComparisonSplit2DProps> = ({
           elevation: isPayoff ? 'floating' : 'resting',
           tiltDeg,
           overrides: {
+            position: 'relative',
             boxSizing: 'border-box',
             flex: 1,
             minWidth: 0,
@@ -169,11 +205,11 @@ export const ComparisonSplit2D: React.FC<ComparisonSplit2DProps> = ({
               grammar === 'risograph-poster'
                 ? 0
                 : Math.max(0, Math.round(6 * style.surface.radiusScale)),
-            borderTop: isPayoff
-              ? `3px solid ${style.palette.accentPrimary}`
-              : undefined,
+            borderColor: isPayoff
+              ? style.palette.accentPrimary
+              : style.palette.inkBorder,
             opacity: enter * focusOpacity,
-            filter: blurPx < 0.25 ? 'none' : `blur(${blurPx.toFixed(2)}px)`,
+            filter: formatRackFilter(blurPx, recessWeight),
             transform: `translateY(${Number(interpolate(enter, [0, 1], [20, 0]).toFixed(2))}px) scale(${Number(focusScale.toFixed(4))})`,
             display: 'flex',
             flexDirection: 'column',
@@ -182,8 +218,18 @@ export const ComparisonSplit2D: React.FC<ComparisonSplit2DProps> = ({
           },
         })}
       >
+        <ClippedSurfaceChrome
+          topBarHeight={isPayoff ? (grammar === 'risograph-poster' ? 5 : 3) : 2}
+          topBarColor={
+            isPayoff ? style.palette.accentPrimary : style.palette.inkBorder
+          }
+          specularRim={!isDark}
+        />
+
         <div
           style={{
+            position: 'relative',
+            zIndex: 1,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -205,6 +251,8 @@ export const ComparisonSplit2D: React.FC<ComparisonSplit2DProps> = ({
 
         <div
           style={{
+            position: 'relative',
+            zIndex: 1,
             fontFamily: displayFont,
             fontSize: bounds.isVertical ? 38 : 48,
             fontWeight: 700,
@@ -218,6 +266,8 @@ export const ComparisonSplit2D: React.FC<ComparisonSplit2DProps> = ({
 
         <div
           style={{
+            position: 'relative',
+            zIndex: 1,
             fontFamily: bodyFont,
             fontSize: bounds.isVertical ? 22 : 25,
             lineHeight: 1.38,
@@ -252,6 +302,7 @@ export const ComparisonSplit2D: React.FC<ComparisonSplit2DProps> = ({
           side: 'left',
           enter: leftEnter,
           blurPx: leftBlur,
+          recessWeight: leftRecess,
           focusScale: leftScale,
           focusOpacity: leftDim,
           tiltDeg: 0,
@@ -304,6 +355,7 @@ export const ComparisonSplit2D: React.FC<ComparisonSplit2DProps> = ({
           side: 'right',
           enter: rightEnter,
           blurPx: rightBlur,
+          recessWeight: rightRecess,
           focusScale: rightScale,
           focusOpacity: rightDim,
           tiltDeg: rightTilt,

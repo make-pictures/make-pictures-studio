@@ -3,6 +3,7 @@ import { AbsoluteFill, useCurrentFrame, useVideoConfig } from 'remotion';
 import {
   DepthPlane,
   OpticalStage2D,
+  ScenicBackdropLayers,
   StageLightingRig,
   formatFontFamilyCss,
   useStudioStyle,
@@ -13,8 +14,10 @@ import {
 export interface DataStoryStage2DProps {
   shots?: ReadonlyArray<OpticalShot2D>;
   nodes?: Record<string, StageNode2D>;
-  /** Dataset / scale code printed on the `z = -0.58` cartography sheet */
+  /** Optional dataset / scale code on `z = -0.58` cartography sheet (omitted by default) */
   datasetCode?: string;
+  /** Render 3-ArtWorld `<ScenicBackdropLayers />` behind the optical stage (default `true`) */
+  showScenicBackdrop?: boolean;
   /** Render subtle vernier edge ticks on `z = +0.68` outside 9:16 Safe Box (default `true`) */
   foregroundAccents?: boolean;
   /** Render base fill inside StageLightingRig (default `true`) */
@@ -26,14 +29,16 @@ export interface DataStoryStage2DProps {
 /**
  * Multi-plane 2.5D Editorial Data Cartography & Instrument Stage for `data-storytelling`.
  * Layers:
- * - `z = -0.58`: Scale grid sheet (`0 · 25 · 50 · 75 · 100`), corner registration marks, and `datasetCode`
+ * - `<StageLightingRig />` + `<ScenicBackdropLayers />` (3 Artistic Worlds)
+ * - `z = -0.58`: Subtle scale grid sheet (`0 · 25 · 50 · 75 · 100`) & optional `datasetCode`
  * - `z =  0.00`: Primary crisp data card / timeline (`children`)
  * - `z = +0.68`: Edge vernier scale strictly outside `9:16` Golden Safe Box
  */
 export const DataStoryStage2D: React.FC<DataStoryStage2DProps> = ({
   shots,
   nodes,
-  datasetCode = 'ARKUSZ POMIAROWY • 60 FPS',
+  datasetCode,
+  showScenicBackdrop = true,
   foregroundAccents = true,
   renderBaseFill = true,
   seed = 2029,
@@ -87,10 +92,11 @@ export const DataStoryStage2D: React.FC<DataStoryStage2DProps> = ({
     ) : null;
   }
 
+  const cleanDatasetCode = datasetCode?.trim() ? datasetCode.trim() : undefined;
   const monoFont = formatFontFamilyCss(style.typography.monoFont, 'mono');
   const ruleColor = style.surface.isDark
-    ? 'rgba(248, 250, 252, 0.16)'
-    : `${style.palette.inkBorder}99`;
+    ? 'rgba(248, 250, 252, 0.14)'
+    : `${style.palette.inkBorder}80`;
 
   const insetLeft = isVertical ? 40 : 80;
   const insetRight = isVertical ? 168 : 80;
@@ -112,6 +118,10 @@ export const DataStoryStage2D: React.FC<DataStoryStage2DProps> = ({
         renderBaseFill={renderBaseFill}
       />
 
+      {showScenicBackdrop ? (
+        <ScenicBackdropLayers style={style} seed={`data-stage:${seed}`} />
+      ) : null}
+
       <OpticalStage2D
         nodes={nodes}
         shots={shots && shots.length > 0 ? shots : defaultShots}
@@ -130,7 +140,7 @@ export const DataStoryStage2D: React.FC<DataStoryStage2DProps> = ({
                 bottom: insetBottom,
                 borderTop: `1px solid ${ruleColor}`,
                 borderBottom: `1px solid ${ruleColor}`,
-                opacity: 0.52,
+                opacity: 0.4,
                 display: 'flex',
                 justifyContent: 'space-between',
               }}
@@ -142,7 +152,7 @@ export const DataStoryStage2D: React.FC<DataStoryStage2DProps> = ({
                     width: 1,
                     height: '100%',
                     backgroundColor: ruleColor,
-                    opacity: pct === 0 || pct === 100 ? 0.85 : 0.45,
+                    opacity: pct === 0 || pct === 100 ? 0.8 : 0.4,
                   }}
                 />
               ))}
@@ -158,33 +168,33 @@ export const DataStoryStage2D: React.FC<DataStoryStage2DProps> = ({
                   fontSize: 12,
                   lineHeight: 1,
                   color: style.palette.textSecondary,
-                  opacity: 0.5,
+                  opacity: 0.42,
                 }}
               >
                 +
               </span>
             ))}
 
-            <div
-              style={{
-                position: 'absolute',
-                left: insetLeft + 8,
-                top: Math.max(18, insetTop - 26),
-                display: 'flex',
-                alignItems: 'center',
-                gap: 14,
-                fontFamily: monoFont,
-                fontSize: 13,
-                letterSpacing: '0.15em',
-                color: style.palette.textSecondary,
-                opacity: 0.62,
-              }}
-            >
-              <span>∑</span>
-              <span>{datasetCode}</span>
-              <span>•</span>
-              <span>0 · 25 · 50 · 75 · 100</span>
-            </div>
+            {cleanDatasetCode ? (
+              <div
+                style={{
+                  position: 'absolute',
+                  left: insetLeft + 8,
+                  top: Math.max(18, insetTop - 26),
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 14,
+                  fontFamily: monoFont,
+                  fontSize: 13,
+                  letterSpacing: '0.14em',
+                  color: style.palette.textSecondary,
+                  opacity: 0.62,
+                }}
+              >
+                <span>∑</span>
+                <span>{cleanDatasetCode}</span>
+              </div>
+            ) : null}
           </AbsoluteFill>
         </DepthPlane>
 
@@ -202,7 +212,7 @@ export const DataStoryStage2D: React.FC<DataStoryStage2DProps> = ({
                 display: 'flex',
                 alignItems: 'flex-end',
                 gap: 7,
-                opacity: 0.38,
+                opacity: 0.34,
               }}
             >
               {Array.from({ length: 13 }).map((_, idx) => (

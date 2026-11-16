@@ -1,7 +1,11 @@
 import React, { createContext, useContext, useMemo } from 'react';
-import { spring, useCurrentFrame, useVideoConfig } from 'remotion';
+import { AbsoluteFill, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import {
   DirectorCamera2D,
+  STUDIO_THEME,
+  ScenicBackdropLayers,
+  StageLightingRig,
+  THEME,
   computeCircleOfConfusionPx,
   formatFontFamilyCss,
   getStyleSpringConfig,
@@ -44,18 +48,25 @@ export interface MotionDiagramStage2DProps
   extends Omit<DirectorCamera2DProps, 'children'> {
   /** Explicit focused node IDs; when omitted, derives focus automatically from `shots` */
   focusedNodeIds?: ReadonlyArray<string>;
-  /** Viewport-pinned technical sheet index stamp (strictly inside 9:16 Safe Box) */
+  /** Optional viewport-pinned sheet stamp (omitted by default; rendered only when explicitly non-empty) */
   diagramCode?: string;
+  /** Render 3-ArtWorld `<ScenicBackdropLayers />` behind the camera grid & nodes (default `true`) */
+  showScenicBackdrop?: boolean;
   children?: React.ReactNode;
 }
 
 export const MotionDiagramStage2D: React.FC<MotionDiagramStage2DProps> = ({
   focusedNodeIds,
   diagramCode,
+  showScenicBackdrop = true,
   shots,
   overlay,
   stageWidth,
   stageHeight,
+  variant,
+  seed = 2026,
+  renderBaseFill = true,
+  renderLighting = true,
   children,
   ...cameraProps
 }) => {
@@ -68,6 +79,20 @@ export const MotionDiagramStage2D: React.FC<MotionDiagramStage2DProps> = ({
   const effectiveWidth = stageWidth ?? width;
   const effectiveHeight = stageHeight ?? height;
   const isVertical = effectiveHeight > effectiveWidth;
+
+  const isDarkSurface =
+    variant === 'dark'
+      ? true
+      : variant === 'light'
+        ? false
+        : studioStyle.surface.isDark;
+
+  const resolvedBgCanvas =
+    variant === 'dark' && !studioStyle.surface.isDark
+      ? THEME.colors.bgPrimary
+      : variant === 'light' && studioStyle.surface.isDark
+        ? STUDIO_THEME.colors.bgCanvas
+        : studioStyle.palette.bgCanvas;
 
   const sortedShots = useMemo(
     () =>
@@ -86,16 +111,41 @@ export const MotionDiagramStage2D: React.FC<MotionDiagramStage2DProps> = ({
     const buildOptics = (recessAmount: number): ResolvedNodeFocusOptics => {
       const clamped = Math.max(0, Math.min(1, recessAmount));
       const isRecessed = clamped > 0.35;
-      const blurPx = computeCircleOfConfusionPx(
+      const rawBlur = computeCircleOfConfusionPx(
         -0.28 * clamped,
         0,
         optics.aperture
       );
+
+      if (rawBlur === 0) {
+        return {
+          isRecessed,
+          blurPx: 0,
+          filterCss: 'none',
+          opacityScale: isDarkSurface
+            ? 1 - 0.28 * clamped
+            : 1 - 0.12 * clamped,
+          scaleFactor: 1 - (isDarkSurface ? 0.022 : 0.015) * clamped,
+        };
+      }
+
+      if (!isDarkSurface) {
+        const cappedBlur = Number(Math.min(1.85, rawBlur).toFixed(2));
+        const sat = Number((1 - 0.12 * clamped).toFixed(2));
+        return {
+          isRecessed,
+          blurPx: cappedBlur,
+          filterCss: `blur(${cappedBlur.toFixed(2)}px) saturate(${sat})`,
+          opacityScale: 1 - 0.12 * clamped,
+          scaleFactor: 1 - 0.015 * clamped,
+        };
+      }
+
       return {
         isRecessed,
-        blurPx,
-        filterCss: blurPx === 0 ? 'none' : `blur(${blurPx.toFixed(2)}px)`,
-        opacityScale: 1 - 0.32 * clamped,
+        blurPx: rawBlur,
+        filterCss: `blur(${rawBlur.toFixed(2)}px)`,
+        opacityScale: 1 - 0.28 * clamped,
         scaleFactor: 1 - 0.022 * clamped,
       };
     };
@@ -145,7 +195,17 @@ export const MotionDiagramStage2D: React.FC<MotionDiagramStage2DProps> = ({
         return buildOptics(1 - focusWeight);
       },
     };
-  }, [cameraSpring, explicitFocusSet, fps, frame, optics.aperture, sortedShots]);
+  }, [
+    cameraSpring,
+    explicitFocusSet,
+    fps,
+    frame,
+    isDarkSurface,
+    optics.aperture,
+    sortedShots,
+  ]);
+
+  const cleanDiagramCode = diagramCode?.trim() ? diagramCode.trim() : undefined;
 
   const headerEnter =
     frame < 2
@@ -163,7 +223,7 @@ export const MotionDiagramStage2D: React.FC<MotionDiagramStage2DProps> = ({
 
   const composedOverlay = (
     <>
-      {diagramCode && frame >= 2 ? (
+      {cleanDiagramCode && frame >= 2 ? (
         <div
           data-diagram-stamp="true"
           style={{
@@ -187,24 +247,67 @@ export const MotionDiagramStage2D: React.FC<MotionDiagramStage2DProps> = ({
           }}
         >
           <span style={{ color: studioStyle.palette.accentPrimary }}>┼</span>
-          <span>{diagramCode}</span>
+          <span>{cleanDiagramCode}</span>
         </div>
       ) : null}
       {overlay}
     </>
   );
 
+  // Clean Frame 0 invariant: delegate directly so frame <= 0 renders pure bgCanvas (or null)
+  if (frame <= 0) {
+    return (
+      <MotionDiagramFocusContext.Provider value={focusCtx}>
+        <DirectorCamera2D
+          shots={shots}
+          stageWidth={effectiveWidth}
+          stageHeight={effectiveHeight}
+          variant={variant}
+          seed={seed}
+          renderBaseFill={renderBaseFill}
+          renderLighting={renderLighting}
+          overlay={composedOverlay}
+          {...cameraProps}
+        >
+          {children}
+        </DirectorCamera2D>
+      </MotionDiagramFocusContext.Provider>
+    );
+  }
+
   return (
     <MotionDiagramFocusContext.Provider value={focusCtx}>
-      <DirectorCamera2D
-        shots={shots}
-        stageWidth={effectiveWidth}
-        stageHeight={effectiveHeight}
-        overlay={composedOverlay}
-        {...cameraProps}
+      <AbsoluteFill
+        style={{
+          backgroundColor: renderBaseFill ? resolvedBgCanvas : 'transparent',
+          overflow: 'hidden',
+        }}
       >
-        {children}
-      </DirectorCamera2D>
+        {renderLighting ? (
+          <StageLightingRig renderBaseFill={false} seed={`cam2d-${seed}`} />
+        ) : null}
+
+        {showScenicBackdrop ? (
+          <ScenicBackdropLayers
+            style={studioStyle}
+            seed={`motion-diagram:${seed}`}
+          />
+        ) : null}
+
+        <DirectorCamera2D
+          shots={shots}
+          stageWidth={effectiveWidth}
+          stageHeight={effectiveHeight}
+          variant={variant}
+          seed={seed}
+          renderBaseFill={false}
+          renderLighting={false}
+          overlay={composedOverlay}
+          {...cameraProps}
+        >
+          {children}
+        </DirectorCamera2D>
+      </AbsoluteFill>
     </MotionDiagramFocusContext.Provider>
   );
 };

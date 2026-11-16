@@ -6,6 +6,7 @@ import {
   useVideoConfig,
 } from 'remotion';
 import {
+  ClippedSurfaceChrome,
   SPRING_PRESETS,
   STUDIO_THEME,
   THEME,
@@ -114,6 +115,9 @@ export const ImpactKeywordCard: React.FC<ImpactKeywordCardProps> = ({
   const isVertical = height > width;
   const hasExplicitVariant = variant !== undefined;
   const isLight = variant === 'light';
+  const effectiveIsDark = hasExplicitVariant
+    ? !isLight
+    : studioStyle.surface.isDark;
 
   const translateY = interpolate(enter, [0, 1], [22, 0]) - exit * 16;
   const scale = interpolate(visibility, [0, 1], [0.96, 1]);
@@ -189,10 +193,23 @@ export const ImpactKeywordCard: React.FC<ImpactKeywordCardProps> = ({
         ...style,
       }}
     >
-      {/* Top Swiss Register Rule or Risograph Diagonal Bar */}
+      <ClippedSurfaceChrome
+        topBarHeight={resolvedGrammar === 'risograph-poster' ? 6 : 3}
+        topBarColor={resolvedAccent}
+        specularRim={!effectiveIsDark}
+        tintGradient={
+          effectiveIsDark
+            ? 'linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, transparent 48%)'
+            : 'linear-gradient(180deg, rgba(255, 255, 255, 0.65) 0%, rgba(255, 255, 255, 0) 50%)'
+        }
+      />
+
+      {/* Top Swiss Register Rule */}
       {resolvedGrammar === 'swiss-spatial' && (
         <div
           style={{
+            position: 'relative',
+            zIndex: 1,
             width: '100%',
             height: 2,
             backgroundColor: studioStyle.palette.inkBorder,
@@ -213,6 +230,8 @@ export const ImpactKeywordCard: React.FC<ImpactKeywordCardProps> = ({
       {resolvedGrammar === 'optical-gate' && (
         <div
           style={{
+            position: 'relative',
+            zIndex: 1,
             display: 'flex',
             justifyContent: 'space-between',
             fontFamily: monoFontCss,
@@ -229,6 +248,8 @@ export const ImpactKeywordCard: React.FC<ImpactKeywordCardProps> = ({
       {(eyebrow || badge || icon) && (
         <div
           style={{
+            position: 'relative',
+            zIndex: 1,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -292,6 +313,8 @@ export const ImpactKeywordCard: React.FC<ImpactKeywordCardProps> = ({
 
       <div
         style={{
+          position: 'relative',
+          zIndex: 1,
           fontFamily: displayFontCss,
           fontSize: isVertical ? 46 : 54,
           fontWeight: 800,
@@ -310,6 +333,8 @@ export const ImpactKeywordCard: React.FC<ImpactKeywordCardProps> = ({
       {sublabel ? (
         <div
           style={{
+            position: 'relative',
+            zIndex: 1,
             fontFamily: bodyFontCss,
             fontSize: isVertical ? 20 : 22,
             fontWeight: 500,

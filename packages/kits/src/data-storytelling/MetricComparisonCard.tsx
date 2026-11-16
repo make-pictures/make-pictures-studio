@@ -7,6 +7,7 @@ import {
   useVideoConfig,
 } from 'remotion';
 import {
+  ClippedSurfaceChrome,
   SPRING_PRESETS,
   formatFontFamilyCss,
   formatHeadingText,
@@ -135,7 +136,7 @@ const CalibratedDial240: React.FC<CalibratedDialProps> = ({
         height={Math.round(size * 0.88)}
         style={{ position: 'absolute', inset: 0, overflow: 'visible' }}
       >
-        {/* 25 Calibrated Degree Ticks (-210° .. +30° polar / -120° .. +120° from top every 10°) */}
+        {/* 25 Calibrated Degree Ticks (-120° .. +120° from top every 10°) */}
         {Array.from({ length: 25 }).map((_, idx) => {
           const deg = -120 + idx * 10;
           const isMajor = idx % 6 === 0;
@@ -348,6 +349,7 @@ export const MetricComparisonCard: React.FC<MetricComparisonCardProps> = ({
       style={getTactileSurfaceStyle(studioStyle, {
         elevation: 'lifted',
         overrides: {
+          position: 'relative',
           width: cardWidth,
           maxWidth: '100%',
           padding: isVerticalViewport ? '26px 28px' : '32px 40px',
@@ -368,9 +370,22 @@ export const MetricComparisonCard: React.FC<MetricComparisonCardProps> = ({
         },
       })}
     >
-      {/* Header + Tabular Rectangular Delta Stamp (Zero rounded pills) */}
+      <ClippedSurfaceChrome
+        topBarHeight={grammar === 'risograph-poster' ? 5 : 3}
+        topBarColor={resolvedAfterColor}
+        specularRim={!isDark}
+        tintGradient={
+          isDark
+            ? 'linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, transparent 48%)'
+            : 'linear-gradient(180deg, rgba(255, 255, 255, 0.62) 0%, rgba(255, 255, 255, 0) 48%)'
+        }
+      />
+
+      {/* Header + Tabular Rectangular Delta Stamp */}
       <div
         style={{
+          position: 'relative',
+          zIndex: 1,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -395,16 +410,7 @@ export const MetricComparisonCard: React.FC<MetricComparisonCardProps> = ({
               : formatHeadingText(title, studioStyle)}
           </div>
         ) : (
-          <span
-            style={{
-              fontFamily: monoFontCss,
-              fontSize: 13,
-              letterSpacing: '0.14em',
-              color: textSecondary,
-            }}
-          >
-            KOMPARATOR Δ
-          </span>
+          <span />
         )}
 
         <div
@@ -436,6 +442,8 @@ export const MetricComparisonCard: React.FC<MetricComparisonCardProps> = ({
       {mode === 'rings' ? (
         <div
           style={{
+            position: 'relative',
+            zIndex: 1,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-around',
@@ -530,7 +538,15 @@ export const MetricComparisonCard: React.FC<MetricComparisonCardProps> = ({
         </div>
       ) : (
         /* Dual-Track Sharp Comparator + 45° SVG Hatched Delta Span Mode */
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div
+          style={{
+            position: 'relative',
+            zIndex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 16,
+          }}
+        >
           <div
             style={{
               display: 'flex',

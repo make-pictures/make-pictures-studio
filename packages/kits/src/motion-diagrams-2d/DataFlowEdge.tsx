@@ -1,6 +1,7 @@
 import React from 'react';
 import { interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import {
+  ClippedSurfaceChrome,
   SPRING_PRESETS,
   formatFontFamilyCss,
   getTactileSurfaceStyle,
@@ -18,6 +19,7 @@ export interface DataFlowEdgeProps {
   from: Point2D;
   to: Point2D;
   curveOffsetY?: number;
+  curveOffsetX?: number;
   color?: string;
   secondaryColor?: string;
   drawStartFrame?: number;
@@ -74,11 +76,41 @@ function evaluateCubicBezierAngleDeg(
   return (Math.atan2(ty * sign, tx * sign) * 180) / Math.PI;
 }
 
+function sampleBezierTrailPath(
+  p0: Point2D,
+  p1: Point2D,
+  p2: Point2D,
+  p3: Point2D,
+  fromT: number,
+  toT: number,
+  segments = 8
+): { d: string; startPt: Point2D; endPt: Point2D } {
+  const clampedStart = Math.max(0, Math.min(1, fromT));
+  const clampedEnd = Math.max(0, Math.min(1, toT));
+  const pts: Point2D[] = [];
+  for (let s = 0; s <= segments; s++) {
+    const u = s / segments;
+    const t = clampedStart + (clampedEnd - clampedStart) * u;
+    pts.push(evaluateCubicBezier(p0, p1, p2, p3, t));
+  }
+  const d = pts
+    .map((pt, idx) =>
+      `${idx === 0 ? 'M' : 'L'} ${pt.x.toFixed(2)} ${pt.y.toFixed(2)}`
+    )
+    .join(' ');
+  return {
+    d,
+    startPt: pts[0]!,
+    endPt: pts[pts.length - 1]!,
+  };
+}
+
 export const DataFlowEdge: React.FC<DataFlowEdgeProps> = ({
   id,
   from,
   to,
   curveOffsetY = -70,
+  curveOffsetX,
   color,
   secondaryColor,
   drawStartFrame = 2,
@@ -90,8 +122,8 @@ export const DataFlowEdge: React.FC<DataFlowEdgeProps> = ({
   label,
   subLabel,
   labelT = 0.5,
-  labelOffsetX = 0,
-  labelOffsetY = -28,
+  labelOffsetX,
+  labelOffsetY,
   zIndex,
 }) => {
   const frame = useCurrentFrame();
@@ -116,15 +148,39 @@ export const DataFlowEdge: React.FC<DataFlowEdgeProps> = ({
   const isDark = studioStyle.surface.isDark;
 
   const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const isVerticalSpan = Math.abs(dy) > Math.abs(dx) * 1.35;
+
   const p0 = from;
-  const p1: Point2D = {
-    x: from.x + dx * 0.36,
-    y: from.y + curveOffsetY,
-  };
-  const p2: Point2D = {
-    x: from.x + dx * 0.64,
-    y: to.y + curveOffsetY,
-  };
+  const p1: Point2D = isVerticalSpan
+    ? {
+        x: from.x + (curveOffsetX ?? 0),
+        y: from.y + dy * 0.42,
+      }
+    : Math.abs(curveOffsetY) < 1
+      ? {
+          x: from.x + dx * 0.42,
+          y: from.y,
+        }
+      : {
+          x: from.x + dx * 0.36,
+          y: from.y + curveOffsetY,
+        };
+
+  const p2: Point2D = isVerticalSpan
+    ? {
+        x: to.x + (curveOffsetX ?? 0),
+        y: to.y - dy * 0.42,
+      }
+    : Math.abs(curveOffsetY) < 1
+      ? {
+          x: to.x - dx * 0.42,
+          y: to.y,
+        }
+      : {
+          x: from.x + dx * 0.64,
+          y: to.y + curveOffsetY,
+        };
   const p3 = to;
 
   const pathData = `M ${p0.x} ${p0.y} C ${p1.x} ${p1.y}, ${p2.x} ${p2.y}, ${p3.x} ${p3.y}`;
@@ -157,6 +213,21 @@ export const DataFlowEdge: React.FC<DataFlowEdgeProps> = ({
   const clampedLabelT = Math.max(0, Math.min(1, labelT));
   const labelAnchor = evaluateCubicBezier(p0, p1, p2, p3, clampedLabelT);
 
+  // Enforce >= 26px clearance from the cubic Bézier curve at labelT
+  const verticalSideSign = (curveOffsetX ?? 0) < 0 ? -1 : 1;
+  const resolvedLabelOffsetX = isVerticalSpan
+    ? (labelOffsetX ?? verticalSideSign * 30)
+    : (labelOffsetX ?? 0);
+  const resolvedLabelOffsetY = isVerticalSpan
+    ? (labelOffsetY ?? 0)
+    : (labelOffsetY ?? (curveOffsetY <= 0 ? -32 : 32));
+  const labelTranslateX =
+    isVerticalSpan && labelOffsetX === undefined
+      ? verticalSideSign > 0
+        ? '0%'
+        : '-100%'
+      : '-50%';
+
   const pathLengthEstimate = 1600;
   const dashOffset = interpolate(
     drawProgress,
@@ -164,10 +235,18 @@ export const DataFlowEdge: React.FC<DataFlowEdgeProps> = ({
     [pathLengthEstimate, 0]
   );
 
-  const gradId = `edge-grad-${id}`;
+  const safeId = id.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const gradId = `edge-grad-${safeId}`;
 
-  const packets: Array<{ head: Point2D; deg: number; opacity: number }> = [];
+  const packets: Array<{
+    head: Point2D;
+    deg: number;
+    opacity: number;
+    trailD: string;
+    trailStart: Point2D;
+  }> = [];
   if (flowAlpha > 0.01) {
+    const trailSpan = 0.17;
     for (let i = 0; i < packetCount; i++) {
       const staggerFrames = Math.round((i / packetCount) * traverseFrames);
       const localElapsed = frame - flowStartFrame - staggerFrames;
@@ -175,6 +254,10 @@ export const DataFlowEdge: React.FC<DataFlowEdgeProps> = ({
 
       const rawProgress = (localElapsed % traverseFrames) / traverseFrames;
       const t = direction === 'forward' ? rawProgress : 1 - rawProgress;
+      const tailT =
+        direction === 'forward'
+          ? Math.max(0, t - trailSpan)
+          : Math.min(1, t + trailSpan);
 
       const edgeFade =
         interpolate(t, [0, 0.08, 0.92, 1], [0, 1, 1, 0], {
@@ -191,17 +274,27 @@ export const DataFlowEdge: React.FC<DataFlowEdgeProps> = ({
         t,
         direction === 'reverse'
       );
-      packets.push({ head, deg, opacity: edgeFade });
+      const sampled = sampleBezierTrailPath(p0, p1, p2, p3, tailT, t, 8);
+      packets.push({
+        head,
+        deg,
+        opacity: edgeFade,
+        trailD: sampled.d,
+        trailStart: sampled.startPt,
+      });
     }
   }
 
   const plateStyle = getTactileSurfaceStyle(studioStyle, {
     elevation: 'resting',
     overrides: {
-      borderRadius: Math.max(0, Math.round(4 * studioStyle.surface.radiusScale)),
+      borderRadius: Math.max(
+        0,
+        Math.round(5 * studioStyle.surface.radiusScale)
+      ),
       borderColor:
         flowAlpha > 0.2 ? resolvedColor : studioStyle.palette.inkBorder,
-      padding: '4px 10px',
+      padding: '5px 11px',
     },
   });
 
@@ -237,13 +330,31 @@ export const DataFlowEdge: React.FC<DataFlowEdgeProps> = ({
             <stop offset="0%" stopColor={resolvedColor} />
             <stop offset="100%" stopColor={endColor} />
           </linearGradient>
+
+          {packets.map((pkt, idx) => (
+            <linearGradient
+              key={`trail-grad-${idx}`}
+              id={`${gradId}-trail-${idx}`}
+              x1={pkt.trailStart.x}
+              y1={pkt.trailStart.y}
+              x2={pkt.head.x}
+              y2={pkt.head.y}
+              gradientUnits="userSpaceOnUse"
+            >
+              <stop offset="0%" stopColor={endColor} stopOpacity={0} />
+              <stop offset="55%" stopColor={resolvedColor} stopOpacity={0.5} />
+              <stop offset="100%" stopColor={resolvedColor} stopOpacity={1} />
+            </linearGradient>
+          ))}
         </defs>
 
         <path
           d={pathData}
           fill="none"
-          stroke={isDark ? 'rgba(255, 255, 255, 0.16)' : studioStyle.palette.inkBorder}
-          strokeOpacity={isDark ? 1 : 0.45}
+          stroke={
+            isDark ? 'rgba(255, 255, 255, 0.18)' : studioStyle.palette.inkBorder
+          }
+          strokeOpacity={isDark ? 1 : 0.52}
           strokeWidth={1.6}
           strokeDasharray={pathLengthEstimate}
           strokeDashoffset={dashOffset}
@@ -255,7 +366,7 @@ export const DataFlowEdge: React.FC<DataFlowEdgeProps> = ({
           stroke={`url(#${gradId})`}
           strokeWidth={1.8}
           strokeDasharray="6 8"
-          strokeOpacity={0.32 * drawProgress + 0.38 * flowAlpha}
+          strokeOpacity={0.28 * drawProgress + 0.34 * flowAlpha}
         />
 
         {flowAlpha > 0.01 && (
@@ -263,10 +374,32 @@ export const DataFlowEdge: React.FC<DataFlowEdgeProps> = ({
             d={pathData}
             fill="none"
             stroke={`url(#${gradId})`}
-            strokeWidth={grammar === 'risograph-poster' ? 3.2 : 2.4}
-            strokeOpacity={0.78 * flowAlpha}
+            strokeWidth={grammar === 'risograph-poster' ? 3.2 : 2.2}
+            strokeOpacity={0.68 * flowAlpha}
           />
         )}
+
+        {/* Luminous Gradient Flow Trails Behind Traveling Couplers */}
+        {packets.map((pkt, idx) => (
+          <g key={`trail-${idx}`} data-flow-trail="true" opacity={pkt.opacity}>
+            <path
+              d={pkt.trailD}
+              fill="none"
+              stroke={`url(#${gradId}-trail-${idx})`}
+              strokeWidth={7.5}
+              strokeLinecap="round"
+              opacity={isDark ? 0.34 : 0.24}
+            />
+            <path
+              d={pkt.trailD}
+              fill="none"
+              stroke={`url(#${gradId}-trail-${idx})`}
+              strokeWidth={grammar === 'risograph-poster' ? 3.8 : 3}
+              strokeLinecap="round"
+              opacity={0.95}
+            />
+          </g>
+        ))}
 
         <rect
           x={from.x - 4}
@@ -303,7 +436,13 @@ export const DataFlowEdge: React.FC<DataFlowEdgeProps> = ({
               />
             ) : grammar === 'optical-gate' ? (
               <>
-                <rect x={-9} y={-3.2} width={18} height={6.4} fill={resolvedColor} />
+                <rect
+                  x={-9}
+                  y={-3.2}
+                  width={18}
+                  height={6.4}
+                  fill={resolvedColor}
+                />
                 <rect x={-4} y={-1.2} width={10} height={2.4} fill="#FFFFFF" />
               </>
             ) : (
@@ -315,11 +454,12 @@ export const DataFlowEdge: React.FC<DataFlowEdgeProps> = ({
 
       {label && drawProgress > 0.4 && (
         <div
+          data-edge-label={id}
           style={{
             position: 'absolute',
-            left: labelAnchor.x + labelOffsetX,
-            top: labelAnchor.y + labelOffsetY,
-            transform: `translate3d(-50%, -50%, 0) scale(${interpolate(
+            left: labelAnchor.x + resolvedLabelOffsetX,
+            top: labelAnchor.y + resolvedLabelOffsetY,
+            transform: `translate3d(${labelTranslateX}, -50%, 0) scale(${interpolate(
               drawProgress,
               [0.4, 1],
               [0.9, 1],
@@ -334,10 +474,18 @@ export const DataFlowEdge: React.FC<DataFlowEdgeProps> = ({
             alignItems: 'center',
             gap: 7,
             whiteSpace: 'nowrap',
+            overflow: 'hidden',
           }}
         >
+          <ClippedSurfaceChrome
+            topBarHeight={2}
+            topBarColor={resolvedColor}
+            specularRim={!isDark}
+          />
           <span
             style={{
+              position: 'relative',
+              zIndex: 1,
               width: 6,
               height: 6,
               backgroundColor: resolvedColor,
@@ -346,11 +494,13 @@ export const DataFlowEdge: React.FC<DataFlowEdgeProps> = ({
           />
           <span
             style={{
+              position: 'relative',
+              zIndex: 1,
               fontFamily: monoFontCss,
-              fontSize: 11,
+              fontSize: 11.5,
               fontWeight: 700,
               color: studioStyle.palette.textPrimary,
-              letterSpacing: '0.04em',
+              letterSpacing: '0.03em',
             }}
           >
             {label}
@@ -358,6 +508,8 @@ export const DataFlowEdge: React.FC<DataFlowEdgeProps> = ({
           {subLabel && (
             <span
               style={{
+                position: 'relative',
+                zIndex: 1,
                 fontFamily: monoFontCss,
                 fontSize: 10.5,
                 color: studioStyle.palette.textSecondary,

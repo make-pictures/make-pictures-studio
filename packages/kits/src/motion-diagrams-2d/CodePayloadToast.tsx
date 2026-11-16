@@ -1,6 +1,7 @@
 import React from 'react';
 import { interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import {
+  ClippedSurfaceChrome,
   formatFontFamilyCss,
   getStyleSpringConfig,
   getTactileSurfaceStyle,
@@ -201,15 +202,23 @@ export const CodePayloadToast: React.FC<CodePayloadToastProps> = ({
         pointerEvents: 'none',
       }}
     >
+      <ClippedSurfaceChrome
+        topBarHeight={2.5}
+        topBarColor={resolvedAccent}
+        specularRim={!studioStyle.surface.isDark}
+        style={{ zIndex: 2 }}
+      />
+
       <div
         style={{
+          position: 'relative',
+          zIndex: 1,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '8px 14px',
+          padding: '10px 14px 8px 14px',
           backgroundColor: studioStyle.palette.bgElevated,
           borderBottom: `1px solid ${studioStyle.palette.inkBorder}`,
-          borderLeft: `3px solid ${resolvedAccent}`,
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -257,6 +266,8 @@ export const CodePayloadToast: React.FC<CodePayloadToastProps> = ({
 
       <div
         style={{
+          position: 'relative',
+          zIndex: 1,
           padding: '11px 16px',
           fontFamily: monoFontCss,
           fontSize: 12,

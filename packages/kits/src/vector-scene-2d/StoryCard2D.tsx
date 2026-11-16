@@ -1,6 +1,7 @@
 import React from 'react';
 import { interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import {
+  ClippedSurfaceChrome,
   createSeededRandom,
   formatFontFamilyCss,
   formatHeadingText,
@@ -15,6 +16,7 @@ export interface StoryCard2DProps {
   subtitle?: string;
   badge?: string;
   icon?: React.ReactNode;
+  /** Optional plate index stamp (omitted by default — rendered only when explicitly non-empty) */
   plateCode?: string;
   tiltDeg?: number;
   compact?: boolean;
@@ -78,7 +80,14 @@ export const StoryCard2D: React.FC<StoryCard2DProps> = ({
     createSeededRandom(`story-glyph:${title}`)() * 3
   );
 
-  const displayFont = formatFontFamilyCss(style.typography.displayFont, 'display');
+  const cleanBadge = badge?.trim() ? badge.trim() : undefined;
+  const cleanPlateCode = plateCode?.trim() ? plateCode.trim() : undefined;
+  const hasHeader = Boolean(cleanBadge || cleanPlateCode);
+
+  const displayFont = formatFontFamilyCss(
+    style.typography.displayFont,
+    'display'
+  );
   const bodyFont = formatFontFamilyCss(style.typography.bodyFont, 'body');
   const monoFont = formatFontFamilyCss(style.typography.monoFont, 'mono');
 
@@ -102,10 +111,6 @@ export const StoryCard2D: React.FC<StoryCard2DProps> = ({
             grammar === 'risograph-poster'
               ? 0
               : Math.max(0, Math.round(6 * style.surface.radiusScale)),
-          borderTop:
-            grammar === 'swiss-spatial'
-              ? `3px solid ${accent}`
-              : undefined,
           display: 'flex',
           flexDirection: 'column',
           gap: compact ? 14 : 18,
@@ -116,10 +121,23 @@ export const StoryCard2D: React.FC<StoryCard2DProps> = ({
         },
       })}
     >
-      {/* Top Calibration Index Header (Replaces rounded pill badge) */}
-      {(badge || plateCode || grammar === 'optical-gate') && (
+      <ClippedSurfaceChrome
+        topBarHeight={grammar === 'risograph-poster' ? 5 : 3}
+        topBarColor={accent}
+        specularRim={!style.surface.isDark}
+        tintGradient={
+          style.surface.isDark
+            ? 'linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, transparent 48%)'
+            : 'linear-gradient(180deg, rgba(255, 255, 255, 0.64) 0%, rgba(255, 255, 255, 0) 50%)'
+        }
+      />
+
+      {/* Optional Eyebrow Header (only rendered when badge or plateCode is explicitly passed) */}
+      {hasHeader && (
         <div
           style={{
+            position: 'relative',
+            zIndex: 1,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -132,42 +150,50 @@ export const StoryCard2D: React.FC<StoryCard2DProps> = ({
             letterSpacing: '0.12em',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {cleanBadge ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span
+                style={{
+                  display: 'inline-block',
+                  width: grammar === 'risograph-poster' ? 10 : 3,
+                  height: 14,
+                  backgroundColor: accent,
+                }}
+              />
+              <span
+                style={{
+                  color:
+                    grammar === 'risograph-poster'
+                      ? style.palette.textPrimary
+                      : accent,
+                }}
+              >
+                {cleanBadge}
+              </span>
+            </div>
+          ) : (
+            <span />
+          )}
+
+          {cleanPlateCode ? (
             <span
               style={{
-                display: 'inline-block',
-                width: grammar === 'risograph-poster' ? 10 : 3,
-                height: 14,
-                backgroundColor: accent,
-              }}
-            />
-            <span
-              style={{
-                color:
-                  grammar === 'risograph-poster'
-                    ? style.palette.textPrimary
-                    : accent,
+                fontSize: 13,
+                fontWeight: 600,
+                color: style.palette.textSecondary,
               }}
             >
-              {badge ?? 'FIG. 01'}
+              {cleanPlateCode}
             </span>
-          </div>
-
-          <span
-            style={{
-              fontSize: 13,
-              fontWeight: 600,
-              color: style.palette.textSecondary,
-            }}
-          >
-            {plateCode ?? (grammar === 'optical-gate' ? 'OPTICAL PLATE' : '60 FPS')}
-          </span>
+          ) : null}
         </div>
       )}
 
       {/* Main Plate Body: Engraved Geometric Medallion + Headline/Copy */}
       <div
         style={{
+          position: 'relative',
+          zIndex: 1,
           display: 'flex',
           alignItems: 'flex-start',
           gap: compact ? 18 : 22,
@@ -226,7 +252,8 @@ export const StoryCard2D: React.FC<StoryCard2DProps> = ({
                   cx="30"
                   cy="30"
                   r="20"
-                  fill="none"
+                  fill={accent}
+                  fillOpacity="0.1"
                   stroke={accent}
                   strokeWidth="1.5"
                 />
@@ -277,10 +304,11 @@ export const StoryCard2D: React.FC<StoryCard2DProps> = ({
                   cx="30"
                   cy="30"
                   r="18"
-                  fill="none"
+                  fill={accent}
+                  fillOpacity="0.14"
                   stroke={accent}
                   strokeWidth="1.2"
-                  opacity={0.75}
+                  opacity={0.85}
                 />
               </>
             )}
@@ -291,7 +319,8 @@ export const StoryCard2D: React.FC<StoryCard2DProps> = ({
                 y="6"
                 width="48"
                 height="48"
-                fill="none"
+                fill={accent}
+                fillOpacity="0.12"
                 stroke={accent}
                 strokeWidth="2"
               />

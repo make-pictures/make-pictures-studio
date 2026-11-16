@@ -7,12 +7,16 @@ import {
   useVideoConfig,
 } from 'remotion';
 import {
+  ClippedSurfaceChrome,
   createSeededRandom,
   formatFontFamilyCss,
   getStyleSpringConfig,
   getTactileSurfaceStyle,
+  resolveArtWorld,
   resolveStyleOptics,
   useStudioStyle,
+  type ArtWorld,
+  type StylePreset,
 } from '@make-pictures/core';
 import { SplitStorySlotContext } from './SplitStoryLayout';
 
@@ -50,6 +54,216 @@ function resolveEffectiveMount(
   return 'archival-tape';
 }
 
+const PainterlyEditorialArtwork: React.FC<{
+  artWorld: ArtWorld;
+  style: StylePreset;
+  scale: number;
+  tx: number;
+  ty: number;
+  uid: string;
+}> = ({ artWorld, style, scale, tx, ty, uid }) => {
+  const { palette, surface } = style;
+
+  if (artWorld === 'atelier') {
+    return (
+      <svg
+        data-contact-sheet="true"
+        data-editorial-artworld="atelier"
+        viewBox="0 0 640 400"
+        preserveAspectRatio="xMidYMid slice"
+        style={{
+          width: '100%',
+          height: '100%',
+          display: 'block',
+          transform: `scale(${scale}) translate(${tx}px, ${ty}px)`,
+          transformOrigin: 'center center',
+        }}
+      >
+        <defs>
+          <linearGradient id={`${uid}-at-sky`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={palette.bgSurface} />
+            <stop offset="100%" stopColor={palette.bgElevated} />
+          </linearGradient>
+          <radialGradient id={`${uid}-at-orb`} cx="38%" cy="34%" r="62%">
+            <stop
+              offset="0%"
+              stopColor={surface.isDark ? '#FFFFFF' : palette.bgSurface}
+              stopOpacity={0.92}
+            />
+            <stop offset="55%" stopColor={palette.accentPrimary} stopOpacity={0.78} />
+            <stop offset="100%" stopColor={palette.accentSecondary} stopOpacity={0.9} />
+          </radialGradient>
+        </defs>
+        <rect width="640" height="400" fill={`url(#${uid}-at-sky)`} />
+        <path
+          d="M 0 286 Q 320 318 640 286 L 640 400 L 0 400 Z"
+          fill={palette.bgCanvas}
+          opacity="0.88"
+        />
+        <ellipse
+          cx="320"
+          cy="322"
+          rx="210"
+          ry="28"
+          fill={palette.accentPrimary}
+          opacity={surface.isDark ? 0.22 : 0.14}
+        />
+        <path
+          d="M 186 286 V 156 A 134 134 0 0 1 454 156 V 286 Z"
+          fill={palette.accentSecondary}
+          fillOpacity={surface.isDark ? 0.16 : 0.12}
+          stroke={palette.inkBorder}
+          strokeWidth="1.4"
+        />
+        <circle cx="320" cy="192" r="78" fill={`url(#${uid}-at-orb)`} />
+        <ellipse
+          cx="320"
+          cy="192"
+          rx="118"
+          ry="38"
+          fill="none"
+          stroke={palette.accentPrimary}
+          strokeOpacity="0.55"
+          strokeWidth="1.6"
+          transform="rotate(-16 320 192)"
+        />
+      </svg>
+    );
+  }
+
+  if (artWorld === 'illustrative') {
+    return (
+      <svg
+        data-contact-sheet="true"
+        data-editorial-artworld="illustrative"
+        viewBox="0 0 640 400"
+        preserveAspectRatio="xMidYMid slice"
+        style={{
+          width: '100%',
+          height: '100%',
+          display: 'block',
+          transform: `scale(${scale}) translate(${tx}px, ${ty}px)`,
+          transformOrigin: 'center center',
+        }}
+      >
+        <defs>
+          <linearGradient id={`${uid}-il-sky`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={palette.bgCanvas} />
+            <stop offset="100%" stopColor={palette.bgElevated} />
+          </linearGradient>
+        </defs>
+        <rect width="640" height="400" fill={`url(#${uid}-il-sky)`} />
+        <circle
+          cx="458"
+          cy="126"
+          r="94"
+          fill={palette.accentPrimary}
+          opacity="0.16"
+        />
+        <circle
+          cx="458"
+          cy="126"
+          r="58"
+          fill={palette.accentPrimary}
+          opacity="0.86"
+        />
+        {/* Fluffy Storybook Clouds */}
+        <g fill={surface.isDark ? palette.bgSurface : '#FFFFFF'} opacity="0.88">
+          <ellipse cx="164" cy="112" rx="54" ry="18" />
+          <ellipse cx="142" cy="102" rx="30" ry="20" />
+          <ellipse cx="182" cy="98" rx="34" ry="22" />
+        </g>
+        {/* Layered Painterly Ridges */}
+        <path
+          d="M -20 286 L 146 174 L 278 252 L 418 168 L 660 294 L 660 400 L -20 400 Z"
+          fill={palette.accentSecondary}
+          opacity="0.46"
+        />
+        <path
+          d="M -20 326 Q 168 238 344 292 T 660 264 L 660 400 L -20 400 Z"
+          fill={palette.accentPrimary}
+          opacity="0.62"
+        />
+        <path
+          d="M -20 356 Q 220 308 420 342 T 660 326 L 660 400 L -20 400 Z"
+          fill={palette.textPrimary}
+          opacity={surface.isDark ? 0.34 : 0.18}
+        />
+      </svg>
+    );
+  }
+
+  // 'editorial-gallery': Passe-partout relief, sunlit travertine arch & warm horizon
+  return (
+    <svg
+      data-contact-sheet="true"
+      data-editorial-artworld="editorial-gallery"
+      viewBox="0 0 640 400"
+      preserveAspectRatio="xMidYMid slice"
+      style={{
+        width: '100%',
+        height: '100%',
+        display: 'block',
+        transform: `scale(${scale}) translate(${tx}px, ${ty}px)`,
+        transformOrigin: 'center center',
+      }}
+    >
+      <defs>
+        <linearGradient id={`${uid}-ed-wash`} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor={palette.bgSurface} />
+          <stop offset="65%" stopColor={palette.bgElevated} />
+          <stop offset="100%" stopColor={palette.bgCanvas} />
+        </linearGradient>
+      </defs>
+      <rect width="640" height="400" fill={`url(#${uid}-ed-wash)`} />
+      {/* Diagonal sunlit gallery shaft */}
+      <polygon
+        points="84,0 296,0 448,400 202,400"
+        fill={surface.isDark ? palette.bgElevated : '#FFFFFF'}
+        opacity={surface.isDark ? 0.24 : 0.56}
+      />
+      {/* Passe-partout inner frame */}
+      <rect
+        x="34"
+        y="28"
+        width="572"
+        height="344"
+        fill="none"
+        stroke={palette.inkBorder}
+        strokeWidth="1.25"
+      />
+      {/* Sculptural Gallery Arch & Sun Disc */}
+      <path
+        d="M 196 340 V 168 A 124 124 0 0 1 444 168 V 340 Z"
+        fill={palette.bgCanvas}
+        stroke={palette.inkBorder}
+        strokeWidth="1.4"
+      />
+      <circle
+        cx="358"
+        cy="168"
+        r="56"
+        fill={palette.accentPrimary}
+        opacity="0.84"
+      />
+      <path
+        d="M 118 340 Q 254 252 384 298 T 522 278 L 522 340 Z"
+        fill={palette.accentSecondary}
+        opacity="0.68"
+      />
+      <line
+        x1="88"
+        y1="340"
+        x2="552"
+        y2="340"
+        stroke={palette.textPrimary}
+        strokeOpacity="0.38"
+        strokeWidth="1.4"
+      />
+    </svg>
+  );
+};
+
 export const EditorialMediaCard: React.FC<EditorialMediaCardProps> = ({
   src,
   caption,
@@ -68,6 +282,7 @@ export const EditorialMediaCard: React.FC<EditorialMediaCardProps> = ({
   const { fps, width, height } = useVideoConfig();
   const style = useStudioStyle();
   const optics = resolveStyleOptics(style);
+  const artWorld = resolveArtWorld(style);
   const inSplitSlot = useContext(SplitStorySlotContext);
   const isVertical = height > width;
   const isCompactVerticalSlot = inSplitSlot && isVertical;
@@ -98,7 +313,10 @@ export const EditorialMediaCard: React.FC<EditorialMediaCardProps> = ({
     optics.lightingRig
   );
 
-  const seededUnit = createSeededRandom(`editorial-media:${caption}:${sourceTag ?? ''}`)();
+  const cleanSourceTag = sourceTag?.trim() ? sourceTag.trim() : undefined;
+  const seededUnit = createSeededRandom(
+    `editorial-media:${caption}:${cleanSourceTag ?? ''}`
+  )();
   const tiltSpan = isVertical ? 1.1 : 1.9;
   const resolvedTilt =
     typeof tiltDeg === 'number'
@@ -142,9 +360,20 @@ export const EditorialMediaCard: React.FC<EditorialMediaCardProps> = ({
     },
   });
 
+  const uid = `ed-art-${style.id}-${caption.length}`;
+
   return (
     <div data-mount-type={effectiveMount} style={cardSurface}>
-      {/* Translucent Archival Masking Tape */}
+      <ClippedSurfaceChrome
+        specularRim={!isSlide && !style.surface.isDark}
+        tintGradient={
+          !isSlide && !style.surface.isDark
+            ? 'linear-gradient(180deg, rgba(255, 255, 255, 0.56) 0%, rgba(255, 255, 255, 0) 46%)'
+            : undefined
+        }
+      />
+
+      {/* Translucent Archival Masking Tape (Bridges top print margin) */}
       {effectiveMount === 'archival-tape' && (
         <div
           style={{
@@ -163,33 +392,37 @@ export const EditorialMediaCard: React.FC<EditorialMediaCardProps> = ({
         />
       )}
 
-      {/* 35mm Slide Sprocket Header */}
-      {isSlide && (
+      {/* Optional Slide Source Header (only when sourceTag is explicitly provided) */}
+      {isSlide && cleanSourceTag ? (
         <div
           style={{
+            position: 'relative',
+            zIndex: 1,
             display: 'flex',
-            justifyContent: 'space-between',
+            justifyContent: 'flex-end',
             alignItems: 'center',
             fontFamily: monoFont,
             fontSize: 12,
-            letterSpacing: '0.14em',
-            color: 'rgba(248, 250, 252, 0.64)',
+            letterSpacing: '0.12em',
+            color: 'rgba(248, 250, 252, 0.72)',
           }}
         >
-          <span>▲ 35MM ARCHIVE POSITIVE</span>
-          <span>{sourceTag ?? 'KADR 14A'}</span>
+          <span>{cleanSourceTag}</span>
         </div>
-      )}
+      ) : null}
 
-      {/* Photographic Aperture Window */}
+      {/* Photographic / Painterly Aperture Window */}
       <div
         style={{
           position: 'relative',
+          zIndex: 1,
           overflow: 'hidden',
           borderRadius: Math.max(0, Math.round(4 * style.surface.radiusScale)),
           aspectRatio: isCompactVerticalSlot ? '16 / 8.2' : '16 / 10',
           backgroundColor: style.palette.bgElevated,
-          border: `1px solid ${isSlide ? 'rgba(255,255,255,0.16)' : style.palette.inkBorder}`,
+          border: `1px solid ${
+            isSlide ? 'rgba(255,255,255,0.16)' : style.palette.inkBorder
+          }`,
         }}
       >
         {src ? (
@@ -203,68 +436,14 @@ export const EditorialMediaCard: React.FC<EditorialMediaCardProps> = ({
             }}
           />
         ) : (
-          <svg
-            data-contact-sheet="true"
-            viewBox="0 0 640 400"
-            preserveAspectRatio="xMidYMid slice"
-            style={{
-              width: '100%',
-              height: '100%',
-              display: 'block',
-              transform: `scale(${scale}) translate(${tx}px, ${ty}px)`,
-              transformOrigin: 'center center',
-            }}
-          >
-            <rect width="640" height="400" fill={style.palette.bgElevated} />
-            {/* Fine engraving hatch lines */}
-            {Array.from({ length: 14 }).map((_, i) => (
-              <line
-                key={i}
-                x1={0}
-                y1={24 + i * 28}
-                x2={640}
-                y2={24 + i * 28}
-                stroke={style.palette.inkBorder}
-                strokeWidth="0.8"
-                opacity="0.45"
-              />
-            ))}
-            <rect
-              x="36"
-              y="32"
-              width="568"
-              height="336"
-              fill="none"
-              stroke={style.palette.inkBorder}
-              strokeWidth="1.5"
-            />
-            <line
-              x1="36"
-              y1="368"
-              x2="604"
-              y2="32"
-              stroke={style.palette.accentSecondary}
-              strokeWidth="1"
-              strokeDasharray="6 6"
-              opacity="0.55"
-            />
-            <circle
-              cx="452"
-              cy="146"
-              r="76"
-              fill={style.palette.accentPrimary}
-              opacity="0.82"
-            />
-            <path
-              d="M54 352 L212 204 L334 298 L446 218 L586 352 Z"
-              fill={style.palette.accentSecondary}
-              opacity="0.68"
-            />
-            <g stroke={style.palette.textPrimary} strokeWidth="1.5" opacity="0.55">
-              <line x1="310" y1="200" x2="330" y2="200" />
-              <line x1="320" y1="190" x2="320" y2="210" />
-            </g>
-          </svg>
+          <PainterlyEditorialArtwork
+            artWorld={artWorld}
+            style={style}
+            scale={scale}
+            tx={tx}
+            ty={ty}
+            uid={uid}
+          />
         )}
 
         {/* Archival Die-Cut Photo Corners */}
@@ -314,9 +493,11 @@ export const EditorialMediaCard: React.FC<EditorialMediaCardProps> = ({
         )}
       </div>
 
-      {/* Baryta Print Footer: Caption + Archival Catalog Stamp */}
+      {/* Print Footer: Caption + Optional Source Tag */}
       <div
         style={{
+          position: 'relative',
+          zIndex: 1,
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'baseline',
@@ -335,7 +516,7 @@ export const EditorialMediaCard: React.FC<EditorialMediaCardProps> = ({
         >
           {caption}
         </div>
-        {sourceTag && !isSlide ? (
+        {cleanSourceTag && !isSlide ? (
           <span
             style={{
               flexShrink: 0,
@@ -346,7 +527,7 @@ export const EditorialMediaCard: React.FC<EditorialMediaCardProps> = ({
               color: style.palette.accentPrimary,
             }}
           >
-            {sourceTag}
+            {cleanSourceTag}
           </span>
         ) : null}
       </div>
