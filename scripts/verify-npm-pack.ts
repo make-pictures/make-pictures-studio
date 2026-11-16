@@ -813,8 +813,8 @@ async function main(): Promise<void> {
     };
     assert(
       Array.isArray(standaloneStylesJson.builtInStyles) &&
-        standaloneStylesJson.builtInStyles.length === 7,
-      `Expected 7 builtInStyles in standalone styles --json, got ${standaloneStylesJson.builtInStyles?.length}`
+        standaloneStylesJson.builtInStyles.length === 10,
+      `Expected 10 builtInStyles in standalone styles --json, got ${standaloneStylesJson.builtInStyles?.length}`
     );
     assert(
       Array.isArray(standaloneStylesJson.customStyles) &&
@@ -1155,7 +1155,7 @@ export const TestFilm: React.FC<TestFilmProps> = (props) => {
     };
     assert(
       Array.isArray(saasStylesJson.builtInStyles) &&
-        saasStylesJson.builtInStyles.length === 7 &&
+        saasStylesJson.builtInStyles.length === 10 &&
         Array.isArray(saasStylesJson.customStyles) &&
         saasStylesJson.customStyles.some((s) => s.id === 'saas-brand') &&
         Array.isArray(saasStylesJson.visualKits) &&

@@ -451,9 +451,18 @@ export const RetroPcWindowStage2D: React.FC<RetroPcWindowStage2DProps> = ({
   const segFloat = travelProgress * segCount;
   const activeSegIndex = Math.min(segCount - 1, Math.floor(segFloat));
 
-  // Compute active traveling packet coordinates along the current rail
+  // Compute active traveling packet coordinates strictly inside the inter-card rail gap
+  const packetOpacity = interpolate(
+    clampedProgress,
+    [0.01, 0.05, 0.84, 0.93],
+    [0, 1, 1, 0],
+    {
+      extrapolateLeft: 'clamp',
+      extrapolateRight: 'clamp',
+    }
+  );
   let packetPos: { x: number; y: number } | null = null;
-  if (hops.length >= 2 && clampedProgress > 0.01) {
+  if (hops.length >= 2 && packetOpacity > 0.01) {
     const segIdx =
       travelProgress >= 1 ? segCount - 1 : Math.max(0, activeSegIndex);
     const localT =
@@ -466,13 +475,27 @@ export const RetroPcWindowStage2D: React.FC<RetroPcWindowStage2DProps> = ({
       ? portBottom(fromBox)
       : portRight(fromBox);
     const pEnd = layout.isVertical ? portTop(toBox) : portLeft(toBox);
-    packetPos = {
-      x: pStart.x + (pEnd.x - pStart.x) * localT,
-      y: pStart.y + (pEnd.y - pStart.y) * localT,
-    };
-  } else if (hops.length === 1 && clampedProgress > 0.01) {
+    if (layout.isVertical) {
+      const padY = Math.min(18, Math.max(0, (pEnd.y - pStart.y) * 0.25));
+      const safeStartY = pStart.y + padY;
+      const safeEndY = Math.max(safeStartY, pEnd.y - padY);
+      packetPos = {
+        x: pStart.x,
+        y: safeStartY + (safeEndY - safeStartY) * localT,
+      };
+    } else {
+      const padX = Math.min(50, Math.max(0, (pEnd.x - pStart.x) * 0.34));
+      const safeStartX = pStart.x + padX;
+      const safeEndX = Math.max(safeStartX, pEnd.x - padX);
+      packetPos = {
+        x: safeStartX + (safeEndX - safeStartX) * localT,
+        y: pStart.y + 26,
+      };
+    }
+  } else if (hops.length === 1 && packetOpacity > 0.01) {
     const onlyBox = layout.hopBoxes[0]!;
-    packetPos = portRight(onlyBox);
+    const rightPort = portRight(onlyBox);
+    packetPos = { x: rightPort.x + 52, y: rightPort.y };
   }
 
   const stripeColor = isDark
@@ -1144,6 +1167,7 @@ export const RetroPcWindowStage2D: React.FC<RetroPcWindowStage2DProps> = ({
               position: 'absolute',
               left: packetPos.x,
               top: packetPos.y,
+              opacity: Number(packetOpacity.toFixed(4)),
               transform: 'translate(-50%, -50%)',
               padding: '4px 10px',
               borderRadius: chipRadius,

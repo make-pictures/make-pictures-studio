@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { masterMp4Loudness } from '../audio/master-loudness';
@@ -19,6 +20,8 @@ export interface RenderCommandOptions {
   noMaster?: boolean;
   propsArg?: string;
   glAngle?: boolean;
+  concurrency?: string;
+  timeoutMs?: number;
 }
 
 function resolveLocalRemotionBin(rootDir: string): string {
@@ -79,6 +82,10 @@ export async function runRenderCommand(
   const usesThree =
     options.glAngle ?? (await detectUsesThree(studioDir, compositionId));
   const remotionBin = resolveLocalRemotionBin(rootDir);
+  const resolvedConcurrency =
+    options.concurrency ??
+    (usesThree ? String(Math.max(2, Math.min(6, os.cpus().length))) : '100%');
+  const resolvedTimeout = options.timeoutMs ?? 90000;
 
   const args = [
     'render',
@@ -86,7 +93,8 @@ export async function runRenderCommand(
     compositionId,
     resolvedOutPath,
     '--fps=60',
-    '--concurrency=100%',
+    `--concurrency=${resolvedConcurrency}`,
+    `--timeout=${resolvedTimeout}`,
     `--public-dir=${publicDir}`,
     ...(usesThree ? ['--gl=angle'] : []),
     ...(options.propsArg ? [`--props=${options.propsArg}`] : []),

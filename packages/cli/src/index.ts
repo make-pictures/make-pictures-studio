@@ -423,6 +423,7 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
         );
       }
       const outPath = positionals[2] || getStringFlag(flags, 'out');
+      const timeoutStr = getStringFlag(flags, 'timeout');
       await runRenderCommand({
         cwd,
         dir,
@@ -432,6 +433,8 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
         noMaster: Boolean(flags['no-master']),
         propsArg: getStringFlag(flags, 'props'),
         glAngle: flags.gl === 'angle' ? true : undefined,
+        concurrency: getStringFlag(flags, 'concurrency'),
+        timeoutMs: timeoutStr ? Number(timeoutStr) : undefined,
       });
       return;
     }
