@@ -30,6 +30,9 @@ export const ClippedSurfaceChrome: React.FC<ClippedSurfaceChromeProps> = ({
   const studioStyle = useStudioStyle();
   const resolvedBarColor = topBarColor ?? studioStyle.palette.accentPrimary;
   const hasTopBar = typeof topBarHeight === 'number' && topBarHeight > 0;
+  const featherRoundedTopBar =
+    studioStyle.surface.radiusScale > 0 &&
+    !resolvedBarColor.includes('gradient');
 
   return (
     <div
@@ -58,15 +61,28 @@ export const ClippedSurfaceChrome: React.FC<ClippedSurfaceChromeProps> = ({
       {hasTopBar ? (
         <div
           data-clipped-top-bar="true"
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            height: topBarHeight,
-            background: resolvedBarColor,
-            pointerEvents: 'none',
-          }}
+          style={
+            featherRoundedTopBar
+              ? {
+                  position: 'absolute',
+                  top: 0,
+                  left: 14,
+                  right: 14,
+                  height: Math.min(topBarHeight, 2.5),
+                  borderRadius: 999,
+                  background: `linear-gradient(90deg, transparent 0%, ${resolvedBarColor} 18%, ${resolvedBarColor} 82%, transparent 100%)`,
+                  pointerEvents: 'none',
+                }
+              : {
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: topBarHeight,
+                  background: resolvedBarColor,
+                  pointerEvents: 'none',
+                }
+          }
         />
       ) : null}
 

@@ -578,8 +578,23 @@ test('ScenicBackdropLayers, ClippedSurfaceChrome, tactileSurface, and StageLight
   assert.match(chromeMarkup, /border-radius:inherit/);
   assert.match(chromeMarkup, /overflow:hidden/);
   assert.match(chromeMarkup, /pointer-events:none/);
-  assert.match(chromeMarkup, /height:4px/);
+  assert.match(chromeMarkup, /left:14px/);
+  assert.match(chromeMarkup, /right:14px/);
+  assert.match(chromeMarkup, /height:2\.5px/);
+  assert.match(chromeMarkup, /linear-gradient\(90deg, transparent 0%/);
   assert.match(chromeMarkup, /data-inner-deco="true"/);
+
+  const brutalistChromeMarkup = renderToStaticMarkup(
+    React.createElement(
+      StyleProvider,
+      { style: 'brutalist-poster' },
+      React.createElement(ClippedSurfaceChrome, {
+        topBarHeight: 4,
+        topBarColor: '#FF2A85',
+      })
+    )
+  );
+  assert.match(brutalistChromeMarkup, /left:0;right:0;height:4px/);
 
   // 3. Light-mode tactileSurface crisp studio figure-ground contrast
   const lightSurface = getTactileSurfaceStyle(BUILT_IN_STYLES['minimal-product'], {

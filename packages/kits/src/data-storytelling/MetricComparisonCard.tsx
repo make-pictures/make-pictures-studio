@@ -357,7 +357,7 @@ export const MetricComparisonCard: React.FC<MetricComparisonCardProps> = ({
           borderRadius:
             grammar === 'risograph-poster'
               ? 0
-              : Math.max(0, Math.round(6 * studioStyle.surface.radiusScale)),
+              : Math.max(0, Math.round(14 * studioStyle.surface.radiusScale)),
           ...(variant !== undefined
             ? {
                 backgroundColor: isDark ? '#0D1321' : '#FAF8F4',
