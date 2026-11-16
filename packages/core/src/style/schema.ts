@@ -90,6 +90,13 @@ export type StyleTypographyGrammar = z.infer<
   typeof StyleTypographyGrammarSchema
 >;
 
+export const ArtWorldSchema = z.enum([
+  'atelier',
+  'illustrative',
+  'editorial-gallery',
+]);
+export type ArtWorld = z.infer<typeof ArtWorldSchema>;
+
 export const StyleOpticsSchema = z.object({
   lightingRig: StyleLightingRigSchema.describe(
     'Optyka & Światło :: Reżim oświetlenia sceny'
@@ -129,6 +136,9 @@ export const StylePresetSchema = z.object({
     .max(240)
     .describe('Informacje :: Opis kierunku plastycznego'),
   recommendedFor: z.array(z.string()).default([]).describe('Informacje :: Polecane zastosowania'),
+  artWorld: ArtWorldSchema.optional().describe(
+    'Informacje :: Świat artystyczny'
+  ),
 
   palette: z.object({
     bgCanvas: ColorHexField('Tło płótna (Canvas)'),
@@ -264,4 +274,34 @@ export function withNormalizedStyleOptics(style: StylePreset): StylePreset {
     ...style,
     optics: deriveDefaultOpticsForSurface(style.surface),
   };
+}
+
+export function resolveArtWorld(style: StylePreset): ArtWorld {
+  if (style.artWorld) {
+    return style.artWorld;
+  }
+  switch (style.id) {
+    case 'minimal-product':
+    case 'cyber-telemetry':
+      return 'atelier';
+    case 'tactile-craft':
+    case 'sketch-notebook':
+      return 'illustrative';
+    case 'editorial-press':
+    case 'archival-chronicle':
+    case 'brutalist-poster':
+      return 'editorial-gallery';
+    default:
+      break;
+  }
+  if (
+    style.surface.cardTreatment === 'minimal-clean' ||
+    style.surface.cardTreatment === 'glass-glow'
+  ) {
+    return 'atelier';
+  }
+  if (style.surface.cardTreatment === 'tactile-cutout') {
+    return 'illustrative';
+  }
+  return 'editorial-gallery';
 }

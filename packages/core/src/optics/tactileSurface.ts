@@ -64,19 +64,25 @@ export function getTactileSurfaceStyle(
   } else if (surface.isDark || optics.lightingRig === 'darkroom-halation') {
     const glowRadius = Math.round(18 + optics.halation * 34);
     const glowAlpha = Math.min(0.45, Number((0.1 + optics.halation * 0.28).toFixed(2)));
-    boxShadow = `0 1.5px ${spec.contactBlur}px rgba(0, 0, 0, 0.62), ${dx}px ${dy}px ${spec.blur}px rgba(0, 0, 0, 0.52), 0 0 ${glowRadius}px rgba(255, 255, 255, ${glowAlpha * 0.16})`;
+    boxShadow = `inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 1.5px ${spec.contactBlur}px rgba(0, 0, 0, 0.62), ${dx}px ${dy}px ${spec.blur}px rgba(0, 0, 0, 0.52), 0 0 ${glowRadius}px rgba(255, 255, 255, ${glowAlpha * 0.16})`;
   } else {
-    const contactAlpha = Number((0.12 * spec.alphaScale).toFixed(3));
-    const castAlpha = Number((0.095 * spec.alphaScale).toFixed(3));
-    boxShadow = `0 1.5px ${spec.contactBlur}px rgba(24, 22, 21, ${contactAlpha}), ${dx}px ${dy}px ${spec.blur}px rgba(24, 22, 21, ${castAlpha})`;
+    const ringAlpha = Number((0.068 * spec.alphaScale).toFixed(3));
+    const contactAlpha = Number((0.145 * spec.alphaScale).toFixed(3));
+    const ambientY = Math.max(2, Math.round(spec.dist * 0.48));
+    const ambientBlur = Math.max(4, Math.round(spec.blur * 0.56));
+    const ambientAlpha = Number((0.095 * spec.alphaScale).toFixed(3));
+    const castAlpha = Number((0.13 * spec.alphaScale).toFixed(3));
+    boxShadow = `inset 0 1px 0 rgba(255,255,255,0.92), 0 0 0 1px rgba(15, 23, 42, ${ringAlpha}), 0 2px ${spec.contactBlur}px rgba(15, 23, 42, ${contactAlpha}), 0 ${ambientY}px ${ambientBlur}px rgba(15, 23, 42, ${ambientAlpha}), ${dx}px ${dy}px ${spec.blur}px rgba(15, 23, 42, ${castAlpha})`;
   }
 
   const paperTextureOverlay =
     !surface.isDark &&
     (surface.cardTreatment === 'editorial-ink' ||
       surface.cardTreatment === 'tactile-cutout')
-      ? `linear-gradient(${135 + angle}deg, rgba(255,255,255,0.52) 0%, rgba(255,255,255,0) 56%)`
-      : undefined;
+      ? `linear-gradient(${135 + angle}deg, rgba(255,255,255,0.56) 0%, rgba(255,255,255,0) 56%)`
+      : !surface.isDark && surface.cardTreatment === 'minimal-clean'
+        ? `linear-gradient(${135 + angle}deg, rgba(255,255,255,0.72) 0%, rgba(255,255,255,0) 54%)`
+        : undefined;
 
   const tiltTransform =
     typeof options?.tiltDeg === 'number' && Math.abs(options.tiltDeg) > 0.001

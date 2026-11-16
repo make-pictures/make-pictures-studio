@@ -25,15 +25,16 @@ export const BUILT_IN_STYLES: Record<BuiltInStyleId, StylePreset> = {
     description:
       'Jasny, precyzyjny styl produktowy dla SaaS, prezentacji funkcji, raportów i nowoczesnych explainerów.',
     recommendedFor: ['saas', 'produkt', 'biznes', 'onboarding', 'dane'],
+    artWorld: 'atelier',
     palette: {
-      bgCanvas: '#F8FAFC',
+      bgCanvas: '#F1F5F9',
       bgSurface: '#FFFFFF',
-      bgElevated: '#F1F5F9',
+      bgElevated: '#E2E8F0',
       textPrimary: '#0F172A',
       textSecondary: '#475569',
       accentPrimary: '#2563EB',
       accentSecondary: '#0EA5E9',
-      inkBorder: '#E2E8F0',
+      inkBorder: '#CBD5E1',
     },
     typography: {
       displayFont: 'Plus Jakarta Sans',
@@ -72,6 +73,7 @@ export const BUILT_IN_STYLES: Record<BuiltInStyleId, StylePreset> = {
     description:
       'Ciepły, szeryfowy styl magazynowo-prasowy inspirowany dziennikarstwem danych i esejami wideo.',
     recommendedFor: ['dokument', 'dziennikarstwo', 'esej', 'ekonomia', 'nauka'],
+    artWorld: 'editorial-gallery',
     palette: {
       bgCanvas: '#F6F3EC',
       bgSurface: '#FFFDF8',
@@ -119,6 +121,7 @@ export const BUILT_IN_STYLES: Record<BuiltInStyleId, StylePreset> = {
     description:
       'Szlachetna kronika historyczna i kulturalna: pergamin, terakota, stare złoto i klasyczna typografia.',
     recommendedFor: ['historia', 'kultura', 'biografia', 'sztuka', 'kulinaria'],
+    artWorld: 'editorial-gallery',
     palette: {
       bgCanvas: '#EFE7D6',
       bgSurface: '#F9F4E8',
@@ -166,6 +169,7 @@ export const BUILT_IN_STYLES: Record<BuiltInStyleId, StylePreset> = {
     description:
       'Ciemny interfejs inżynieryjny z siatką techniczną, poświatą szkła i precyzyjną telemetrią.',
     recommendedFor: ['architektura', 'ai', 'devops', 'cybersecurity', 'kod'],
+    artWorld: 'atelier',
     palette: {
       bgCanvas: '#070B14',
       bgSurface: '#0F172A',
@@ -213,6 +217,7 @@ export const BUILT_IN_STYLES: Record<BuiltInStyleId, StylePreset> = {
     description:
       'Wysokokontrastowy plakat neo-brutalistyczny z ostrymi kątami, grubym obrysem i twardym cieniem.',
     recommendedFor: ['social-reels', 'manifest', 'kampania', 'muzyka', 'trendy'],
+    artWorld: 'editorial-gallery',
     palette: {
       bgCanvas: '#FFF8E7',
       bgSurface: '#FFFFFF',
@@ -260,6 +265,7 @@ export const BUILT_IN_STYLES: Record<BuiltInStyleId, StylePreset> = {
     description:
       'Jasny notatnik z papierem w kratkę i odręcznymi nagłówkami do lekcji, kursów i tłumaczenia pojęć.',
     recommendedFor: ['edukacja', 'kurs', 'matematyka', 'notatki', 'szkoła'],
+    artWorld: 'illustrative',
     palette: {
       bgCanvas: '#FBFBF7',
       bgSurface: '#FFFFFF',
@@ -307,6 +313,7 @@ export const BUILT_IN_STYLES: Record<BuiltInStyleId, StylePreset> = {
     description:
       'Miękkie, warstwowe wycinanki z ciepłą aurą świetlną do opowieści przygodowych i narracji 2.5D.',
     recommendedFor: ['opowieść', 'podróże', 'lifestyle', 'animacja-2.5d', 'dzieci'],
+    artWorld: 'illustrative',
     palette: {
       bgCanvas: '#F5EFE6',
       bgSurface: '#FFFFFF',

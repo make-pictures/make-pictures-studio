@@ -6,4 +6,5 @@ export * from './audio';
 export * from './camera';
 export * from './style';
 export * from './optics';
+export * from './director';
 export type { VoiceAcousticPreset } from './types';

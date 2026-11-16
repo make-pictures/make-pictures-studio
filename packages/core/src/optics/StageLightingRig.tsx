@@ -164,9 +164,33 @@ export const StageLightingRig: React.FC<StageLightingRigProps> = ({
                     palette.bgElevated,
                     0.73
                   )} 0%, ${palette.bgCanvas} 74%)`
-                : `linear-gradient(${lightGradientAngle}deg, #FFFFFF 0%, ${palette.bgCanvas} 68%, ${withColorAlpha(
+                : `linear-gradient(${lightGradientAngle}deg, #FFFFFF 0%, ${palette.bgCanvas} 64%, ${withColorAlpha(
                     palette.bgElevated,
-                    0.53
+                    0.68
+                  )} 100%)`,
+            }}
+          />
+          {/* Soft studio cyclorama horizon gradient + gentle architectural vignette */}
+          <AbsoluteFill
+            data-cyclorama-horizon="true"
+            style={{
+              backgroundImage: surface.isDark
+                ? `linear-gradient(180deg, transparent 0%, transparent 58%, ${withColorAlpha(
+                    palette.bgElevated,
+                    0.52
+                  )} 74%, ${palette.bgCanvas} 100%), radial-gradient(ellipse 90% 36% at 50% 78%, ${withColorAlpha(
+                    palette.accentPrimary,
+                    0.09
+                  )} 0%, transparent 72%)`
+                : `linear-gradient(180deg, rgba(255, 255, 255, 0.52) 0%, transparent 52%, ${withColorAlpha(
+                    palette.inkBorder,
+                    0.34
+                  )} 72%, ${withColorAlpha(
+                    palette.bgElevated,
+                    0.82
+                  )} 86%, rgba(255, 255, 255, 0.58) 100%), radial-gradient(circle at 50% 48%, transparent 54%, ${withColorAlpha(
+                    palette.inkBorder,
+                    0.3
                   )} 100%)`,
             }}
           />
