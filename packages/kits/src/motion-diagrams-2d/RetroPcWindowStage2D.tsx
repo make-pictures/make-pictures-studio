@@ -33,7 +33,43 @@ export interface RetroPcWindowStage2DProps {
   progress: number;
   isVertical?: boolean;
   enterFrame?: number;
+  /** Chrome label language (`'pl'` or `'en'`; auto-inferred when omitted, explicit `lang` takes precedence) */
+  lang?: 'pl' | 'en';
   style?: React.CSSProperties;
+}
+
+function resolveRetroPcLang(
+  explicitLang: 'pl' | 'en' | undefined,
+  windowTitle: string,
+  addressLabel: string,
+  statusBanner: string,
+  hops: ReadonlyArray<RetroPcHopSpec>
+): 'pl' | 'en' {
+  if (explicitLang === 'pl' || explicitLang === 'en') {
+    return explicitLang;
+  }
+  const corpus = [
+    windowTitle,
+    addressLabel,
+    statusBanner,
+    ...hops.flatMap((h) => [h.title, h.subtitle, h.badge]),
+  ].join(' ');
+  if (
+    /[ąćęłńóśźżĄĆĘŁŃÓŚŹŻ]/.test(corpus) ||
+    /\b(twoja|serwer|strona|gotowa|zapytanie|widok|krok|adres|sieciowego|pakiet)\b/i.test(
+      corpus
+    )
+  ) {
+    return 'pl';
+  }
+  if (
+    /\b(the|your|browser|network|packet|inspector|ready|page|request|route|server|origin|live|step|lookup)\b/i.test(
+      corpus
+    )
+  ) {
+    return 'en';
+  }
+  return 'pl';
 }
 
 export interface RetroPcWindowLayout {
@@ -355,6 +391,7 @@ export const RetroPcWindowStage2D: React.FC<RetroPcWindowStage2DProps> = ({
   progress,
   isVertical,
   enterFrame = 2,
+  lang,
   style,
 }) => {
   const frame = useCurrentFrame();
@@ -380,6 +417,14 @@ export const RetroPcWindowStage2D: React.FC<RetroPcWindowStage2DProps> = ({
   if (enterProgress <= 0.002) {
     return null;
   }
+
+  const resolvedLang = resolveRetroPcLang(
+    lang,
+    windowTitle,
+    addressLabel,
+    statusBanner,
+    hops
+  );
 
   const layout = computeRetroPcWindowLayout({
     viewportWidth,
@@ -1136,10 +1181,16 @@ export const RetroPcWindowStage2D: React.FC<RetroPcWindowStage2DProps> = ({
                     {isResponseComplete
                       ? 'OK'
                       : isHopCurrent
-                        ? 'AKTYWNY'
+                        ? resolvedLang === 'en'
+                          ? 'ACTIVE'
+                          : 'AKTYWNY'
                         : isHopReached
-                          ? 'GOTOWY'
-                          : 'OCZEKUJE'}
+                          ? resolvedLang === 'en'
+                            ? 'READY'
+                            : 'GOTOWY'
+                          : resolvedLang === 'en'
+                            ? 'WAITING'
+                            : 'OCZEKUJE'}
                   </span>
                 </div>
 
@@ -1204,8 +1255,12 @@ export const RetroPcWindowStage2D: React.FC<RetroPcWindowStage2DProps> = ({
               {isResponseComplete
                 ? '200 OK'
                 : layout.isVertical
-                  ? 'PAKIET ▼'
-                  : 'PAKIET ▶'}
+                  ? resolvedLang === 'en'
+                    ? 'PACKET ▼'
+                    : 'PAKIET ▼'
+                  : resolvedLang === 'en'
+                    ? 'PACKET ▶'
+                    : 'PAKIET ▶'}
             </span>
           </div>
         )}
@@ -1281,7 +1336,12 @@ export const RetroPcWindowStage2D: React.FC<RetroPcWindowStage2DProps> = ({
             flexShrink: 0,
           }}
         >
-          {isResponseComplete ? 'GOTOWE' : 'TRANSFER'} • {displayedLatencyMs} ms
+          {isResponseComplete
+            ? resolvedLang === 'en'
+              ? 'DONE'
+              : 'GOTOWE'
+            : 'TRANSFER'}{' '}
+          • {displayedLatencyMs} ms
         </span>
       </div>
     </div>

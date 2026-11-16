@@ -1,11 +1,12 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useCurrentFrame } from 'remotion';
-import { ContactShadows, Environment, Lightformer } from '@react-three/drei';
+import { Environment, Lightformer } from '@react-three/drei';
 import {
   resolveStyleMaterial3D,
   useStudioStyle,
   type StyleStudioHdrPreset,
 } from '@make-pictures/core';
+import { ContactShadowDisc3D } from '../vfx/StagePostProcessing3D';
 
 export interface StudioLightformerPanelSpec {
   id: string;
@@ -253,9 +254,103 @@ export function resolveStudioHdrRigSpec(
   };
 }
 
+function defaultContactShadowOpacityForPreset(
+  preset: StyleStudioHdrPreset
+): number {
+  if (preset === 'clean-atelier') return 0.36;
+  if (preset === 'neon-grid') return 0.5;
+  return 0.42;
+}
+
+interface StudioHdrRigInnerProps {
+  resolvedPreset: StyleStudioHdrPreset;
+  intensity: number;
+  contactShadowY: number;
+  contactShadowScale: number;
+  resolvedShadowOpacity: number;
+}
+
+const MemoizedStudioHdrRigInner = React.memo<StudioHdrRigInnerProps>(
+  function StudioHdrRigInner({
+    resolvedPreset,
+    intensity,
+    contactShadowY,
+    contactShadowScale,
+    resolvedShadowOpacity,
+  }) {
+    const spec = useMemo(
+      () => resolveStudioHdrRigSpec(resolvedPreset, intensity),
+      [resolvedPreset, intensity]
+    );
+
+    const lightformerNodes = useMemo(
+      () =>
+        spec.lightformers.map((panel) => (
+          <Lightformer
+            key={panel.id}
+            form={panel.form}
+            color={panel.color}
+            intensity={panel.intensity}
+            position={panel.position}
+            rotation={panel.rotation}
+            target={panel.target}
+            scale={panel.scale}
+          />
+        )),
+      [spec]
+    );
+
+    return (
+      <group name={`studio-hdr-rig-3d-${resolvedPreset}`}>
+        <Environment
+          resolution={256}
+          frames={1}
+          environmentIntensity={spec.environmentIntensity}
+        >
+          {lightformerNodes}
+        </Environment>
+
+        <hemisphereLight
+          args={[spec.hemiSkyColor, spec.hemiGroundColor, spec.hemiIntensity]}
+        />
+
+        <directionalLight
+          position={spec.directionalPosition}
+          intensity={spec.directionalIntensity}
+          color={spec.directionalColor}
+          castShadow
+          shadow-mapSize={[1024, 1024]}
+          shadow-bias={-0.0004}
+          shadow-normalBias={0.02}
+          shadow-camera-near={0.5}
+          shadow-camera-far={22}
+          shadow-camera-left={-6.2}
+          shadow-camera-right={6.2}
+          shadow-camera-top={6.2}
+          shadow-camera-bottom={-6.2}
+        />
+
+        <directionalLight
+          position={spec.fillPosition}
+          intensity={spec.fillIntensity}
+          color={spec.fillColor}
+        />
+
+        <ContactShadowDisc3D
+          position={[0, contactShadowY, 0]}
+          radius={contactShadowScale * 0.48}
+          opacity={resolvedShadowOpacity}
+          color={spec.contactShadowColor}
+          cleanFrameZero={false}
+        />
+      </group>
+    );
+  }
+);
+
 /**
  * Hermetic 100% offline GPU image-based lighting rig (`Environment` + `Lightformer`
- * + key shadow-casting directional light + `ContactShadows`).
+ * + key shadow-casting directional light + deterministic zero-FBO `ContactShadowDisc3D`).
  */
 export const StudioHdrRig3D: React.FC<StudioHdrRig3DProps> = ({
   preset,
@@ -272,67 +367,17 @@ export const StudioHdrRig3D: React.FC<StudioHdrRig3DProps> = ({
   }
 
   const resolvedPreset = preset ?? resolveStyleMaterial3D(style).studioHdr;
-  const spec = resolveStudioHdrRigSpec(resolvedPreset, intensity);
   const resolvedShadowOpacity =
-    contactShadowOpacity ?? spec.defaultContactShadowOpacity;
+    contactShadowOpacity ??
+    defaultContactShadowOpacityForPreset(resolvedPreset);
 
   return (
-    <group name={`studio-hdr-rig-3d-${resolvedPreset}`}>
-      <Environment
-        resolution={256}
-        frames={1}
-        environmentIntensity={spec.environmentIntensity}
-      >
-        {spec.lightformers.map((panel) => (
-          <Lightformer
-            key={panel.id}
-            form={panel.form}
-            color={panel.color}
-            intensity={panel.intensity}
-            position={panel.position}
-            rotation={panel.rotation}
-            target={panel.target}
-            scale={panel.scale}
-          />
-        ))}
-      </Environment>
-
-      <hemisphereLight
-        args={[spec.hemiSkyColor, spec.hemiGroundColor, spec.hemiIntensity]}
-      />
-
-      <directionalLight
-        position={spec.directionalPosition}
-        intensity={spec.directionalIntensity}
-        color={spec.directionalColor}
-        castShadow
-        shadow-mapSize={[1024, 1024]}
-        shadow-bias={-0.0004}
-        shadow-normalBias={0.02}
-        shadow-camera-near={0.5}
-        shadow-camera-far={22}
-        shadow-camera-left={-6.2}
-        shadow-camera-right={6.2}
-        shadow-camera-top={6.2}
-        shadow-camera-bottom={-6.2}
-      />
-
-      <directionalLight
-        position={spec.fillPosition}
-        intensity={spec.fillIntensity}
-        color={spec.fillColor}
-      />
-
-      <ContactShadows
-        position={[0, contactShadowY, 0]}
-        scale={contactShadowScale}
-        opacity={resolvedShadowOpacity}
-        frames={1}
-        resolution={512}
-        blur={2.4}
-        far={4.2}
-        color={spec.contactShadowColor}
-      />
-    </group>
+    <MemoizedStudioHdrRigInner
+      resolvedPreset={resolvedPreset}
+      intensity={intensity}
+      contactShadowY={contactShadowY}
+      contactShadowScale={contactShadowScale}
+      resolvedShadowOpacity={resolvedShadowOpacity}
+    />
   );
 };

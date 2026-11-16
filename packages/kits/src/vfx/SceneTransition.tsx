@@ -6,7 +6,7 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from 'remotion';
-import { STUDIO_THEME } from '../../../core/src/theme/tokens';
+import { STUDIO_THEME } from '@make-pictures/core';
 
 export type SceneTransitionType =
   | 'iris-wipe'

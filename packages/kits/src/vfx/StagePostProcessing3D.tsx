@@ -1,32 +1,35 @@
-import React, { useLayoutEffect, useMemo } from 'react';
+import React, { useContext, useLayoutEffect, useMemo } from 'react';
 import { useThree } from '@react-three/fiber';
-import { useCurrentFrame, useVideoConfig } from 'remotion';
+import { Internals, useCurrentFrame, useVideoConfig } from 'remotion';
 import * as THREE from 'three';
-import { createSeededRandom } from '../../../core/src/utils/prng';
+import { createSeededRandom } from '@make-pictures/core';
 
-const radialShadowTextureCache = new Map<string, THREE.CanvasTexture>();
+let sharedRadialShadowTexture: THREE.CanvasTexture | null = null;
 const spotlightBeamTextureCache = new Map<string, THREE.CanvasTexture>();
 
-function getRadialDiscTexture(colorHex: string): THREE.CanvasTexture | null {
+function useOptionalRemotionFrame(): number {
+  const canUseRemotion = useContext(Internals.CanUseRemotionHooks);
+  const timelinePos = Internals.Timeline.useTimelinePosition();
+  const seqCtx = useContext(Internals.SequenceContext);
+  if (!canUseRemotion) {
+    return 1;
+  }
+  return timelinePos - (seqCtx ? seqCtx.cumulatedFrom + seqCtx.relativeFrom : 0);
+}
+
+function getSharedRadialDiscTexture(): THREE.CanvasTexture | null {
   if (typeof document === 'undefined') return null;
-  const cached = radialShadowTextureCache.get(colorHex);
-  if (cached) return cached;
+  if (sharedRadialShadowTexture) return sharedRadialShadowTexture;
 
   const canvas = document.createElement('canvas');
   canvas.width = 256;
   canvas.height = 256;
   const ctx = canvas.getContext('2d');
   if (ctx) {
-    const grad = ctx.createRadialGradient(128, 128, 8, 128, 128, 124);
-    grad.addColorStop(0, colorHex);
-    grad.addColorStop(0.45, colorHex);
-    grad.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = grad;
+    ctx.fillStyle = '#FFFFFF';
     ctx.fillRect(0, 0, 256, 256);
-  }
 
-  // Soft Gaussian-like alpha falloff via pixel pass
-  if (ctx) {
+    // Pure white RGB + soft Gaussian-like alpha falloff so material.color tints in O(1) VRAM
     const img = ctx.getImageData(0, 0, 256, 256);
     const data = img.data;
     for (let y = 0; y < 256; y++) {
@@ -35,6 +38,9 @@ function getRadialDiscTexture(colorHex: string): THREE.CanvasTexture | null {
         const dy = (y - 128) / 124;
         const r2 = dx * dx + dy * dy;
         const idx = (y * 256 + x) * 4;
+        data[idx] = 255;
+        data[idx + 1] = 255;
+        data[idx + 2] = 255;
         if (r2 >= 1) {
           data[idx + 3] = 0;
         } else {
@@ -48,7 +54,7 @@ function getRadialDiscTexture(colorHex: string): THREE.CanvasTexture | null {
 
   const tex = new THREE.CanvasTexture(canvas);
   tex.needsUpdate = true;
-  radialShadowTextureCache.set(colorHex, tex);
+  sharedRadialShadowTexture = tex;
   return tex;
 }
 
@@ -85,6 +91,8 @@ export interface ContactShadowDisc3DProps {
   color?: string;
   scaleX?: number;
   scaleZ?: number;
+  /** Respects Frame 0 clean-board invariant (returns `null` at `frame <= 0`, default `true`) */
+  cleanFrameZero?: boolean;
 }
 
 /**
@@ -98,8 +106,14 @@ export const ContactShadowDisc3D: React.FC<ContactShadowDisc3DProps> = ({
   color = '#0F172A',
   scaleX = 1,
   scaleZ = 1,
+  cleanFrameZero = true,
 }) => {
-  const tex = useMemo(() => getRadialDiscTexture(color), [color]);
+  const frame = useOptionalRemotionFrame();
+  const tex = useMemo(() => getSharedRadialDiscTexture(), []);
+
+  if (cleanFrameZero && frame <= 0) {
+    return null;
+  }
 
   return (
     <mesh
@@ -145,6 +159,8 @@ export interface StagePostProcessing3DProps {
   hazeOpacity?: number;
   /** Deterministic PRNG seed for volumetric motes & beam phases (default `303`) */
   seed?: number;
+  /** Respects Frame 0 clean-board invariant (returns `null` at `frame <= 0`, default `true`) */
+  cleanFrameZero?: boolean;
 }
 
 interface BeamSpec {
@@ -172,14 +188,16 @@ export const StagePostProcessing3D: React.FC<StagePostProcessing3DProps> = ({
   hazeColor = '#E0E7FF',
   hazeOpacity = 0.16,
   seed = 303,
+  cleanFrameZero = true,
 }) => {
   const scene = useThree((state) => state.scene);
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+  const isHiddenAtZero = cleanFrameZero && frame <= 0;
 
   useLayoutEffect(() => {
     const previousFog = scene.fog;
-    if (fogDensity > 0) {
+    if (!isHiddenAtZero && fogDensity > 0) {
       scene.fog = new THREE.FogExp2(fogColor, fogDensity);
     } else {
       scene.fog = null;
@@ -187,7 +205,7 @@ export const StagePostProcessing3D: React.FC<StagePostProcessing3DProps> = ({
     return () => {
       scene.fog = previousFog;
     };
-  }, [scene, fogColor, fogDensity]);
+  }, [scene, fogColor, fogDensity, isHiddenAtZero]);
 
   const beamCount =
     typeof spotlightBeams === 'number'
@@ -237,7 +255,11 @@ export const StagePostProcessing3D: React.FC<StagePostProcessing3DProps> = ({
   }, [seed]);
 
   const coneTex = useMemo(() => getVolumetricConeTexture('default'), []);
-  const hazeTex = useMemo(() => getRadialDiscTexture('#FFFFFF'), []);
+  const hazeTex = useMemo(() => getSharedRadialDiscTexture(), []);
+
+  if (isHiddenAtZero) {
+    return null;
+  }
 
   const f60 = frame * (60 / Math.max(1, fps));
 

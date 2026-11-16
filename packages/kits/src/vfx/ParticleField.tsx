@@ -5,8 +5,7 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from 'remotion';
-import { SPRING_PRESETS } from '../../../core/src/theme/tokens';
-import { createSeededRandom } from '../../../core/src/utils/prng';
+import { SPRING_PRESETS, createSeededRandom } from '@make-pictures/core';
 
 export type ParticlePreset =
   | 'dust-motes'

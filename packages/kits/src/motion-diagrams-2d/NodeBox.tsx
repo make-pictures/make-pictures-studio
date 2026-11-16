@@ -1,5 +1,5 @@
-import React from 'react';
-import { spring, useCurrentFrame, useVideoConfig } from 'remotion';
+import React, { useContext } from 'react';
+import { Internals, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import {
   ClippedSurfaceChrome,
   SPRING_PRESETS,
@@ -17,6 +17,16 @@ import {
   useMotionDiagramFocus,
   type MotionDiagramFocusState,
 } from './MotionDiagramStage2D';
+
+function useOptionalRemotionFrame(): number {
+  const canUseRemotion = useContext(Internals.CanUseRemotionHooks);
+  const timelinePos = Internals.Timeline.useTimelinePosition();
+  const seqCtx = useContext(Internals.SequenceContext);
+  if (!canUseRemotion) {
+    return 1;
+  }
+  return timelinePos - (seqCtx ? seqCtx.cumulatedFrom + seqCtx.relativeFrom : 0);
+}
 
 export interface NodeBox {
   cx: number;
@@ -57,6 +67,8 @@ export interface WorldBoxProps {
   topBarHeight?: number;
   topBarColor?: string;
   specularRim?: boolean;
+  /** Respects Frame 0 clean-board invariant (returns `null` at `frame <= 0`, default `true`) */
+  cleanFrameZero?: boolean;
   style?: React.CSSProperties;
   children?: React.ReactNode;
 }
@@ -73,11 +85,17 @@ export const WorldBox: React.FC<WorldBoxProps> = ({
   topBarHeight,
   topBarColor,
   specularRim,
+  cleanFrameZero = true,
   style,
   children,
 }) => {
+  const frame = useOptionalRemotionFrame();
   const studioStyle = useStudioStyle();
   const focusCtx = useMotionDiagramFocus();
+
+  if (cleanFrameZero && frame <= 0) {
+    return null;
+  }
   const optics = resolveStyleOptics(studioStyle);
   const bodyFontCss = formatFontFamilyCss(
     studioStyle.typography.bodyFont,

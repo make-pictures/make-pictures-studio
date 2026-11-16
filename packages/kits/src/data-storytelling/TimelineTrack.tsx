@@ -157,6 +157,17 @@ export const TimelineTrack: React.FC<TimelineTrackProps> = ({
       return { filter: 'none', opacity: 1, scale: 1 };
     }
     const rawBlur = dist * optics.aperture * 3.4;
+    if (!isDark) {
+      const cappedBlur = Math.min(2.0, rawBlur);
+      return {
+        filter:
+          cappedBlur < 0.25
+            ? 'none'
+            : `blur(${cappedBlur.toFixed(2)}px) saturate(0.88)`,
+        opacity: dist === 1 ? 0.9 : 0.88,
+        scale: 0.985,
+      };
+    }
     return {
       filter: rawBlur < 0.25 ? 'none' : `blur(${rawBlur.toFixed(2)}px)`,
       opacity: dist === 1 ? 0.74 : 0.62,

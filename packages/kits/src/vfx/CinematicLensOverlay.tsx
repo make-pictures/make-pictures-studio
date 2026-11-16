@@ -1,7 +1,9 @@
 import React, { useMemo } from 'react';
 import { AbsoluteFill, useCurrentFrame, useVideoConfig } from 'remotion';
-import { useDirectorCameraTelemetry } from '../../../core/src/camera';
-import { createSeededRandom } from '../../../core/src/utils/prng';
+import {
+  createSeededRandom,
+  useDirectorCameraTelemetry,
+} from '@make-pictures/core';
 
 export interface CinematicLensOverlayProps {
   /** Radial vignette edge darkening in [0, 1] (default `0.36`) */
@@ -22,6 +24,8 @@ export interface CinematicLensOverlayProps {
   lightLeakColor?: string;
   /** Deterministic PRNG seed (default `77`) */
   seed?: number;
+  /** Respects Frame 0 clean-board invariant (returns `null` at `frame <= 0`, default `true`) */
+  cleanFrameZero?: boolean;
   /** Layer z-index (default `60`) */
   zIndex?: number;
 }
@@ -43,6 +47,7 @@ export const CinematicLensOverlay: React.FC<CinematicLensOverlayProps> = ({
   warmLightLeak = 0.16,
   lightLeakColor = '#F59E0B',
   seed = 77,
+  cleanFrameZero = true,
   zIndex = 60,
 }) => {
   const frame = useCurrentFrame();
@@ -58,6 +63,10 @@ export const CinematicLensOverlay: React.FC<CinematicLensOverlayProps> = ({
       baseY: 6 + rand() * 14,
     };
   }, [seed]);
+
+  if (cleanFrameZero && frame <= 0) {
+    return null;
+  }
 
   const vig = clamp(vignetteIntensity, 0, 1);
   const grain = clamp(grainOpacity, 0, 0.18);

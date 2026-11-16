@@ -1,10 +1,21 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useContext, useEffect, useMemo } from 'react';
+import { Internals } from 'remotion';
 import * as THREE from 'three';
 import {
   createSeededRandom,
   hashToHex,
   useStudioFontsReady,
 } from '@make-pictures/core';
+
+function useOptionalRemotionFrame(): number {
+  const canUseRemotion = useContext(Internals.CanUseRemotionHooks);
+  const timelinePos = Internals.Timeline.useTimelinePosition();
+  const seqCtx = useContext(Internals.SequenceContext);
+  if (!canUseRemotion) {
+    return 1;
+  }
+  return timelinePos - (seqCtx ? seqCtx.cumulatedFrom + seqCtx.relativeFrom : 0);
+}
 
 export type PaperCutoutDep = string | number | boolean | null | undefined;
 
@@ -47,6 +58,8 @@ export interface PaperCutout3DProps {
   emissiveIntensity?: number;
   /** Opacity (default 1) */
   opacity?: number;
+  /** Respects Frame 0 clean-board invariant (returns `null` at `frame <= 0`, default `true`) */
+  cleanFrameZero?: boolean;
 }
 
 interface CachedPaperTextures {
@@ -309,7 +322,7 @@ function getOrCreatePaperCutoutTextures(
     disposed: false,
   };
   TEXTURE_CACHE.set(compositeKey, result);
-  prunePaperTextureCache();
+  scheduleCachePrune();
   return result;
 }
 
@@ -332,8 +345,11 @@ export const PaperCutout3D: React.FC<PaperCutout3DProps> = ({
   emissive = '#000000',
   emissiveIntensity = 0,
   opacity = 1,
+  cleanFrameZero = true,
 }) => {
+  const frame = useOptionalRemotionFrame();
   const fontRevision = useStudioFontsReady();
+  const isHiddenAtZero = cleanFrameZero && frame <= 0;
   const depsSignature = serializePaperCutoutDeps(cacheDeps);
   const drawFnHash = getDrawFunctionHash(draw);
 
@@ -356,19 +372,22 @@ export const PaperCutout3D: React.FC<PaperCutout3DProps> = ({
   // so `cachedEntry` stays referentially stable across frames even if parent passes inline `draw` or `cacheDeps`.
   const cachedEntry = useMemo(
     () =>
-      getOrCreatePaperCutoutTextures(
-        compositeKey,
-        cacheKey,
-        pixelWidth,
-        pixelHeight,
-        whiteBorderPx,
-        draw
-      ),
+      isHiddenAtZero || typeof document === 'undefined'
+        ? null
+        : getOrCreatePaperCutoutTextures(
+            compositeKey,
+            cacheKey,
+            pixelWidth,
+            pixelHeight,
+            whiteBorderPx,
+            draw
+          ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [compositeKey]
+    [isHiddenAtZero, compositeKey]
   );
 
   useEffect(() => {
+    if (!cachedEntry) return;
     cachedEntry.refCount += 1;
     touchCacheEntry(compositeKey, cachedEntry);
     return () => {
@@ -376,6 +395,10 @@ export const PaperCutout3D: React.FC<PaperCutout3DProps> = ({
       scheduleCachePrune();
     };
   }, [compositeKey, cachedEntry]);
+
+  if (isHiddenAtZero || !cachedEntry) {
+    return null;
+  }
 
   const { frontTexture, backTexture, depthMaterial } = cachedEntry;
 
@@ -457,34 +480,42 @@ export const PopUpHinge3D: React.FC<{
 }> = ({
   foldProgress,
   position = [0, 0, 0],
+  rotationY = 0,
   foldDirection = 1,
   children,
 }) => {
   const clamped = Math.max(0, Math.min(1.05, foldProgress));
 
-  const theta = (1 - Math.min(1, clamped)) * (Math.PI * 0.46) * foldDirection;
-  const c = Math.cos(theta);
-  const s = Math.sin(theta);
+  const foldRad = (1 - Math.min(1, clamped)) * (Math.PI * 0.46) * foldDirection;
 
   const posX = position[0];
-  const posY = position[1];
+  const hingeY = position[1];
   const posZ = position[2];
 
   const foldMatrix = useMemo(() => {
-    const m = new THREE.Matrix4();
-    m.set(
-      1, 0, 0, posX,
-      0, c, 0, posY,
-      0, -s, 1, posZ,
+    const c = Math.cos(foldRad);
+    const s = Math.sin(foldRad);
+    const hinge = new THREE.Matrix4().set(
+      1, 0, 0, 0,
+      0, c, 0, 0,
+      0, -s, 1, 0,
       0, 0, 0, 1
     );
-    return m;
-  }, [c, s, posX, posY, posZ]);
+    const rotY = new THREE.Matrix4().makeRotationY(rotationY);
+    const trans = new THREE.Matrix4().makeTranslation(posX, hingeY, posZ);
+    return trans.multiply(rotY).multiply(hinge);
+  }, [posX, hingeY, posZ, foldRad, rotationY]);
 
   if (clamped <= 0.01) return null;
 
   return (
-    <group matrixAutoUpdate={false} matrix={foldMatrix}>
+    <group
+      matrixAutoUpdate={false}
+      matrix={foldMatrix}
+      onUpdate={(self) => {
+        self.matrixWorldNeedsUpdate = true;
+      }}
+    >
       {children}
     </group>
   );
