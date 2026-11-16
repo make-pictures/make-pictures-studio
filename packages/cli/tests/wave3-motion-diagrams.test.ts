@@ -19,15 +19,19 @@ import {
   DataFlowEdge,
   FlowCurve,
   MotionDiagramStage2D,
+  RetroPcWindowStage2D,
   SystemNode,
   WorldBox,
+  computeRetroPcWindowLayout,
   evaluateCubicBezier,
   portLeft,
   portRight,
   resolvePayloadTokenColors,
   type NodeBox,
+  type RetroPcHopSpec,
 } from '../../kits/src/motion-diagrams-2d';
 import { ScreenSpotlightOverlay } from '../../kits/src/product-frames';
+import { scanTsxForUnclippedCardBars } from '../src/director/audit-direction';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -346,4 +350,186 @@ test('MotionDiagramStage2D, SystemNode, WorldBox, FlowCurve, DataFlowEdge, CodeP
     assert.match(recessedZeroTag, /(?:^|;|")filter:none/);
     assert.doesNotMatch(html, /(?:^|;|")filter:blur\(/);
   }
+});
+
+test('RetroPcWindowStage2D enforces Clean Frame 0, offline symbolic safety, 16:9 & 9:16 Golden Safe Box geometry, and deterministic packet progress', () => {
+  assert.equal(typeof RetroPcWindowStage2D, 'function');
+  assert.equal(typeof computeRetroPcWindowLayout, 'function');
+  assert.equal(kitsRoot.RetroPcWindowStage2D, RetroPcWindowStage2D);
+
+  const retroSrc = fs.readFileSync(
+    path.resolve(__dirname, '../../kits/src/motion-diagrams-2d/RetroPcWindowStage2D.tsx'),
+    'utf8'
+  );
+  assert.doesNotMatch(retroSrc, /Math\.random\s*\(/, 'RetroPcWindowStage2D must not use Math.random');
+  assert.doesNotMatch(retroSrc, /useRef\b/, 'RetroPcWindowStage2D must not use mutable useRef');
+  assert.doesNotMatch(retroSrc, /radii\.pill|9999/, 'RetroPcWindowStage2D must not use pill radii');
+  assert.doesNotMatch(retroSrc, /\bfetch\s*\(|XMLHttpRequest/, 'RetroPcWindowStage2D must never make network calls');
+  assert.doesNotMatch(
+    retroSrc,
+    /\b(?:\d{1,3}\.){3}\d{1,3}\b/,
+    'RetroPcWindowStage2D must never embed IPv4 literals'
+  );
+  assert.match(retroSrc, /ClippedSurfaceChrome/);
+  assert.match(retroSrc, /frame\s*<=\s*0/);
+  assert.equal(
+    scanTsxForUnclippedCardBars(retroSrc, 'RetroPcWindowStage2D.tsx').length,
+    0,
+    'RetroPcWindowStage2D must have zero unclipped card top bars'
+  );
+
+  const sampleHops: ReadonlyArray<RetroPcHopSpec> = [
+    {
+      id: 'browser',
+      title: 'Twoja przeglądarka',
+      subtitle: 'Wysyła zapytanie o adres',
+      badge: 'KROK 01',
+      latencyMs: 4,
+      icon: 'browser',
+    },
+    {
+      id: 'directory',
+      title: 'Serwer nazw',
+      subtitle: 'Tłumaczy nazwę domeny',
+      badge: 'KROK 02',
+      latencyMs: 6,
+      icon: 'directory',
+    },
+    {
+      id: 'server',
+      title: 'Serwer strony',
+      subtitle: 'Zwraca gotowy dokument',
+      badge: 'KROK 03',
+      latencyMs: 8,
+      icon: 'server',
+    },
+  ];
+
+  // Verify 9:16 Golden Safe Box bounds: x in [40, 910], y in [220, 1380]
+  const vertLayout = computeRetroPcWindowLayout({
+    viewportWidth: 1080,
+    viewportHeight: 1920,
+    isVertical: true,
+    hopCount: sampleHops.length,
+  });
+  assert.equal(vertLayout.isVertical, true);
+  assert.ok(vertLayout.windowLeft >= 40, `Expected left >= 40, got ${vertLayout.windowLeft}`);
+  assert.ok(
+    vertLayout.windowLeft + vertLayout.windowWidth <= 910,
+    `Expected right <= 910, got ${vertLayout.windowLeft + vertLayout.windowWidth}`
+  );
+  assert.ok(vertLayout.windowTop >= 220, `Expected top >= 220, got ${vertLayout.windowTop}`);
+  assert.ok(
+    vertLayout.windowTop + vertLayout.windowHeight <= 1380,
+    `Expected bottom <= 1380, got ${vertLayout.windowTop + vertLayout.windowHeight}`
+  );
+  assert.equal(vertLayout.hopBoxes.length, 3);
+  // Vertically stacked hops strictly increase in cy without overlap
+  assert.ok(
+    vertLayout.hopBoxes[0]!.cy + vertLayout.hopBoxes[0]!.h / 2 <
+      vertLayout.hopBoxes[1]!.cy - vertLayout.hopBoxes[1]!.h / 2
+  );
+  assert.ok(
+    vertLayout.hopBoxes[1]!.cy + vertLayout.hopBoxes[1]!.h / 2 <
+      vertLayout.hopBoxes[2]!.cy - vertLayout.hopBoxes[2]!.h / 2
+  );
+
+  // Verify 16:9 horizontal 3-hop row layout
+  const horizLayout = computeRetroPcWindowLayout({
+    viewportWidth: 1920,
+    viewportHeight: 1080,
+    isVertical: false,
+    hopCount: sampleHops.length,
+  });
+  assert.equal(horizLayout.isVertical, false);
+  assert.equal(horizLayout.hopBoxes.length, 3);
+  assert.ok(
+    horizLayout.hopBoxes[0]!.cx + horizLayout.hopBoxes[0]!.w / 2 <
+      horizLayout.hopBoxes[1]!.cx - horizLayout.hopBoxes[1]!.w / 2
+  );
+  assert.ok(
+    horizLayout.hopBoxes[1]!.cx + horizLayout.hopBoxes[1]!.w / 2 <
+      horizLayout.hopBoxes[2]!.cx - horizLayout.hopBoxes[2]!.w / 2
+  );
+
+  const makeScene = (progress: number, isVertical = false) => {
+    const SceneComp: React.FC = () =>
+      React.createElement(
+        StyleProvider,
+        { style: 'cyber-telemetry', renderBackdrop: false },
+        React.createElement(RetroPcWindowStage2D, {
+          windowTitle: 'Monitor zapytania sieciowego',
+          addressLabel: 'https://twoja-strona.pl',
+          hops: sampleHops,
+          statusBanner: '200 OK • Strona gotowa w 18 ms',
+          progress,
+          isVertical,
+          enterFrame: 2,
+        })
+      );
+    return SceneComp;
+  };
+
+  // Frame 0: Clean Frame 0 invariant
+  const f0Html = renderToStaticMarkup(
+    React.createElement(Thumbnail, {
+      component: makeScene(0.5, false),
+      compositionWidth: 1920,
+      compositionHeight: 1080,
+      durationInFrames: 120,
+      fps: 60,
+      frameToDisplay: 0,
+    })
+  );
+  assert.doesNotMatch(f0Html, /data-retro-pc-window/);
+  assert.doesNotMatch(f0Html, /Monitor zapytania sieciowego/);
+  assert.doesNotMatch(f0Html, /twoja-strona\.pl/);
+
+  // Mid-flight frame (progress = 0.45) in 16:9
+  const midHtmlA = renderToStaticMarkup(
+    React.createElement(Thumbnail, {
+      component: makeScene(0.45, false),
+      compositionWidth: 1920,
+      compositionHeight: 1080,
+      durationInFrames: 120,
+      fps: 60,
+      frameToDisplay: 36,
+    })
+  );
+  const midHtmlB = renderToStaticMarkup(
+    React.createElement(Thumbnail, {
+      component: makeScene(0.45, false),
+      compositionWidth: 1920,
+      compositionHeight: 1080,
+      durationInFrames: 120,
+      fps: 60,
+      frameToDisplay: 36,
+    })
+  );
+  assert.equal(midHtmlA, midHtmlB, 'RetroPcWindowStage2D must render deterministically');
+  assert.match(midHtmlA, /data-retro-pc-window="true"/);
+  assert.match(midHtmlA, /data-retro-titlebar="true"/);
+  assert.match(midHtmlA, /data-retro-address-bar="true"/);
+  assert.match(midHtmlA, /data-retro-packet="true"/);
+  assert.match(midHtmlA, /GET/);
+  assert.match(midHtmlA, /https:\/\/twoja-strona\.pl/);
+  assert.match(midHtmlA, /Twoja przeglądarka/);
+  assert.match(midHtmlA, /Serwer nazw/);
+  assert.match(midHtmlA, /Serwer strony/);
+  assert.match(midHtmlA, /data-retro-status-complete="false"/);
+
+  // Completed response (progress = 0.95) in 9:16 vertical mode
+  const doneVertHtml = renderToStaticMarkup(
+    React.createElement(Thumbnail, {
+      component: makeScene(0.95, true),
+      compositionWidth: 1080,
+      compositionHeight: 1920,
+      durationInFrames: 120,
+      fps: 60,
+      frameToDisplay: 48,
+    })
+  );
+  assert.match(doneVertHtml, /data-retro-layout="vertical"/);
+  assert.match(doneVertHtml, /data-retro-status-complete="true"/);
+  assert.match(doneVertHtml, /200 OK • Strona gotowa w 18 ms/);
 });
