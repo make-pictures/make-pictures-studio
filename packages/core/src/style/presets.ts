@@ -10,6 +10,9 @@ export const BUILT_IN_STYLE_IDS = [
   'brutalist-poster',
   'sketch-notebook',
   'tactile-craft',
+  'retro-pc',
+  'soft-clay',
+  'glass-studio',
 ] as const;
 
 export type BuiltInStyleId = (typeof BUILT_IN_STYLE_IDS)[number];
@@ -26,6 +29,8 @@ export const BUILT_IN_STYLES: Record<BuiltInStyleId, StylePreset> = {
       'Jasny, precyzyjny styl produktowy dla SaaS, prezentacji funkcji, raportów i nowoczesnych explainerów.',
     recommendedFor: ['saas', 'produkt', 'biznes', 'onboarding', 'dane'],
     artWorld: 'atelier',
+    preferredSpace: '2d',
+    spaces: ['2d', '2.5d'],
     palette: {
       bgCanvas: '#F1F5F9',
       bgSurface: '#FFFFFF',
@@ -49,6 +54,11 @@ export const BUILT_IN_STYLES: Record<BuiltInStyleId, StylePreset> = {
       radiusScale: 1,
       grainOpacity: 0,
       isDark: false,
+    },
+    material3d: {
+      finish: 'frosted-glass',
+      bevelRadius: 0.1,
+      studioHdr: 'clean-atelier',
     },
     motion: {
       profile: 'snappy-product',
@@ -74,6 +84,8 @@ export const BUILT_IN_STYLES: Record<BuiltInStyleId, StylePreset> = {
       'Ciepły, szeryfowy styl magazynowo-prasowy inspirowany dziennikarstwem danych i esejami wideo.',
     recommendedFor: ['dokument', 'dziennikarstwo', 'esej', 'ekonomia', 'nauka'],
     artWorld: 'editorial-gallery',
+    preferredSpace: '2.5d',
+    spaces: ['2.5d', '2d'],
     palette: {
       bgCanvas: '#F6F3EC',
       bgSurface: '#FFFDF8',
@@ -97,6 +109,11 @@ export const BUILT_IN_STYLES: Record<BuiltInStyleId, StylePreset> = {
       radiusScale: 0.45,
       grainOpacity: 0.05,
       isDark: false,
+    },
+    material3d: {
+      finish: 'matte-ceramic',
+      bevelRadius: 0.06,
+      studioHdr: 'warm-softbox',
     },
     motion: {
       profile: 'editorial-calm',
@@ -122,6 +139,8 @@ export const BUILT_IN_STYLES: Record<BuiltInStyleId, StylePreset> = {
       'Szlachetna kronika historyczna i kulturalna: pergamin, terakota, stare złoto i klasyczna typografia.',
     recommendedFor: ['historia', 'kultura', 'biografia', 'sztuka', 'kulinaria'],
     artWorld: 'editorial-gallery',
+    preferredSpace: '2.5d',
+    spaces: ['2.5d', '2d'],
     palette: {
       bgCanvas: '#EFE7D6',
       bgSurface: '#F9F4E8',
@@ -145,6 +164,11 @@ export const BUILT_IN_STYLES: Record<BuiltInStyleId, StylePreset> = {
       radiusScale: 0.35,
       grainOpacity: 0.08,
       isDark: false,
+    },
+    material3d: {
+      finish: 'matte-ceramic',
+      bevelRadius: 0.06,
+      studioHdr: 'warm-softbox',
     },
     motion: {
       profile: 'cinematic-fluid',
@@ -170,6 +194,8 @@ export const BUILT_IN_STYLES: Record<BuiltInStyleId, StylePreset> = {
       'Ciemny interfejs inżynieryjny z siatką techniczną, poświatą szkła i precyzyjną telemetrią.',
     recommendedFor: ['architektura', 'ai', 'devops', 'cybersecurity', 'kod'],
     artWorld: 'atelier',
+    preferredSpace: '2d',
+    spaces: ['2d', '3d'],
     palette: {
       bgCanvas: '#070B14',
       bgSurface: '#0F172A',
@@ -193,6 +219,11 @@ export const BUILT_IN_STYLES: Record<BuiltInStyleId, StylePreset> = {
       radiusScale: 0.85,
       grainOpacity: 0.03,
       isDark: true,
+    },
+    material3d: {
+      finish: 'frosted-glass',
+      bevelRadius: 0.08,
+      studioHdr: 'neon-grid',
     },
     motion: {
       profile: 'snappy-product',
@@ -218,6 +249,8 @@ export const BUILT_IN_STYLES: Record<BuiltInStyleId, StylePreset> = {
       'Wysokokontrastowy plakat neo-brutalistyczny z ostrymi kątami, grubym obrysem i twardym cieniem.',
     recommendedFor: ['social-reels', 'manifest', 'kampania', 'muzyka', 'trendy'],
     artWorld: 'editorial-gallery',
+    preferredSpace: '2d',
+    spaces: ['2d'],
     palette: {
       bgCanvas: '#FFF8E7',
       bgSurface: '#FFFFFF',
@@ -241,6 +274,11 @@ export const BUILT_IN_STYLES: Record<BuiltInStyleId, StylePreset> = {
       radiusScale: 0,
       grainOpacity: 0.04,
       isDark: false,
+    },
+    material3d: {
+      finish: 'matte-ceramic',
+      bevelRadius: 0.02,
+      studioHdr: 'clean-atelier',
     },
     motion: {
       profile: 'tactile-pop',
@@ -266,6 +304,8 @@ export const BUILT_IN_STYLES: Record<BuiltInStyleId, StylePreset> = {
       'Jasny notatnik z papierem w kratkę i odręcznymi nagłówkami do lekcji, kursów i tłumaczenia pojęć.',
     recommendedFor: ['edukacja', 'kurs', 'matematyka', 'notatki', 'szkoła'],
     artWorld: 'illustrative',
+    preferredSpace: '2d',
+    spaces: ['2d', '2.5d'],
     palette: {
       bgCanvas: '#FBFBF7',
       bgSurface: '#FFFFFF',
@@ -289,6 +329,11 @@ export const BUILT_IN_STYLES: Record<BuiltInStyleId, StylePreset> = {
       radiusScale: 0.7,
       grainOpacity: 0.03,
       isDark: false,
+    },
+    material3d: {
+      finish: 'soft-clay',
+      bevelRadius: 0.1,
+      studioHdr: 'warm-softbox',
     },
     motion: {
       profile: 'tactile-pop',
@@ -314,6 +359,8 @@ export const BUILT_IN_STYLES: Record<BuiltInStyleId, StylePreset> = {
       'Miękkie, warstwowe wycinanki z ciepłą aurą świetlną do opowieści przygodowych i narracji 2.5D.',
     recommendedFor: ['opowieść', 'podróże', 'lifestyle', 'animacja-2.5d', 'dzieci'],
     artWorld: 'illustrative',
+    preferredSpace: '2.5d',
+    spaces: ['2.5d'],
     palette: {
       bgCanvas: '#F5EFE6',
       bgSurface: '#FFFFFF',
@@ -338,6 +385,11 @@ export const BUILT_IN_STYLES: Record<BuiltInStyleId, StylePreset> = {
       grainOpacity: 0.05,
       isDark: false,
     },
+    material3d: {
+      finish: 'soft-clay',
+      bevelRadius: 0.14,
+      studioHdr: 'warm-softbox',
+    },
     motion: {
       profile: 'tactile-pop',
       cameraHandheld: 0.05,
@@ -352,6 +404,171 @@ export const BUILT_IN_STYLES: Record<BuiltInStyleId, StylePreset> = {
     audioDefaults: {
       musicMood: 'paper-expedition',
       voiceArchetype: 'storyteller-expressive',
+    },
+  },
+
+  'retro-pc': {
+    id: 'retro-pc',
+    name: 'Retro-PC',
+    description:
+      'Klasyczny interfejs komputerowy CRT i estetyka systemów lat 80./90. z fosforowym kontrastem i pikselową precyzją.',
+    recommendedFor: ['technologia', 'sieci', 'retro-os', 'edukacja', 'kod'],
+    artWorld: 'atelier',
+    preferredSpace: '2d',
+    spaces: ['2d', '3d'],
+    palette: {
+      bgCanvas: '#0C141C',
+      bgSurface: '#13202C',
+      bgElevated: '#1D3142',
+      textPrimary: '#ECFDF5',
+      textSecondary: '#94B8C8',
+      accentPrimary: '#38BDF8',
+      accentSecondary: '#4ADE80',
+      inkBorder: '#2E4F66',
+    },
+    typography: {
+      displayFont: 'Space Grotesk',
+      bodyFont: 'IBM Plex Mono',
+      monoFont: 'IBM Plex Mono',
+      headingCase: 'sentence',
+      displayTrackingEm: -0.01,
+    },
+    surface: {
+      backdropType: 'blueprint-grid',
+      cardTreatment: 'brutalist-hard',
+      radiusScale: 0.25,
+      grainOpacity: 0.04,
+      isDark: true,
+    },
+    material3d: {
+      finish: 'retro-voxel',
+      bevelRadius: 0.04,
+      studioHdr: 'neon-grid',
+    },
+    motion: {
+      profile: 'snappy-product',
+      cameraHandheld: 0,
+    },
+    optics: {
+      lightingRig: 'darkroom-halation',
+      typographyGrammar: 'optical-gate',
+      lightAngleDeg: -22,
+      aperture: 0.42,
+      halation: 0.48,
+    },
+    audioDefaults: {
+      musicMood: 'ambient-tech',
+      voiceArchetype: 'crisp-tech',
+    },
+  },
+
+  'soft-clay': {
+    id: 'soft-clay',
+    name: 'Soft-Clay 3D',
+    description:
+      'Ciepła, miękka modelina studyjna z zaokrąglonymi bryłami, światłem softboxa i ekspresyjnymi postaciami 3D.',
+    recommendedFor: ['podcast', 'animacja-3d', 'opowieść', 'edukacja', 'marka'],
+    artWorld: 'illustrative',
+    preferredSpace: '3d',
+    spaces: ['3d'],
+    palette: {
+      bgCanvas: '#F6EFE6',
+      bgSurface: '#FFFDF9',
+      bgElevated: '#FDE6D2',
+      textPrimary: '#231815',
+      textSecondary: '#6B564B',
+      accentPrimary: '#EA580C',
+      accentSecondary: '#0D9488',
+      inkBorder: '#E7D5C4',
+    },
+    typography: {
+      displayFont: 'Outfit',
+      bodyFont: 'Plus Jakarta Sans',
+      monoFont: 'JetBrains Mono',
+      headingCase: 'sentence',
+      displayTrackingEm: -0.015,
+    },
+    surface: {
+      backdropType: 'mesh-aura',
+      cardTreatment: 'minimal-clean',
+      radiusScale: 1.45,
+      grainOpacity: 0.03,
+      isDark: false,
+    },
+    material3d: {
+      finish: 'soft-clay',
+      bevelRadius: 0.14,
+      studioHdr: 'warm-softbox',
+    },
+    motion: {
+      profile: 'tactile-pop',
+      cameraHandheld: 0.02,
+    },
+    optics: {
+      lightingRig: 'studio-macro',
+      typographyGrammar: 'swiss-spatial',
+      lightAngleDeg: -26,
+      aperture: 0.44,
+      halation: 0.14,
+    },
+    audioDefaults: {
+      musicMood: 'warm-story',
+      voiceArchetype: 'storyteller-expressive',
+    },
+  },
+
+  'glass-studio': {
+    id: 'glass-studio',
+    name: 'Glass Studio',
+    description:
+      'Krystaliczne szkło akrylowe i anodyzowany metal w jasnym studiu przestrzennym do nowoczesnych prezentacji 3D i 2D.',
+    recommendedFor: ['produkt-3d', 'saas', 'technologia', 'design', 'launch'],
+    artWorld: 'atelier',
+    preferredSpace: '3d',
+    spaces: ['3d', '2d'],
+    palette: {
+      bgCanvas: '#EEF2FF',
+      bgSurface: '#FFFFFF',
+      bgElevated: '#E0E7FF',
+      textPrimary: '#0F172A',
+      textSecondary: '#475569',
+      accentPrimary: '#4F46E5',
+      accentSecondary: '#06B6D4',
+      inkBorder: '#C7D2FE',
+    },
+    typography: {
+      displayFont: 'Plus Jakarta Sans',
+      bodyFont: 'Inter',
+      monoFont: 'JetBrains Mono',
+      headingCase: 'sentence',
+      displayTrackingEm: -0.025,
+    },
+    surface: {
+      backdropType: 'mesh-aura',
+      cardTreatment: 'glass-glow',
+      radiusScale: 1.25,
+      grainOpacity: 0.01,
+      isDark: false,
+    },
+    material3d: {
+      finish: 'frosted-glass',
+      bevelRadius: 0.1,
+      studioHdr: 'clean-atelier',
+    },
+    motion: {
+      profile: 'cinematic-fluid',
+      cameraHandheld: 0,
+    },
+    optics: {
+      lightingRig: 'studio-macro',
+      typographyGrammar: 'swiss-spatial',
+      lightAngleDeg: -22,
+      aperture: 0.4,
+      halation: 0.12,
+    },
+    audioDefaults: {
+      musicMood: 'upbeat-launch',
+      voiceArchetype: 'crisp-tech',
     },
   },
 };

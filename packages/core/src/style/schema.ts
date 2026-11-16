@@ -97,6 +97,40 @@ export const ArtWorldSchema = z.enum([
 ]);
 export type ArtWorld = z.infer<typeof ArtWorldSchema>;
 
+export const DIMENSIONAL_SPACES = ['2d', '2.5d', '3d'] as const;
+export const DimensionalSpaceSchema = z.enum(DIMENSIONAL_SPACES);
+export type DimensionalSpace = z.infer<typeof DimensionalSpaceSchema>;
+
+export const StyleMaterial3DFinishSchema = z.enum([
+  'soft-clay',
+  'frosted-glass',
+  'retro-voxel',
+  'matte-ceramic',
+]);
+export type StyleMaterial3DFinish = z.infer<typeof StyleMaterial3DFinishSchema>;
+
+export const StyleStudioHdrPresetSchema = z.enum([
+  'warm-softbox',
+  'clean-atelier',
+  'neon-grid',
+]);
+export type StyleStudioHdrPreset = z.infer<typeof StyleStudioHdrPresetSchema>;
+
+export const StyleMaterial3DSchema = z.object({
+  finish: StyleMaterial3DFinishSchema.describe(
+    'Powierzchnia & Tło :: Materiał brył 3D'
+  ),
+  bevelRadius: z
+    .number()
+    .min(0)
+    .max(0.25)
+    .describe('Powierzchnia & Tło :: Zaokrąglenie krawędzi 3D (0–0.25)'),
+  studioHdr: StyleStudioHdrPresetSchema.describe(
+    'Powierzchnia & Tło :: Oświetlenie studyjne HDR 3D'
+  ),
+});
+export type StyleMaterial3D = z.infer<typeof StyleMaterial3DSchema>;
+
 export const StyleOpticsSchema = z.object({
   lightingRig: StyleLightingRigSchema.describe(
     'Optyka & Światło :: Reżim oświetlenia sceny'
@@ -139,6 +173,13 @@ export const StylePresetSchema = z.object({
   artWorld: ArtWorldSchema.optional().describe(
     'Informacje :: Świat artystyczny'
   ),
+  preferredSpace: DimensionalSpaceSchema.optional().describe(
+    'Informacje :: Domyślna przestrzeń (2D / 2.5D / 3D)'
+  ),
+  spaces: z
+    .array(DimensionalSpaceSchema)
+    .optional()
+    .describe('Informacje :: Obsługiwane przestrzenie'),
 
   palette: z.object({
     bgCanvas: ColorHexField('Tło płótna (Canvas)'),
@@ -192,6 +233,8 @@ export const StylePresetSchema = z.object({
       .boolean()
       .describe('Powierzchnia & Tło :: Tryb ciemny (Dark Mode)'),
   }),
+
+  material3d: StyleMaterial3DSchema.optional(),
 
   motion: z.object({
     profile: StyleMotionProfileSchema.describe(
@@ -276,6 +319,70 @@ export function withNormalizedStyleOptics(style: StylePreset): StylePreset {
   };
 }
 
+export function resolveStyleSpaces(style: StylePreset): {
+  preferredSpace: DimensionalSpace;
+  spaces: DimensionalSpace[];
+} {
+  const isCutout = style.surface.cardTreatment === 'tactile-cutout';
+  const fallbackPreferred: DimensionalSpace = isCutout ? '2.5d' : '2d';
+  const fallbackSpaces: DimensionalSpace[] = isCutout
+    ? ['2.5d']
+    : ['2d', '2.5d'];
+
+  const hasExplicitSpaces =
+    Array.isArray(style.spaces) && style.spaces.length > 0;
+  const preferredSpace: DimensionalSpace =
+    style.preferredSpace ??
+    (hasExplicitSpaces ? style.spaces![0]! : fallbackPreferred);
+
+  const rawSpaces: DimensionalSpace[] = hasExplicitSpaces
+    ? style.spaces!
+    : style.preferredSpace
+      ? [style.preferredSpace]
+      : fallbackSpaces;
+
+  const ordered = rawSpaces.includes(preferredSpace)
+    ? rawSpaces
+    : [preferredSpace, ...rawSpaces];
+
+  return {
+    preferredSpace,
+    spaces: Array.from(new Set(ordered)),
+  };
+}
+
+export function resolveStyleMaterial3D(style: StylePreset): StyleMaterial3D {
+  if (style.material3d) {
+    return { ...style.material3d };
+  }
+  if (style.surface.cardTreatment === 'glass-glow') {
+    return {
+      finish: 'frosted-glass',
+      bevelRadius: 0.1,
+      studioHdr: 'clean-atelier',
+    };
+  }
+  if (style.surface.cardTreatment === 'tactile-cutout') {
+    return {
+      finish: 'soft-clay',
+      bevelRadius: 0.14,
+      studioHdr: 'warm-softbox',
+    };
+  }
+  return {
+    finish: 'matte-ceramic',
+    bevelRadius: 0.08,
+    studioHdr: 'warm-softbox',
+  };
+}
+
+export function filterStylesBySpace(
+  styles: ReadonlyArray<StylePreset>,
+  space: DimensionalSpace
+): StylePreset[] {
+  return styles.filter((s) => resolveStyleSpaces(s).spaces.includes(space));
+}
+
 export function resolveArtWorld(style: StylePreset): ArtWorld {
   if (style.artWorld) {
     return style.artWorld;
@@ -283,9 +390,12 @@ export function resolveArtWorld(style: StylePreset): ArtWorld {
   switch (style.id) {
     case 'minimal-product':
     case 'cyber-telemetry':
+    case 'retro-pc':
+    case 'glass-studio':
       return 'atelier';
     case 'tactile-craft':
     case 'sketch-notebook':
+    case 'soft-clay':
       return 'illustrative';
     case 'editorial-press':
     case 'archival-chronicle':

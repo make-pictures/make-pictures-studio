@@ -5,36 +5,54 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import {
   BUILT_IN_STYLE_IDS,
   BUILT_IN_STYLES,
+  DIMENSIONAL_SPACES,
+  DimensionalSpaceSchema,
   STYLE_FONT_FAMILIES,
   StyleBackdrop,
+  StyleMaterial3DFinishSchema,
+  StyleMaterial3DSchema,
   StyleOpticsSchema,
   StylePresetSchema,
   StyleProvider,
+  StyleStudioHdrPresetSchema,
   buildGoogleFontsStylesheetUrl,
   clearCustomStyles,
   deriveDefaultOpticsForSurface,
+  filterStylesBySpace,
   formatFontFamilyCss,
   formatHeadingText,
   getCardChromeStyle,
   getStyleSpringConfig,
+  interpolateStylePresets,
   isBuiltInStyleId,
   listAllStudioStyles,
   registerCustomStyles,
+  resolveArtWorld,
   resolveStudioStyle,
+  resolveStyleMaterial3D,
   resolveStyleOptics,
+  resolveStyleSpaces,
   useStudioStyle,
 } from '../../core/src/index';
 
-test('all 7 BUILT_IN_STYLES validate against StylePresetSchema and cover contrasting aesthetics', () => {
-  assert.equal(BUILT_IN_STYLE_IDS.length, 7);
+test('all 10 BUILT_IN_STYLES validate against StylePresetSchema and cover 2d, 2.5d, and 3d spaces', () => {
+  assert.deepEqual(DIMENSIONAL_SPACES, ['2d', '2.5d', '3d']);
+  assert.equal(BUILT_IN_STYLE_IDS.length, 10);
   for (const id of BUILT_IN_STYLE_IDS) {
     assert.equal(isBuiltInStyleId(id), true);
     const parsed = StylePresetSchema.parse(BUILT_IN_STYLES[id]);
     assert.equal(parsed.id, id);
     assert.ok(parsed.recommendedFor.length >= 2);
+    assert.ok(parsed.preferredSpace, `Expected ${id} to define preferredSpace`);
+    assert.ok(parsed.spaces && parsed.spaces.length >= 1, `Expected ${id} to define spaces`);
+    assert.ok(parsed.material3d, `Expected ${id} to define material3d`);
   }
   assert.equal(isBuiltInStyleId('my-custom-brand'), false);
   assert.equal(BUILT_IN_STYLES['cyber-telemetry'].surface.isDark, true);
+  assert.equal(BUILT_IN_STYLES['retro-pc'].surface.isDark, true);
+  assert.equal(BUILT_IN_STYLES['soft-clay'].surface.isDark, false);
+  assert.equal(BUILT_IN_STYLES['glass-studio'].surface.isDark, false);
+  assert.equal(BUILT_IN_STYLES['glass-studio'].surface.cardTreatment, 'glass-glow');
   assert.equal(BUILT_IN_STYLES['brutalist-poster'].surface.radiusScale, 0);
   assert.equal(
     BUILT_IN_STYLES['editorial-press'].surface.backdropType,
@@ -74,7 +92,7 @@ test('custom style registry registers, lists, resolves, and falls back to minima
     assert.equal(resolveStudioStyle('minimal-product').name, 'Minimal Product');
 
     const all = listAllStudioStyles();
-    assert.equal(all.filter((s) => s.origin === 'built-in').length, 7);
+    assert.equal(all.filter((s) => s.origin === 'built-in').length, 10);
     assert.equal(
       all.some(
         (s) => s.origin === 'custom' && s.preset.id === 'neapolitan-chronicle'
@@ -240,6 +258,27 @@ test('StyleOpticsSchema, BUILT_IN_STYLES optics, and surface-aware legacy migrat
       aperture: 0.48,
       halation: 0.2,
     },
+    'retro-pc': {
+      lightingRig: 'darkroom-halation',
+      typographyGrammar: 'optical-gate',
+      lightAngleDeg: -22,
+      aperture: 0.42,
+      halation: 0.48,
+    },
+    'soft-clay': {
+      lightingRig: 'studio-macro',
+      typographyGrammar: 'swiss-spatial',
+      lightAngleDeg: -26,
+      aperture: 0.44,
+      halation: 0.14,
+    },
+    'glass-studio': {
+      lightingRig: 'studio-macro',
+      typographyGrammar: 'swiss-spatial',
+      lightAngleDeg: -22,
+      aperture: 0.4,
+      halation: 0.12,
+    },
   };
 
   for (const id of BUILT_IN_STYLE_IDS) {
@@ -287,4 +326,249 @@ test('StyleOpticsSchema, BUILT_IN_STYLES optics, and surface-aware legacy migrat
   } finally {
     clearCustomStyles();
   }
+});
+
+test('DimensionalSpace matrix, Spec 1.2 built-in spaces/material3d mapping, legacy heuristics, and cross-space custom presets', () => {
+  assert.deepEqual(DimensionalSpaceSchema.options, ['2d', '2.5d', '3d']);
+  assert.deepEqual(StyleMaterial3DFinishSchema.options, [
+    'soft-clay',
+    'frosted-glass',
+    'retro-voxel',
+    'matte-ceramic',
+  ]);
+  assert.deepEqual(StyleStudioHdrPresetSchema.options, [
+    'warm-softbox',
+    'clean-atelier',
+    'neon-grid',
+  ]);
+
+  const expectedMatrix: Record<
+    (typeof BUILT_IN_STYLE_IDS)[number],
+    {
+      preferredSpace: '2d' | '2.5d' | '3d';
+      spaces: Array<'2d' | '2.5d' | '3d'>;
+      finish: 'soft-clay' | 'frosted-glass' | 'retro-voxel' | 'matte-ceramic';
+      artWorld: 'atelier' | 'illustrative' | 'editorial-gallery';
+    }
+  > = {
+    'minimal-product': {
+      preferredSpace: '2d',
+      spaces: ['2d', '2.5d'],
+      finish: 'frosted-glass',
+      artWorld: 'atelier',
+    },
+    'sketch-notebook': {
+      preferredSpace: '2d',
+      spaces: ['2d', '2.5d'],
+      finish: 'soft-clay',
+      artWorld: 'illustrative',
+    },
+    'retro-pc': {
+      preferredSpace: '2d',
+      spaces: ['2d', '3d'],
+      finish: 'retro-voxel',
+      artWorld: 'atelier',
+    },
+    'brutalist-poster': {
+      preferredSpace: '2d',
+      spaces: ['2d'],
+      finish: 'matte-ceramic',
+      artWorld: 'editorial-gallery',
+    },
+    'cyber-telemetry': {
+      preferredSpace: '2d',
+      spaces: ['2d', '3d'],
+      finish: 'frosted-glass',
+      artWorld: 'atelier',
+    },
+    'tactile-craft': {
+      preferredSpace: '2.5d',
+      spaces: ['2.5d'],
+      finish: 'soft-clay',
+      artWorld: 'illustrative',
+    },
+    'editorial-press': {
+      preferredSpace: '2.5d',
+      spaces: ['2.5d', '2d'],
+      finish: 'matte-ceramic',
+      artWorld: 'editorial-gallery',
+    },
+    'archival-chronicle': {
+      preferredSpace: '2.5d',
+      spaces: ['2.5d', '2d'],
+      finish: 'matte-ceramic',
+      artWorld: 'editorial-gallery',
+    },
+    'soft-clay': {
+      preferredSpace: '3d',
+      spaces: ['3d'],
+      finish: 'soft-clay',
+      artWorld: 'illustrative',
+    },
+    'glass-studio': {
+      preferredSpace: '3d',
+      spaces: ['3d', '2d'],
+      finish: 'frosted-glass',
+      artWorld: 'atelier',
+    },
+  };
+
+  for (const id of BUILT_IN_STYLE_IDS) {
+    const preset = BUILT_IN_STYLES[id];
+    const exp = expectedMatrix[id];
+    assert.deepEqual(resolveStyleSpaces(preset), {
+      preferredSpace: exp.preferredSpace,
+      spaces: exp.spaces,
+    });
+    const mat3d = StyleMaterial3DSchema.parse(resolveStyleMaterial3D(preset));
+    assert.equal(mat3d.finish, exp.finish, `Unexpected finish on ${id}`);
+    assert.equal(resolveArtWorld(preset), exp.artWorld);
+    assert.equal(
+      resolveArtWorld({ ...preset, artWorld: undefined }),
+      exp.artWorld
+    );
+  }
+
+  // Space filtering across all 10 built-in presets
+  const stylesAll = BUILT_IN_STYLE_IDS.map((id) => BUILT_IN_STYLES[id]);
+  const ids2d = filterStylesBySpace(stylesAll, '2d').map((s) => s.id);
+  const ids25d = filterStylesBySpace(stylesAll, '2.5d').map((s) => s.id);
+  const ids3d = filterStylesBySpace(stylesAll, '3d').map((s) => s.id);
+
+  assert.deepEqual(
+    new Set(ids2d),
+    new Set([
+      'minimal-product',
+      'sketch-notebook',
+      'retro-pc',
+      'brutalist-poster',
+      'cyber-telemetry',
+      'editorial-press',
+      'archival-chronicle',
+      'glass-studio',
+    ])
+  );
+  assert.deepEqual(
+    new Set(ids25d),
+    new Set([
+      'minimal-product',
+      'sketch-notebook',
+      'tactile-craft',
+      'editorial-press',
+      'archival-chronicle',
+    ])
+  );
+  assert.deepEqual(
+    new Set(ids3d),
+    new Set(['retro-pc', 'cyber-telemetry', 'soft-clay', 'glass-studio'])
+  );
+
+  // Legacy custom styles omitting preferredSpace, spaces, and material3d
+  const {
+    preferredSpace: _ps1,
+    spaces: _sp1,
+    material3d: _m1,
+    ...legacyCutoutBase
+  } = BUILT_IN_STYLES['tactile-craft'];
+  const legacyCutout = StylePresetSchema.parse({
+    ...legacyCutoutBase,
+    id: 'legacy-cutout',
+  });
+  assert.deepEqual(resolveStyleSpaces(legacyCutout), {
+    preferredSpace: '2.5d',
+    spaces: ['2.5d'],
+  });
+  assert.deepEqual(resolveStyleMaterial3D(legacyCutout), {
+    finish: 'soft-clay',
+    bevelRadius: 0.14,
+    studioHdr: 'warm-softbox',
+  });
+
+  const {
+    preferredSpace: _ps2,
+    spaces: _sp2,
+    material3d: _m2,
+    ...legacyGlassBase
+  } = BUILT_IN_STYLES['cyber-telemetry'];
+  const legacyGlass = StylePresetSchema.parse({
+    ...legacyGlassBase,
+    id: 'legacy-glass',
+  });
+  assert.deepEqual(resolveStyleSpaces(legacyGlass), {
+    preferredSpace: '2d',
+    spaces: ['2d', '2.5d'],
+  });
+  assert.deepEqual(resolveStyleMaterial3D(legacyGlass), {
+    finish: 'frosted-glass',
+    bevelRadius: 0.1,
+    studioHdr: 'clean-atelier',
+  });
+
+  const {
+    preferredSpace: _ps3,
+    spaces: _sp3,
+    material3d: _m3,
+    ...legacyEditorialBase
+  } = BUILT_IN_STYLES['editorial-press'];
+  const legacyEditorial = StylePresetSchema.parse({
+    ...legacyEditorialBase,
+    id: 'legacy-editorial-space',
+  });
+  assert.deepEqual(resolveStyleSpaces(legacyEditorial), {
+    preferredSpace: '2d',
+    spaces: ['2d', '2.5d'],
+  });
+  assert.deepEqual(resolveStyleMaterial3D(legacyEditorial), {
+    finish: 'matte-ceramic',
+    bevelRadius: 0.08,
+    studioHdr: 'warm-softbox',
+  });
+
+  // Custom cross-space preset (2D + 2.5D + 3D) & deduplication / preferredSpace inclusion
+  const customBrandOmni = StylePresetSchema.parse({
+    ...BUILT_IN_STYLES['soft-clay'],
+    id: 'brand-omni',
+    preferredSpace: '3d',
+    spaces: ['2d', '2.5d', '2d'],
+    material3d: {
+      finish: 'matte-ceramic',
+      bevelRadius: 0.18,
+      studioHdr: 'clean-atelier',
+    },
+  });
+  const resolvedOmni = resolveStyleSpaces(customBrandOmni);
+  assert.equal(resolvedOmni.preferredSpace, '3d');
+  assert.deepEqual(resolvedOmni.spaces, ['3d', '2d', '2.5d']);
+  for (const sp of DIMENSIONAL_SPACES) {
+    assert.equal(
+      filterStylesBySpace([customBrandOmni], sp).length,
+      1,
+      `Expected brand-omni in ${sp}`
+    );
+  }
+});
+
+test('interpolateStylePresets preserves preferredSpace/spaces and smoothly interpolates material3d', () => {
+  const fromStyle = BUILT_IN_STYLES['retro-pc']; // bevelRadius: 0.04, retro-voxel, neon-grid, 2d
+  const toStyle = BUILT_IN_STYLES['soft-clay']; // bevelRadius: 0.14, soft-clay, warm-softbox, 3d
+
+  const beforeHalf = StylePresetSchema.parse(
+    interpolateStylePresets(fromStyle, toStyle, 0.49)
+  );
+  const atHalf = StylePresetSchema.parse(
+    interpolateStylePresets(fromStyle, toStyle, 0.5)
+  );
+
+  assert.equal(beforeHalf.preferredSpace, '2d');
+  assert.deepEqual(beforeHalf.spaces, ['2d', '3d']);
+  assert.equal(beforeHalf.material3d?.finish, 'retro-voxel');
+  assert.equal(beforeHalf.material3d?.studioHdr, 'neon-grid');
+
+  assert.equal(atHalf.preferredSpace, '3d');
+  assert.deepEqual(atHalf.spaces, ['3d']);
+  assert.equal(atHalf.material3d?.finish, 'soft-clay');
+  assert.equal(atHalf.material3d?.studioHdr, 'warm-softbox');
+  assert.ok(
+    Math.abs((atHalf.material3d?.bevelRadius ?? 0) - (0.04 + 0.14) / 2) < 1e-4
+  );
 });

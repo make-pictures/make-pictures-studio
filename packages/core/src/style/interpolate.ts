@@ -1,7 +1,9 @@
 import { Easing, interpolateColors } from 'remotion';
 import {
   resolveArtWorld,
+  resolveStyleMaterial3D,
   resolveStyleOptics,
+  resolveStyleSpaces,
   type StylePreset,
 } from './schema';
 
@@ -219,6 +221,10 @@ export function interpolateStylePresets(
   const eased = Easing.inOut(Easing.cubic)(clamped);
   const useTo = clamped >= 0.5;
   const activeDiscrete = useTo ? toStyle : fromStyle;
+  const activeSpaces = resolveStyleSpaces(activeDiscrete);
+
+  const fromMaterial3D = resolveStyleMaterial3D(fromStyle);
+  const toMaterial3D = resolveStyleMaterial3D(toStyle);
 
   const fromOptics = resolveStyleOptics(fromStyle);
   const toOptics = resolveStyleOptics(toStyle);
@@ -229,6 +235,8 @@ export function interpolateStylePresets(
     description: activeDiscrete.description,
     recommendedFor: [...activeDiscrete.recommendedFor],
     artWorld: resolveArtWorld(activeDiscrete),
+    preferredSpace: activeSpaces.preferredSpace,
+    spaces: [...activeSpaces.spaces],
     palette: {
       bgCanvas: interpolateStyleColor(
         fromStyle.palette.bgCanvas,
@@ -311,6 +319,20 @@ export function interpolateStylePresets(
         0.18
       ),
       isDark: activeDiscrete.surface.isDark,
+    },
+    material3d: {
+      finish: useTo ? toMaterial3D.finish : fromMaterial3D.finish,
+      bevelRadius: clamp(
+        lerpRounded(
+          fromMaterial3D.bevelRadius,
+          toMaterial3D.bevelRadius,
+          eased,
+          4
+        ),
+        0,
+        0.25
+      ),
+      studioHdr: useTo ? toMaterial3D.studioHdr : fromMaterial3D.studioHdr,
     },
     motion: {
       profile: activeDiscrete.motion.profile,

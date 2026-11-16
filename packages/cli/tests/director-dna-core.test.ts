@@ -43,8 +43,11 @@ test('ArtWorldSchema, BUILT_IN_STYLES artWorld mapping, fallbacks, and 7-section
   const expectedWorlds: Record<(typeof BUILT_IN_STYLE_IDS)[number], ArtWorld> = {
     'minimal-product': 'atelier',
     'cyber-telemetry': 'atelier',
+    'retro-pc': 'atelier',
+    'glass-studio': 'atelier',
     'tactile-craft': 'illustrative',
     'sketch-notebook': 'illustrative',
+    'soft-clay': 'illustrative',
     'editorial-press': 'editorial-gallery',
     'archival-chronicle': 'editorial-gallery',
     'brutalist-poster': 'editorial-gallery',

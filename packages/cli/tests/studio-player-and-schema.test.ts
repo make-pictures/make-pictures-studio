@@ -323,6 +323,48 @@ test('StylePresetSchema introspection preserves exact 7 Polish sections, 8 palet
       .find((s) => s.title === 'Paleta kolorów')
       ?.fields.filter((f) => f.kind === 'color') ?? [];
   assert.equal(colorFields.length, 8);
+
+  const preferredSpaceField = infoFields.find((f) => f.key === 'preferredSpace');
+  const spacesField = infoFields.find((f) => f.key === 'spaces');
+  assert.equal(preferredSpaceField?.kind, 'enum');
+  assert.deepEqual(preferredSpaceField?.options, ['2d', '2.5d', '3d']);
+  assert.equal(
+    preferredSpaceField?.label,
+    'Domyślna przestrzeń (2D / 2.5D / 3D)'
+  );
+  assert.equal(spacesField?.kind, 'string-array');
+  assert.deepEqual(spacesField?.options, ['2d', '2.5d', '3d']);
+  assert.equal(spacesField?.label, 'Obsługiwane przestrzenie');
+
+  const surfaceFields =
+    sections.find((s) => s.title === 'Powierzchnia & Tło')?.fields ?? [];
+  const finishField = surfaceFields.find((f) => f.key === 'material3d.finish');
+  const bevelField = surfaceFields.find(
+    (f) => f.key === 'material3d.bevelRadius'
+  );
+  const hdrField = surfaceFields.find((f) => f.key === 'material3d.studioHdr');
+
+  assert.equal(finishField?.kind, 'enum');
+  assert.deepEqual(finishField?.options, [
+    'soft-clay',
+    'frosted-glass',
+    'retro-voxel',
+    'matte-ceramic',
+  ]);
+  assert.equal(finishField?.label, 'Materiał brył 3D');
+
+  assert.equal(bevelField?.kind, 'range');
+  assert.equal(bevelField?.min, 0);
+  assert.equal(bevelField?.max, 0.25);
+  assert.equal(bevelField?.label, 'Zaokrąglenie krawędzi 3D (0–0.25)');
+
+  assert.equal(hdrField?.kind, 'enum');
+  assert.deepEqual(hdrField?.options, [
+    'warm-softbox',
+    'clean-atelier',
+    'neon-grid',
+  ]);
+  assert.equal(hdrField?.label, 'Oświetlenie studyjne HDR 3D');
 });
 
 test('introspectPropsFallback and mergeSchemaWithExtraProps handle schema-less compositions and extra props', () => {
