@@ -156,29 +156,29 @@ export function buildScaffoldProductionManifest(
     scenes: [
       {
         id: `${slug}-intro`,
-        title: isPl ? 'Scena 1 — Wprowadzenie' : 'Scene 1 — Opening Hook',
+        title: isPl ? 'Scena 1 — Wprowadzenie' : 'Scene 1 — Opening Scene',
         component: slugToPascalCase(slug),
-        durationInSeconds: 5.0,
-        durationInFrames: 300,
+        durationInSeconds: 4.2,
+        durationInFrames: 252,
         voiceId,
         speaker: 'Narrator',
         voiceEffect: 'clean',
         text: isPl
-          ? `Poznaj ${title}! Cały ten materiał powstaje w odizolowanej kapsule produkcyjnej w sześćdziesięciu klatkach na sekundę!`
-          : `Welcome to ${title}! Every frame, voiceover, and musical cue lives inside an isolated sixty frames per second capsule!`,
+          ? `${title} otwiera spokojną opowieść pełną światła i ruchu.`
+          : `${title} opens a calm visual story shaped by light.`,
       },
       {
         id: `${slug}-payoff`,
         title: isPl ? 'Scena 2 — Rozwinięcie' : 'Scene 2 — Core Insight',
         component: slugToPascalCase(slug),
-        durationInSeconds: 5.5,
-        durationInFrames: 330,
+        durationInSeconds: 4.2,
+        durationInFrames: 252,
         voiceId,
         speaker: kit === 'isometric-3d' ? 'Partner' : 'Narrator',
         voiceEffect: 'clean',
         text: isPl
-          ? 'Muzyka automatycznie ścisza się pod głosem lektora, a efekty dźwiękowe trafiają idealnie w wypowiadane słowa!'
-          : 'Background music ducks smoothly under narration while word-synced sound effects punctuate every visual beat!',
+          ? 'Muzyka miękko ustępuje narracji, zostawiając przestrzeń na każdy obraz.'
+          : 'Warm music yields gently to narration, giving every image room to breathe.',
       },
     ],
     score: {
@@ -210,7 +210,7 @@ export function buildScaffoldProductionManifest(
 
 export function buildScaffoldPropsJson(
   title: string,
-  kit: ScaffoldKitId,
+  _kit: ScaffoldKitId,
   lang: 'pl' | 'en',
   style: StylePreset = BUILT_IN_STYLES['minimal-product']
 ): Record<string, unknown> {
@@ -219,9 +219,9 @@ export function buildScaffoldPropsJson(
     styleId: style.id,
     headline: title,
     subheadline: isPl
-      ? 'Odizolowana produkcja 60 FPS • make.pictures'
-      : 'Isolated 60 FPS production • make.pictures',
-    badgeLabel: kit.toUpperCase(),
+      ? 'Spokojna opowieść w świetle i ruchu'
+      : 'Calm visual storytelling in light and motion',
+    badgeLabel: isPl ? 'Rozdział 01' : 'Chapter 01',
     accentColor: style.palette.accentPrimary,
     secondaryColor: style.palette.accentSecondary,
     voiceoverVolume: 1.0,
@@ -235,7 +235,7 @@ function buildSchemaBlock(pascalName: string): string {
   styleId: z.string().describe('Kolory & Styl :: Styl bazowy (Style ID)'),
   headline: z.string().describe('Teksty & Napisy :: Nagłówek'),
   subheadline: z.string().describe('Teksty & Napisy :: Podtytuł'),
-  badgeLabel: z.string().describe('Teksty & Napisy :: Etykieta zestawu'),
+  badgeLabel: z.string().describe('Teksty & Napisy :: Etykieta rozdziału'),
   accentColor: z.string().describe('Kolory & Styl :: Akcent główny'),
   secondaryColor: z.string().describe('Kolory & Styl :: Akcent drugi'),
   voiceoverVolume: z.number().min(0).max(1.5).describe('Audio :: Głośność lektora'),
@@ -265,7 +265,7 @@ function buildAudioJsxBlock(): string {
 
         <VoiceoverTrack
           voiceover={payoffVo}
-          fromFrame={324}
+          fromFrame={360}
           volume={props.voiceoverVolume}
         />
 
@@ -281,7 +281,7 @@ function buildAudioJsxBlock(): string {
         {popSfx?.audioFile ? (
           <SoundCue
             src={staticFile(popSfx.audioFile)}
-            atFrame={322}
+            atFrame={358}
             durationSeconds={popSfx.durationSeconds}
             volume={props.sfxVolume}
           />
@@ -302,12 +302,12 @@ export function buildScaffoldCompositionTsx(params: {
       return `import React from 'react';
 import {
   AbsoluteFill,
-  Sequence,
   staticFile,
   useVideoConfig,
 } from 'remotion';
 import { z } from 'zod';
 import {
+  ContinuousSceneFlow,
   SmartMusicBed,
   SoundCue,
   StyleProvider,
@@ -330,79 +330,90 @@ import {
 ${schemaBlock}
 
 const DIALOGUE_SEGMENTS = [
-  { sceneId: '${slug}-intro', fromFrame: 12, durationInFrames: 300 },
-  { sceneId: '${slug}-payoff', fromFrame: 324, durationInFrames: 306 },
+  { sceneId: '${slug}-intro', fromFrame: 12, durationInFrames: 252 },
+  { sceneId: '${slug}-payoff', fromFrame: 360, durationInFrames: 252 },
 ];
 
-export const ${pascalName}: React.FC<${pascalName}Props> = (props) => {
+const IntroEditorialScene: React.FC<${pascalName}Props> = (props) => {
   const { width, height } = useVideoConfig();
+  const shots: OpticalShot2D[] = [
+    { fromFrame: 0, x: width / 2, y: height / 2 + 8, zoom: 1.0, focalZ: 0.32, transition: 'cut' },
+    { fromFrame: 10, x: width / 2 - 5, y: height / 2, zoom: 1.024, focalZ: 0, transition: 'glide' },
+  ];
+
+  return (
+    <EditorialDeskStage shots={shots} renderBaseFill={false}>
+      <ChapterTitleCard
+        chapterLabel={props.badgeLabel}
+        title={props.headline}
+        subtitle={props.subheadline}
+        startFrame={2}
+        accentColor={props.accentColor}
+      />
+    </EditorialDeskStage>
+  );
+};
+
+const PayoffEditorialScene: React.FC<${pascalName}Props> = (props) => {
+  const { width, height } = useVideoConfig();
+  const payoffVo = VOICEOVER_MANIFEST['${slug}-payoff'];
+  const shots: OpticalShot2D[] = [
+    { fromFrame: 0, x: width / 2 + 6, y: height / 2 - 4, zoom: 1.018, focalZ: 0, transition: 'cut' },
+    { fromFrame: 160, x: width / 2, y: height / 2, zoom: 1.038, focalZ: 0, transition: 'glide' },
+  ];
+
+  return (
+    <EditorialDeskStage shots={shots} renderBaseFill={false}>
+      <SplitStoryLayout
+        startFrame={2}
+        focusShiftFrame={156}
+        primary={
+          <EditorialMediaCard
+            caption={props.headline}
+            startFrame={2}
+            durationInFrames={340}
+          />
+        }
+        secondary={
+          <HighlightQuoteStage
+            quote={payoffVo?.text || props.subheadline}
+            author={props.headline}
+            startFrame={16}
+            words={payoffVo?.words}
+          />
+        }
+      />
+    </EditorialDeskStage>
+  );
+};
+
+export const ${pascalName}: React.FC<${pascalName}Props> = (props) => {
   const introVo = VOICEOVER_MANIFEST['${slug}-intro'];
   const payoffVo = VOICEOVER_MANIFEST['${slug}-payoff'];
   const whooshSfx = SFX_MANIFEST['whoosh-open'];
   const popSfx = SFX_MANIFEST['card-pop'];
-
-  const editorialShots: OpticalShot2D[] = [
-    { fromFrame: 0, x: width / 2, y: height / 2 + 8, zoom: 1.0, focalZ: 0.35, transition: 'cut' },
-    { fromFrame: 8, x: width / 2 - 6, y: height / 2, zoom: 1.025, focalZ: 0, transition: 'glide' },
-    { fromFrame: 220, x: width / 2 + 8, y: height / 2 - 4, zoom: 1.036, focalZ: 0, transition: 'glide' },
-    { fromFrame: 430, x: width / 2, y: height / 2, zoom: 1.048, focalZ: 0, transition: 'glide' },
-  ];
 
   return (
     <StyleProvider style={props.styleId} renderBackdrop>
       <AbsoluteFill>
         ${audioBlock}
 
-        <EditorialDeskStage
-          shots={editorialShots}
-          sheetCode={props.badgeLabel}
-          renderBaseFill={false}
-        >
-          <Sequence from={0} durationInFrames={220}>
-            <ChapterTitleCard
-              chapterLabel={props.badgeLabel}
-              title={props.headline}
-              subtitle={props.subheadline}
-              startFrame={2}
-              accentColor={props.accentColor}
-            />
-          </Sequence>
-
-          <Sequence from={220} durationInFrames={210}>
-            <SplitStoryLayout
-              startFrame={2}
-              focusShiftFrame={96}
-              primary={
-                <EditorialMediaCard
-                  caption={props.headline}
-                  sourceTag={props.badgeLabel}
-                  startFrame={2}
-                  durationInFrames={195}
-                />
-              }
-              secondary={
-                <EditorialMediaCard
-                  caption={props.subheadline}
-                  sourceTag={props.styleId}
-                  startFrame={10}
-                  durationInFrames={195}
-                  zoomFrom={1.04}
-                  zoomTo={1.12}
-                />
-              }
-            />
-          </Sequence>
-
-          <Sequence from={430} durationInFrames={218}>
-            <HighlightQuoteStage
-              quote={payoffVo?.text || props.subheadline}
-              highlightPhrase="sześćdziesięciu"
-              author={props.headline}
-              startFrame={2}
-              words={payoffVo?.words}
-            />
-          </Sequence>
-        </EditorialDeskStage>
+        <ContinuousSceneFlow
+          crossDissolveFrames={48}
+          style={{ backgroundColor: 'transparent' }}
+          scenes={[
+            {
+              id: 'intro',
+              durationInFrames: 360,
+              render: () => <IntroEditorialScene {...props} />,
+            },
+            {
+              id: 'payoff',
+              durationInFrames: 360,
+              render: () => <PayoffEditorialScene {...props} />,
+            },
+          ]}
+        />
       </AbsoluteFill>
     </StyleProvider>
   );
@@ -413,14 +424,15 @@ export const ${pascalName}: React.FC<${pascalName}Props> = (props) => {
       return `import React from 'react';
 import {
   AbsoluteFill,
-  Sequence,
   staticFile,
   useVideoConfig,
 } from 'remotion';
 import { z } from 'zod';
 import {
+  ContinuousSceneFlow,
   DepthPlane,
   OpticalStage2D,
+  ScenicBackdropLayers,
   SmartMusicBed,
   SoundCue,
   StageLightingRig,
@@ -428,7 +440,6 @@ import {
   VoiceoverTrack,
 } from '@make-pictures/core';
 import {
-  AnimatedMetricCounter,
   ImpactKeywordCard,
   WordByWordStage,
 } from '@make-pictures/kits/kinetic-typography';
@@ -441,14 +452,66 @@ import {
 ${schemaBlock}
 
 const DIALOGUE_SEGMENTS = [
-  { sceneId: '${slug}-intro', fromFrame: 12, durationInFrames: 300 },
-  { sceneId: '${slug}-payoff', fromFrame: 324, durationInFrames: 306 },
+  { sceneId: '${slug}-intro', fromFrame: 12, durationInFrames: 252 },
+  { sceneId: '${slug}-payoff', fromFrame: 360, durationInFrames: 252 },
 ];
 
-export const ${pascalName}: React.FC<${pascalName}Props> = (props) => {
+const IntroKineticScene: React.FC<${pascalName}Props> = (props) => (
+  <AbsoluteFill>
+    <ScenicBackdropLayers seed="${slug}-kinetic-intro" />
+    <StageLightingRig renderBaseFill={false} />
+    <OpticalStage2D startFrame={2}>
+      <DepthPlane z={0}>
+        <WordByWordStage
+          sceneId="${slug}-intro"
+          voiceoverManifest={VOICEOVER_MANIFEST}
+          fallbackText={\`\${props.headline} — \${props.subheadline}\`}
+          eyebrow={props.badgeLabel}
+          accentColor={props.accentColor}
+          variant="transparent"
+          startFrame={2}
+        />
+      </DepthPlane>
+    </OpticalStage2D>
+  </AbsoluteFill>
+);
+
+const PayoffKeywordScene: React.FC<${pascalName}Props> = (props) => {
   const { width, height } = useVideoConfig();
   const isVertical = height > width;
 
+  return (
+    <AbsoluteFill>
+      <ScenicBackdropLayers seed="${slug}-kinetic-payoff" />
+      <StageLightingRig renderBaseFill={false} />
+      <OpticalStage2D startFrame={2}>
+        <DepthPlane z={0}>
+          <AbsoluteFill
+            style={{
+              justifyContent: isVertical ? 'flex-start' : 'center',
+              alignItems: isVertical ? 'flex-start' : 'center',
+              paddingLeft: isVertical ? 64 : 140,
+              paddingRight: isVertical ? 204 : 140,
+              paddingTop: isVertical ? 320 : 0,
+            }}
+          >
+            <div style={{ width: '100%', maxWidth: isVertical ? 812 : 980 }}>
+              <ImpactKeywordCard
+                keyword={props.headline}
+                eyebrow={props.badgeLabel}
+                sublabel={props.subheadline}
+                accentColor={props.accentColor}
+                startFrame={2}
+              />
+            </div>
+          </AbsoluteFill>
+        </DepthPlane>
+      </OpticalStage2D>
+    </AbsoluteFill>
+  );
+};
+
+export const ${pascalName}: React.FC<${pascalName}Props> = (props) => {
   const introVo = VOICEOVER_MANIFEST['${slug}-intro'];
   const payoffVo = VOICEOVER_MANIFEST['${slug}-payoff'];
   const whooshSfx = SFX_MANIFEST['whoosh-open'];
@@ -459,55 +522,22 @@ export const ${pascalName}: React.FC<${pascalName}Props> = (props) => {
       <AbsoluteFill>
         ${audioBlock}
 
-        <StageLightingRig renderBaseFill={false} />
-
-        <OpticalStage2D startFrame={2}>
-          <DepthPlane z={0}>
-            <Sequence from={0} durationInFrames={320}>
-              <WordByWordStage
-                sceneId="${slug}-intro"
-                voiceoverManifest={VOICEOVER_MANIFEST}
-                fallbackText={\`\${props.headline} — \${props.subheadline}\`}
-                eyebrow={props.badgeLabel}
-                accentColor={props.accentColor}
-                variant="transparent"
-                startFrame={2}
-              />
-            </Sequence>
-
-            <Sequence from={320} durationInFrames={328}>
-              <AbsoluteFill
-                style={{
-                  justifyContent: isVertical ? 'flex-start' : 'center',
-                  alignItems: isVertical ? 'flex-start' : 'center',
-                  paddingLeft: isVertical ? 54 : 120,
-                  paddingRight: isVertical ? 186 : 120,
-                  paddingTop: isVertical ? 260 : 0,
-                  gap: 28,
-                }}
-              >
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 28, maxWidth: isVertical ? 830 : 1040 }}>
-                  <ImpactKeywordCard
-                    keyword={props.headline}
-                    eyebrow={props.badgeLabel}
-                    sublabel={props.subheadline}
-                    badge="60 FPS"
-                    accentColor={props.accentColor}
-                    startFrame={2}
-                  />
-                  <AnimatedMetricCounter
-                    value={60}
-                    suffix=" FPS"
-                    label="Deterministyczny silnik wideo"
-                    badge="-14 LUFS"
-                    accentColor={props.secondaryColor}
-                    startFrame={14}
-                  />
-                </div>
-              </AbsoluteFill>
-            </Sequence>
-          </DepthPlane>
-        </OpticalStage2D>
+        <ContinuousSceneFlow
+          crossDissolveFrames={48}
+          style={{ backgroundColor: 'transparent' }}
+          scenes={[
+            {
+              id: 'intro',
+              durationInFrames: 360,
+              render: () => <IntroKineticScene {...props} />,
+            },
+            {
+              id: 'payoff',
+              durationInFrames: 360,
+              render: () => <PayoffKeywordScene {...props} />,
+            },
+          ]}
+        />
       </AbsoluteFill>
     </StyleProvider>
   );
@@ -518,12 +548,12 @@ export const ${pascalName}: React.FC<${pascalName}Props> = (props) => {
       return `import React from 'react';
 import {
   AbsoluteFill,
-  Sequence,
   staticFile,
   useVideoConfig,
 } from 'remotion';
 import { z } from 'zod';
 import {
+  ContinuousSceneFlow,
   SmartMusicBed,
   SoundCue,
   StyleProvider,
@@ -544,14 +574,96 @@ import {
 ${schemaBlock}
 
 const DIALOGUE_SEGMENTS = [
-  { sceneId: '${slug}-intro', fromFrame: 12, durationInFrames: 300 },
-  { sceneId: '${slug}-payoff', fromFrame: 324, durationInFrames: 306 },
+  { sceneId: '${slug}-intro', fromFrame: 12, durationInFrames: 252 },
+  { sceneId: '${slug}-payoff', fromFrame: 360, durationInFrames: 252 },
 ];
 
-export const ${pascalName}: React.FC<${pascalName}Props> = (props) => {
+const IntroDataScene: React.FC<${pascalName}Props> = (props) => {
   const { width, height } = useVideoConfig();
   const isVertical = height > width;
 
+  return (
+    <DataStoryStage2D renderBaseFill={false}>
+      <AbsoluteFill
+        style={{
+          justifyContent: isVertical ? 'flex-start' : 'center',
+          alignItems: isVertical ? 'flex-start' : 'center',
+          paddingLeft: isVertical ? 76 : 140,
+          paddingRight: isVertical ? 216 : 140,
+          paddingTop: isVertical ? 280 : 0,
+        }}
+      >
+        <AnimatedBarRace
+          title={props.headline}
+          subtitle={props.subheadline}
+          valueSuffix=" pkt"
+          startFrame={2}
+          items={[
+            {
+              id: 'clarity',
+              label: 'Czytelność narracji',
+              value: 96,
+              color: props.accentColor,
+            },
+            {
+              id: 'harmony',
+              label: 'Spójność światła i barwy',
+              value: 91,
+              color: props.secondaryColor,
+            },
+            {
+              id: 'pacing',
+              label: 'Spokojny rytm ujęć',
+              value: 88,
+            },
+          ]}
+        />
+      </AbsoluteFill>
+    </DataStoryStage2D>
+  );
+};
+
+const PayoffDataScene: React.FC<${pascalName}Props> = (props) => {
+  const { width, height } = useVideoConfig();
+  const isVertical = height > width;
+
+  return (
+    <DataStoryStage2D renderBaseFill={false}>
+      <AbsoluteFill
+        style={{
+          justifyContent: isVertical ? 'flex-start' : 'center',
+          alignItems: isVertical ? 'flex-start' : 'center',
+          paddingLeft: isVertical ? 76 : 140,
+          paddingRight: isVertical ? 216 : 140,
+          paddingTop: isVertical ? 280 : 0,
+        }}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+          <MetricComparisonCard
+            title={props.headline}
+            beforeLabel="Statyczny slajd"
+            beforeValue={31}
+            afterLabel="Żywy obraz"
+            afterValue={94}
+            unit=" pkt"
+            afterColor={props.accentColor}
+            startFrame={2}
+          />
+          <TimelineTrack
+            startFrame={24}
+            milestones={[
+              { id: 'e1', era: '01', label: 'Pomysł', fromFrame: 24 },
+              { id: 'e2', era: '02', label: 'Świat sztuki', fromFrame: 120 },
+              { id: 'e3', era: '03', label: 'Gotowy film', fromFrame: 216 },
+            ]}
+          />
+        </div>
+      </AbsoluteFill>
+    </DataStoryStage2D>
+  );
+};
+
+export const ${pascalName}: React.FC<${pascalName}Props> = (props) => {
   const introVo = VOICEOVER_MANIFEST['${slug}-intro'];
   const payoffVo = VOICEOVER_MANIFEST['${slug}-payoff'];
   const whooshSfx = SFX_MANIFEST['whoosh-open'];
@@ -562,81 +674,22 @@ export const ${pascalName}: React.FC<${pascalName}Props> = (props) => {
       <AbsoluteFill>
         ${audioBlock}
 
-        <DataStoryStage2D
-          datasetCode={\`\${props.badgeLabel} • 60 FPS\`}
-          renderBaseFill={false}
-        >
-          <Sequence from={0} durationInFrames={320}>
-            <AbsoluteFill
-              style={{
-                justifyContent: isVertical ? 'flex-start' : 'center',
-                alignItems: isVertical ? 'flex-start' : 'center',
-                paddingLeft: isVertical ? 76 : 140,
-                paddingRight: isVertical ? 216 : 140,
-                paddingTop: isVertical ? 272 : 0,
-              }}
-            >
-              <AnimatedBarRace
-                title={props.headline}
-                subtitle={props.subheadline}
-                valueSuffix=" pkt"
-                startFrame={2}
-                items={[
-                  {
-                    id: 'clarity',
-                    label: 'Czytelność narracji',
-                    value: 96,
-                    color: props.accentColor,
-                  },
-                  {
-                    id: 'sync',
-                    label: 'Synchronizacja audio',
-                    value: 91,
-                    color: props.secondaryColor,
-                  },
-                  {
-                    id: 'pacing',
-                    label: 'Rytm ujęć 60 FPS',
-                    value: 87,
-                  },
-                ]}
-              />
-            </AbsoluteFill>
-          </Sequence>
-
-          <Sequence from={320} durationInFrames={328}>
-            <AbsoluteFill
-              style={{
-                justifyContent: isVertical ? 'flex-start' : 'center',
-                alignItems: isVertical ? 'flex-start' : 'center',
-                paddingLeft: isVertical ? 76 : 140,
-                paddingRight: isVertical ? 216 : 140,
-                paddingTop: isVertical ? 272 : 0,
-              }}
-            >
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
-                <MetricComparisonCard
-                  title={props.headline}
-                  beforeLabel="Ręczny montaż"
-                  beforeValue={24}
-                  afterLabel="Video-as-Code"
-                  afterValue={60}
-                  unit=" FPS"
-                  afterColor={props.accentColor}
-                  startFrame={2}
-                />
-                <TimelineTrack
-                  startFrame={14}
-                  milestones={[
-                    { id: 'e1', era: 'ETAP 01', label: 'Scenariusz', fromFrame: 14 },
-                    { id: 'e2', era: 'ETAP 02', label: 'Optyka 60 FPS', fromFrame: 96 },
-                    { id: 'e3', era: 'ETAP 03', label: 'Master -14 LUFS', fromFrame: 188 },
-                  ]}
-                />
-              </div>
-            </AbsoluteFill>
-          </Sequence>
-        </DataStoryStage2D>
+        <ContinuousSceneFlow
+          crossDissolveFrames={48}
+          style={{ backgroundColor: 'transparent' }}
+          scenes={[
+            {
+              id: 'intro',
+              durationInFrames: 360,
+              render: () => <IntroDataScene {...props} />,
+            },
+            {
+              id: 'payoff',
+              durationInFrames: 360,
+              render: () => <PayoffDataScene {...props} />,
+            },
+          ]}
+        />
       </AbsoluteFill>
     </StyleProvider>
   );
@@ -652,6 +705,7 @@ import {
 } from 'remotion';
 import { z } from 'zod';
 import {
+  ContinuousSceneFlow,
   SmartMusicBed,
   SoundCue,
   StyleProvider,
@@ -659,8 +713,7 @@ import {
   useStudioStyle,
 } from '@make-pictures/core';
 import {
-  CodePayloadToast,
-  FlowCurve,
+  DataFlowEdge,
   MotionDiagramStage2D,
   SystemNode,
   portBottom,
@@ -678,23 +731,21 @@ import {
 ${schemaBlock}
 
 const DIALOGUE_SEGMENTS = [
-  { sceneId: '${slug}-intro', fromFrame: 12, durationInFrames: 300 },
-  { sceneId: '${slug}-payoff', fromFrame: 324, durationInFrames: 306 },
+  { sceneId: '${slug}-intro', fromFrame: 12, durationInFrames: 252 },
+  { sceneId: '${slug}-payoff', fromFrame: 360, durationInFrames: 252 },
 ];
 
 const HORIZONTAL_NODES = {
-  source: { cx: 560, cy: 460, w: 430, h: 196 },
-  target: { cx: 1360, cy: 460, w: 430, h: 196 },
-  payload: { cx: 1360, cy: 730, w: 430, h: 168 },
+  first: { cx: 560, cy: 540, w: 430, h: 192 },
+  second: { cx: 1360, cy: 540, w: 430, h: 192 },
 } satisfies Record<string, NodeBox>;
 
 const VERTICAL_NODES = {
-  source: { cx: 475, cy: 580, w: 620, h: 188 },
-  target: { cx: 475, cy: 860, w: 620, h: 188 },
-  payload: { cx: 475, cy: 1120, w: 620, h: 164 },
+  first: { cx: 475, cy: 560, w: 600, h: 184 },
+  second: { cx: 475, cy: 940, w: 600, h: 184 },
 } satisfies Record<string, NodeBox>;
 
-const DiagramCanvas: React.FC<${pascalName}Props> = (props) => {
+const IntroDiagramScene: React.FC<${pascalName}Props> = (props) => {
   const { width, height } = useVideoConfig();
   const style = useStudioStyle();
   const isVertical = height > width;
@@ -702,82 +753,140 @@ const DiagramCanvas: React.FC<${pascalName}Props> = (props) => {
 
   return (
     <MotionDiagramStage2D
-      diagramCode={\`\${props.badgeLabel} • 60 FPS\`}
       renderBaseFill={false}
       nodes={nodes}
       shots={[
         {
           fromFrame: 0,
-          target: ['source', 'target'],
+          target: ['first', 'second'],
           transition: 'cut',
-          padding: isVertical ? 120 : 140,
+          padding: isVertical ? 120 : 150,
         },
         {
-          fromFrame: 320,
-          target: ['target', 'payload'],
+          fromFrame: 168,
+          target: ['first', 'second'],
           transition: 'glide',
-          padding: isVertical ? 120 : 150,
+          padding: isVertical ? 108 : 136,
         },
       ]}
       handheldIntensity={style.motion.cameraHandheld}
     >
-      <FlowCurve
-        from={isVertical ? portBottom(nodes.source) : portRight(nodes.source)}
-        to={isVertical ? portTop(nodes.target) : portLeft(nodes.target)}
-        orientation={isVertical ? 'vertical' : 'horizontal'}
-        curveY={isVertical ? 0 : -44}
+      <DataFlowEdge
+        id="intro-flow"
+        from={isVertical ? portBottom(nodes.first) : portRight(nodes.first)}
+        to={isVertical ? portTop(nodes.second) : portLeft(nodes.second)}
+        curveOffsetY={isVertical ? 0 : -64}
+        curveOffsetX={isVertical ? 56 : undefined}
         color={props.accentColor}
-        activeFromFrame={18}
-        packetSpeedFrames={96}
+        secondaryColor={props.secondaryColor}
+        drawStartFrame={8}
+        flowStartFrame={24}
+        flowEndFrame={352}
+        label="Światło i rytm"
       />
 
       <SystemNode
-        id="source"
-        moduleCode="MOD 01"
+        id="first"
         badge={props.badgeLabel}
         title={props.headline}
-        subtitle="Wejście deterministycznego potoku"
-        statusText="Gotowość 60 FPS"
-        activeStatusText="Transmisja aktywna"
-        x={nodes.source.cx}
-        y={nodes.source.cy}
-        width={nodes.source.w}
-        height={nodes.source.h}
+        subtitle="Pomysł i narracja sceny"
+        statusText="Spokojne otwarcie"
+        activeStatusText="Przepływ aktywny"
+        x={nodes.first.cx}
+        y={nodes.first.cy}
+        width={nodes.first.w}
+        height={nodes.first.h}
         accentColor={props.accentColor}
         enterFrame={4}
-        activeRanges={[[12, 310]]}
+        activeRanges={[[12, 340]]}
       />
 
       <SystemNode
-        id="target"
-        moduleCode="MOD 02"
-        badge="MASTER"
-        title="Silnik wyjściowy"
+        id="second"
+        title="Kierunek sztuki"
         subtitle={props.subheadline}
         statusText="Oczekiwanie"
-        activeStatusText="Zapis -14 LUFS"
-        x={nodes.target.cx}
-        y={nodes.target.cy}
-        width={nodes.target.w}
-        height={nodes.target.h}
+        activeStatusText="Kompozycja gotowa"
+        x={nodes.second.cx}
+        y={nodes.second.cy}
+        width={nodes.second.w}
+        height={nodes.second.h}
         accentColor={props.secondaryColor}
-        enterFrame={14}
-        activeRanges={[[120, 620]]}
-        metricsLabel="LUFS"
-        metricsValue="-14.0"
+        enterFrame={22}
+        activeRanges={[[96, 352]]}
+      />
+    </MotionDiagramStage2D>
+  );
+};
+
+const PayoffDiagramScene: React.FC<${pascalName}Props> = (props) => {
+  const { width, height } = useVideoConfig();
+  const style = useStudioStyle();
+  const isVertical = height > width;
+  const nodes = isVertical ? VERTICAL_NODES : HORIZONTAL_NODES;
+
+  return (
+    <MotionDiagramStage2D
+      renderBaseFill={false}
+      nodes={nodes}
+      shots={[
+        {
+          fromFrame: 0,
+          target: ['first', 'second'],
+          transition: 'cut',
+          padding: isVertical ? 120 : 150,
+        },
+        {
+          fromFrame: 174,
+          target: 'second',
+          transition: 'glide',
+          padding: isVertical ? 132 : 172,
+        },
+      ]}
+      handheldIntensity={style.motion.cameraHandheld}
+    >
+      <DataFlowEdge
+        id="payoff-flow"
+        from={isVertical ? portBottom(nodes.first) : portRight(nodes.first)}
+        to={isVertical ? portTop(nodes.second) : portLeft(nodes.second)}
+        curveOffsetY={isVertical ? 0 : -64}
+        curveOffsetX={isVertical ? 56 : undefined}
+        color={props.secondaryColor}
+        secondaryColor={props.accentColor}
+        drawStartFrame={6}
+        flowStartFrame={22}
+        flowEndFrame={352}
+        label="Płynny obraz"
       />
 
-      <CodePayloadToast
-        x={nodes.payload.cx}
-        y={nodes.target.cy + nodes.target.h / 2 + 24}
-        width={nodes.payload.w}
-        methodBadge="POST"
-        endpoint="/v1/studio/commit"
-        latencyText="14ms"
-        code={\`{\\n  "style": "\${props.styleId}",\\n  "fps": 60\\n}\`}
+      <SystemNode
+        id="first"
+        title="Kierunek sztuki"
+        subtitle="Spójna paleta i typografia"
+        statusText="Zharmonizowany"
+        activeStatusText="Prowadzenie ostrości"
+        x={nodes.first.cx}
+        y={nodes.first.cy}
+        width={nodes.first.w}
+        height={nodes.first.h}
+        accentColor={props.secondaryColor}
+        enterFrame={4}
+        activeRanges={[[8, 220]]}
+      />
+
+      <SystemNode
+        id="second"
+        title="Gotowy film"
+        subtitle={props.subheadline}
+        statusText="Przygotowanie"
+        activeStatusText="Czysty dźwięk i obraz"
+        x={nodes.second.cx}
+        y={nodes.second.cy}
+        width={nodes.second.w}
+        height={nodes.second.h}
         accentColor={props.accentColor}
-        startFrame={332}
-        endFrame={624}
+        enterFrame={22}
+        activeRanges={[[64, 352]]}
       />
     </MotionDiagramStage2D>
   );
@@ -793,7 +902,23 @@ export const ${pascalName}: React.FC<${pascalName}Props> = (props) => {
     <StyleProvider style={props.styleId} renderBackdrop>
       <AbsoluteFill>
         ${audioBlock}
-        <DiagramCanvas {...props} />
+
+        <ContinuousSceneFlow
+          crossDissolveFrames={48}
+          style={{ backgroundColor: 'transparent' }}
+          scenes={[
+            {
+              id: 'intro',
+              durationInFrames: 360,
+              render: () => <IntroDiagramScene {...props} />,
+            },
+            {
+              id: 'payoff',
+              durationInFrames: 360,
+              render: () => <PayoffDiagramScene {...props} />,
+            },
+          ]}
+        />
       </AbsoluteFill>
     </StyleProvider>
   );
@@ -813,7 +938,8 @@ import {
 } from 'remotion';
 import { z } from 'zod';
 import {
-  SPRING_PRESETS,
+  CINEMATIC_SPRINGS,
+  ContinuousSceneFlow,
   SmartMusicBed,
   SoundCue,
   StyleProvider,
@@ -821,11 +947,15 @@ import {
   useStudioStyle,
 } from '@make-pictures/core';
 import {
+  AtelierDeskCutout3D,
+  CloudCanopyCutout3D,
   DioramaStage3D,
+  MountainRangeCutout3D,
   PaperCameraRig3D,
-  PaperCutout3D,
   PaperStageLighting3D,
+  PineGroveCutout3D,
   PopUpHinge3D,
+  SunburstArchCutout3D,
 } from '@make-pictures/kits/paper-diorama-3d';
 import {
   MUSIC_MANIFEST,
@@ -836,14 +966,15 @@ import {
 ${schemaBlock}
 
 const DIALOGUE_SEGMENTS = [
-  { sceneId: '${slug}-intro', fromFrame: 12, durationInFrames: 300 },
-  { sceneId: '${slug}-payoff', fromFrame: 324, durationInFrames: 306 },
+  { sceneId: '${slug}-intro', fromFrame: 12, durationInFrames: 252 },
+  { sceneId: '${slug}-payoff', fromFrame: 360, durationInFrames: 252 },
 ];
 
-const DioramaScene: React.FC<${pascalName}Props> = (props) => {
+const DioramaLandscapeScene: React.FC<${pascalName}Props> = (props) => {
   const frame = useCurrentFrame();
   const { fps, width, height } = useVideoConfig();
   const style = useStudioStyle();
+  const isVertical = height > width;
 
   if (frame < 2) {
     return null;
@@ -852,20 +983,35 @@ const DioramaScene: React.FC<${pascalName}Props> = (props) => {
   const stageReveal = spring({
     frame: frame - 2,
     fps,
-    config: SPRING_PRESETS.snappy,
+    config: CINEMATIC_SPRINGS.entrance,
   });
-
-  const hingeFold = spring({
-    frame: frame - 10,
+  const archFold = spring({
+    frame: frame - 4,
     fps,
-    config: SPRING_PRESETS.gentle,
+    config: CINEMATIC_SPRINGS.entrance,
+  });
+  const mountainFold = spring({
+    frame: frame - 14,
+    fps,
+    config: CINEMATIC_SPRINGS.entrance,
+  });
+  const groveFold = spring({
+    frame: frame - 24,
+    fps,
+    config: CINEMATIC_SPRINGS.emphasis,
   });
 
-  const camDriftX = Math.sin(frame * 0.032) * 0.28;
-  const camZ = interpolate(frame, [0, 630], [9.6, 8.4], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
+  const cloudDrift = Math.sin(frame * 0.034) * 0.22;
+  const camDriftX = Math.sin(frame * 0.032) * 0.24;
+  const camZ = interpolate(
+    frame,
+    [0, 360],
+    isVertical ? [13.2, 12.0] : [9.6, 8.6],
+    {
+      extrapolateLeft: 'clamp',
+      extrapolateRight: 'clamp',
+    }
+  );
 
   return (
     <AbsoluteFill style={{ opacity: stageReveal }}>
@@ -873,11 +1019,11 @@ const DioramaScene: React.FC<${pascalName}Props> = (props) => {
         width={width}
         height={height}
         shadows
-        camera={{ position: [0, 3.0, 9.6], fov: 36 }}
+        camera={{ position: [0, 3.1, camZ], fov: 36 }}
       >
         <PaperCameraRig3D
-          cameraPos={[camDriftX, 2.95, camZ]}
-          lookAt={[0, 1.35, -0.3]}
+          cameraPos={[camDriftX, isVertical ? 3.15 : 2.95, camZ]}
+          lookAt={[0, isVertical ? 1.55 : 1.35, -0.4]}
           fov={36}
         />
         <PaperStageLighting3D
@@ -888,41 +1034,144 @@ const DioramaScene: React.FC<${pascalName}Props> = (props) => {
           surfacePattern="spotlight"
           accentColor={props.accentColor}
         >
-          <PopUpHinge3D foldProgress={hingeFold} position={[0, 0, -0.25]}>
-            <PaperCutout3D
-              cacheKey="${slug}-hero-card"
-              cacheDeps={[
-                props.headline,
-                props.subheadline,
-                props.accentColor,
-                style.palette.bgSurface,
-                style.palette.textPrimary,
-              ]}
-              width={5.8}
-              height={2.45}
-              pixelWidth={720}
-              pixelHeight={304}
-              whiteBorderPx={14}
-              position={[0, 0, 0]}
-              thickness={0.055}
-              draw={(ctx) => {
-                ctx.fillStyle = style.palette.bgSurface;
-                ctx.strokeStyle = props.accentColor;
-                ctx.lineWidth = 8;
-                ctx.beginPath();
-                ctx.roundRect(28, 28, 664, 248, 26);
-                ctx.fill();
-                ctx.stroke();
+          <PopUpHinge3D foldProgress={archFold} position={[0, 0, -2.2]}>
+            <SunburstArchCutout3D
+              accentColor={props.accentColor}
+              secondaryColor={props.secondaryColor}
+            />
+          </PopUpHinge3D>
 
-                ctx.fillStyle = style.palette.textPrimary;
-                ctx.font = '800 44px Inter, sans-serif';
-                ctx.textAlign = 'center';
-                ctx.fillText(props.headline, 360, 136, 616);
+          <PopUpHinge3D foldProgress={mountainFold} position={[0, 0, -1.25]}>
+            <MountainRangeCutout3D
+              accentColor={props.accentColor}
+              secondaryColor={props.secondaryColor}
+            />
+          </PopUpHinge3D>
 
-                ctx.fillStyle = style.palette.textSecondary;
-                ctx.font = '600 24px Inter, sans-serif';
-                ctx.fillText(props.subheadline, 360, 192, 616);
-              }}
+          <CloudCanopyCutout3D
+            position={[-1.55 + cloudDrift, 2.35, -0.65]}
+            anchor="center"
+            width={2.8}
+            height={1.1}
+            seed="cloud-left"
+          />
+          <CloudCanopyCutout3D
+            position={[1.65 - cloudDrift * 0.7, 2.55, -0.15]}
+            anchor="center"
+            width={2.5}
+            height={1.0}
+            seed="cloud-right"
+          />
+
+          <PopUpHinge3D foldProgress={groveFold} position={[-2.05, 0, 0.45]}>
+            <PineGroveCutout3D
+              accentColor={props.accentColor}
+              secondaryColor={props.secondaryColor}
+              seed="grove-left"
+            />
+          </PopUpHinge3D>
+
+          <PopUpHinge3D foldProgress={groveFold} position={[2.05, 0, 0.95]}>
+            <PineGroveCutout3D
+              accentColor={props.accentColor}
+              secondaryColor={props.secondaryColor}
+              seed="grove-right"
+            />
+          </PopUpHinge3D>
+        </DioramaStage3D>
+      </ThreeCanvas>
+    </AbsoluteFill>
+  );
+};
+
+const DioramaAtelierScene: React.FC<${pascalName}Props> = (props) => {
+  const frame = useCurrentFrame();
+  const { fps, width, height } = useVideoConfig();
+  const style = useStudioStyle();
+  const isVertical = height > width;
+
+  if (frame < 2) {
+    return null;
+  }
+
+  const stageReveal = spring({
+    frame: frame - 2,
+    fps,
+    config: CINEMATIC_SPRINGS.entrance,
+  });
+  const deskFold = spring({
+    frame: frame - 8,
+    fps,
+    config: CINEMATIC_SPRINGS.entrance,
+  });
+
+  const cloudDrift = Math.sin(frame * 0.036) * 0.18;
+  const camDriftX = Math.cos(frame * 0.032) * 0.18;
+  const camZ = interpolate(
+    frame,
+    [0, 360],
+    isVertical ? [12.4, 11.4] : [8.8, 7.9],
+    {
+      extrapolateLeft: 'clamp',
+      extrapolateRight: 'clamp',
+    }
+  );
+
+  return (
+    <AbsoluteFill style={{ opacity: stageReveal }}>
+      <ThreeCanvas
+        width={width}
+        height={height}
+        shadows
+        camera={{ position: [0, 2.85, camZ], fov: 35 }}
+      >
+        <PaperCameraRig3D
+          cameraPos={[camDriftX, isVertical ? 2.95 : 2.75, camZ]}
+          lookAt={[0, isVertical ? 1.35 : 1.15, 0.1]}
+          fov={35}
+        />
+        <PaperStageLighting3D
+          preset={style.surface.isDark ? 'dramatic-night' : 'studio-bright'}
+        />
+        <DioramaStage3D
+          variant="minimal-plinth"
+          surfacePattern="spotlight"
+          accentColor={props.accentColor}
+        >
+          <SunburstArchCutout3D
+            position={[0, 0, -2.15]}
+            accentColor={props.accentColor}
+            secondaryColor={props.secondaryColor}
+          />
+          <MountainRangeCutout3D
+            position={[0, 0, -1.25]}
+            accentColor={props.accentColor}
+            secondaryColor={props.secondaryColor}
+          />
+          <CloudCanopyCutout3D
+            position={[-1.4 + cloudDrift, 2.4, -0.65]}
+            anchor="center"
+            width={2.6}
+            height={1.05}
+            seed="atelier-cloud"
+          />
+          <PineGroveCutout3D
+            position={[-2.15, 0, -0.05]}
+            accentColor={props.accentColor}
+            secondaryColor={props.secondaryColor}
+            seed="atelier-grove-l"
+          />
+          <PineGroveCutout3D
+            position={[2.15, 0, 0.45]}
+            accentColor={props.accentColor}
+            secondaryColor={props.secondaryColor}
+            seed="atelier-grove-r"
+          />
+          <PopUpHinge3D foldProgress={deskFold} position={[0, 0, 1.0]}>
+            <AtelierDeskCutout3D
+              plaqueTitle={props.headline}
+              accentColor={props.accentColor}
+              secondaryColor={props.secondaryColor}
             />
           </PopUpHinge3D>
         </DioramaStage3D>
@@ -941,7 +1190,25 @@ export const ${pascalName}: React.FC<${pascalName}Props> = (props) => {
     <StyleProvider style={props.styleId} renderBackdrop>
       <AbsoluteFill>
         ${audioBlock}
-        <DioramaScene {...props} />
+
+        <ContinuousSceneFlow
+          crossDissolveFrames={48}
+          style={{ backgroundColor: 'transparent' }}
+          scenes={[
+            {
+              id: 'intro',
+              durationInFrames: 360,
+              usesThree: true,
+              render: () => <DioramaLandscapeScene {...props} />,
+            },
+            {
+              id: 'payoff',
+              durationInFrames: 360,
+              usesThree: true,
+              render: () => <DioramaAtelierScene {...props} />,
+            },
+          ]}
+        />
       </AbsoluteFill>
     </StyleProvider>
   );
@@ -953,7 +1220,6 @@ export const ${pascalName}: React.FC<${pascalName}Props> = (props) => {
 import React from 'react';
 import {
   AbsoluteFill,
-  interpolate,
   spring,
   staticFile,
   useCurrentFrame,
@@ -961,8 +1227,10 @@ import {
 } from 'remotion';
 import { z } from 'zod';
 import {
+  CINEMATIC_SPRINGS,
+  ClippedSurfaceChrome,
+  ContinuousSceneFlow,
   DirectorCamera3D,
-  SPRING_PRESETS,
   SmartMusicBed,
   SoundCue,
   StyleProvider,
@@ -985,11 +1253,13 @@ import {
 ${schemaBlock}
 
 const DIALOGUE_SEGMENTS = [
-  { sceneId: '${slug}-intro', fromFrame: 12, durationInFrames: 300 },
-  { sceneId: '${slug}-payoff', fromFrame: 324, durationInFrames: 306 },
+  { sceneId: '${slug}-intro', fromFrame: 12, durationInFrames: 252 },
+  { sceneId: '${slug}-payoff', fromFrame: 360, durationInFrames: 252 },
 ];
 
-const IsometricDialogueScene: React.FC<${pascalName}Props> = (props) => {
+const IsometricRoomTurn: React.FC<
+  ${pascalName}Props & { activeSpeaker: 'A' | 'B' }
+> = (props) => {
   const frame = useCurrentFrame();
   const { fps, width, height } = useVideoConfig();
   const style = useStudioStyle();
@@ -1002,20 +1272,16 @@ const IsometricDialogueScene: React.FC<${pascalName}Props> = (props) => {
   const stageReveal = spring({
     frame: frame - 2,
     fps,
-    config: SPRING_PRESETS.snappy,
+    config: CINEMATIC_SPRINGS.entrance,
   });
 
-  const turnSwitch = spring({
-    frame: frame - 320,
-    fps,
-    config: SPRING_PRESETS.smooth,
-  });
-
-  const speakerAWeight = interpolate(turnSwitch, [0, 1], [1, 0]);
-  const speakerBWeight = interpolate(turnSwitch, [0, 1], [0, 1]);
+  const speakerAWeight = props.activeSpeaker === 'A' ? 1 : 0;
+  const speakerBWeight = props.activeSpeaker === 'B' ? 1 : 0;
   // Calm <= 0.055 rad/frame syllable envelope fallback before real TTS words
   const cadencePulse =
     0.42 + 0.28 * Math.sin(frame * 0.048) + 0.16 * Math.cos(frame * 0.036);
+  const activeAccent =
+    props.activeSpeaker === 'A' ? props.accentColor : props.secondaryColor;
 
   return (
     <AbsoluteFill style={{ opacity: stageReveal }}>
@@ -1029,92 +1295,118 @@ const IsometricDialogueScene: React.FC<${pascalName}Props> = (props) => {
           safeBox9x16Compensation
           handheldIntensity={style.motion.cameraHandheld}
           anchors={{
-            speakerA: { position: [-1.5, 0, 0.2], height: 2.45 },
-            speakerB: { position: [1.5, 0, 0.2], height: 2.45 },
+            speakerA: { position: [-1.45, 0, 0.25], height: 2.45 },
+            speakerB: { position: [1.45, 0, 0.25], height: 2.45 },
           }}
-          shots={[
-            {
-              fromFrame: 0,
-              shot: 'medium-two-shot',
-              target: 'speakerA',
-              secondaryTarget: 'speakerB',
-              transition: 'cut',
-            },
-            {
-              fromFrame: 320,
-              shot: 'medium',
-              target: 'speakerB',
-              secondaryTarget: 'speakerA',
-              transition: 'glide',
-            },
-          ]}
+          shots={
+            props.activeSpeaker === 'A'
+              ? [
+                  {
+                    fromFrame: 0,
+                    shot: 'medium-two-shot',
+                    target: 'speakerA',
+                    secondaryTarget: 'speakerB',
+                    transition: 'cut',
+                  },
+                  {
+                    fromFrame: 180,
+                    shot: 'medium-two-shot',
+                    target: 'speakerA',
+                    secondaryTarget: 'speakerB',
+                    angleDeg: 8,
+                    transition: 'glide',
+                  },
+                ]
+              : [
+                  {
+                    fromFrame: 0,
+                    shot: 'medium-two-shot',
+                    target: 'speakerB',
+                    secondaryTarget: 'speakerA',
+                    angleDeg: -6,
+                    transition: 'cut',
+                  },
+                  {
+                    fromFrame: 168,
+                    shot: 'medium',
+                    target: 'speakerB',
+                    secondaryTarget: 'speakerA',
+                    transition: 'glide',
+                  },
+                ]
+          }
         />
-        <IsometricStage3D
-          radius={5.2}
-          showGrid
-          accentColor={props.accentColor}
-        >
+        <IsometricStage3D radius={5.2} accentColor={props.accentColor}>
           <Stylized3DCharacter
-            position={[-1.5, 0, 0.2]}
+            position={[-1.45, 0, 0.25]}
             rotationY={0.42}
             primaryColor={props.accentColor}
             accentColor={props.secondaryColor}
             speechEnergy={cadencePulse * speakerAWeight}
             speakingWeight={speakerAWeight}
             gestureWeights={{
-              presentRight: speakerAWeight * 0.65,
-              listenNod: speakerBWeight * 0.5,
+              presentRight: speakerAWeight * 0.62,
+              listenNod: speakerBWeight * 0.48,
             }}
             enterFrame={4}
           />
           <Stylized3DCharacter
-            position={[1.5, 0, 0.2]}
+            position={[1.45, 0, 0.25]}
             rotationY={-0.42}
             primaryColor={props.secondaryColor}
             accentColor={props.accentColor}
             speechEnergy={cadencePulse * speakerBWeight}
             speakingWeight={speakerBWeight}
             gestureWeights={{
-              presentLeft: speakerBWeight * 0.65,
-              listenNod: speakerAWeight * 0.5,
+              presentLeft: speakerBWeight * 0.62,
+              listenNod: speakerAWeight * 0.48,
             }}
             enterFrame={10}
           />
         </IsometricStage3D>
       </ThreeCanvas>
 
-      {/* Architectural Conversation Nameplate (strictly inside 9:16 Safe Box) */}
+      {/* Architectural Conversation Nameplate (strictly inside 9:16 Safe Box x in [40, 910], y in [220, 1380]) */}
       <div
         style={getTactileSurfaceStyle(style, {
           elevation: 'resting',
           overrides: {
             position: 'absolute',
             left: isVertical ? 76 : 72,
-            top: isVertical ? 256 : 56,
-            width: isVertical ? 788 : 560,
-            padding: '14px 20px',
-            borderLeft: \`4px solid \${
-              frame < 320 ? props.accentColor : props.secondaryColor
-            }\`,
+            top: isVertical ? 248 : 56,
+            width: isVertical ? 788 : 540,
+            padding: '16px 22px',
+            borderRadius: Math.max(
+              0,
+              Math.round(10 * style.surface.radiusScale)
+            ),
             boxSizing: 'border-box',
             pointerEvents: 'none',
           },
         })}
       >
+        <ClippedSurfaceChrome
+          topBarHeight={3}
+          topBarColor={activeAccent}
+          specularRim={!style.surface.isDark}
+        />
         <div
           style={{
+            position: 'relative',
             fontFamily: formatFontFamilyCss(style.typography.monoFont, 'mono'),
             fontSize: 12,
             fontWeight: 700,
-            letterSpacing: '0.07em',
-            color: frame < 320 ? props.accentColor : props.secondaryColor,
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            color: activeAccent,
             marginBottom: 4,
           }}
         >
-          {props.badgeLabel} • {frame < 320 ? 'GŁOS 01' : 'GŁOS 02'}
+          {props.badgeLabel}
         </div>
         <div
           style={{
+            position: 'relative',
             fontFamily: formatFontFamilyCss(
               style.typography.displayFont,
               'display'
@@ -1126,7 +1418,7 @@ const IsometricDialogueScene: React.FC<${pascalName}Props> = (props) => {
           }}
         >
           {formatHeadingText(
-            frame < 320 ? props.headline : props.subheadline,
+            props.activeSpeaker === 'A' ? props.headline : props.subheadline,
             style
           )}
         </div>
@@ -1145,7 +1437,25 @@ export const ${pascalName}: React.FC<${pascalName}Props> = (props) => {
     <StyleProvider style={props.styleId} renderBackdrop>
       <AbsoluteFill>
         ${audioBlock}
-        <IsometricDialogueScene {...props} />
+
+        <ContinuousSceneFlow
+          crossDissolveFrames={48}
+          style={{ backgroundColor: 'transparent' }}
+          scenes={[
+            {
+              id: 'intro',
+              durationInFrames: 360,
+              usesThree: true,
+              render: () => <IsometricRoomTurn {...props} activeSpeaker="A" />,
+            },
+            {
+              id: 'payoff',
+              durationInFrames: 360,
+              usesThree: true,
+              render: () => <IsometricRoomTurn {...props} activeSpeaker="B" />,
+            },
+          ]}
+        />
       </AbsoluteFill>
     </StyleProvider>
   );
@@ -1157,12 +1467,12 @@ export const ${pascalName}: React.FC<${pascalName}Props> = (props) => {
       return `import React from 'react';
 import {
   AbsoluteFill,
-  Sequence,
   staticFile,
   useVideoConfig,
 } from 'remotion';
 import { z } from 'zod';
 import {
+  ContinuousSceneFlow,
   SmartMusicBed,
   SoundCue,
   StyleProvider,
@@ -1183,14 +1493,69 @@ import {
 ${schemaBlock}
 
 const DIALOGUE_SEGMENTS = [
-  { sceneId: '${slug}-intro', fromFrame: 12, durationInFrames: 300 },
-  { sceneId: '${slug}-payoff', fromFrame: 324, durationInFrames: 306 },
+  { sceneId: '${slug}-intro', fromFrame: 12, durationInFrames: 252 },
+  { sceneId: '${slug}-payoff', fromFrame: 360, durationInFrames: 252 },
 ];
 
-export const ${pascalName}: React.FC<${pascalName}Props> = (props) => {
+const IntroVectorScene: React.FC<${pascalName}Props> = (props) => {
   const { width, height } = useVideoConfig();
   const isVertical = height > width;
 
+  return (
+    <VectorSceneStage2D
+      renderBaseFill={false}
+      foregroundCallouts={
+        <AnnotatedCallout2D
+          target={isVertical ? [360, 650] : [960, 560]}
+          labelPosition={isVertical ? [590, 860] : [1180, 790]}
+          label="Punkt skupienia"
+          startFrame={24}
+          accentColor={props.secondaryColor}
+        />
+      }
+    >
+      <AbsoluteFill
+        style={{
+          justifyContent: isVertical ? 'flex-start' : 'center',
+          alignItems: isVertical ? 'flex-start' : 'center',
+          paddingLeft: isVertical ? 76 : 160,
+          paddingRight: isVertical ? 216 : 160,
+          paddingTop: isVertical ? 280 : 0,
+        }}
+      >
+        <div style={{ width: '100%', maxWidth: isVertical ? 788 : 980 }}>
+          <StoryCard2D
+            title={props.headline}
+            subtitle={props.subheadline}
+            accentColor={props.accentColor}
+            startFrame={2}
+          />
+        </div>
+      </AbsoluteFill>
+    </VectorSceneStage2D>
+  );
+};
+
+const PayoffVectorScene: React.FC<${pascalName}Props> = (props) => (
+  <VectorSceneStage2D renderBaseFill={false}>
+    <ComparisonSplit2D
+      startFrame={2}
+      focusShiftFrame={150}
+      left={{
+        tag: 'Punkt wyjścia',
+        title: props.headline,
+        detail: props.subheadline,
+      }}
+      right={{
+        tag: 'Kierunek sztuki',
+        title: props.styleId,
+        detail: 'Spójne światło, faktura i płynny ruch',
+      }}
+    />
+  </VectorSceneStage2D>
+);
+
+export const ${pascalName}: React.FC<${pascalName}Props> = (props) => {
   const introVo = VOICEOVER_MANIFEST['${slug}-intro'];
   const payoffVo = VOICEOVER_MANIFEST['${slug}-payoff'];
   const whooshSfx = SFX_MANIFEST['whoosh-open'];
@@ -1201,61 +1566,22 @@ export const ${pascalName}: React.FC<${pascalName}Props> = (props) => {
       <AbsoluteFill>
         ${audioBlock}
 
-        <VectorSceneStage2D
-          plateCode={\`\${props.badgeLabel} • 60 FPS\`}
-          renderBaseFill={false}
-          foregroundCallouts={
-            <Sequence from={0} durationInFrames={320}>
-              <AnnotatedCallout2D
-                target={isVertical ? [360, 650] : [960, 560]}
-                labelPosition={isVertical ? [590, 860] : [1180, 790]}
-                code="DETAL A·1"
-                label="60 FPS • StyleProvider"
-                startFrame={18}
-                accentColor={props.secondaryColor}
-              />
-            </Sequence>
-          }
-        >
-          <Sequence from={0} durationInFrames={320}>
-            <AbsoluteFill
-              style={{
-                justifyContent: isVertical ? 'flex-start' : 'center',
-                alignItems: isVertical ? 'flex-start' : 'center',
-                paddingLeft: isVertical ? 76 : 160,
-                paddingRight: isVertical ? 216 : 160,
-                paddingTop: isVertical ? 280 : 0,
-              }}
-            >
-              <div style={{ width: '100%', maxWidth: isVertical ? 788 : 980 }}>
-                <StoryCard2D
-                  title={props.headline}
-                  subtitle={props.subheadline}
-                  badge={props.badgeLabel}
-                  accentColor={props.accentColor}
-                  startFrame={2}
-                />
-              </div>
-            </AbsoluteFill>
-          </Sequence>
-
-          <Sequence from={320} durationInFrames={328}>
-            <ComparisonSplit2D
-              startFrame={2}
-              focusShiftFrame={150}
-              left={{
-                tag: '01 • Baza',
-                title: props.headline,
-                detail: props.subheadline,
-              }}
-              right={{
-                tag: '02 • Kierunek plastyczny',
-                title: props.styleId,
-                detail: 'Spójna typografia, optyka 2.5D i mastering -14 LUFS',
-              }}
-            />
-          </Sequence>
-        </VectorSceneStage2D>
+        <ContinuousSceneFlow
+          crossDissolveFrames={48}
+          style={{ backgroundColor: 'transparent' }}
+          scenes={[
+            {
+              id: 'intro',
+              durationInFrames: 360,
+              render: () => <IntroVectorScene {...props} />,
+            },
+            {
+              id: 'payoff',
+              durationInFrames: 360,
+              render: () => <PayoffVectorScene {...props} />,
+            },
+          ]}
+        />
       </AbsoluteFill>
     </StyleProvider>
   );
@@ -1300,30 +1626,30 @@ export default defineProduction({
       fps: 60,
       width: 1920,
       height: 1080,
-      durationInFrames: 648,
+      durationInFrames: 720,
       usesThree: ${usesThree},
       propsFile: 'productions/${slug}/compositions/${pascalName}.props.json',
       sceneTimeline: [
         {
           sceneId: '${slug}-intro',
           fromFrame: 12,
-          durationInFrames: 300,
+          durationInFrames: 252,
           label: '1. Intro',
         },
         {
           sceneId: '${slug}-payoff',
-          fromFrame: 324,
-          durationInFrames: 306,
+          fromFrame: 360,
+          durationInFrames: 252,
           label: '2. Payoff',
         },
       ],
       sfxTimeline: [
         { sfxId: 'whoosh-open', fromFrame: 8, label: 'Opening Whoosh' },
-        { sfxId: 'card-pop', fromFrame: 348, label: 'Card Pop' },
+        { sfxId: 'card-pop', fromFrame: 358, label: 'Card Pop' },
       ],
       cameraTimeline: [
-        { shotLabel: 'Establishing Wide', fromFrame: 0, durationInFrames: 320 },
-        { shotLabel: 'Medium Focus', fromFrame: 320, durationInFrames: 328 },
+        { shotLabel: 'Establishing Wide', fromFrame: 0, durationInFrames: 360 },
+        { shotLabel: 'Medium Focus', fromFrame: 360, durationInFrames: 360 },
       ],
       hasMusicScore: true,
       component: ${pascalName},

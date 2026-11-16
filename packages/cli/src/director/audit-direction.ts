@@ -614,11 +614,16 @@ function hasValidContinuousSceneFlowSeparation(
     return false;
   }
 
-  // Extract all `durationInFrames: <numOrIdent>` specs in the file (from ContinuousSceneFlow scenes)
+  // Extract `durationInFrames: <numOrIdent>` from ContinuousSceneFlow scene specs
+  // (ignoring `{ sceneId: ..., fromFrame: ..., durationInFrames: ... }` audio dialogue segments)
   const sceneObjRe = /\bdurationInFrames\s*:\s*([A-Za-z0-9_$.]+)/g;
   const sceneDurations: number[] = [];
   let dm: RegExpExecArray | null;
   while ((dm = sceneObjRe.exec(cleaned)) !== null) {
+    const lookback = cleaned.slice(Math.max(0, dm.index - 140), dm.index);
+    if (/\bsceneId\s*:/.test(lookback)) {
+      continue;
+    }
     const raw = dm[1];
     const num = /^\d+(?:\.\d+)?$/.test(raw)
       ? Number(raw)

@@ -398,6 +398,30 @@ function parseStaticProductionHintFromDisk(
     hint.fps = Number(fpsMatch[1]);
   }
 
+  const sceneTimelineMatch =
+    indexSrc.match(
+      new RegExp(
+        `id\\s*:\\s*['"]${escapedId}['"][\\s\\S]{0,1400}?sceneTimeline\\s*:\\s*\\[([\\s\\S]*?)\\]`
+      )
+    ) ?? indexSrc.match(/\bsceneTimeline\s*:\s*\[([\s\S]*?)\]/);
+
+  if (sceneTimelineMatch) {
+    const segRe =
+      /\{[^{}]*?sceneId\s*:\s*['"]([^'"]+)['"][^{}]*?fromFrame\s*:\s*(\d+)[^{}]*?durationInFrames\s*:\s*(\d+)[^{}]*?\}/g;
+    const parsedSegments: NonNullable<RegistryHint['sceneTimeline']> = [];
+    let sm: RegExpExecArray | null;
+    while ((sm = segRe.exec(sceneTimelineMatch[1])) !== null) {
+      parsedSegments.push({
+        sceneId: sm[1],
+        fromFrame: Number(sm[2]),
+        durationInFrames: Number(sm[3]),
+      });
+    }
+    if (parsedSegments.length > 0) {
+      hint.sceneTimeline = parsedSegments;
+    }
+  }
+
   const prodJsonPath = path.join(prodDir, 'production.json');
   if (fs.existsSync(prodJsonPath)) {
     try {
@@ -411,7 +435,11 @@ function parseStaticProductionHintFromDisk(
       };
       const fps = hint.fps ?? manifest.fps ?? 60;
       hint.fps = fps;
-      if (Array.isArray(manifest.scenes) && manifest.scenes.length > 0) {
+      if (
+        !hint.sceneTimeline &&
+        Array.isArray(manifest.scenes) &&
+        manifest.scenes.length > 0
+      ) {
         let cursor = 12;
         hint.sceneTimeline = manifest.scenes.map((s) => {
           const dur =

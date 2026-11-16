@@ -545,6 +545,40 @@ test('StyleLabPreviewComposition renders live 60 FPS optical lighting, editorial
     }
   }
 
+  // 3 Artistic Worlds (atelier / illustrative / editorial-gallery), ClippedSurfaceChrome & painterly 2.5D/3D previews
+  for (const [styleId, expectedWorld] of [
+    ['minimal-product', 'atelier'],
+    ['tactile-craft', 'illustrative'],
+    ['editorial-press', 'editorial-gallery'],
+  ] as const) {
+    const preset = BUILT_IN_STYLES[styleId];
+    for (const item of STYLE_LAB_KITS) {
+      const f0 = renderStyleLabFrame(preset, item.id, 0);
+      assert.doesNotMatch(f0, /data-scenic-backdrop=/);
+
+      const f64 = renderStyleLabFrame(preset, item.id, 64, 1920, 1080);
+      assert.match(
+        f64,
+        new RegExp(`data-scenic-backdrop="${expectedWorld}"`),
+        `Expected ${item.id} with ${styleId} to render ScenicBackdropLayers for ${expectedWorld}`
+      );
+      assert.match(f64, /data-clipped-surface-chrome="true"/);
+      assert.doesNotMatch(f64, /MOD 01|MOD 02|MOD 03|SCHEMAT 01|ARKUSZ REDAKCYJNY/);
+    }
+
+    const diorama64 = renderStyleLabFrame(preset, 'paper-diorama-3d', 64, 1920, 1080);
+    assert.match(diorama64, new RegExp(`data-diorama-world="${expectedWorld}"`));
+    assert.match(diorama64, /data-cutout-motif="sunburst-arch"/);
+    assert.match(diorama64, /data-cutout-motif="mountain-range"/);
+    assert.match(diorama64, /data-cutout-motif="cloud-canopy"/);
+    assert.match(diorama64, /data-cutout-motif="pine-grove"/);
+    assert.match(diorama64, /data-cutout-motif="atelier-desk"/);
+
+    const iso64 = renderStyleLabFrame(preset, 'isometric-3d', 64, 1920, 1080);
+    assert.match(iso64, new RegExp(`data-iso-scenic-world="${expectedWorld}"`));
+    assert.match(iso64, new RegExp(`data-iso-room="${expectedWorld}"`));
+  }
+
   // Peer boundary & determinism guard on StyleLabShowcase.tsx
   const testDir = path.dirname(fileURLToPath(import.meta.url));
   const showcaseSrc = fs.readFileSync(
@@ -555,4 +589,5 @@ test('StyleLabPreviewComposition renders live 60 FPS optical lighting, editorial
   assert.doesNotMatch(showcaseSrc, /@react-three\/fiber|from\s+['"]three['"]/);
   assert.doesNotMatch(showcaseSrc, /Math\.random\s*\(/);
   assert.doesNotMatch(showcaseSrc, /frame\s*\*\s*0\.22/);
+  assert.doesNotMatch(showcaseSrc, /MOD 01/);
 });

@@ -23,8 +23,11 @@ import {
   Smartphone,
 } from 'lucide-react';
 import {
+  CINEMATIC_SPRINGS,
+  ClippedSurfaceChrome,
   DepthPlane,
   OpticalStage2D,
+  ScenicBackdropLayers,
   StageLightingRig,
   StyleProvider,
   computeCircleOfConfusionPx,
@@ -34,8 +37,10 @@ import {
   getCardChromeStyle,
   getStyleSpringConfig,
   getTactileSurfaceStyle,
+  resolveArtWorld,
   resolveStyleOptics,
   useStudioStyle,
+  type ArtWorld,
   type BuiltinVisualKitId,
   type OpticalShot2D,
   type StylePreset,
@@ -196,6 +201,7 @@ const EditorialCollagePreview: React.FC = () => {
   const displayFont = formatFontFamilyCss(style.typography.displayFont, 'display');
   const bodyFont = formatFontFamilyCss(style.typography.bodyFont, 'body');
   const monoFont = formatFontFamilyCss(style.typography.monoFont, 'mono');
+  const artWorld = resolveArtWorld(style);
 
   const markColor = style.surface.isDark
     ? 'rgba(248, 250, 252, 0.22)'
@@ -206,7 +212,7 @@ const EditorialCollagePreview: React.FC = () => {
 
   return (
     <OpticalStage2D shots={shots} seed={2026} startFrame={2}>
-      {/* Plane z = -0.65: Archival Registration Sheet */}
+      {/* Plane z = -0.65: Passe-Partout Gallery Frame */}
       <DepthPlane z={-0.65}>
         <AbsoluteFill style={{ pointerEvents: 'none' }}>
           <div
@@ -217,29 +223,9 @@ const EditorialCollagePreview: React.FC = () => {
               top: insetTop,
               bottom: insetBottom,
               border: `1px solid ${markColor}`,
-              opacity: 0.52,
+              opacity: 0.44,
             }}
           />
-          <div
-            style={{
-              position: 'absolute',
-              left: insetX + 12,
-              top: Math.max(18, insetTop - 26),
-              display: 'flex',
-              alignItems: 'center',
-              gap: 14,
-              fontFamily: monoFont,
-              fontSize: 13,
-              letterSpacing: '0.16em',
-              color: style.palette.textSecondary,
-              opacity: 0.62,
-            }}
-          >
-            <span>+</span>
-            <span>ARKUSZ REDAKCYJNY • STYLE LAB</span>
-            <span>•</span>
-            <span>{optics.lightingRig.toUpperCase()}</span>
-          </div>
         </AbsoluteFill>
       </DepthPlane>
 
@@ -276,24 +262,14 @@ const EditorialCollagePreview: React.FC = () => {
               <span
                 style={{
                   fontFamily: monoFont,
-                  fontSize: 17,
-                  fontWeight: 700,
-                  color: style.palette.inkBorder,
-                }}
-              >
-                ┼
-              </span>
-              <span
-                style={{
-                  fontFamily: monoFont,
-                  fontSize: 17,
+                  fontSize: 16,
                   fontWeight: 700,
                   letterSpacing: '0.14em',
                   textTransform: 'uppercase',
                   color: style.palette.accentPrimary,
                 }}
               >
-                ROZDZIAŁ 01 • ARCHIWUM
+                Rozdział 01
               </span>
               <div
                 style={{
@@ -328,11 +304,12 @@ const EditorialCollagePreview: React.FC = () => {
                   padding: bounds.isVertical
                     ? '24px 28px 24px 38px'
                     : '28px 34px 28px 44px',
-                  borderRadius: Math.max(0, Math.round(6 * style.surface.radiusScale)),
+                  borderRadius: Math.max(0, Math.round(8 * style.surface.radiusScale)),
                   marginTop: 4,
                 },
               })}
             >
+              <ClippedSurfaceChrome specularRim={!style.surface.isDark} />
               <div
                 style={{
                   position: 'absolute',
@@ -354,6 +331,7 @@ const EditorialCollagePreview: React.FC = () => {
 
               <div
                 style={{
+                  position: 'relative',
                   fontFamily: bodyFont,
                   fontSize: bounds.isVertical ? 24 : 27,
                   lineHeight: 1.42,
@@ -400,6 +378,7 @@ const EditorialCollagePreview: React.FC = () => {
               </div>
               <div
                 style={{
+                  position: 'relative',
                   marginTop: 12,
                   fontFamily: monoFont,
                   fontSize: 15,
@@ -411,23 +390,24 @@ const EditorialCollagePreview: React.FC = () => {
             </div>
           </div>
 
-          {/* Right / Bottom: Mounted Baryta Print or 35mm Positive Slide */}
+          {/* Right / Bottom: Mounted Gallery Print Transforming Across 3 Artistic Worlds */}
           <div
             data-mount-type={effectiveMount}
+            data-editorial-artworld={artWorld}
             style={getTactileSurfaceStyle(style, {
               elevation: 'lifted',
               tiltDeg: seededTilt,
               overrides: {
                 position: 'relative',
                 flex: bounds.isVertical ? '1 1 0%' : '0.92 1 0%',
-                padding: isSlide ? '18px 20px 22px 20px' : '14px 14px 22px 14px',
+                padding: isSlide ? '18px 20px 22px 20px' : '16px 16px 22px 16px',
                 backgroundColor: isSlide
                   ? style.surface.isDark
                     ? '#0B101C'
                     : '#18181B'
                   : style.palette.bgSurface,
                 color: isSlide ? '#F8FAFC' : style.palette.textPrimary,
-                borderRadius: Math.max(0, Math.round(6 * style.surface.radiusScale)),
+                borderRadius: Math.max(0, Math.round(8 * style.surface.radiusScale)),
                 display: 'flex',
                 flexDirection: 'column',
                 gap: 14,
@@ -436,6 +416,8 @@ const EditorialCollagePreview: React.FC = () => {
               },
             })}
           >
+            <ClippedSurfaceChrome specularRim={!style.surface.isDark && !isSlide} />
+
             {effectiveMount === 'archival-tape' && (
               <div
                 style={{
@@ -450,22 +432,6 @@ const EditorialCollagePreview: React.FC = () => {
                   zIndex: 3,
                 }}
               />
-            )}
-
-            {isSlide && (
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  fontFamily: monoFont,
-                  fontSize: 12,
-                  letterSpacing: '0.14em',
-                  color: 'rgba(248, 250, 252, 0.64)',
-                }}
-              >
-                <span>▲ 35MM ARCHIVE POSITIVE</span>
-                <span>KADR 04A</span>
-              </div>
             )}
 
             <div
@@ -491,39 +457,108 @@ const EditorialCollagePreview: React.FC = () => {
                 }}
               >
                 <rect width="640" height="400" fill={style.palette.bgElevated} />
-                {Array.from({ length: 14 }).map((_, i) => (
-                  <line
-                    key={i}
-                    x1={0}
-                    y1={24 + i * 28}
-                    x2={640}
-                    y2={24 + i * 28}
-                    stroke={style.palette.inkBorder}
-                    strokeWidth="0.8"
-                    opacity="0.45"
-                  />
-                ))}
-                <rect
-                  x="36"
-                  y="32"
-                  width="568"
-                  height="336"
-                  fill="none"
-                  stroke={style.palette.inkBorder}
-                  strokeWidth="1.5"
-                />
-                <circle
-                  cx="452"
-                  cy="142"
-                  r="82"
-                  fill={style.palette.accentPrimary}
-                  opacity={0.84}
-                />
-                <path
-                  d="M54 352 L212 200 L334 298 L446 214 L586 352 Z"
-                  fill={style.palette.accentSecondary}
-                  opacity={0.72}
-                />
+                {artWorld === 'atelier' ? (
+                  <>
+                    <ellipse
+                      cx="320"
+                      cy="318"
+                      rx="260"
+                      ry="54"
+                      fill={style.palette.bgSurface}
+                      opacity={0.72}
+                    />
+                    <path
+                      d="M 0 286 Q 320 318 640 286"
+                      fill="none"
+                      stroke={style.palette.inkBorder}
+                      strokeWidth="1.5"
+                    />
+                    <circle
+                      cx="256"
+                      cy="196"
+                      r="86"
+                      fill={style.palette.accentPrimary}
+                      opacity={0.22}
+                      stroke={style.palette.accentPrimary}
+                      strokeWidth="2"
+                    />
+                    <circle
+                      cx="388"
+                      cy="182"
+                      r="64"
+                      fill={style.palette.accentSecondary}
+                      opacity={0.28}
+                      stroke={style.palette.accentSecondary}
+                      strokeWidth="2"
+                    />
+                    <polygon
+                      points="320,96 404,248 236,248"
+                      fill={style.palette.bgSurface}
+                      opacity={0.82}
+                      stroke={style.palette.inkBorder}
+                      strokeWidth="1.6"
+                    />
+                  </>
+                ) : artWorld === 'illustrative' ? (
+                  <>
+                    <circle
+                      cx="468"
+                      cy="118"
+                      r="68"
+                      fill={style.palette.accentPrimary}
+                      opacity={0.86}
+                    />
+                    <g fill={style.palette.bgSurface} opacity={0.88}>
+                      <ellipse cx="168" cy="108" rx="54" ry="20" />
+                      <ellipse cx="146" cy="98" rx="32" ry="22" />
+                      <ellipse cx="192" cy="96" rx="36" ry="24" />
+                    </g>
+                    <path
+                      d="M 0 312 L 154 176 L 284 268 L 418 156 L 568 272 L 640 228 L 640 400 L 0 400 Z"
+                      fill={style.palette.accentSecondary}
+                      opacity={0.76}
+                    />
+                    <path
+                      d="M 154 176 L 204 218 L 176 224 L 154 198 L 128 228 Z M 418 156 L 468 202 L 434 206 L 418 182 L 392 212 Z"
+                      fill="#FFFDF8"
+                      opacity={0.88}
+                    />
+                    <path
+                      d="M 0 342 C 180 288, 390 364, 640 302 L 640 400 L 0 400 Z"
+                      fill={style.palette.accentPrimary}
+                      opacity={0.62}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <rect
+                      x="38"
+                      y="32"
+                      width="564"
+                      height="336"
+                      fill={style.palette.bgSurface}
+                      stroke={style.palette.inkBorder}
+                      strokeWidth="1.5"
+                    />
+                    <polygon
+                      points="38,32 346,32 218,368 38,368"
+                      fill={style.palette.bgElevated}
+                      opacity={0.72}
+                    />
+                    <circle
+                      cx="434"
+                      cy="168"
+                      r="84"
+                      fill={style.palette.accentPrimary}
+                      opacity={0.86}
+                    />
+                    <path
+                      d="M 96 336 L 246 196 L 362 294 L 468 214 L 568 336 Z"
+                      fill={style.palette.accentSecondary}
+                      opacity={0.78}
+                    />
+                  </>
+                )}
               </svg>
 
               {effectiveMount === 'photo-corners' && (
@@ -574,25 +609,33 @@ const EditorialCollagePreview: React.FC = () => {
 
             <div
               style={{
+                position: 'relative',
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 gap: 12,
-                fontFamily: monoFont,
-                fontSize: 15,
+                fontFamily: bodyFont,
+                fontSize: 16,
                 color: isSlide ? '#E2E8F0' : style.palette.textSecondary,
               }}
             >
-              <span>Ryc. 04 — Odbitka barytowa (Ken Burns)</span>
-              <span style={{ color: style.palette.accentPrimary, fontWeight: 700 }}>
-                latin-ext • PL
+              <span>Studium światła i kompozycji</span>
+              <span
+                style={{
+                  fontFamily: monoFont,
+                  fontSize: 13,
+                  color: style.palette.accentPrimary,
+                  fontWeight: 700,
+                }}
+              >
+                {style.name}
               </span>
             </div>
           </div>
         </div>
       </DepthPlane>
 
-      {/* Plane z = +0.75: Out-of-Focus Millimeter Ruler (Outside Safe Box) */}
+      {/* Plane z = +0.75: Out-of-Focus Marginalia Scale (Outside Safe Box) */}
       <DepthPlane z={0.75}>
         <div
           style={{
@@ -602,7 +645,7 @@ const EditorialCollagePreview: React.FC = () => {
             display: 'flex',
             alignItems: 'flex-end',
             gap: 8,
-            opacity: 0.42,
+            opacity: 0.36,
           }}
         >
           {Array.from({ length: 16 }).map((_, idx) => (
@@ -690,7 +733,7 @@ const VectorScene2DPreview: React.FC = () => {
 
   return (
     <OpticalStage2D shots={shots} seed={2028} startFrame={2}>
-      {/* Plane z = -0.6: Construction Plate Axes */}
+      {/* Plane z = -0.6: Subtle Golden-Ratio Composition Axes */}
       <DepthPlane z={-0.6}>
         <AbsoluteFill style={{ pointerEvents: 'none' }}>
           <div
@@ -701,7 +744,7 @@ const VectorScene2DPreview: React.FC = () => {
               width: bounds.width,
               height: bounds.height,
               border: `1px solid ${guideColor}`,
-              opacity: 0.48,
+              opacity: 0.36,
             }}
           >
             <div
@@ -712,7 +755,7 @@ const VectorScene2DPreview: React.FC = () => {
                 bottom: 0,
                 width: 1,
                 backgroundColor: guideColor,
-                opacity: 0.62,
+                opacity: 0.54,
               }}
             />
             <div
@@ -723,23 +766,9 @@ const VectorScene2DPreview: React.FC = () => {
                 top: '50%',
                 height: 1,
                 backgroundColor: guideColor,
-                opacity: 0.52,
+                opacity: 0.44,
               }}
             />
-          </div>
-          <div
-            style={{
-              position: 'absolute',
-              left: bounds.left,
-              top: Math.max(22, bounds.top - 24),
-              fontFamily: monoFont,
-              fontSize: 13,
-              letterSpacing: '0.15em',
-              color: style.palette.textSecondary,
-              opacity: 0.58,
-            }}
-          >
-            ┼ TABLICA KONCEPCYJNA • {style.id.toUpperCase()}
           </div>
         </AbsoluteFill>
       </DepthPlane>
@@ -765,15 +794,12 @@ const VectorScene2DPreview: React.FC = () => {
               elevation: 'lifted',
               tiltDeg: heroTilt,
               overrides: {
-                padding: bounds.isVertical ? '24px 28px' : '30px 36px',
+                position: 'relative',
+                padding: bounds.isVertical ? '26px 30px' : '32px 38px',
                 borderRadius:
                   grammar === 'risograph-poster'
                     ? 0
-                    : Math.max(0, Math.round(6 * style.surface.radiusScale)),
-                borderTop:
-                  grammar === 'swiss-spatial'
-                    ? `3px solid ${style.palette.accentPrimary}`
-                    : undefined,
+                    : Math.max(0, Math.round(10 * style.surface.radiusScale)),
                 display: 'flex',
                 flexDirection: 'column',
                 gap: 14,
@@ -781,24 +807,20 @@ const VectorScene2DPreview: React.FC = () => {
               },
             })}
           >
+            <ClippedSurfaceChrome
+              topBarHeight={grammar === 'swiss-spatial' ? 3 : 0}
+              topBarColor={style.palette.accentPrimary}
+              specularRim={!style.surface.isDark}
+            />
+
             <div
               style={{
+                position: 'relative',
                 display: 'flex',
-                justifyContent: 'space-between',
-                paddingBottom: 8,
-                borderBottom: `1px solid ${style.palette.inkBorder}`,
-                fontFamily: monoFont,
-                fontSize: 14,
-                fontWeight: 700,
-                letterSpacing: '0.12em',
-                color: style.palette.accentPrimary,
+                alignItems: 'center',
+                gap: 20,
               }}
             >
-              <span>FIG. 01 // VECTOR SCENE 2D</span>
-              <span style={{ color: style.palette.textSecondary }}>Z +0.00</span>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
               <div
                 style={{
                   position: 'relative',
@@ -912,7 +934,7 @@ const VectorScene2DPreview: React.FC = () => {
             </div>
           </div>
 
-          {/* Dual Comparison Plates with Live Rack Focus */}
+          {/* Dual Comparison Plates with Dignified Light-Mode Rack Focus */}
           <div
             style={{
               display: 'flex',
@@ -926,30 +948,43 @@ const VectorScene2DPreview: React.FC = () => {
               style={getTactileSurfaceStyle(style, {
                 elevation: 'resting',
                 overrides: {
+                  position: 'relative',
                   flex: 1,
                   padding: '22px 26px',
                   borderRadius:
                     grammar === 'risograph-poster'
                       ? 0
-                      : Math.max(0, Math.round(6 * style.surface.radiusScale)),
-                  filter: leftBlur < 0.25 ? 'none' : `blur(${leftBlur.toFixed(2)}px)`,
-                  opacity: interpolate(rackShift, [0, 1], [1, 0.8]),
+                      : Math.max(0, Math.round(10 * style.surface.radiusScale)),
+                  filter:
+                    leftBlur < 0.25
+                      ? 'none'
+                      : `blur(${Math.min(style.surface.isDark ? leftBlur : 2.0, leftBlur).toFixed(2)}px)`,
+                  opacity: interpolate(
+                    rackShift,
+                    [0, 1],
+                    [1, style.surface.isDark ? 0.8 : 0.88]
+                  ),
                 },
               })}
             >
+              <ClippedSurfaceChrome specularRim={!style.surface.isDark} />
               <div
                 style={{
+                  position: 'relative',
                   fontFamily: monoFont,
-                  fontSize: 14,
+                  fontSize: 13,
                   fontWeight: 700,
+                  letterSpacing: '0.08em',
+                  textTransform: 'uppercase',
                   color: style.palette.textSecondary,
                   marginBottom: 6,
                 }}
               >
-                01 • PRZED (BAZA)
+                Punkt wyjścia
               </div>
               <div
                 style={{
+                  position: 'relative',
                   fontFamily: displayFont,
                   fontSize: 30,
                   fontWeight: 700,
@@ -977,31 +1012,47 @@ const VectorScene2DPreview: React.FC = () => {
               style={getTactileSurfaceStyle(style, {
                 elevation: 'floating',
                 overrides: {
+                  position: 'relative',
                   flex: 1,
                   padding: '22px 26px',
-                  borderTop: `3px solid ${style.palette.accentPrimary}`,
                   borderRadius:
                     grammar === 'risograph-poster'
                       ? 0
-                      : Math.max(0, Math.round(6 * style.surface.radiusScale)),
-                  filter: rightBlur < 0.25 ? 'none' : `blur(${rightBlur.toFixed(2)}px)`,
-                  opacity: interpolate(rackShift, [0, 1], [0.82, 1]),
+                      : Math.max(0, Math.round(10 * style.surface.radiusScale)),
+                  filter:
+                    rightBlur < 0.25
+                      ? 'none'
+                      : `blur(${Math.min(style.surface.isDark ? rightBlur : 2.0, rightBlur).toFixed(2)}px)`,
+                  opacity: interpolate(
+                    rackShift,
+                    [0, 1],
+                    [style.surface.isDark ? 0.82 : 0.88, 1]
+                  ),
                 },
               })}
             >
+              <ClippedSurfaceChrome
+                topBarHeight={3}
+                topBarColor={style.palette.accentPrimary}
+                specularRim={!style.surface.isDark}
+              />
               <div
                 style={{
+                  position: 'relative',
                   fontFamily: monoFont,
-                  fontSize: 14,
+                  fontSize: 13,
                   fontWeight: 700,
+                  letterSpacing: '0.08em',
+                  textTransform: 'uppercase',
                   color: style.palette.accentPrimary,
                   marginBottom: 6,
                 }}
               >
-                02 • RACK FOCUS (TEZA)
+                Głębia optyczna
               </div>
               <div
                 style={{
+                  position: 'relative',
                   fontFamily: displayFont,
                   fontSize: 30,
                   fontWeight: 700,
@@ -1082,16 +1133,17 @@ const VectorScene2DPreview: React.FC = () => {
               transform: 'translate(0, -50%)',
               padding: '8px 14px',
               borderLeft: `3px solid ${style.palette.accentSecondary}`,
-              borderRadius: 0,
-              fontFamily: monoFont,
-              fontSize: 13,
-              fontWeight: 700,
+              borderRadius: Math.max(0, Math.round(6 * style.surface.radiusScale)),
+              fontFamily: bodyFont,
+              fontSize: 14,
+              fontWeight: 600,
               color: style.palette.textPrimary,
               opacity: calloutEnter,
             },
           })}
         >
-          DETAL A·1 • Z +0.42
+          <ClippedSurfaceChrome specularRim={!style.surface.isDark} />
+          <span style={{ position: 'relative' }}>Punkt skupienia</span>
         </div>
       </DepthPlane>
     </OpticalStage2D>
@@ -1147,22 +1199,19 @@ const KineticTypographyPreview: React.FC = () => {
 
   return (
     <OpticalStage2D shots={shots} seed={2027} startFrame={2}>
-      {/* Plane z = -0.55: Out-of-Focus Typographic Baseline Index */}
+      {/* Plane z = -0.55: Subtle Typographic Baseline Rule */}
       <DepthPlane z={-0.55}>
         <div
           style={{
             position: 'absolute',
             left: bounds.left,
-            top: Math.max(24, bounds.top - 34),
-            fontFamily: monoFont,
-            fontSize: 13,
-            letterSpacing: '0.16em',
-            color: style.palette.textSecondary,
-            opacity: 0.55,
+            right: bounds.left,
+            top: Math.max(28, bounds.top - 18),
+            height: 1,
+            backgroundColor: style.palette.inkBorder,
+            opacity: 0.36,
           }}
-        >
-          GRAMMAR: {grammar.toUpperCase()} • RIG: {optics.lightingRig.toUpperCase()}
-        </div>
+        />
       </DepthPlane>
 
       {/* Plane z = 0: Polymorphic Kinetic Stage */}
@@ -1182,52 +1231,39 @@ const KineticTypographyPreview: React.FC = () => {
             gap: 32,
           }}
         >
-          {grammar === 'swiss-spatial' && (
-            <div
+          <div
+            style={{
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent:
+                grammar === 'optical-gate' ? 'center' : 'flex-start',
+              gap: 14,
+            }}
+          >
+            <span
               style={{
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 14,
+                fontFamily: monoFont,
+                fontSize: 14,
+                fontWeight: 700,
+                letterSpacing: '0.14em',
+                textTransform: 'uppercase',
+                color: style.palette.accentPrimary,
               }}
             >
-              <span
-                style={{
-                  fontFamily: monoFont,
-                  fontSize: 15,
-                  fontWeight: 700,
-                  letterSpacing: '0.14em',
-                  color: style.palette.accentPrimary,
-                }}
-              >
-                01 / 04 • SWISS SPATIAL
-              </span>
+              Rytm narracji
+            </span>
+            {grammar !== 'optical-gate' && (
               <div
                 style={{
                   flex: 1,
+                  maxWidth: 160,
                   height: 1.5,
                   backgroundColor: style.palette.inkBorder,
                 }}
               />
-            </div>
-          )}
-
-          {grammar === 'optical-gate' && (
-            <div
-              style={{
-                width: '100%',
-                display: 'flex',
-                justifyContent: 'space-between',
-                fontFamily: monoFont,
-                fontSize: 14,
-                letterSpacing: '0.16em',
-                color: style.palette.accentPrimary,
-              }}
-            >
-              <span>┌ GATE 35MM</span>
-              <span>F:{String(frame).padStart(4, '0')} ┐</span>
-            </div>
-          )}
+            )}
+          </div>
 
           <div
             style={{
@@ -1354,11 +1390,12 @@ const KineticTypographyPreview: React.FC = () => {
               style={getTactileSurfaceStyle(style, {
                 elevation: 'resting',
                 overrides: {
+                  position: 'relative',
                   padding: '22px 30px',
                   borderRadius:
                     grammar === 'risograph-poster'
                       ? 0
-                      : Math.max(0, Math.round(8 * style.surface.radiusScale)),
+                      : Math.max(0, Math.round(10 * style.surface.radiusScale)),
                   display: 'flex',
                   flexDirection: 'column',
                   gap: 10,
@@ -1366,7 +1403,19 @@ const KineticTypographyPreview: React.FC = () => {
                 },
               })}
             >
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 16 }}>
+              <ClippedSurfaceChrome
+                topBarHeight={grammar === 'risograph-poster' ? 0 : 3}
+                topBarColor={style.palette.accentPrimary}
+                specularRim={!style.surface.isDark}
+              />
+              <div
+                style={{
+                  position: 'relative',
+                  display: 'flex',
+                  alignItems: 'baseline',
+                  gap: 16,
+                }}
+              >
                 <span
                   style={{
                     fontFamily: displayFont,
@@ -1393,7 +1442,7 @@ const KineticTypographyPreview: React.FC = () => {
               {grammar === 'risograph-poster' ? (
                 <div
                   data-risograph-meter="true"
-                  style={{ display: 'flex', gap: 4 }}
+                  style={{ position: 'relative', display: 'flex', gap: 4 }}
                 >
                   {Array.from({ length: 12 }).map((_, idx) => (
                     <div
@@ -1414,7 +1463,7 @@ const KineticTypographyPreview: React.FC = () => {
                 <svg
                   data-vernier-scale="true"
                   viewBox="0 0 240 16"
-                  style={{ width: '100%', height: 16 }}
+                  style={{ position: 'relative', width: '100%', height: 16 }}
                 >
                   {Array.from({ length: 21 }).map((_, idx) => {
                     const x = (idx / 20) * 236 + 2;
@@ -1446,11 +1495,12 @@ const KineticTypographyPreview: React.FC = () => {
                 elevation: 'lifted',
                 tiltDeg: grammar === 'risograph-poster' ? -0.7 : 0,
                 overrides: {
+                  position: 'relative',
                   padding: '22px 30px',
                   borderRadius:
                     grammar === 'risograph-poster'
                       ? 0
-                      : Math.max(0, Math.round(8 * style.surface.radiusScale)),
+                      : Math.max(0, Math.round(10 * style.surface.radiusScale)),
                   display: 'flex',
                   flexDirection: 'column',
                   gap: 6,
@@ -1458,19 +1508,27 @@ const KineticTypographyPreview: React.FC = () => {
                 },
               })}
             >
+              <ClippedSurfaceChrome
+                topBarHeight={grammar === 'risograph-poster' ? 0 : 3}
+                topBarColor={style.palette.accentSecondary}
+                specularRim={!style.surface.isDark}
+              />
               <span
                 style={{
+                  position: 'relative',
                   fontFamily: monoFont,
                   fontSize: 13,
                   fontWeight: 700,
                   letterSpacing: '0.12em',
+                  textTransform: 'uppercase',
                   color: style.palette.accentPrimary,
                 }}
               >
-                OPTYKA • 60 FPS
+                Płynny kadr
               </span>
               <span
                 style={{
+                  position: 'relative',
                   fontFamily: displayFont,
                   fontSize: bounds.isVertical ? 30 : 34,
                   fontWeight: 800,
@@ -1511,17 +1569,17 @@ const DataStorytellingPreview: React.FC = () => {
   });
 
   const bars = [
-    { label: 'Wideo z kodem (60 FPS)', target: 94, color: style.palette.accentPrimary, leader: true },
+    { label: 'Opowieść wizualna w ruchu', target: 94, color: style.palette.accentPrimary, leader: true },
     { label: 'Dokument redakcyjny', target: 74, color: style.palette.accentSecondary, leader: false },
     { label: 'Statyczne slajdy', target: 31, color: style.palette.textSecondary, leader: false },
   ];
 
   const eras = [
     { year: '1998', label: 'Archiwum', active: false },
-    { year: '2026', label: 'Optyka 2.5D', active: true },
+    { year: '2026', label: 'Światło i ruch', active: true },
     { year: '2030', label: 'Skala', active: false },
   ];
-  const offBlur = optics.aperture * 3.4;
+  const offBlur = Math.min(style.surface.isDark ? 6 : 2.0, optics.aperture * 3.4);
 
   const displayFont = formatFontFamilyCss(style.typography.displayFont, 'display');
   const bodyFont = formatFontFamilyCss(style.typography.bodyFont, 'body');
@@ -1533,7 +1591,7 @@ const DataStorytellingPreview: React.FC = () => {
 
   return (
     <OpticalStage2D shots={shots} seed={2029} startFrame={2}>
-      {/* Plane z = -0.58: Scale Sheet */}
+      {/* Plane z = -0.58: Clean Proportional Scale Lines */}
       <DepthPlane z={-0.58}>
         <AbsoluteFill style={{ pointerEvents: 'none' }}>
           <div
@@ -1544,7 +1602,7 @@ const DataStorytellingPreview: React.FC = () => {
               width: bounds.width,
               height: bounds.height,
               border: `1px solid ${gridLineColor}`,
-              opacity: 0.45,
+              opacity: 0.36,
             }}
           >
             {[0.25, 0.5, 0.75].map((pct) => (
@@ -1557,24 +1615,10 @@ const DataStorytellingPreview: React.FC = () => {
                   bottom: 0,
                   width: 1,
                   backgroundColor: gridLineColor,
-                  opacity: 0.55,
+                  opacity: 0.48,
                 }}
               />
             ))}
-          </div>
-          <div
-            style={{
-              position: 'absolute',
-              left: bounds.left,
-              top: Math.max(22, bounds.top - 24),
-              fontFamily: monoFont,
-              fontSize: 13,
-              letterSpacing: '0.15em',
-              color: style.palette.textSecondary,
-              opacity: 0.58,
-            }}
-          >
-            ∑ KARTOGRAFIA DANYCH • 0 · 25 · 50 · 75 · 100
           </div>
         </AbsoluteFill>
       </DepthPlane>
@@ -1599,11 +1643,12 @@ const DataStorytellingPreview: React.FC = () => {
             style={getTactileSurfaceStyle(style, {
               elevation: 'lifted',
               overrides: {
+                position: 'relative',
                 padding: bounds.isVertical ? '24px 28px' : '30px 36px',
                 borderRadius:
                   grammar === 'risograph-poster'
                     ? 0
-                    : Math.max(0, Math.round(6 * style.surface.radiusScale)),
+                    : Math.max(0, Math.round(10 * style.surface.radiusScale)),
                 opacity: cardEnter,
                 display: 'flex',
                 flexDirection: 'column',
@@ -1611,8 +1656,14 @@ const DataStorytellingPreview: React.FC = () => {
               },
             })}
           >
+            <ClippedSurfaceChrome
+              topBarHeight={grammar === 'risograph-poster' ? 0 : 3}
+              topBarColor={style.palette.accentPrimary}
+              specularRim={!style.surface.isDark}
+            />
             <div
               style={{
+                position: 'relative',
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
@@ -1737,6 +1788,11 @@ const DataStorytellingPreview: React.FC = () => {
                       <div
                         style={{
                           height: bar.leader ? 14 : 11,
+                          borderRadius:
+                            grammar === 'risograph-poster'
+                              ? 0
+                              : Math.max(2, Math.round(4 * style.surface.radiusScale)),
+                          overflow: 'hidden',
                           backgroundColor: style.palette.bgElevated,
                           border:
                             grammar === 'risograph-poster'
@@ -1769,18 +1825,18 @@ const DataStorytellingPreview: React.FC = () => {
             </div>
           </div>
 
-          {/* Vernier Chronicle Rail with Rack Focus */}
+          {/* Vernier Chronicle Rail with Dignified Rack Focus */}
           <div
             data-vernier-rail="true"
             style={getTactileSurfaceStyle(style, {
               elevation: 'resting',
               overrides: {
+                position: 'relative',
                 padding: '16px 24px',
                 borderRadius:
                   grammar === 'risograph-poster'
                     ? 0
-                    : Math.max(0, Math.round(6 * style.surface.radiusScale)),
-                borderTop: `2px solid ${style.palette.inkBorder}`,
+                    : Math.max(0, Math.round(10 * style.surface.radiusScale)),
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
@@ -1789,6 +1845,11 @@ const DataStorytellingPreview: React.FC = () => {
               },
             })}
           >
+            <ClippedSurfaceChrome
+              topBarHeight={2}
+              topBarColor={style.palette.inkBorder}
+              specularRim={!style.surface.isDark}
+            />
             {eras.map((e) => {
               const markerPrefix = e.active
                 ? grammar === 'optical-gate'
@@ -1803,6 +1864,7 @@ const DataStorytellingPreview: React.FC = () => {
                       ? getTactileSurfaceStyle(style, {
                           elevation: 'floating',
                           overrides: {
+                            position: 'relative',
                             flex: 1,
                             padding: '8px 12px',
                             borderLeft: `3px solid ${style.palette.accentPrimary}`,
@@ -1812,11 +1874,12 @@ const DataStorytellingPreview: React.FC = () => {
                           },
                         })
                       : {
+                          position: 'relative',
                           flex: 1,
                           padding: '4px 8px',
                           transform: 'scale(0.96)',
                           filter: offBlur < 0.25 ? 'none' : `blur(${offBlur.toFixed(2)}px)`,
-                          opacity: 0.65,
+                          opacity: style.surface.isDark ? 0.68 : 0.84,
                         }
                   }
                 >
@@ -1856,6 +1919,7 @@ const MotionDiagrams2DPreview: React.FC = () => {
   const { fps, width, height } = useVideoConfig();
   const style = useStudioStyle();
   const optics = resolveStyleOptics(style);
+  const artWorld = resolveArtWorld(style);
   const grammar = optics.typographyGrammar;
   const bounds = getSafeStageBounds(width, height);
 
@@ -1904,31 +1968,138 @@ const MotionDiagrams2DPreview: React.FC = () => {
   );
   const bodyFont = formatFontFamilyCss(style.typography.bodyFont, 'body');
   const monoFont = formatFontFamilyCss(style.typography.monoFont, 'mono');
-  const tagRadius = Math.max(0, Math.round(4 * style.surface.radiusScale));
+  const cardRadius =
+    grammar === 'risograph-poster'
+      ? 0
+      : Math.max(8, Math.round(12 * style.surface.radiusScale));
 
   const modules = [
     {
-      code: 'MOD 01',
-      badge: 'WEJŚCIE',
-      title: 'Scenariusz JSON',
-      sub: 'Walidacja kontraktu scen',
-      metric: '60 FPS',
+      id: 'source',
+      badge: 'Wejście',
+      title: 'Scenariusz',
+      sub: 'Rytm opowieści i scen',
     },
     {
-      code: 'MOD 02',
-      badge: 'OPTYKA',
-      title: 'StyleProvider',
-      sub: `Profil: ${style.id}`,
-      metric: `f/${(1.4 + (1 - optics.aperture) * 4.2).toFixed(1)}`,
+      id: 'craft',
+      badge: 'Kierunek',
+      title: 'Świat sztuki',
+      sub: style.name,
     },
     {
-      code: 'MOD 03',
-      badge: 'MASTER',
-      title: 'Render 60 FPS',
-      sub: 'Mastering EBU R128 -14 LUFS',
-      metric: '-14 LUFS',
+      id: 'master',
+      badge: 'Finał',
+      title: 'Gotowy film',
+      sub: 'Płynny obraz i dźwięk',
     },
   ];
+
+  const renderNodeMedallion = (idx: number, isFocused: boolean) => {
+    const stroke = isFocused
+      ? style.palette.accentPrimary
+      : style.palette.textSecondary;
+    if (artWorld === 'atelier') {
+      return (
+        <svg
+          data-node-medallion="atelier"
+          width={24}
+          height={24}
+          viewBox="0 0 28 28"
+        >
+          <circle
+            cx={14}
+            cy={14}
+            r={10}
+            fill={style.palette.accentPrimary}
+            fillOpacity={0.14}
+            stroke={stroke}
+            strokeWidth={1.4}
+          />
+          {idx === 0 ? (
+            <polygon
+              points="14,7.5 20.5,14 14,20.5 7.5,14"
+              fill="none"
+              stroke={style.palette.accentSecondary}
+              strokeWidth={1.3}
+            />
+          ) : idx === 1 ? (
+            <circle
+              cx={14}
+              cy={14}
+              r={5.2}
+              fill="none"
+              stroke={style.palette.accentSecondary}
+              strokeWidth={1.4}
+            />
+          ) : (
+            <polygon
+              points="14,8 19.6,11.2 19.6,16.8 14,20 8.4,16.8 8.4,11.2"
+              fill="none"
+              stroke={style.palette.accentSecondary}
+              strokeWidth={1.3}
+            />
+          )}
+          <circle cx={14} cy={14} r={2} fill={style.palette.accentPrimary} />
+        </svg>
+      );
+    }
+    if (artWorld === 'illustrative') {
+      return (
+        <svg
+          data-node-medallion="illustrative"
+          width={24}
+          height={24}
+          viewBox="0 0 28 28"
+        >
+          <circle
+            cx={16}
+            cy={10}
+            r={5.2}
+            fill={style.palette.accentPrimary}
+            fillOpacity={0.82}
+          />
+          <path
+            d="M 5 21 L 11.5 13 L 16.5 18 L 20.5 14 L 24 21 Z"
+            fill={style.palette.accentSecondary}
+            fillOpacity={0.85}
+          />
+        </svg>
+      );
+    }
+    return (
+      <svg
+        data-node-medallion="editorial-gallery"
+        width={24}
+        height={24}
+        viewBox="0 0 28 28"
+      >
+        <rect
+          x={5}
+          y={5}
+          width={18}
+          height={18}
+          fill="none"
+          stroke={stroke}
+          strokeWidth={1.4}
+        />
+        <circle
+          cx={15.5}
+          cy={12.5}
+          r={4.5}
+          fill={style.palette.accentPrimary}
+          fillOpacity={0.85}
+        />
+        <line
+          x1={8}
+          y1={19}
+          x2={20}
+          y2={19}
+          stroke={style.palette.accentSecondary}
+          strokeWidth={1.6}
+        />
+      </svg>
+    );
+  };
 
   const renderCoupler = (idx: number) => {
     const isVert = bounds.isVertical;
@@ -1968,11 +2139,10 @@ const MotionDiagrams2DPreview: React.FC = () => {
           stroke={style.palette.accentPrimary}
           strokeWidth={grammar === 'risograph-poster' ? 3 : 2.2}
         />
-        <rect
-          x={x1 - 3.5}
-          y={y1 - 3.5}
-          width={7}
-          height={7}
+        <circle
+          cx={x1}
+          cy={y1}
+          r={3.5}
           fill={style.palette.bgSurface}
           stroke={style.palette.accentPrimary}
           strokeWidth={1.6}
@@ -2021,7 +2191,7 @@ const MotionDiagrams2DPreview: React.FC = () => {
       handheldIntensity={style.motion.cameraHandheld}
       seed={410}
     >
-      {/* Background Drafting Sheet Plane */}
+      {/* Background Subtle Architectural Grid Plane */}
       <DepthPlane z={-0.56}>
         <div
           style={{
@@ -2030,32 +2200,13 @@ const MotionDiagrams2DPreview: React.FC = () => {
             top: bounds.top,
             width: bounds.width,
             height: bounds.height,
-            border: `1px solid ${style.palette.inkBorder}40`,
-            backgroundImage: `linear-gradient(to right, ${style.palette.inkBorder}22 1px, transparent 1px), linear-gradient(to bottom, ${style.palette.inkBorder}22 1px, transparent 1px)`,
-            backgroundSize: '48px 48px',
+            border: `1px solid ${style.palette.inkBorder}34`,
+            backgroundImage: `linear-gradient(to right, ${style.palette.inkBorder}18 1px, transparent 1px), linear-gradient(to bottom, ${style.palette.inkBorder}18 1px, transparent 1px)`,
+            backgroundSize: '56px 56px',
             boxSizing: 'border-box',
             pointerEvents: 'none',
           }}
-        >
-          <div
-            style={{
-              position: 'absolute',
-              left: 18,
-              top: 14,
-              padding: '4px 10px',
-              backgroundColor: style.palette.bgSurface,
-              border: `1px solid ${style.palette.inkBorder}`,
-              borderLeft: `3px solid ${style.palette.accentPrimary}`,
-              fontFamily: monoFont,
-              fontSize: 13,
-              fontWeight: 700,
-              letterSpacing: '0.07em',
-              color: style.palette.textSecondary,
-            }}
-          >
-            SCHEMAT 01 • ARCHITEKTURA PRZEPŁYWU
-          </div>
-        </div>
+        />
       </DepthPlane>
 
       {/* Primary Schematic Topology Plane */}
@@ -2064,9 +2215,9 @@ const MotionDiagrams2DPreview: React.FC = () => {
           style={{
             position: 'absolute',
             left: bounds.left,
-            top: bounds.top + (bounds.isVertical ? 54 : 52),
+            top: bounds.top + (bounds.isVertical ? 44 : 42),
             width: bounds.width,
-            height: bounds.height - (bounds.isVertical ? 230 : 210),
+            height: bounds.height - (bounds.isVertical ? 220 : 196),
             display: 'flex',
             flexDirection: bounds.isVertical ? 'column' : 'row',
             alignItems: 'center',
@@ -2076,14 +2227,17 @@ const MotionDiagrams2DPreview: React.FC = () => {
         >
           {modules.map((mod, idx) => {
             const isFocused = idx === activeModuleIdx;
-            const blurPx = isFocused
+            const rawBlur = isFocused
               ? 0
               : computeCircleOfConfusionPx(-0.24, 0, optics.aperture);
+            const blurPx = style.surface.isDark
+              ? rawBlur
+              : Math.min(2.0, rawBlur);
             const filterCss =
               blurPx < 0.25 ? 'none' : `blur(${blurPx.toFixed(2)}px)`;
 
             return (
-              <React.Fragment key={mod.code}>
+              <React.Fragment key={mod.id}>
                 <div
                   data-focus-state={isFocused ? 'sharp' : 'recessed'}
                   style={getTactileSurfaceStyle(style, {
@@ -2091,74 +2245,99 @@ const MotionDiagrams2DPreview: React.FC = () => {
                     overrides: {
                       flex: bounds.isVertical ? undefined : 1,
                       width: bounds.isVertical ? '100%' : undefined,
-                      padding: bounds.isVertical ? '18px 22px' : '22px 24px',
+                      padding: bounds.isVertical ? '20px 24px' : '24px 26px',
+                      borderRadius: cardRadius,
                       borderColor: isFocused
                         ? style.palette.accentPrimary
                         : style.palette.inkBorder,
                       position: 'relative',
+                      overflow: 'visible',
                       boxSizing: 'border-box',
                       filter: filterCss,
-                      opacity: isFocused ? 1 : 0.76,
-                      transform: `scale(${isFocused ? 1.015 : 0.985})`,
+                      opacity: isFocused
+                        ? 1
+                        : style.surface.isDark
+                          ? 0.78
+                          : 0.88,
+                      transform: `scale(${isFocused ? 1.015 : 0.988})`,
                     },
                   })}
                 >
-                  <div
-                    style={{
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      height: grammar === 'risograph-poster' ? 5 : 3,
-                      backgroundColor: isFocused
+                  {/* Clipped interior top accent bar & specular rim (never overhangs rounded corners!) */}
+                  <ClippedSurfaceChrome
+                    topBarHeight={grammar === 'risograph-poster' ? 5 : 3}
+                    topBarColor={
+                      isFocused
                         ? style.palette.accentPrimary
-                        : style.palette.inkBorder,
-                    }}
+                        : style.palette.inkBorder
+                    }
+                    specularRim={!style.surface.isDark}
                   />
+
+                  {/* Refined architectural port terminals outside ClippedSurfaceChrome */}
+                  {!bounds.isVertical && idx > 0 && (
+                    <div
+                      data-port-terminal="left"
+                      style={{
+                        position: 'absolute',
+                        left: -4,
+                        top: '50%',
+                        width: 8,
+                        height: 8,
+                        borderRadius: 999,
+                        transform: 'translateY(-50%)',
+                        backgroundColor: style.palette.bgSurface,
+                        border: `1.5px solid ${style.palette.accentPrimary}`,
+                      }}
+                    />
+                  )}
+                  {!bounds.isVertical && idx < modules.length - 1 && (
+                    <div
+                      data-port-terminal="right"
+                      style={{
+                        position: 'absolute',
+                        right: -4,
+                        top: '50%',
+                        width: 8,
+                        height: 8,
+                        borderRadius: 999,
+                        transform: 'translateY(-50%)',
+                        backgroundColor: style.palette.bgSurface,
+                        border: `1.5px solid ${style.palette.accentPrimary}`,
+                      }}
+                    />
+                  )}
+
                   <div
                     style={{
+                      position: 'relative',
                       display: 'flex',
                       justifyContent: 'space-between',
                       alignItems: 'center',
-                      marginBottom: 8,
+                      marginBottom: 10,
                     }}
                   >
                     <span
                       style={{
-                        padding: '2px 8px',
-                        borderRadius: tagRadius,
-                        border: `1px solid ${
-                          isFocused
-                            ? style.palette.accentPrimary
-                            : style.palette.inkBorder
-                        }`,
-                        backgroundColor: style.palette.bgElevated,
                         fontFamily: monoFont,
                         fontSize: 12,
                         fontWeight: 700,
-                        letterSpacing: '0.06em',
+                        letterSpacing: '0.08em',
+                        textTransform: 'uppercase',
                         color: isFocused
                           ? style.palette.accentPrimary
                           : style.palette.textSecondary,
                       }}
                     >
-                      {mod.code} • {mod.badge}
+                      {mod.badge}
                     </span>
-                    <span
-                      style={{
-                        fontFamily: monoFont,
-                        fontSize: 12,
-                        fontWeight: 700,
-                        color: style.palette.textSecondary,
-                      }}
-                    >
-                      {mod.metric}
-                    </span>
+                    {renderNodeMedallion(idx, isFocused)}
                   </div>
                   <div
                     style={{
+                      position: 'relative',
                       fontFamily: displayFont,
-                      fontSize: bounds.isVertical ? 26 : 28,
+                      fontSize: bounds.isVertical ? 26 : 30,
                       fontWeight: 700,
                       color: style.palette.textPrimary,
                       lineHeight: 1.16,
@@ -2169,6 +2348,7 @@ const MotionDiagrams2DPreview: React.FC = () => {
                   </div>
                   <div
                     style={{
+                      position: 'relative',
                       fontFamily: bodyFont,
                       fontSize: 16,
                       color: style.palette.textSecondary,
@@ -2184,7 +2364,7 @@ const MotionDiagrams2DPreview: React.FC = () => {
         </div>
       </DepthPlane>
 
-      {/* Foreground Tactile Payload Plate */}
+      {/* Foreground Tactile Studio Note Plate */}
       <DepthPlane z={0.28}>
         <div
           data-payload-plate="true"
@@ -2193,8 +2373,9 @@ const MotionDiagrams2DPreview: React.FC = () => {
             overrides: {
               position: 'absolute',
               left: bounds.left,
-              top: bounds.top + bounds.height - (bounds.isVertical ? 148 : 136),
+              top: bounds.top + bounds.height - (bounds.isVertical ? 136 : 126),
               width: bounds.width,
+              borderRadius: cardRadius,
               boxSizing: 'border-box',
               overflow: 'hidden',
               opacity: payloadEnter,
@@ -2206,56 +2387,57 @@ const MotionDiagrams2DPreview: React.FC = () => {
             },
           })}
         >
+          <ClippedSurfaceChrome
+            topBarHeight={2}
+            topBarColor={style.palette.accentPrimary}
+            specularRim={!style.surface.isDark}
+          />
           <div
             style={{
+              position: 'relative',
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              padding: '8px 16px',
+              padding: '10px 18px',
               backgroundColor: style.palette.bgElevated,
               borderBottom: `1px solid ${style.palette.inkBorder}`,
-              borderLeft: `3px solid ${style.palette.accentPrimary}`,
               fontFamily: monoFont,
               fontSize: 13,
               fontWeight: 700,
             }}
           >
             <span style={{ color: style.palette.textPrimary }}>
-              POST /v1/render/commit
+              Ciągłość światła i ruchu
             </span>
-            <span style={{ color: style.palette.accentSecondary }}>
-              14ms • DETERMINISTIC
+            <span style={{ color: style.palette.accentPrimary }}>
+              {style.name}
             </span>
           </div>
           <div
             style={{
-              padding: '12px 16px',
-              fontFamily: monoFont,
-              fontSize: 15,
-              color: style.palette.textPrimary,
+              position: 'relative',
+              padding: '12px 18px',
+              fontFamily: bodyFont,
+              fontSize: 16,
+              color: style.palette.textSecondary,
               display: 'flex',
+              justifyContent: 'space-between',
               gap: 14,
             }}
           >
-            <span style={{ color: style.palette.textSecondary, opacity: 0.6 }}>
-              01
-            </span>
             <span>
-              <span style={{ color: style.palette.accentPrimary, fontWeight: 700 }}>
-                {'"grammar"'}
-              </span>
-              {': '}
-              <span style={{ color: style.palette.accentSecondary }}>
-                {`"${grammar}"`}
-              </span>
-              {', '}
-              <span style={{ color: style.palette.accentPrimary, fontWeight: 700 }}>
-                {'"rig"'}
-              </span>
-              {': '}
-              <span style={{ color: style.palette.accentSecondary }}>
-                {`"${optics.lightingRig}"`}
-              </span>
+              Karty z maską wewnętrzną i wyraźną separacją od tła w każdym ze stylów.
+            </span>
+            <span
+              style={{
+                fontFamily: monoFont,
+                fontSize: 14,
+                color: style.palette.accentSecondary,
+                fontWeight: 700,
+                flexShrink: 0,
+              }}
+            >
+              60 FPS
             </span>
           </div>
         </div>
@@ -2268,25 +2450,48 @@ const PaperDiorama3DPreview: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps, width, height } = useVideoConfig();
   const style = useStudioStyle();
+  const artWorld = resolveArtWorld(style);
   const bounds = getSafeStageBounds(width, height);
 
-  const hingeFold = spring({
-    frame: frame - 4,
+  const archFold = spring({
+    frame: frame - 3,
+    fps,
+    config: CINEMATIC_SPRINGS.entrance,
+  });
+  const mountainFold = spring({
+    frame: frame - 9,
+    fps,
+    config: CINEMATIC_SPRINGS.entrance,
+  });
+  const groveFold = spring({
+    frame: frame - 15,
     fps,
     config: getStyleSpringConfig(style, 'enter'),
   });
-  const frontFold = spring({
-    frame: frame - 16,
+  const deskFold = spring({
+    frame: frame - 22,
     fps,
     config: getStyleSpringConfig(style, 'emphasis'),
   });
 
+  const cloudDrift = Math.sin(frame * 0.036) * 14;
   const displayFont = formatFontFamilyCss(style.typography.displayFont, 'display');
   const bodyFont = formatFontFamilyCss(style.typography.bodyFont, 'body');
-  const monoFont = formatFontFamilyCss(style.typography.monoFont, 'mono');
+
+  const dieCutStroke = '#FFFDF8';
+  const foliageA =
+    artWorld === 'atelier'
+      ? style.palette.accentSecondary
+      : artWorld === 'illustrative'
+        ? '#0F766E'
+        : style.palette.textPrimary;
+  const ridgeShadow = style.surface.isDark
+    ? style.palette.bgElevated
+    : style.palette.accentSecondary;
 
   return (
     <div
+      data-diorama-world={artWorld}
       style={{
         position: 'absolute',
         left: bounds.left,
@@ -2297,15 +2502,15 @@ const PaperDiorama3DPreview: React.FC = () => {
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 26,
-        perspective: 1200,
+        gap: 20,
+        perspective: 1280,
       }}
     >
-      {/* Neutral DioramaStage3D Plinth + Layered Cutouts */}
+      {/* Multi-Plane 2.5D Painterly Pop-Up Stage */}
       <div
         style={{
-          width: bounds.isVertical ? '100%' : '86%',
-          height: bounds.isVertical ? 580 : 520,
+          width: bounds.isVertical ? '100%' : '90%',
+          height: bounds.isVertical ? 640 : 540,
           position: 'relative',
           display: 'flex',
           alignItems: 'center',
@@ -2313,89 +2518,304 @@ const PaperDiorama3DPreview: React.FC = () => {
           transformStyle: 'preserve-3d',
         }}
       >
-        {/* Stage Base Plinth */}
+        {/* Sculpted DioramaStage3D Plinth */}
         <div
           style={{
             position: 'absolute',
-            bottom: 34,
-            width: '90%',
-            height: 150,
-            borderRadius: Math.round(28 * Math.max(0.25, style.surface.radiusScale)),
+            bottom: 22,
+            width: '92%',
+            height: 164,
+            borderRadius: Math.round(32 * Math.max(0.25, style.surface.radiusScale)),
             backgroundColor: style.palette.bgElevated,
             border: `3px solid ${style.palette.inkBorder}`,
-            transform: 'rotateX(62deg)',
-            boxShadow: '0 34px 60px rgba(15, 23, 42, 0.22)',
+            transform: 'rotateX(64deg)',
+            boxShadow: style.surface.isDark
+              ? '0 38px 72px rgba(0, 0, 0, 0.62)'
+              : '0 34px 64px rgba(15, 23, 42, 0.22)',
           }}
         />
 
-        {/* Back Cutout Layer (z = -60) */}
-        <div
+        {/* Layer 1 (z = -90): Celestial Sunburst Arch Cutout */}
+        <svg
+          data-cutout-motif="sunburst-arch"
+          viewBox="0 0 540 310"
           style={{
             position: 'absolute',
-            bottom: 120,
-            padding: '26px 40px',
-            backgroundColor: style.palette.accentSecondary,
-            color: '#FFFFFF',
-            border: '6px solid #FFFFFF',
-            borderRadius: Math.round(20 * Math.max(0.2, style.surface.radiusScale)),
-            boxShadow: '0 18px 34px rgba(15, 23, 42, 0.2)',
+            bottom: bounds.isVertical ? 196 : 168,
+            width: bounds.isVertical ? 480 : 540,
+            height: bounds.isVertical ? 276 : 310,
             transformOrigin: 'bottom center',
-            transform: `translateY(-44px) scale(0.92) rotateX(${interpolate(
-              hingeFold,
+            transform: `translateZ(-90px) rotateX(${interpolate(
+              archFold,
               [0, 1],
-              [-78, 0]
-            )}deg)`,
-            opacity: hingeFold,
-            fontFamily: monoFont,
-            fontSize: 18,
-            fontWeight: 700,
+              [-76, 0]
+            ).toFixed(2)}deg)`,
+            opacity: archFold,
+            filter: 'drop-shadow(0 14px 24px rgba(15, 23, 42, 0.18))',
+            overflow: 'visible',
           }}
         >
-          DIORAMA STAGE 3D • WARSTWA TŁA (Δz ≥ 0.45)
-        </div>
+          <path
+            d="M 56 290 A 214 214 0 0 1 484 290 Z"
+            fill={style.palette.bgSurface}
+            stroke={dieCutStroke}
+            strokeWidth={14}
+            strokeLinejoin="round"
+          />
+          <path
+            d="M 74 282 A 196 196 0 0 1 466 282 Z"
+            fill={style.palette.accentPrimary}
+            fillOpacity={style.surface.isDark ? 0.32 : 0.2}
+            stroke={style.palette.inkBorder}
+            strokeWidth={2}
+          />
+          {[-60, -30, 0, 30, 60].map((deg) => {
+            const rad = ((deg - 90) * Math.PI) / 180;
+            return (
+              <line
+                key={deg}
+                x1={270 + Math.cos(rad) * 78}
+                y1={258 + Math.sin(rad) * 78}
+                x2={270 + Math.cos(rad) * 182}
+                y2={258 + Math.sin(rad) * 182}
+                stroke={style.palette.accentPrimary}
+                strokeWidth={3}
+                strokeOpacity={0.55}
+              />
+            );
+          })}
+          <circle
+            cx={270}
+            cy={226}
+            r={62}
+            fill={style.palette.accentPrimary}
+            opacity={0.88}
+          />
+        </svg>
 
-        {/* Front Hero Cutout Layer */}
-        <div
+        {/* Layer 2 (z = -45): Painterly Mountain Range Cutout */}
+        <svg
+          data-cutout-motif="mountain-range"
+          viewBox="0 0 620 270"
           style={{
-            position: 'relative',
-            padding: bounds.isVertical ? '34px 36px' : '38px 48px',
-            backgroundColor: style.palette.bgSurface,
-            color: style.palette.textPrimary,
-            border: '6px solid #FFFFFF',
-            outline: `2px solid ${style.palette.inkBorder}`,
-            borderRadius: Math.round(22 * Math.max(0.2, style.surface.radiusScale)),
-            boxShadow: '0 24px 44px rgba(15, 23, 42, 0.24)',
+            position: 'absolute',
+            bottom: bounds.isVertical ? 148 : 124,
+            width: bounds.isVertical ? 560 : 640,
+            height: bounds.isVertical ? 244 : 276,
             transformOrigin: 'bottom center',
-            transform: `translateY(28px) rotateX(${interpolate(
-              frontFold,
+            transform: `translateZ(-45px) rotateX(${interpolate(
+              mountainFold,
               [0, 1],
-              [-75, 0]
-            )}deg)`,
-            opacity: frontFold,
-            textAlign: 'center',
-            maxWidth: 680,
+              [-74, 0]
+            ).toFixed(2)}deg)`,
+            opacity: mountainFold,
+            filter: 'drop-shadow(0 18px 28px rgba(15, 23, 42, 0.22))',
+            overflow: 'visible',
           }}
         >
+          <path
+            d="M 28 248 L 156 96 L 268 184 L 392 64 L 516 178 L 592 128 L 592 248 Z"
+            fill={ridgeShadow}
+            stroke={dieCutStroke}
+            strokeWidth={14}
+            strokeLinejoin="round"
+          />
+          {/* Sunlit ridge facets */}
+          <polygon
+            points="156,96 222,184 156,248 28,248"
+            fill={style.palette.accentPrimary}
+            opacity={0.78}
+          />
+          <polygon
+            points="392,64 468,178 392,248 268,184"
+            fill={style.palette.accentSecondary}
+            opacity={0.86}
+          />
+          {/* Die-cut snow / alabaster caps */}
+          <polygon
+            points="156,96 190,136 164,142 156,126 136,144"
+            fill="#FFFDF8"
+            opacity={0.92}
+          />
+          <polygon
+            points="392,64 434,114 404,120 392,98 364,122"
+            fill="#FFFDF8"
+            opacity={0.94}
+          />
+        </svg>
+
+        {/* Layer 3 (z = -15): Drifting Cloud Canopies */}
+        <svg
+          data-cutout-motif="cloud-canopy"
+          viewBox="0 0 240 100"
+          style={{
+            position: 'absolute',
+            top: bounds.isVertical ? 64 : 36,
+            left: bounds.isVertical ? '8%' : '12%',
+            width: 210,
+            height: 88,
+            transform: `translate3d(${cloudDrift.toFixed(1)}px, 0, -15px)`,
+            opacity: mountainFold,
+            filter: 'drop-shadow(0 10px 18px rgba(15, 23, 42, 0.15))',
+          }}
+        >
+          <g
+            fill={style.surface.isDark ? style.palette.bgSurface : '#FFFFFF'}
+            stroke={dieCutStroke}
+            strokeWidth={8}
+          >
+            <ellipse cx={120} cy={62} rx={76} ry={22} />
+            <ellipse cx={88} cy={48} rx={42} ry={26} />
+            <ellipse cx={146} cy={44} rx={46} ry={28} />
+          </g>
+        </svg>
+
+        {/* Layer 4 (z = +20): Flanking Pine Grove Cutouts */}
+        {[-1, 1].map((side) => (
+          <svg
+            key={side}
+            data-cutout-motif="pine-grove"
+            viewBox="0 0 160 200"
+            style={{
+              position: 'absolute',
+              bottom: bounds.isVertical ? 104 : 88,
+              left: side < 0 ? (bounds.isVertical ? '4%' : '8%') : undefined,
+              right: side > 0 ? (bounds.isVertical ? '4%' : '8%') : undefined,
+              width: bounds.isVertical ? 128 : 148,
+              height: bounds.isVertical ? 160 : 184,
+              transformOrigin: 'bottom center',
+              transform: `translateZ(20px) rotateX(${interpolate(
+                groveFold,
+                [0, 1],
+                [-72, 0]
+              ).toFixed(2)}deg)`,
+              opacity: groveFold,
+              filter: 'drop-shadow(0 14px 22px rgba(15, 23, 42, 0.22))',
+            }}
+          >
+            <g stroke={dieCutStroke} strokeWidth={10} strokeLinejoin="round">
+              <polygon points="62,28 112,108 12,108" fill={foliageA} />
+              <polygon points="62,72 122,156 6,156" fill={foliageA} />
+              <polygon
+                points="108,58 148,132 68,132"
+                fill={style.palette.accentPrimary}
+              />
+            </g>
+            <polygon points="62,28 112,108 12,108" fill={foliageA} />
+            <polygon points="62,72 122,156 6,156" fill={foliageA} />
+            <polygon
+              points="108,58 148,132 68,132"
+              fill={style.palette.accentPrimary}
+              opacity={0.86}
+            />
+          </svg>
+        ))}
+
+        {/* Layer 5 (z = +55): Foreground Atelier Desk & Clipped Plaque */}
+        <div
+          data-cutout-motif="atelier-desk"
+          style={getTactileSurfaceStyle(style, {
+            elevation: 'floating',
+            overrides: {
+              position: 'relative',
+              marginTop: bounds.isVertical ? 176 : 152,
+              padding: bounds.isVertical ? '24px 30px' : '26px 38px',
+              backgroundColor: style.palette.bgSurface,
+              color: style.palette.textPrimary,
+              border: `5px solid ${dieCutStroke}`,
+              outline: `2px solid ${style.palette.inkBorder}`,
+              borderRadius: Math.max(
+                10,
+                Math.round(18 * Math.max(0.3, style.surface.radiusScale))
+              ),
+              transformOrigin: 'bottom center',
+              transform: `translateZ(55px) rotateX(${interpolate(
+                deskFold,
+                [0, 1],
+                [-72, 0]
+              ).toFixed(2)}deg)`,
+              opacity: deskFold,
+              textAlign: 'center',
+              maxWidth: 580,
+            },
+          })}
+        >
+          <ClippedSurfaceChrome
+            topBarHeight={4}
+            topBarColor={style.palette.accentPrimary}
+            specularRim={!style.surface.isDark}
+          />
+          <svg
+            viewBox="0 0 220 54"
+            style={{
+              width: 184,
+              height: 46,
+              margin: '0 auto 8px auto',
+              display: 'block',
+            }}
+          >
+            {/* Poised brass desk lamp + open sketchbook */}
+            <path
+              d="M 46 46 L 38 18 L 68 12"
+              fill="none"
+              stroke={style.palette.accentPrimary}
+              strokeWidth={3.5}
+              strokeLinecap="round"
+            />
+            <polygon
+              points="64,6 84,14 64,20"
+              fill={style.palette.accentSecondary}
+            />
+            <rect
+              x={86}
+              y={22}
+              width={64}
+              height={24}
+              rx={3}
+              fill={style.palette.bgElevated}
+              stroke={style.palette.inkBorder}
+              strokeWidth={2}
+            />
+            <line
+              x1={118}
+              y1={23}
+              x2={118}
+              y2={45}
+              stroke={style.palette.inkBorder}
+              strokeWidth={1.6}
+            />
+            <line
+              x1={22}
+              y1={48}
+              x2={198}
+              y2={48}
+              stroke={style.palette.inkBorder}
+              strokeWidth={3.5}
+              strokeLinecap="round"
+            />
+          </svg>
           <div
             style={{
+              position: 'relative',
               fontFamily: displayFont,
-              fontSize: bounds.isVertical ? 42 : 50,
+              fontSize: bounds.isVertical ? 34 : 40,
               fontWeight: 700,
               lineHeight: 1.12,
-              marginBottom: 10,
+              marginBottom: 6,
               letterSpacing: `${style.typography.displayTrackingEm}em`,
             }}
           >
-            {formatHeadingText('Neutralna scena wycinankowa 2.5D', style)}
+            {formatHeadingText('Wielowarstwowa wycinanka 2.5D', style)}
           </div>
           <div
             style={{
+              position: 'relative',
               fontFamily: bodyFont,
-              fontSize: 22,
+              fontSize: 19,
               color: style.palette.textSecondary,
             }}
           >
-            Czysty postument DioramaStage3D sterowany paletą wybranego stylu.
+            Malarskie pasma gór, obłoki i stół pracowni w barwach wybranego stylu.
           </div>
         </div>
       </div>
@@ -2408,6 +2828,7 @@ const Isometric3DPreview: React.FC = () => {
   const { fps, width, height } = useVideoConfig();
   const style = useStudioStyle();
   const optics = resolveStyleOptics(style);
+  const artWorld = resolveArtWorld(style);
   const bounds = getSafeStageBounds(width, height);
 
   const isoMaterial: 'ceramic-maquette' | 'anodized-telemetry' | 'ink-figurine' =
@@ -2461,7 +2882,6 @@ const Isometric3DPreview: React.FC = () => {
     style.typography.displayFont,
     'display'
   );
-  const bodyFont = formatFontFamilyCss(style.typography.bodyFont, 'body');
   const monoFont = formatFontFamilyCss(style.typography.monoFont, 'mono');
 
   const bodyFill =
@@ -2600,6 +3020,231 @@ const Isometric3DPreview: React.FC = () => {
     );
   };
 
+  const renderScenicRoomBackdrop = (world: ArtWorld) => {
+    const shaftShift = (optics.lightAngleDeg / 45) * 28;
+    if (world === 'atelier') {
+      return (
+        <g data-iso-room="atelier">
+          {/* Isometric Corner Anodized / Frosted-Glass Studio Walls */}
+          <polygon
+            points="92,188 360,98 360,12 92,98"
+            fill={style.palette.bgElevated}
+            fillOpacity={0.9}
+            stroke={strokeInk}
+            strokeWidth={1.6}
+          />
+          <polygon
+            points="360,98 628,188 628,98 360,12"
+            fill={style.palette.bgSurface}
+            fillOpacity={0.92}
+            stroke={strokeInk}
+            strokeWidth={1.6}
+          />
+          {/* Linear Ceiling Light Cove */}
+          <line
+            x1={116}
+            y1={96}
+            x2={356}
+            y2={20}
+            stroke={style.palette.accentPrimary}
+            strokeWidth={4}
+            strokeOpacity={0.85}
+          />
+          <line
+            x1={364}
+            y1={20}
+            x2={604}
+            y2={96}
+            stroke={style.palette.accentSecondary}
+            strokeWidth={4}
+            strokeOpacity={0.75}
+          />
+          {/* Acoustic Fin Slats on Right Wing */}
+          {[0, 1, 2, 3, 4].map((fin) => {
+            const fx = 424 + fin * 36;
+            const fyTop = 36 + fin * 12;
+            return (
+              <line
+                key={fin}
+                x1={fx}
+                y1={fyTop}
+                x2={fx}
+                y2={fyTop + 72}
+                stroke={strokeInk}
+                strokeWidth={2}
+                strokeOpacity={0.55}
+              />
+            );
+          })}
+          {/* Centerpiece Console + Floating Geometric Prism */}
+          <rect
+            x={318}
+            y={140}
+            width={84}
+            height={28}
+            rx={6}
+            fill={style.palette.bgElevated}
+            stroke={strokeInk}
+            strokeWidth={1.8}
+          />
+          <polygon
+            points={`360,${(106 + breathA * 3).toFixed(1)} 378,128 342,128`}
+            fill={style.palette.accentPrimary}
+            fillOpacity={0.82}
+            stroke={strokeInk}
+            strokeWidth={1.4}
+          />
+        </g>
+      );
+    }
+
+    if (world === 'illustrative') {
+      return (
+        <g data-iso-room="illustrative">
+          {/* Warm Workshop Corner Walls */}
+          <polygon
+            points="92,188 360,98 360,8 92,94"
+            fill={style.palette.bgElevated}
+            stroke={strokeInk}
+            strokeWidth={2}
+          />
+          <polygon
+            points="360,98 628,188 628,94 360,8"
+            fill={style.palette.bgSurface}
+            stroke={strokeInk}
+            strokeWidth={2}
+          />
+          {/* Arched Mullioned Workshop Window + Sunbeam */}
+          <path
+            d="M 188 124 L 188 76 A 32 28 0 0 1 252 76 L 252 104 Z"
+            fill={style.palette.accentPrimary}
+            fillOpacity={0.32}
+            stroke={strokeInk}
+            strokeWidth={2}
+          />
+          <polygon
+            points={`188,124 252,104 ${336 + shaftShift},196 ${248 + shaftShift},208`}
+            fill={style.palette.accentPrimary}
+            opacity={0.16}
+          />
+          {/* Recessed Timber Bookshelf with Colorful Volumes */}
+          <rect
+            x={426}
+            y={54}
+            width={106}
+            height={66}
+            rx={4}
+            fill={style.palette.bgElevated}
+            stroke={strokeInk}
+            strokeWidth={1.8}
+          />
+          {[0, 1, 2, 3, 4].map((bk) => (
+            <rect
+              key={bk}
+              x={436 + bk * 18}
+              y={68 + (bk % 2) * 6}
+              width={12}
+              height={42 - (bk % 2) * 6}
+              fill={
+                bk % 2 === 0
+                  ? style.palette.accentPrimary
+                  : style.palette.accentSecondary
+              }
+            />
+          ))}
+          {/* Centerpiece Craft Table with Open Sketchbook */}
+          <rect
+            x={314}
+            y={142}
+            width={92}
+            height={26}
+            rx={4}
+            fill={style.palette.accentSecondary}
+            fillOpacity={0.35}
+            stroke={strokeInk}
+            strokeWidth={2}
+          />
+          <rect
+            x={338}
+            y={132}
+            width={44}
+            height={12}
+            rx={2}
+            fill="#FFFDF8"
+            stroke={strokeInk}
+            strokeWidth={1.5}
+          />
+        </g>
+      );
+    }
+
+    return (
+      <g data-iso-room="editorial-gallery">
+        {/* Travertine / Cotton-Plaster Museum Alcove Walls */}
+        <polygon
+          points="92,188 360,98 360,8 92,94"
+          fill={style.palette.bgElevated}
+          stroke={strokeInk}
+          strokeWidth={1.8}
+        />
+        <polygon
+          points="360,98 628,188 628,94 360,8"
+          fill={style.palette.bgSurface}
+          stroke={strokeInk}
+          strokeWidth={1.8}
+        />
+        {/* Tall Architectural Window Slit + Key-Light Shaft */}
+        <polygon
+          points="204,48 232,39 232,114 204,123"
+          fill={style.palette.accentPrimary}
+          fillOpacity={0.28}
+          stroke={strokeInk}
+          strokeWidth={1.6}
+        />
+        <polygon
+          points={`204,123 232,114 ${342 + shaftShift},198 ${278 + shaftShift},208`}
+          fill={style.palette.accentPrimary}
+          opacity={0.15}
+        />
+        {/* Framed Bas-Relief Artwork in Passe-Partout */}
+        <rect
+          x={434}
+          y={52}
+          width={92}
+          height={68}
+          fill={style.palette.bgElevated}
+          stroke={strokeInk}
+          strokeWidth={1.8}
+        />
+        <circle
+          cx={480}
+          cy={86}
+          r={18}
+          fill={style.palette.accentPrimary}
+          opacity={0.82}
+        />
+        {/* Fluted Stone Plinth Table with Archival Folio */}
+        <rect
+          x={322}
+          y={138}
+          width={76}
+          height={32}
+          fill={style.palette.bgElevated}
+          stroke={strokeInk}
+          strokeWidth={1.8}
+        />
+        <rect
+          x={338}
+          y={130}
+          width={44}
+          height={9}
+          fill={style.palette.accentSecondary}
+          opacity={0.85}
+        />
+      </g>
+    );
+  };
+
   const ticks = Array.from({ length: 24 }, (_, idx) => {
     const rad = (idx / 24) * Math.PI * 2;
     const isMajor = idx % 6 === 0;
@@ -2611,9 +3256,9 @@ const Isometric3DPreview: React.FC = () => {
       idx,
       isMajor,
       x1: 360 + Math.cos(rad) * rInnerX,
-      y1: 210 + Math.sin(rad) * rInnerY,
+      y1: 236 + Math.sin(rad) * rInnerY,
       x2: 360 + Math.cos(rad) * rOuterX,
-      y2: 210 + Math.sin(rad) * rOuterY,
+      y2: 236 + Math.sin(rad) * rOuterY,
     };
   });
 
@@ -2623,7 +3268,7 @@ const Isometric3DPreview: React.FC = () => {
       handheldIntensity={style.motion.cameraHandheld}
       seed={520}
     >
-      {/* Background Studio Key-Beam & Metadata Header */}
+      {/* Background Studio Key-Beam */}
       <DepthPlane z={-0.54}>
         <div
           style={{
@@ -2642,48 +3287,25 @@ const Isometric3DPreview: React.FC = () => {
               inset: 0,
               background: `linear-gradient(${
                 optics.lightAngleDeg + 90
-              }deg, ${style.palette.accentPrimary}18 0%, transparent 62%)`,
-              border: `1px solid ${style.palette.inkBorder}38`,
+              }deg, ${style.palette.accentPrimary}16 0%, transparent 62%)`,
+              border: `1px solid ${style.palette.inkBorder}30`,
             }}
           />
-          <div style={{ padding: '20px 24px' }}>
-            <div
-              style={{
-                fontFamily: monoFont,
-                fontSize: 14,
-                fontWeight: 700,
-                letterSpacing: '0.08em',
-                color: style.palette.accentPrimary,
-                marginBottom: 6,
-              }}
-            >
-              SCENA 3D • MAKIETA ARCHITEKTONICZNA ({isoMaterial.toUpperCase()})
-            </div>
-            <div
-              style={{
-                fontFamily: bodyFont,
-                fontSize: 20,
-                color: style.palette.textSecondary,
-              }}
-            >
-              Głos: <strong>{style.audioDefaults.voiceArchetype}</strong> •
-              Światło kierunkowe: <strong>{optics.lightAngleDeg}°</strong>
-            </div>
-          </div>
         </div>
       </DepthPlane>
 
-      {/* Primary Calibrated 3D Turntable Plinth & Maquette Figures */}
+      {/* Primary Architectural Room, Calibrated 3D Turntable Plinth & Maquette Figures */}
       <DepthPlane z={0} disableFocusBlur>
         <div
           data-iso-material={isoMaterial}
           data-iso-plinth="calibrated-24"
+          data-iso-scenic-world={artWorld}
           style={{
             position: 'absolute',
             left: bounds.left,
-            top: bounds.top + (bounds.isVertical ? 96 : 74),
+            top: bounds.top + (bounds.isVertical ? 48 : 34),
             width: bounds.width,
-            height: bounds.height - (bounds.isVertical ? 110 : 84),
+            height: bounds.height - (bounds.isVertical ? 64 : 48),
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
@@ -2692,18 +3314,21 @@ const Isometric3DPreview: React.FC = () => {
           }}
         >
           <svg
-            viewBox="0 0 720 320"
+            viewBox="0 0 720 350"
             style={{
               width: '100%',
-              maxWidth: bounds.isVertical ? 760 : 880,
-              height: bounds.isVertical ? 420 : 390,
+              maxWidth: bounds.isVertical ? 760 : 900,
+              height: bounds.isVertical ? 470 : 420,
               overflow: 'visible',
             }}
           >
+            {/* 3-ArtWorld Isometric Architectural Room Set */}
+            {renderScenicRoomBackdrop(artWorld)}
+
             {/* Outer Base Bevel */}
             <ellipse
               cx={360}
-              cy={224}
+              cy={250}
               rx={308}
               ry={84}
               fill={style.palette.bgElevated}
@@ -2713,7 +3338,7 @@ const Isometric3DPreview: React.FC = () => {
             {/* Upper Calibrated Turntable Deck */}
             <ellipse
               cx={360}
-              cy={210}
+              cy={236}
               rx={294}
               ry={80}
               fill={style.palette.bgSurface}
@@ -2723,7 +3348,7 @@ const Isometric3DPreview: React.FC = () => {
             {/* Inner Acoustic Ring */}
             <ellipse
               cx={360}
-              cy={210}
+              cy={236}
               rx={208}
               ry={55}
               fill="none"
@@ -2749,7 +3374,7 @@ const Isometric3DPreview: React.FC = () => {
 
             {renderMaquetteFigure(
               235,
-              126,
+              152,
               style.palette.accentPrimary,
               style.palette.accentSecondary,
               speakerASpeaking,
@@ -2757,7 +3382,7 @@ const Isometric3DPreview: React.FC = () => {
             )}
             {renderMaquetteFigure(
               485,
-              126,
+              152,
               style.palette.accentSecondary,
               style.palette.accentPrimary,
               !speakerASpeaking,
@@ -2765,7 +3390,7 @@ const Isometric3DPreview: React.FC = () => {
             )}
           </svg>
 
-          {/* Speaker Nameplates */}
+          {/* Speaker Nameplates with ClippedSurfaceChrome */}
           <div
             style={{
               width: '100%',
@@ -2777,13 +3402,13 @@ const Isometric3DPreview: React.FC = () => {
             {[
               {
                 name: 'Prowadząca',
-                role: 'GŁOS GŁÓWNY',
+                role: 'Narracja główna',
                 color: style.palette.accentPrimary,
                 active: speakerASpeaking,
               },
               {
                 name: 'Gość studia',
-                role: 'KOMENTARZ',
+                role: 'Rozmowa w pracowni',
                 color: style.palette.accentSecondary,
                 active: !speakerASpeaking,
               },
@@ -2793,12 +3418,14 @@ const Isometric3DPreview: React.FC = () => {
                 style={getTactileSurfaceStyle(style, {
                   elevation: sp.active ? 'lifted' : 'resting',
                   overrides: {
+                    position: 'relative',
                     flex: 1,
                     padding: '16px 22px',
+                    borderRadius: Math.max(
+                      0,
+                      Math.round(10 * style.surface.radiusScale)
+                    ),
                     borderColor: sp.active ? sp.color : style.palette.inkBorder,
-                    borderLeft: `4px solid ${
-                      sp.active ? sp.color : style.palette.inkBorder
-                    }`,
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
@@ -2806,7 +3433,12 @@ const Isometric3DPreview: React.FC = () => {
                   },
                 })}
               >
-                <div>
+                <ClippedSurfaceChrome
+                  topBarHeight={3}
+                  topBarColor={sp.active ? sp.color : style.palette.inkBorder}
+                  specularRim={!style.surface.isDark}
+                />
+                <div style={{ position: 'relative' }}>
                   <div
                     style={{
                       fontFamily: displayFont,
@@ -2823,21 +3455,13 @@ const Isometric3DPreview: React.FC = () => {
                       fontSize: 12,
                       fontWeight: 700,
                       letterSpacing: '0.06em',
+                      textTransform: 'uppercase',
                       color: sp.active ? sp.color : style.palette.textSecondary,
                     }}
                   >
-                    {sp.active ? '▪ AKTYWNA WYPOWIEDŹ' : sp.role}
+                    {sp.active ? '▪ Aktywna wypowiedź' : sp.role}
                   </div>
                 </div>
-                <span
-                  style={{
-                    fontFamily: monoFont,
-                    fontSize: 12,
-                    color: style.palette.textSecondary,
-                  }}
-                >
-                  0.042 rad/kl
-                </span>
               </div>
             ))}
           </div>
@@ -2881,13 +3505,12 @@ export const StyleLabPreviewComposition: React.FC<StyleLabCompositionProps> = ({
                 : undefined,
           }}
         >
-          {usesOpticalStage && (
-            <StageLightingRig
-              style={style}
-              seed={`style-lab:${kit}`}
-              renderBaseFill={false}
-            />
-          )}
+          <ScenicBackdropLayers style={style} seed={`style-lab:${kit}`} />
+          <StageLightingRig
+            style={style}
+            seed={`style-lab:${kit}`}
+            renderBaseFill={false}
+          />
           {kit === 'editorial-collage' && <EditorialCollagePreview />}
           {kit === 'vector-scene-2d' && <VectorScene2DPreview />}
           {kit === 'kinetic-typography' && <KineticTypographyPreview />}

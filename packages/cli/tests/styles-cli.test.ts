@@ -132,40 +132,44 @@ test('make-pictures new defaults to vector-scene-2d + minimal-product and genera
       assert.match(tsx, /style=\{props\.styleId\}/);
       assert.match(tsx, /<VoiceoverTrack\b/);
       assert.match(tsx, /<SoundCue\b/);
+      assert.match(tsx, /ContinuousSceneFlow/);
+      assert.match(tsx, /crossDissolveFrames=\{48\}/);
       assert.doesNotMatch(tsx, /PaperMountainBackdrop3D/);
       assert.doesNotMatch(tsx, /warm-parquet/);
       assert.doesNotMatch(tsx, /codeMorphFrame/);
+      assert.doesNotMatch(tsx, /MOD 01/);
 
       if (kitId === 'paper-diorama-3d') {
         assert.match(tsx, /DioramaStage3D/);
+        assert.match(tsx, /SunburstArchCutout3D/);
+        assert.match(tsx, /MountainRangeCutout3D/);
+        assert.match(tsx, /AtelierDeskCutout3D/);
       }
       if (kitId === 'isometric-3d') {
         assert.match(tsx, /IsometricStage3D/);
         assert.match(tsx, /DirectorCamera3D/);
         assert.match(tsx, /Stylized3DCharacter/);
+        assert.doesNotMatch(tsx, /showGrid/);
         assert.doesNotMatch(tsx, /frame\s*\*\s*0\.16/);
       }
       if (kitId === 'motion-diagrams-2d') {
         assert.match(tsx, /MotionDiagramStage2D/);
         assert.match(tsx, /SystemNode/);
-        assert.match(tsx, /FlowCurve/);
-        assert.match(tsx, /CodePayloadToast/);
+        assert.match(tsx, /DataFlowEdge/);
       }
       if (kitId === 'editorial-collage') {
         assert.match(tsx, /EditorialDeskStage/);
         assert.match(tsx, /focusShiftFrame/);
       }
       if (kitId === 'kinetic-typography') {
+        assert.match(tsx, /ScenicBackdropLayers/);
         assert.match(tsx, /StageLightingRig/);
         assert.match(tsx, /OpticalStage2D/);
       }
       if (kitId === 'vector-scene-2d') {
         assert.match(tsx, /VectorSceneStage2D/);
         assert.match(tsx, /foregroundCallouts/);
-        assert.match(
-          tsx,
-          /<Sequence from=\{0\} durationInFrames=\{320\}>\s*<AnnotatedCallout2D/
-        );
+        assert.match(tsx, /<AnnotatedCallout2D/);
         assert.match(
           tsx,
           /target=\{isVertical \? \[360, 650\] : \[960, 560\]\}/
