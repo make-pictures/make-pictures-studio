@@ -24,16 +24,21 @@ npx make-pictures doctor
 # Initialize inside an existing Next.js / SaaS repository
 npx make-pictures init --dir=videos
 
-# Launch local 60 FPS Studio Web workstation (HMR + Props Inspector + Safe Box)
+# Launch local 60 FPS Studio Web & 🎨 Style Lab workstation (HMR + Props Inspector + Safe Box)
 npx make-pictures studio
 
-# Scaffold an isolated production capsule in productions/<slug>/
-npx make-pictures new product-launch --kit=paper-diorama-3d --lang=en
+# List 10 built-in & custom styles (optionally filtered by 2d | 2.5d | 3d) or fork a brand preset
+npx make-pictures styles --space=3d
+npx make-pictures style new brand-clay --from=soft-clay
+
+# Scaffold an isolated production capsule in productions/<slug>/ (--space=2d|2.5d|3d)
+npx make-pictures new product-launch --space=2d --style=minimal-product --lang=en
+npx make-pictures new studio-podcast --space=3d --style=soft-clay --lang=en
 
 # Synthesize ElevenLabs TTS + word timestamps + AI Music + AI SFX (or --mock offline)
 npx make-pictures audio --production=product-launch
 
-# Render a 12-frame Contact-Sheet PNG for visual QA
+# Run the hard Director QA Gate & render a 12-frame Contact-Sheet PNG for visual QA
 npx make-pictures qa ProductLaunch
 
 # Render 60 FPS MP4 + master loudness to broadcast -14 LUFS

@@ -14,7 +14,7 @@ Local `60 FPS` **Studio Web** client (`<StudioApp />`) and programmatic Vite ser
 
 ## Exports
 
-- `@make-pictures/studio` / `@make-pictures/studio/client` — `<StudioApp compositions={...} />`, `zod` Props Inspector, Multi-Track Director Timeline (`Camera Cuts`, `Voiceover`, `SFX Cues`, `SmartMusicBed` auto-ducking envelope), and 12-frame Contact-Sheet QA viewer.
+- `@make-pictures/studio` / `@make-pictures/studio/client` — `<StudioApp compositions={...} />`, **🎨 Style Lab** (`?view=styles` with `[ 2D ] [ 2.5D ] [ 3D ]` dimensional space selectors across all **10 built-in styles** & custom `styles/*.style.json` presets), `zod` Props Inspector, Multi-Track Director Timeline (`Camera Cuts`, `Voiceover`, `SFX Cues`, `SmartMusicBed` auto-ducking envelope), and 12-frame Contact-Sheet QA viewer.
 - `@make-pictures/studio/server` — `startStudioServer({ rootDir, studioDir, port, host })` and `makePicturesStudioServerPlugin({ rootDir, studioDir })`.
 - `@make-pictures/studio/styles.css` — Studio Web stylesheet.
 

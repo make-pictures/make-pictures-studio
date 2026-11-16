@@ -1,18 +1,18 @@
 ---
 name: kit-motion-diagrams-2d
 description: >-
-  Mathematical coordinate ports, infinite-canvas 2D camera & dignified light/dark
-  optical rack focus rules, ClippedSurfaceChrome corner hygiene, 3-ArtWorld
-  ScenicBackdropLayers, luminous DataFlowEdge flow trails & >= 26px label
-  clearance, packet speed cadence, and 9:16 cascade layout rules for
-  @make-pictures/kits/motion-diagrams-2d. Use this skill whenever creating
-  system architecture diagrams, SaaS product flows, or continuous 2D canvas
-  explainers.
+  Mathematical coordinate ports, RetroPcWindowStage2D (--style=retro-pc CRT OS
+  packet hops), infinite-canvas 2D camera & dignified light/dark optical rack
+  focus rules, ClippedSurfaceChrome corner hygiene, 3-ArtWorld ScenicBackdropLayers,
+  luminous DataFlowEdge flow trails & >= 26px label clearance, packet speed
+  cadence, and 9:16 cascade layout rules for @make-pictures/kits/motion-diagrams-2d.
+  Use this skill whenever creating system architecture diagrams, Retro-PC network
+  explainers, SaaS product flows, or continuous 2D canvas explainers.
 ---
 
-# Kit: Motion Diagrams 2D (`@make-pictures/kits/motion-diagrams-2d`)
+# Kit: Motion Diagrams 2D & Retro-PC (`@make-pictures/kits/motion-diagrams-2d`)
 
-Build gallery-grade `60 FPS` infinite-canvas architectural diagrams, continuous style-morphing topology flows, and product explainers with 3-ArtWorld `<ScenicBackdropLayers />`, `<ClippedSurfaceChrome />` rounded-corner precision, dignified light-mode rack focus, luminous Bézier flow trails, and zero GPU background clipping.
+Build gallery-grade `60 FPS` infinite-canvas architectural diagrams (`<MotionDiagramStage2D />`), classic computing / network packet windows (`<RetroPcWindowStage2D />` paired with `--style=retro-pc`), and SaaS product explainers with 3-ArtWorld `<ScenicBackdropLayers />`, `<ClippedSurfaceChrome />` rounded-corner precision, dignified light-mode rack focus, luminous Bézier flow trails, and zero GPU background clipping.
 
 ---
 
@@ -29,6 +29,8 @@ import {
 import {
   MotionDiagramStage2D,
   useMotionDiagramFocus,
+  RetroPcWindowStage2D,
+  computeRetroPcWindowLayout,
   CameraRig,
   WorldBox,
   portTop,
@@ -42,6 +44,9 @@ import {
   resolvePayloadTokenColors,
   type MotionDiagramStage2DProps,
   type MotionDiagramFocusState,
+  type RetroPcWindowStage2DProps,
+  type RetroPcHopSpec,
+  type RetroPcWindowLayout,
   type NodeBox,
 } from '@make-pictures/kits/motion-diagrams-2d';
 ```
@@ -161,6 +166,39 @@ const WORLD_NODES = {
       activeRanges={[[320, 660]]}
     />
   </MotionDiagramStage2D>
+</StyleProvider>
+```
+
+---
+
+## Classic Computing & Network Hop Windows: `<RetroPcWindowStage2D />` (`--style=retro-pc`)
+
+For networking, HTTP/DNS/CDN explainers, or classic computing stories (`npx make-pictures new <slug> --space=2d --style=retro-pc`), `<RetroPcWindowStage2D />` renders a complete CRT desktop OS window with titlebar controls, address bar, animated packet hop cards (`RetroPcHopSpec[]`), cumulative latency readout, and status bar:
+
+- **Key Props (`RetroPcWindowStage2DProps`):**
+  - `windowTitle: string` & `addressLabel: string` — **SECURITY / OFFLINE RULE:** Always use **symbolic offline example URLs only** (e.g., `'GET https://twoja-strona.pl'`, `'GET https://your-site.dev'`, or `'GET https://example.app'`). **Never** place private LAN, gateway, or router IP literals in `addressLabel` or diagram copy!
+  - `hops: ReadonlyArray<RetroPcHopSpec>` — `{ id, title, subtitle, badge, latencyMs, icon?: 'browser' | 'directory' | 'server' | 'check' }`.
+  - `statusBanner: string`, `progress: number` (`0..1` packet journey progress across hops), `lang?: 'pl' | 'en'` (renders localized `'AKTYWNY' / 'GOTOWY'` vs `'ACTIVE' / 'READY'` chrome), `isVertical?: boolean`, `enterFrame?: number` (default `2`; returns `null` on `frame <= 0` for Clean Frame `0`).
+- **Automatic `16:9` + `9:16` Golden Safe Box Layout (`computeRetroPcWindowLayout`):**
+  - `computeRetroPcWindowLayout({ viewportWidth, viewportHeight, isVertical, hopCount })` arranges hops horizontally in `16:9` (`1920×1080`) and automatically cascades them vertically inside `x ∈ [64, 880], y ∈ [264, 1308]` on `9:16` (`1080×1920`) — strictly inside the **Golden Safe Box (`x ∈ [40, 910], y ∈ [220, 1380]`)** with zero packet/label overlaps.
+
+```tsx
+const HOPS: RetroPcHopSpec[] = [
+  { id: 'browser', title: 'Przeglądarka', subtitle: 'Zapytanie HTTPS', badge: 'KLIENT', latencyMs: 2, icon: 'browser' },
+  { id: 'edge', title: 'Katalog nazw', subtitle: 'Rozpoznanie domeny', badge: 'KATALOG', latencyMs: 6, icon: 'directory' },
+  { id: 'origin', title: 'Serwer aplikacji', subtitle: 'Odpowiedź 200 OK', badge: 'SERWER', latencyMs: 10, icon: 'server' },
+];
+
+<StyleProvider style="retro-pc" renderBackdrop>
+  <RetroPcWindowStage2D
+    lang="pl"
+    windowTitle="Monitor pakietów — Retro OS"
+    addressLabel="GET https://twoja-strona.pl"
+    hops={HOPS}
+    statusBanner="Połączenie szyfrowane TLS • Suma opóźnień: 18 ms"
+    progress={packetProgress}
+    isVertical={height > width}
+  />
 </StyleProvider>
 ```
 

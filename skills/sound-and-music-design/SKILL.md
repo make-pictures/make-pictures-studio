@@ -59,8 +59,8 @@ Never hardcode scene IDs in audio scripts. Set `voiceEffect?: VoiceAcousticPrese
 ### Declaring `score` in `production.json` (`MusicScoreSpec`)
 - **`mode: 'prompt'`:** Generates a custom instrumental track via ElevenLabs Music (`composeDetailed`) from `prompt`, `durationSeconds`, and `forceInstrumental: true`.
 - **`mode: 'composition-plan'`:** Maps musical intensity arcs directly to your story acts via `sections: ScoreSectionSpec[]` (`{ name, durationMs, positiveLocalStyles, negativeLocalStyles }`).
-- **`mode: 'procedural-fallback'` (or `--mock` offline mode):** Synthesizes clean loopable stereo beds across 6 named `moodPreset` options:
-  `'ambient-tech' | 'warm-story' | 'news-pulse' | 'cinematic-drone' | 'paper-expedition' | 'upbeat-launch'`.
+- **`mode: 'procedural-fallback'` (or `--mock` offline mode):** Synthesizes clean loopable stereo beds across 7 named `moodPreset` options:
+  `'ambient-tech' | 'warm-story' | 'news-pulse' | 'cinematic-drone' | 'cinematic-epic' | 'paper-expedition' | 'upbeat-launch'`.
 
 ### Runtime Auto-Ducking & Beat-Reactive Visuals
 

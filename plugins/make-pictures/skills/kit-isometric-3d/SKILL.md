@@ -1,17 +1,18 @@
 ---
 name: kit-isometric-3d
 description: >-
-  3D architectural studio rooms (IsometricScenicSet3D across atelier, illustrative,
-  and editorial-gallery worlds), polymorphic maquette materials, optical directional
-  3D lighting, character animation physics, speech-envelope separation, and 9:16
-  framing for @make-pictures/kits/isometric-3d. Use this skill whenever building
-  3D studio dialogues, podcasts, or multi-character explainers with IsometricStage3D,
-  IsometricScenicSet3D, and Stylized3DCharacter wrapped in <StyleProvider>.
+  3D Soft-Clay & Spatial IBL podcast studio (<StudioHdrRig3D>, <PodcastStudioSet3D>,
+  <ClayCharacter3D>, computePodcastStudioLayout, computeClayBlinkProgress,
+  resolvePhysicalFinishProps) plus architectural <IsometricStage3D>,
+  <IsometricScenicSet3D>, and <Stylized3DCharacter> across all 10 built-in styles
+  (@make-pictures/kits/isometric-3d). Use this skill whenever building 3D podcast
+  dialogues, soft-clay character scenes, frosted-glass spatial sets, or isometric
+  3D studio explainers wrapped in <StyleProvider>.
 ---
 
-# Kit: Isometric 3D Studio (`@make-pictures/kits/isometric-3d`)
+# Kit: 3D Soft-Clay, Spatial IBL & Isometric Studio (`@make-pictures/kits/isometric-3d`)
 
-Create calm, broadcast-quality 3D multi-character conversations inside `ThreeCanvas` (`@remotion/three`) on the architectural `<IsometricStage3D />` turntable plinth — complete with a sculpted miniature 3D room set (`<IsometricScenicSet3D />` adapting automatically to the 3 Artistic Worlds: `atelier`, `illustrative`, and `editorial-gallery`), directional key/rim studio lighting driven by `optics.lightAngleDeg`, polymorphic character materials (`ceramic-maquette`, `anodized-telemetry`, `ink-figurine`), and ElevenLabs dialogue synchronization without robotic word-level twitching.
+Create expressive, broadcast-grade 3D character dialogues, podcast sets, and architectural studio explainers inside `ThreeCanvas` (`@remotion/three`) — powered by **100% offline GPU `<Lightformer>` IBL** (`<StudioHdrRig3D />`), beveled **Soft-Clay / Frosted-Glass / Retro-Voxel / Matte-Ceramic** PBR materials (`resolveStyleMaterial3D(style)`), sculpted 3D characters with blinking eyes & catchlights (`<ClayCharacter3D />` on `<PodcastStudioSet3D />`), or architectural turntable rooms (`<IsometricStage3D />` + `<Stylized3DCharacter />`).
 
 ---
 
@@ -25,10 +26,20 @@ import {
   DirectorCamera3D,
   getSpeechStateAtFrame,
   getSmoothPoseWindow,
+  resolveStyleMaterial3D,
   useStudioStyle,
   SPRING_PRESETS,
 } from '@make-pictures/core';
 import {
+  // Flagship v5 3D Soft-Clay & Spatial IBL Stack
+  StudioHdrRig3D,
+  resolveStudioHdrRigSpec,
+  PodcastStudioSet3D,
+  computePodcastStudioLayout,
+  ClayCharacter3D,
+  computeClayBlinkProgress,
+  resolvePhysicalFinishProps,
+  // Architectural Turntable & Maquette Stack
   IsometricStage3D,
   IsometricScenicSet3D,
   Stylized3DCharacter,
@@ -36,129 +47,140 @@ import {
   resolveIsometricMaterialPreset,
   resolveIsometricMaterialTokens,
   computeIsometricLightRig,
+  type StudioHdrRig3DProps,
+  type StudioHdrRigSpec,
+  type PodcastStudioSet3DProps,
+  type PodcastStudioLayout,
+  type ClayCharacter3DProps,
+  type ClayCharacterAccessory,
+  type ClayCharacterPose,
+  type PhysicalFinishProps,
   type IsometricStage3DProps,
   type IsometricScenicSet3DProps,
-  type ScenicRoomTokens,
   type Stylized3DCharacterProps,
-  type IsometricMaterialPreset,
-  type IsometricMaterialTokens,
-  type IsometricLightRigSpec,
   type CharacterGestureWeights,
 } from '@make-pictures/kits/isometric-3d';
 ```
 
-- **`IsometricStage3D`:** Two-tier architectural turntable plinth (`radius?: number` default `5.4`, `showScenicSet?: boolean` default `true`, `scenicVariant?: 'auto' | ArtWorld`, `showGrid?: boolean` default `false`, `accentColor?: string`, `surfaceColor?: string`, `atmosphericBeams?: boolean`, `seed?: number`, `children?: React.ReactNode`). Automatically provides:
-  - **Architectural Studio Room (`<IsometricScenicSet3D />` mounted by default when `showScenicSet = true`):** Replaces dark empty voids and protruding wireframe grids with a full miniature 3D architectural alcove (`backWallZ = -3.1`, angled side wings inside `radius`, warm inlay studio floor medallion at `y = 0.005`, and low centerpiece console/table at `z = -1.35..-1.36` safely behind speakers at `z = 0..0.2`) rising smoothly at `frame - 2` via `CINEMATIC_SPRINGS.entrance`.
-  - **Directional Studio Light Rig (`computeIsometricLightRig(style)`):** Projects the primary shadow-casting `directionalLight` along `resolveStyleOptics(style).lightAngleDeg`, paired with an opposite `pointLight` rim (`palette.accentSecondary`), soft fill `pointLight`, and conditional `<StagePostProcessing3D fogDensity={0.012} spotlightBeams={2} />` volumetric light cones.
-  - **Calibrated Plinth Geometry:** Distinct Y-plane outer accent rim (`y = 0.004`), studio inlay medallion (`y = 0.005`), inner calibration track (`y = 0.006`), and 24 angular degree ticks (`15°` increments at `y = 0.009` — zero Z-fighting).
-- **`IsometricScenicSet3D` & `computeScenicRoomTokens(style, variant?)`:** Resolves `resolveArtWorld(style)` (or explicit `variant: 'atelier' | 'illustrative' | 'editorial-gallery'`) into three distinct 3D room sets proportioned for both `16:9` widescreen and `9:16` Golden Safe Box framing:
-  1. **`'atelier'`** (`minimal-product`, `cyber-telemetry`): Luminous frosted-glass & anodized studio panels, sleek horizontal linear light cove, vertical acoustic louver wing, and cantilevered console with a floating sculptural torus & prism centerpiece.
-  2. **`'illustrative'`** (`tactile-craft`, `sketch-notebook`): Sunlit creative workshop walls with arched mullioned window & volumetric sunbeam, recessed wooden bookshelf holding colorful storybook volumes, potted botanical sculptural plant, and warm timber craft table with open sketchbook & poised studio lamp.
-  3. **`'editorial-gallery'`** (`editorial-press`, `archival-chronicle`, `brutalist-poster`): Museum travertine/cotton-plaster gallery alcove, tall architectural window slit casting a soft volumetric key-light shaft aligned with `optics.lightAngleDeg`, monumental framed bas-relief artwork in passe-partout, ceramic corbel vessel, and fluted stone plinth table (`z = -1.35`) with archival folio.
-- **`Stylized3DCharacter`:** Sculptural architectural maquette speaker figure (`resolveIsometricMaterialPreset(style, override?)` / `resolveIsometricMaterialTokens(style, materialPreset)`, optional `materialPreset?: IsometricMaterialPreset`) grounded on `<ContactShadowDisc3D position={[0, 0.012, 0]} radius={0.62} />` + calibrated speaker index ring (`y = 0.018`) across 3 material aesthetics:
-  1. **`'ceramic-maquette'`** (`editorial-press`, `archival-chronicle`, `minimal-product`): Matte architectural bisque/ceramic finish (`roughness: 0.78`, `metalness: 0.04`), sculpted brow band (`visorStyle: 'sculpted-band'`), and calm acoustic slit.
-  2. **`'anodized-telemetry'`** (`cyber-telemetry` & dark technical presets): Brushed satin dark alloy (`roughness: 0.34`, `metalness: 0.32`) with recessed slit visor (`visorStyle: 'slit-visor'`) and 3 precision telemetry bars.
-  3. **`'ink-figurine'`** (`brutalist-poster`, `tactile-craft`, `sketch-notebook`): High-contrast matte gouache/cardboard silhouette (`roughness: 0.92`, `metalness: 0.02`) with flat ink-mask plate (`visorStyle: 'ink-mask'`) and crisp rectangular eye highlights.
+---
+
+## 1. Flagship v5 `3D Soft-Clay & Spatial IBL` Stack (`--space=3d`)
+
+When scaffolding `--space=3d` (default style `soft-clay`, or `glass-studio`, `retro-pc`, `cyber-telemetry`, or any custom `styles/*.style.json`), prefer the v5 `<StudioHdrRig3D />` + `<PodcastStudioSet3D />` + `<ClayCharacter3D />` stack:
+
+- **`<StudioHdrRig3D preset="warm-softbox" | "clean-atelier" | "neon-grid" />`** (`contactShadowY?: number`, `contactShadowScale?: number`, `contactShadowOpacity?: number`, `intensity?: number`, `resolveStudioHdrRigSpec(preset, intensity)`):
+  - **100% Offline GPU `<Lightformer>` IBL (HARD RULE):** Builds an analytic `<Environment resolution={256} frames={1}>` rig exclusively from GPU `<Lightformer>` softbox/ring panels, paired with a shadow-casting `directionalLight`, fill + hemisphere lights, and deterministic `<ContactShadowDisc3D />` grounding. **NEVER mount `<Environment preset="..." />` or `<Environment files="..." />`** from `@react-three/drei` (which fetches remote `.hdr` assets from GitHub CDNs and breaks offline/sandboxed renders!).
+  - Defaults `preset` automatically from `resolveStyleMaterial3D(style).studioHdr` (`'warm-softbox'` for `soft-clay` / `tactile-craft` / `editorial-press` / `archival-chronicle` / `sketch-notebook`, `'clean-atelier'` for `glass-studio` / `minimal-product` / `brutalist-poster`, `'neon-grid'` for `retro-pc` / `cyber-telemetry`) and returns `null` on `frame <= 0` for Clean Frame `0`.
+- **`<PodcastStudioSet3D compactVertical={isVertical} onAirActive />` & `computePodcastStudioLayout({ width, depth, wallHeight, compactVertical })`:**
+  - Sculpted 3D cutaway broadcast room with beveled acoustic slat panels, oak studio desk (`tableZ = 0.18`), broadcast boom microphones, ceramic mugs, potted plants, recessed bookshelf, and a glowing sculpted 3D **`ON AIR`** sign (`onAirActive`).
+  - Pass `compactVertical={isVertical}` (`height > width`) so `computePodcastStudioLayout({ compactVertical: isVertical })` narrows the room (`4.6 m` vs `6.2 m`), tightens host seating (`leftHostPosition: [-0.92, 0, 0.14]`, `rightHostPosition: [0.92, 0, 0.14]` vs `±1.30 m` in `16:9`), and keeps both hosts cleanly inside the **`9:16` Golden Safe Box (`x ∈ [40, 910]`, `y ∈ [220, 1380]`)**.
+- **`<ClayCharacter3D />` (`computeClayBlinkProgress`, `resolvePhysicalFinishProps`):**
+  - Expressive vinyl-toy / soft-clay 3D host (`seated?: boolean`, `accessory?: 'headphones' | 'glasses' | 'beanie' | 'none'`, `finish?: 'soft-clay' | 'frosted-glass' | 'retro-voxel' | 'matte-ceramic'`, `pose?: 'idle' | 'talking' | 'listening' | 'pointing'`, `sweaterColor?`, `pantsColor?`, `skinColor?`, `hairColor?`, `eyeColor?`, `accentColor?`, `speakingWeight?`, `speechEnergy?`, `headYawOffset?`, `enterFrame = 2`, `seed?`).
+  - Features real 3D eyeballs, irises, specular catchlight spheres, sculpted brows, deterministic eyelid blinks firing smoothly once every `~3.2 s` via `computeClayBlinkProgress(frame, fps, seed)` (`0` on `frame <= 0`), scale-driven lip/mouth articulation (`speechEnergy`), calm arm gestures (`speakingWeight`), and strict **`talkBounce = 0`** (zero vertical torso hopping).
+
+### 10 Built-in Styles → 3D Material & Studio HDR Mapping
+
+| Built-in Style (`BuiltInStyleId`) | `ArtWorld` | `material3d.finish` | `material3d.bevelRadius` | `material3d.studioHdr` | `IsometricStage3D` Maquette Preset |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| `soft-clay` *(default `--space=3d`)* | `illustrative` | `soft-clay` | `0.14` | `warm-softbox` | `ink-figurine` |
+| `glass-studio` | `atelier` | `frosted-glass` | `0.10` | `clean-atelier` | `ceramic-maquette` |
+| `retro-pc` | `atelier` | `retro-voxel` | `0.04` | `neon-grid` | `anodized-telemetry` |
+| `cyber-telemetry` | `atelier` | `frosted-glass` | `0.08` | `neon-grid` | `anodized-telemetry` |
+| `minimal-product` | `atelier` | `frosted-glass` | `0.10` | `clean-atelier` | `ceramic-maquette` |
+| `sketch-notebook` | `illustrative` | `soft-clay` | `0.10` | `warm-softbox` | `ink-figurine` |
+| `tactile-craft` | `illustrative` | `soft-clay` | `0.14` | `warm-softbox` | `ink-figurine` |
+| `editorial-press` | `editorial-gallery` | `matte-ceramic` | `0.06` | `warm-softbox` | `ceramic-maquette` |
+| `archival-chronicle` | `editorial-gallery` | `matte-ceramic` | `0.06` | `warm-softbox` | `ceramic-maquette` |
+| `brutalist-poster` | `editorial-gallery` | `matte-ceramic` | `0.02` | `clean-atelier` | `ink-figurine` |
+
+---
+
+## 2. Architectural Turntable Stack (`<IsometricStage3D />` & `<Stylized3DCharacter />`)
+
+For abstract architectural explainers and museum-style maquette debates:
+- **`IsometricStage3D`:** Two-tier architectural turntable plinth (`radius = 5.4`, `showScenicSet = true`, `scenicVariant?: 'auto' | ArtWorld`) mounting `<IsometricScenicSet3D />` (`atelier`, `illustrative`, or `editorial-gallery` room alcove with rear console at `z = -1.35`), directional key/rim lights (`computeIsometricLightRig(style)`), and `<StagePostProcessing3D />`.
+- **`Stylized3DCharacter`:** Sculptural architectural maquette speaker (`'ceramic-maquette' | 'anodized-telemetry' | 'ink-figurine'`) grounded on `<ContactShadowDisc3D />` with `gestureWeights` (`shrug`, `presentRight`, `presentLeft`, `celebrate`, `listenNod`).
 
 ---
 
 ## Mandatory 3D Character & Dialogue Rules
 
-### 1. Strict Separation: Sentence Envelope (`speakingWeight`) vs. Syllable Energy (`speechEnergy`)
-Raw word energy drops to `0` between words inside a single sentence. Wiring syllable energy to limbs or HUD cards makes characters convulse on every word!
-- Always compute speech state via `const speech = getSpeechStateAtFrame(sceneId, localFrame, voiceoverManifest?)`:
-  - **`speech.speakingWeight` (`0..1` continuous turn envelope):** Smoothly ramps in `14` frames before the first word, stays steady at `1.0` across inter-word micro-pauses, and eases out `20` frames after the final word. Use **`speakingWeight`** exclusively for:
-    - body posture & conversational hand cadence,
-    - calibrated speaker index ring activation,
-    - speaker nameplate / HUD card activation scale.
-  - **`speech.energy` (`0..1` 7-tap low-pass filtered syllable envelope):** Pass as `speechEnergy={speech.energy}` **solely** to animate the acoustic slit / visor equalizer bars.
-
-### 2. Zero Snap Gestures (`getSmoothPoseWindow` Only)
-- Binary `0 / 1` ternary checks (`frame > 120 ? 1 : 0`) on character joints or head yaw are **strictly forbidden**.
-- Every entry in `gestureWeights` (`shrug`, `presentRight`, `presentLeft`, `celebrate`, `listenNod`) and every `headYawOffset` change **must** pass through `getSmoothPoseWindow(frame, fps, startFrame, endFrame)` powered by `SPRING_PRESETS.calmPose` (`damping: 200, stiffness: 26, mass: 1.4`), giving organic ~`0.75 s` pose transitions.
-
-### 3. `60 FPS` Frequency Limits (`0.03..0.055 rad/frame`)
-- Breathing cycles, gentle conversational hand sway, head yaw turns, and any custom 3D props placed inside `<IsometricStage3D>` must stay strictly within angular frequencies **`frame * 0.03` to `frame * 0.055`** radians/frame (one full cycle every `2.0–3.5 s`).
-- Multipliers `frame * 0.1+` (such as `frame * 0.16` or `frame * 0.22`) on limbs/props and vertical torso bouncing (`talkBounce = 0`) are **strictly forbidden**.
-- Drive camera transitions with `DirectorCamera3D` (`transition: 'glide'` uses `SPRING_PRESETS.calmCamera`: `damping: 200, stiffness: 22, mass: 1.6`, or instant editorial `'cut'` between single close-ups and two-shots).
-
-### 4. `9:16` Vertical Framing, Safe Speaker Placement & WebGL Budget
-- Enable `safeBox9x16Compensation` (default `true`) on `<DirectorCamera3D />` so vertical `1080×1920` renders automatically widen FOV and shift framing into the **Golden Safe Box (`x ∈ [40, 910]`, `y ∈ [220, 1380]`)** clear of the bottom `480 px` Shorts/Reels UI.
-- Place two conversing `<Stylized3DCharacter>` figures around `[-1.45, 0, 0.15]` and `[1.45, 0, 0.15]` so `<IsometricScenicSet3D>`'s rear centerpiece console (`z = -1.35..-1.36`) sits cleanly between and behind them without ever blocking either speaker.
-- Keep any HTML speaker nameplate overlays strictly inside `left: 76, width: 788, top >= 236` in `9:16`.
-- When chaining `IsometricStage3D` with another `ThreeCanvas` scene (e.g., `DioramaStage3D`), orchestrate them via `<ContinuousSceneFlow>` with `usesThree: true` so at most **1 WebGL context** is mounted per frame.
-
-### 5. Clean Frame `0` & Hardware GPU Acceleration (`--gl=angle`)
-- Keep `frame === 0` clean (`StyleBackdrop` renders pure `palette.bgCanvas` at `frame <= 0`, and `IsometricStage3D` / `IsometricScenicSet3D` / `Stylized3DCharacter` return `null` on `frame <= 0`, entering cleanly from `frame >= 2`).
-- Always render `ThreeCanvas` compositions with `--gl=angle` (handled automatically by `npx make-pictures qa` and `npx make-pictures render` when `usesThree: true` is set on the composition entry).
+1. **Strict Separation: Sentence Envelope (`speakingWeight`) vs. Syllable Energy (`speechEnergy`):**
+   - Compute `const speech = getSpeechStateAtFrame(sceneId, localFrame, voiceoverManifest?)`.
+   - Use **`speech.speakingWeight`** (`0..1` continuous phrase envelope) for posture, hand cadence, `ON AIR` / index ring glow, and nameplate focus.
+   - Pass **`speech.energy`** (`0..1` low-pass syllable envelope) **solely** as `speechEnergy={speech.energy}` to drive lip/mouth opening (`ClayCharacter3D`) or acoustic equalizer bars (`Stylized3DCharacter`).
+2. **Zero Snap Gestures (`getSmoothPoseWindow` Only) & `talkBounce = 0`:**
+   - Never use binary `frame > N ? 1 : 0` ternaries on joints or `headYawOffset` — always wrap pose windows in `getSmoothPoseWindow(frame, fps, startFrame, endFrame)`.
+   - Keep all idle/conversational sway strictly inside **`frame * 0.03` to `frame * 0.055` rad/frame** (`2.0–3.5 s` cycles), and keep vertical torso bounce at **`talkBounce = 0`**.
+3. **Clean Frame `0`, Offline IBL & `<= 1` WebGL Context Budget:**
+   - `StudioHdrRig3D`, `PodcastStudioSet3D`, `ClayCharacter3D`, `IsometricStage3D`, and `Stylized3DCharacter` all return `null` on `frame <= 0` so `f=0` renders a pure uniform `palette.bgCanvas`.
+   - When chaining multiple 3D scenes, orchestrate them via `<ContinuousSceneFlow>` with `usesThree: true` so at most **1 `<ThreeCanvas>`** is mounted per frame (`--gl=angle` is enabled automatically by `qa` and `render`).
 
 ---
 
-## Reference Pattern (`<StyleProvider>` + `<DirectorCamera3D>` + `<IsometricStage3D>`)
+## Reference Pattern (`<StudioHdrRig3D>` + `<PodcastStudioSet3D>` + `<ClayCharacter3D>`)
 
 ```tsx
-const DialogueStage: React.FC<{ frame: number; fps: number }> = ({ frame, fps }) => {
+const PodcastDialogueScene: React.FC<{ frame: number; fps: number; width: number; height: number }> = ({
+  frame,
+  fps,
+  width,
+  height,
+}) => {
   const style = useStudioStyle();
-  const s1Start = 12;
-  const s2Start = 240;
-  const s2End = 450;
+  const mat3d = resolveStyleMaterial3D(style);
+  const isVertical = height > width;
+  const layout = computePodcastStudioLayout({ compactVertical: isVertical });
 
-  const hostSpeech = getSpeechStateAtFrame('s1-host', frame - s1Start);
-  const guestSpeech = getSpeechStateAtFrame('s2-guest', frame - s2Start);
-
-  const hostGestures: CharacterGestureWeights = {
-    presentRight: getSmoothPoseWindow(frame, fps, s1Start + 24, s1Start + 190),
-    listenNod: getSmoothPoseWindow(frame, fps, s2Start + 20, s2End - 30),
-  };
-
-  const guestGestures: CharacterGestureWeights = {
-    presentLeft: getSmoothPoseWindow(frame, fps, s2Start + 24, s2End - 24),
-  };
+  const hostSpeech = getSpeechStateAtFrame('s1-host', frame - 14);
+  const guestSpeech = getSpeechStateAtFrame('s2-guest', frame - 190);
 
   return (
-    <IsometricStage3D radius={5.4}>
-      <Stylized3DCharacter
-        position={[-1.45, 0, 0.15]}
-        rotationY={0.38}
-        primaryColor={style.palette.accentPrimary}
-        accentColor={style.palette.accentSecondary}
-        speakingWeight={hostSpeech.speakingWeight}
-        speechEnergy={hostSpeech.energy}
-        gestureWeights={hostGestures}
-        headYawOffset={0.18 * getSmoothPoseWindow(frame, fps, s2Start, s2End)}
-        enterFrame={4}
+    <ThreeCanvas width={width} height={height} shadows>
+      <DirectorCamera3D
+        safeBox9x16Compensation
+        anchors={{
+          host: { position: layout.leftHostPosition, height: 1.55 },
+          guest: { position: layout.rightHostPosition, height: 1.55 },
+        }}
+        shots={[
+          { fromFrame: 0, shot: 'medium-two-shot', target: 'host', secondaryTarget: 'guest', transition: 'cut' },
+          { fromFrame: 180, shot: 'medium', target: 'guest', transition: 'glide' },
+        ]}
       />
-      <Stylized3DCharacter
-        position={[1.45, 0, 0.15]}
-        rotationY={-0.38}
-        primaryColor={style.palette.accentSecondary}
-        accentColor={style.palette.accentPrimary}
-        speakingWeight={guestSpeech.speakingWeight}
-        speechEnergy={guestSpeech.energy}
-        gestureWeights={guestGestures}
-        headYawOffset={-0.18 * getSmoothPoseWindow(frame, fps, s1Start, s2Start - 12)}
-        enterFrame={10}
-      />
-    </IsometricStage3D>
+      <StudioHdrRig3D preset={mat3d.studioHdr} />
+      <PodcastStudioSet3D
+        compactVertical={isVertical}
+        onAirActive={hostSpeech.speakingWeight > 0.1 || guestSpeech.speakingWeight > 0.1}
+      >
+        <ClayCharacter3D
+          seated
+          position={layout.leftHostPosition}
+          rotationY={layout.leftHostRotationY}
+          finish={mat3d.finish}
+          accessory="headphones"
+          sweaterColor={style.palette.accentPrimary}
+          speakingWeight={hostSpeech.speakingWeight}
+          speechEnergy={hostSpeech.energy}
+          pose={hostSpeech.speakingWeight > 0.2 ? 'talking' : 'listening'}
+          headYawOffset={0.14 * getSmoothPoseWindow(frame, fps, 185, 340)}
+          seed="host-a"
+        />
+        <ClayCharacter3D
+          seated
+          position={layout.rightHostPosition}
+          rotationY={layout.rightHostRotationY}
+          finish={mat3d.finish}
+          accessory="glasses"
+          sweaterColor={style.palette.accentSecondary}
+          speakingWeight={guestSpeech.speakingWeight}
+          speechEnergy={guestSpeech.energy}
+          pose={guestSpeech.speakingWeight > 0.2 ? 'talking' : 'listening'}
+          headYawOffset={-0.14 * getSmoothPoseWindow(frame, fps, 14, 175)}
+          seed="guest-b"
+        />
+      </PodcastStudioSet3D>
+    </ThreeCanvas>
   );
 };
-
-// Inside your composition:
-<StyleProvider style={props.styleId} renderBackdrop>
-  <ThreeCanvas width={width} height={height} shadows>
-    <DirectorCamera3D
-      safeBox9x16Compensation
-      anchors={{
-        host: { position: [-1.45, 0, 0.15], height: 2.45 },
-        guest: { position: [1.45, 0, 0.15], height: 2.45 },
-      }}
-      shots={[
-        { fromFrame: 0, shot: 'medium-two-shot', target: 'host', secondaryTarget: 'guest', transition: 'cut' },
-        { fromFrame: 180, shot: 'over-the-shoulder', target: 'host', secondaryTarget: 'guest', transition: 'glide' },
-        { fromFrame: 360, shot: 'medium', target: 'guest', transition: 'glide' },
-      ]}
-    />
-    <DialogueStage frame={frame} fps={fps} />
-  </ThreeCanvas>
-</StyleProvider>
 ```

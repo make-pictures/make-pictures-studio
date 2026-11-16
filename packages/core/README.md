@@ -14,9 +14,11 @@ Deterministic **60 FPS Video-as-Code** core runtime for [`make.pictures`](https:
 
 ## Features
 
-- **Cinematography & Shot DSL (`@make-pictures/core/camera`):** `<DirectorCamera3D />` (`establishing-wide`, `medium`, `close-up`, `low-angle-hero`, `whip`, `glide`, `orbit`, optical `dollyZoomDeltaFov`, automatic `9:16` Golden Safe Box compensation) and `<DirectorCamera2D />`.
-- **Smart Audio Engine (`@make-pictures/core/audio`):** `<SmartMusicBed />` sidechain auto-ducking under narration, `useMusicBeatPulse`, `<SoundCue />` word-timestamp synchronization, and `VOICE_ACOUSTIC_FILTERS`.
-- **Production Manifest & Capsule Contracts (`@make-pictures/core`):** `defineProduction`, `productionAssetPath`, `SPRING_PRESETS` (`damping: 200`), `STUDIO_THEME`, `THEME`, and deterministic Mulberry32 `createSeededRandom`.
+- **2-Axis Art Direction (`@make-pictures/core/style`):** `DimensionalSpace ('2d' | '2.5d' | '3d') × StylePreset` spanning **10 built-in styles** (`minimal-product`, `sketch-notebook`, `retro-pc`, `brutalist-poster`, `cyber-telemetry`, `tactile-craft`, `editorial-press`, `archival-chronicle`, `soft-clay`, `glass-studio`) + custom `styles/*.style.json`, `<StyleProvider>`, `interpolateStylePresets`, and `resolveStyleMaterial3D`.
+- **Director DNA & Continuous Scene Flow (`@make-pictures/core`):** `<ContinuousSceneFlow />` (`<= 1` WebGL context handoff), `<OpticalCrossDissolve />`, `<ScenicBackdropLayers />`, `<ClippedSurfaceChrome />`, `CINEMATIC_SPRINGS` (`damping: 200`), and `DIRECTOR_PACING_BUDGET` (`>= 4.5 s` / `>= 270` frames per scene).
+- **Cinematography, Shot DSL & 2.5D Optics (`@make-pictures/core/camera`, `@make-pictures/core/optics`):** `<DirectorCamera3D />`, `<DirectorCamera2D />`, `<OpticalStage2D />`, `<DepthPlane />`, `<StageLightingRig />`, `getTactileSurfaceStyle`, optical `dollyZoomDeltaFov`, and automatic `9:16` Golden Safe Box compensation.
+- **Smart Audio Engine (`@make-pictures/core/audio`):** `<VoiceoverTrack />`, `<SmartMusicBed />` sidechain auto-ducking under narration, `useMusicBeatPulse`, `<SoundCue />` word-timestamp synchronization, and `VOICE_ACOUSTIC_FILTERS`.
+- **Production Manifest & Capsule Contracts (`@make-pictures/core`):** `defineProduction`, `productionAssetPath`, `SPRING_PRESETS`, and deterministic Mulberry32 `createSeededRandom`.
 
 ## Install
 
