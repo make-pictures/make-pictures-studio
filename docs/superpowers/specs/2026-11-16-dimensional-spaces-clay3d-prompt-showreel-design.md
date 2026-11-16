@@ -105,12 +105,12 @@ Zachowujemy dokładne 7 polskich sekcji inspektora Studio Web (`Informacje`, `Pa
    - Widok przełącznika `[ 2D ] [ 2.5D ] [ 3D ] + Własne style (styles/*.style.json)` przechodzący w czystą kartę finałową `make.pictures` z `npx create-make-pictures@latest`.
 
 ### 3.3. Warstwa Audio ElevenLabs (`39.0 s`, `-14 LUFS`)
-- Lektor `Daniel` (`onwK4e9ZLuTAKqWW03F9`, `speed: 1.08`, czysta fonetyka bez skrótów i cyfr w `text`):
-  1. `scene1`: PL *„Zobacz, jak w mejk kropka pikczers z jednego zdania powstają gotowe animacje.”* / EN *„See how make dot pictures turns a single sentence into a finished animation.”*
-  2. `scene2`: PL *„Wybierz przestrzeń dwa de oraz styl retro pe ce, by prosto wyjaśnić działanie sieci.”* / EN *„Pick two dee space in retro computer style to explain a live network request.”*
+- Lektor `Daniel` (`onwK4e9ZLuTAKqWW03F9`, `speed: 1.08`, czysta fonetyka bez skrótów i cyfr w `text`; nazwa marki wymawiana naturalnie jako `mejk pikczers` / `make pictures`, aktualizacja również w `sound-and-music-design/SKILL.md`):
+  1. `scene1`: PL *„Zobacz, jak w mejk pikczers z jednego zdania powstają gotowe animacje.”* / EN *„See how make pictures turns a single sentence into a finished animation.”*
+  2. `scene2`: PL *„Wybierz przestrzeń dwa de oraz styl retro pi si, by prosto wyjaśnić działanie sieci.”* / EN *„Pick two dee space in retro pee see style to explain a live network request.”*
   3. `scene3`: PL *„Przełącz na wycinankę dwa i pół de i opowiedz historię lądowania Apollo jedenaście.”* / EN *„Switch to two point five dee paper cutouts to bring the Apollo eleven landing to life.”*
   4. `scene4`: PL *„Albo wejdź w pełne trzy de z miękkiej modeliny i ożyw rozmowę w studiu podcastowym.”* / EN *„Or step into sculpted three dee soft clay for an expressive podcast studio scene.”*
-  5. `scene5`: PL *„Twórz też własne style. Zacznij na mejk kropka pikczers.”* / EN *„Or craft your own custom style. Start at make dot pictures.”*
+  5. `scene5`: PL *„Twórz też własne style. Zacznij w mejk pikczers.”* / EN *„Or craft your own custom style. Start with make pictures.”*
 - Dynamiczna, ciepła ścieżka muzyczna AI (`39 s` `composition-plan` z `SmartMusicBed` auto-duckingiem) oraz 5 dopasowanych efektów Foley (`prompt-key`, `retro-beep`, `lunar-thruster`, `mic-warm`, `finale-chime`).
 
 ---
