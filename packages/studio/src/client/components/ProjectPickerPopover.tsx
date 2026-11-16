@@ -14,19 +14,25 @@ import {
 import {
   BUILT_IN_STYLE_IDS,
   BUILT_IN_STYLES,
+  filterStylesBySpace,
   isBuiltInStyleId,
   isVerticalComposition,
+  resolveStyleSpaces,
+  type DimensionalSpace,
   type StudioCompositionEntry,
   type StylePreset,
 } from '@make-pictures/core';
 import type { OriginFilterMode } from './LeftSidebar';
 
 export type ProjectPickerViewMode = 'films' | 'styles';
+export type StyleSpaceFilterMode = 'all' | DimensionalSpace;
 
 export interface ProjectPickerPopoverProps {
   isOpen?: boolean;
   onClose: () => void;
   viewMode?: ProjectPickerViewMode;
+  spaceFilter?: StyleSpaceFilterMode;
+  onChangeSpaceFilter?: (space: StyleSpaceFilterMode) => void;
   compositions?: StudioCompositionEntry[];
   activeComposition?: StudioCompositionEntry | null;
   onSelectComposition?: (id: string) => void;
@@ -80,6 +86,8 @@ export const ProjectPickerPopover: React.FC<ProjectPickerPopoverProps> = ({
   isOpen = true,
   onClose,
   viewMode = 'films',
+  spaceFilter,
+  onChangeSpaceFilter,
   compositions = EMPTY_COMPOSITIONS,
   activeComposition = null,
   onSelectComposition,
@@ -95,7 +103,20 @@ export const ProjectPickerPopover: React.FC<ProjectPickerPopoverProps> = ({
 }) => {
   const [query, setQuery] = useState<string>('');
   const [originFilter, setOriginFilter] = useState<OriginFilterMode>('all');
+  const [internalSpaceFilter, setInternalSpaceFilter] =
+    useState<StyleSpaceFilterMode>('all');
   const [focusedIndex, setFocusedIndex] = useState<number>(0);
+
+  const effectiveSpaceFilter: StyleSpaceFilterMode =
+    spaceFilter ?? internalSpaceFilter;
+
+  const handleSelectSpaceFilter = useCallback(
+    (nextSpace: StyleSpaceFilterMode) => {
+      setInternalSpaceFilter(nextSpace);
+      onChangeSpaceFilter?.(nextSpace);
+    },
+    [onChangeSpaceFilter]
+  );
 
   const [isDuplicating, setIsDuplicating] = useState<boolean>(false);
   const [draftSlug, setDraftSlug] = useState<string>('');
@@ -180,9 +201,20 @@ export const ProjectPickerPopover: React.FC<ProjectPickerPopoverProps> = ({
   }, [filteredCompositions]);
 
   // ==================== STYLES FILTERING & GROUPING ====================
+  const styleSpaceCounts = useMemo(() => {
+    const allStyles = [...customStyles, ...resolvedBuiltInStyles];
+    return {
+      all: allStyles.length,
+      '2d': filterStylesBySpace(allStyles, '2d').length,
+      '2.5d': filterStylesBySpace(allStyles, '2.5d').length,
+      '3d': filterStylesBySpace(allStyles, '3d').length,
+    };
+  }, [customStyles, resolvedBuiltInStyles]);
+
   const matchesStyleQuery = useCallback(
     (preset: StylePreset): boolean => {
       if (queryTokens.length === 0) return true;
+      const { spaces } = resolveStyleSpaces(preset);
       const haystack = [
         preset.name,
         preset.id,
@@ -190,6 +222,7 @@ export const ProjectPickerPopover: React.FC<ProjectPickerPopoverProps> = ({
         preset.typography.displayFont,
         preset.typography.bodyFont,
         preset.typography.monoFont,
+        ...spaces,
         ...preset.recommendedFor,
       ]
         .join(' ')
@@ -199,15 +232,21 @@ export const ProjectPickerPopover: React.FC<ProjectPickerPopoverProps> = ({
     [queryTokens]
   );
 
-  const filteredCustomStyles = useMemo(
-    () => customStyles.filter(matchesStyleQuery),
-    [customStyles, matchesStyleQuery]
-  );
+  const filteredCustomStyles = useMemo(() => {
+    const bySpace =
+      effectiveSpaceFilter === 'all'
+        ? customStyles
+        : filterStylesBySpace(customStyles, effectiveSpaceFilter);
+    return bySpace.filter(matchesStyleQuery);
+  }, [customStyles, effectiveSpaceFilter, matchesStyleQuery]);
 
-  const filteredBuiltInStyles = useMemo(
-    () => resolvedBuiltInStyles.filter(matchesStyleQuery),
-    [resolvedBuiltInStyles, matchesStyleQuery]
-  );
+  const filteredBuiltInStyles = useMemo(() => {
+    const bySpace =
+      effectiveSpaceFilter === 'all'
+        ? resolvedBuiltInStyles
+        : filterStylesBySpace(resolvedBuiltInStyles, effectiveSpaceFilter);
+    return bySpace.filter(matchesStyleQuery);
+  }, [resolvedBuiltInStyles, effectiveSpaceFilter, matchesStyleQuery]);
 
   // ==================== FLAT LIST FOR KEYBOARD NAVIGATION ====================
   const flatItems = useMemo<FlatPopoverItem[]>(() => {
@@ -404,6 +443,7 @@ export const ProjectPickerPopover: React.FC<ProjectPickerPopoverProps> = ({
     const itemIndex = runningFlatIdx++;
     const isActive = preset.id === resolvedActiveStyleId;
     const isFocused = itemIndex === clampedFocusedIndex;
+    const { spaces: presetSpaces } = resolveStyleSpaces(preset);
 
     return (
       <button
@@ -478,6 +518,15 @@ export const ProjectPickerPopover: React.FC<ProjectPickerPopoverProps> = ({
           {origin === 'custom' && (
             <span className="mp-mini-badge is-prod">WŁASNY</span>
           )}
+          {presetSpaces.map((sp) => (
+            <span
+              key={sp}
+              data-style-space={sp}
+              className={`mp-mini-badge ${sp === '3d' ? 'is-3d' : ''}`}
+            >
+              {sp.toUpperCase()}
+            </span>
+          ))}
           {preset.surface.isDark && (
             <span className="mp-mini-badge is-dark">DARK</span>
           )}
@@ -741,6 +790,39 @@ export const ProjectPickerPopover: React.FC<ProjectPickerPopoverProps> = ({
         ) : (
           /* ==================== MODE 2: STYLE LAB CATALOG ==================== */
           <>
+            <div className="mp-popover-tabs">
+              <div
+                className="mp-segmented is-full"
+                role="tablist"
+                aria-label="Filtr przestrzeni stylu (2D / 2.5D / 3D)"
+              >
+                {(
+                  [
+                    { id: 'all', label: 'Wszystkie', count: styleSpaceCounts.all },
+                    { id: '2d', label: '2D', count: styleSpaceCounts['2d'] },
+                    { id: '2.5d', label: '2.5D', count: styleSpaceCounts['2.5d'] },
+                    { id: '3d', label: '3D', count: styleSpaceCounts['3d'] },
+                  ] as const
+                ).map((tab) => {
+                  const active = effectiveSpaceFilter === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={active}
+                      data-space-filter={tab.id}
+                      className={`mp-segmented-btn ${active ? 'is-active' : ''}`}
+                      onClick={() => handleSelectSpaceFilter(tab.id)}
+                    >
+                      <span>{tab.label}</span>
+                      <span className="mp-origin-count">{tab.count}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             <div className="mp-popover-list">
               {/* Custom Workspace Styles */}
               <div>
@@ -769,6 +851,13 @@ export const ProjectPickerPopover: React.FC<ProjectPickerPopoverProps> = ({
                     Brak własnych plików w <code>styles/*.style.json</code>.
                     Wybierz dowolny styl bazowy i kliknij{' '}
                     <strong>„+ Duplikuj jako własny styl”</strong> poniżej.
+                  </div>
+                ) : filteredCustomStyles.length === 0 &&
+                  queryTokens.length === 0 ? (
+                  <div className="mp-style-empty-note" style={{ margin: '4px 6px 8px' }}>
+                    Brak własnych stylów w przestrzeni{' '}
+                    <strong>{effectiveSpaceFilter.toUpperCase()}</strong>. Kliknij{' '}
+                    <strong>„+ Duplikuj jako własny styl”</strong> poniżej, aby utworzyć nowy.
                   </div>
                 ) : (
                   filteredCustomStyles.map((preset) =>

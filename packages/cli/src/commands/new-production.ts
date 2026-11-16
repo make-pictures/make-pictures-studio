@@ -2,7 +2,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   BUILT_IN_STYLES,
+  DimensionalSpaceSchema,
   isBuiltInStyleId,
+  type BuiltInStyleId,
+  type DimensionalSpace,
   type StylePreset,
   type VoiceArchetype,
 } from '../../../core/src/style/presets';
@@ -44,11 +47,27 @@ export const VOICE_ARCHETYPE_TO_ELEVENLABS_ID: Record<VoiceArchetype, string> =
     'storyteller-expressive': 'JBFqnCBsd6RMkjVDRZzb',
   };
 
+export function defaultKitAndStyleForSpace(space: DimensionalSpace): {
+  kit: ScaffoldKitId;
+  styleId: BuiltInStyleId;
+} {
+  switch (space) {
+    case '3d':
+      return { kit: 'isometric-3d', styleId: 'soft-clay' };
+    case '2.5d':
+      return { kit: 'paper-diorama-3d', styleId: 'tactile-craft' };
+    case '2d':
+    default:
+      return { kit: 'motion-diagrams-2d', styleId: 'minimal-product' };
+  }
+}
+
 export interface NewProductionOptions {
   rootDir?: string;
   cwd?: string;
   dir?: string;
   slug: string;
+  space?: DimensionalSpace;
   kit?: ScaffoldKitId;
   style?: string;
   voice?: string;
@@ -1707,14 +1726,29 @@ export async function runNewProductionCommand(
   });
 
   const slug = normalizeProductionSlug(options.slug);
+  if (options.space !== undefined) {
+    const parsedSpace = DimensionalSpaceSchema.safeParse(options.space);
+    if (!parsedSpace.success) {
+      throw new Error(
+        `Invalid --space value "${String(options.space)}". Expected one of: 2d, 2.5d, 3d.`
+      );
+    }
+  }
   if (options.kit && !isValidScaffoldKitId(options.kit)) {
     throw new Error(
       `Unknown visual kit "${options.kit}". Supported kits: ${SCENES_KIT_IDS.join(', ')}`
     );
   }
-  const kit: ScaffoldKitId = options.kit ?? 'vector-scene-2d';
+  const spaceDefaults = options.space
+    ? defaultKitAndStyleForSpace(options.space)
+    : undefined;
+  const kit: ScaffoldKitId =
+    options.kit ?? spaceDefaults?.kit ?? 'vector-scene-2d';
   const lang: 'pl' | 'en' = options.lang ?? 'en';
-  const resolvedStyle = resolveScaffoldStyle(studioDir, options.style);
+  const resolvedStyle = resolveScaffoldStyle(
+    studioDir,
+    options.style ?? spaceDefaults?.styleId
+  );
   const pascalName = slugToPascalCase(slug);
   const title = slugToHumanTitle(slug);
 

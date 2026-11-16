@@ -3,9 +3,13 @@ import path from 'node:path';
 import {
   BUILT_IN_STYLE_IDS,
   BUILT_IN_STYLES,
+  DimensionalSpaceSchema,
   StylePresetSchema,
+  filterStylesBySpace,
   isBuiltInStyleId,
+  resolveStyleSpaces,
   withNormalizedStyleOptics,
+  type DimensionalSpace,
   type StylePreset,
 } from '../../../core/src/style/presets';
 import { SCENES_KIT_IDS, type ScaffoldKitId } from './new-production';
@@ -145,19 +149,36 @@ export async function runStylesListCommand(options?: {
   cwd?: string;
   dir?: string;
   json?: boolean;
+  space?: DimensionalSpace;
 }): Promise<{
   builtInStyles: StylePreset[];
   customStyles: StylePreset[];
   visualKits: typeof VISUAL_KIT_CATALOG;
   warnings: string[];
 }> {
+  if (options?.space !== undefined) {
+    const parsedSpace = DimensionalSpaceSchema.safeParse(options.space);
+    if (!parsedSpace.success) {
+      throw new Error(
+        `Invalid --space value "${String(options.space)}". Expected one of: 2d, 2.5d, 3d.`
+      );
+    }
+  }
+
   const { studioDir } = resolveWorkspaceContext({
     cwd: options?.cwd,
     dir: options?.dir,
   });
-  const builtInStyles = BUILT_IN_STYLE_IDS.map((id) => BUILT_IN_STYLES[id]);
-  const { styles: customStyles, warnings } =
+  const allBuiltInStyles = BUILT_IN_STYLE_IDS.map((id) => BUILT_IN_STYLES[id]);
+  const { styles: allCustomStyles, warnings } =
     loadWorkspaceCustomStyles(studioDir);
+
+  const builtInStyles = options?.space
+    ? filterStylesBySpace(allBuiltInStyles, options.space)
+    : allBuiltInStyles;
+  const customStyles = options?.space
+    ? filterStylesBySpace(allCustomStyles, options.space)
+    : allCustomStyles;
 
   const payload = {
     builtInStyles,
@@ -171,11 +192,33 @@ export async function runStylesListCommand(options?: {
     return payload;
   }
 
-  console.log('\n🎨 Built-in Art Direction Styles (7):');
-  for (const s of builtInStyles) {
-    console.log(
-      `  • ${s.id.padEnd(20)} ${s.typography.displayFont} + ${s.typography.bodyFont} — ${s.description}`
-    );
+  const spaceHeadingSuffix = options?.space
+    ? ` [space: ${options.space}]`
+    : '';
+  console.log(
+    `\n🎨 Built-in Art Direction Styles${spaceHeadingSuffix} (${builtInStyles.length}):`
+  );
+  if (options?.space) {
+    for (const s of builtInStyles) {
+      const tags = `[${resolveStyleSpaces(s).spaces.join(', ')}]`;
+      console.log(
+        `  • ${s.id.padEnd(20)} ${tags.padEnd(16)} ${s.typography.displayFont} + ${s.typography.bodyFont} — ${s.description}`
+      );
+    }
+  } else {
+    for (const groupSpace of ['2d', '2.5d', '3d'] as const) {
+      const inGroup = builtInStyles.filter(
+        (s) => resolveStyleSpaces(s).preferredSpace === groupSpace
+      );
+      if (inGroup.length === 0) continue;
+      console.log(`  ── ${groupSpace.toUpperCase()} (${inGroup.length}) ──`);
+      for (const s of inGroup) {
+        const tags = `[${resolveStyleSpaces(s).spaces.join(', ')}]`;
+        console.log(
+          `    • ${s.id.padEnd(20)} ${tags.padEnd(16)} ${s.typography.displayFont} + ${s.typography.bodyFont} — ${s.description}`
+        );
+      }
+    }
   }
 
   console.log(
@@ -187,7 +230,10 @@ export async function runStylesListCommand(options?: {
     );
   } else {
     for (const s of customStyles) {
-      console.log(`  • ${s.id.padEnd(20)} ${s.name} — ${s.description}`);
+      const tags = `[${resolveStyleSpaces(s).spaces.join(', ')}]`;
+      console.log(
+        `  • ${s.id.padEnd(20)} ${tags.padEnd(16)} ${s.name} — ${s.description}`
+      );
     }
   }
 

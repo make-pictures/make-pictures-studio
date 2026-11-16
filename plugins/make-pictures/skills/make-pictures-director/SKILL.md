@@ -23,10 +23,10 @@ Use this runbook to guide every new film from initial user idea and Art Directio
 1. **Standalone Video Studio (`npx create-make-pictures@latest my-films`):**
    - Engine packages (`@make-pictures/{core,kits,studio,cli}`) live in `node_modules/`.
    - `productions/<slug>/` and reusable `styles/*.style.json` presets are the user's Git-tracked source code!
-   - Commands: `npx make-pictures styles`, `npx make-pictures style new <slug>`, `npx make-pictures new <slug>`, `npx make-pictures audio`, `npx make-pictures studio`, `npx make-pictures qa <Id>`, `npx make-pictures render <Id>`.
-2. **Embedded Inside an Existing SaaS / Web Repo (`npx make-pictures init --dir=videos`):**
+   - Commands: `npx make-pictures styles [--space=2d|2.5d|3d]`, `npx make-pictures style new <slug>`, `npx make-pictures new <slug> [--space=2d|2.5d|3d]`, `npx make-pictures audio`, `npx make-pictures studio`, `npx make-pictures qa <Id>`, `npx make-pictures render <Id>`.
+2. **Embedded Inside an Existing SaaS / Web Repo (`npx make-pictures init --dir=videos [--space=2d|2.5d|3d]`):**
    - Keeps video capsules and custom brand styles neatly scoped under `<dir>/productions/<slug>/` and `<dir>/styles/` while `.agents/plugins/make-pictures` sits at repo root so agents can import real app UI components into `60 FPS` product videos.
-   - Pass `--dir=videos` to CLI commands (`npx make-pictures styles --dir=videos`, `npx make-pictures new <slug> --dir=videos`, `npx make-pictures audio --production=<slug> --dir=videos`, `npx make-pictures studio --dir=videos`, `npx make-pictures qa <Id> --dir=videos`, `npx make-pictures render <Id> --dir=videos`).
+   - Pass `--dir=videos` to CLI commands (`npx make-pictures styles --space=2d|2.5d|3d --dir=videos`, `npx make-pictures new <slug> --space=2d|2.5d|3d --dir=videos`, `npx make-pictures audio --production=<slug> --dir=videos`, `npx make-pictures studio --dir=videos`, `npx make-pictures qa <Id> --dir=videos`, `npx make-pictures render <Id> --dir=videos`).
 3. **Engine Monorepo (`make-pictures-studio`):**
    - `packages/*` holds engine source; `examples/*` holds showcase demos; `styles/*.style.json` holds custom style presets; `productions/<slug>/` holds isolated user films (`npm run new -- <slug>` or `npx make-pictures new <slug>`). Never hardcode user scene IDs inside `packages/` or `scripts/`.
 
@@ -69,25 +69,28 @@ Confirm with the user (or propose 2–3 tailored art direction options if given 
    - `motion-diagrams-2d` — Infinite-canvas 2D system architecture, API flows & SaaS product frames (`kit-motion-diagrams-2d`)
    - `paper-diorama-3d` — Tactile 2.5D layered cutouts on neutral `DioramaStage3D` (`kit-paper-diorama-3d`)
    - `isometric-3d` — Multi-character 3D dialogue on neutral `IsometricStage3D` (`kit-isometric-3d`)
-4. **Art Direction Style (`--style=<styleId>`):**
-   - **3 Artistic Worlds & 7 Built-in Styles (`ArtWorld`):**
-     - **`atelier`** (studio acrylic glass, anodized metal & cyclorama): `minimal-product`, `cyber-telemetry`
-     - **`illustrative`** (painterly multi-plane vector hills, clouds & die-cut craft): `tactile-craft`, `sketch-notebook`
-     - **`editorial-gallery`** (monumental typography, passe-partout, cotton paper & warm window light): `editorial-press`, `archival-chronicle`, `brutalist-poster`
-     - Inspect via `npx make-pictures styles` or preview live at `60 FPS` in **Studio Web → `🎨 Style Lab`** at `http://127.0.0.1:3000?view=styles`. To morph smoothly between two styles mid-scene without cutting, use `interpolateStylePresets(fromStyle, toStyle, progress)` from `@make-pictures/core`.
-   - **Custom Brand / Era Style (`styles/<slug>.style.json`):** Create a bespoke style via `npx make-pictures style new <slug> --from=editorial-press` (including optional `artWorld: 'atelier' | 'illustrative' | 'editorial-gallery'`) and customize its palette, 13 `latin-ext` Google Fonts, surface chrome, and motion profile.
+4. **Dimensional Space (`--space=2d|2.5d|3d`) & Art Direction Style (`--style=<styleId>`):**
+   - **2-Axis `DimensionalSpace × 10 Built-in Styles` (`ArtWorld`):**
+     - **`2d`** (`--space=2d` defaults to `motion-diagrams-2d` + `minimal-product`): `minimal-product`, `retro-pc`, `cyber-telemetry` (`atelier`); `sketch-notebook` (`illustrative`); `brutalist-poster` (`editorial-gallery`)
+     - **`2.5d`** (`--space=2.5d` defaults to `paper-diorama-3d` + `tactile-craft`): `tactile-craft` (`illustrative`); `editorial-press`, `archival-chronicle` (`editorial-gallery`)
+     - **`3d`** (`--space=3d` defaults to `isometric-3d` + `soft-clay`): `soft-clay` (`illustrative`); `glass-studio`, `retro-pc`, `cyber-telemetry` (`atelier`)
+     - Inspect via `npx make-pictures styles [--space=2d|2.5d|3d]` or preview live at `60 FPS` in **Studio Web → `🎨 Style Lab`** at `http://127.0.0.1:3000?view=styles`. To morph smoothly between two styles mid-scene without cutting, use `interpolateStylePresets(fromStyle, toStyle, progress)` from `@make-pictures/core`.
+   - **Custom Brand / Era Style (`styles/<slug>.style.json`):** Create a bespoke style via `npx make-pictures style new <slug> --from=soft-clay` (including optional `preferredSpace`, `spaces`, `material3d`, and `artWorld: 'atelier' | 'illustrative' | 'editorial-gallery'`) and customize its palette, 13 `latin-ext` Google Fonts, surface chrome, and motion profile.
 
 Scaffold the capsule immediately (append `--dir=<subdir>` if working inside a subdirectory studio):
 
 ```bash
-# Clean 2D product / concept explainer (default kit + style):
-npx make-pictures new <slug> --kit=vector-scene-2d --style=minimal-product --lang=pl
+# Quick space-first scaffolding (--space=2d|2.5d|3d picks flagship kit + style automatically unless overridden):
+npx make-pictures new <slug> --space=3d --lang=pl
+npx make-pictures new <slug> --space=2.5d --lang=pl
+npx make-pictures new <slug> --space=2d --style=retro-pc --lang=pl
 
-# Documentary / history / science essay:
+# Explicit kit + style scaffolding:
+npx make-pictures new <slug> --kit=vector-scene-2d --style=minimal-product --lang=pl
 npx make-pictures new <slug> --kit=editorial-collage --style=editorial-press --lang=pl
 ```
 
-*(Supports all 7 kits via `--kit=...`, any built-in or custom style slug via `--style=...`, optional `--voice=<voiceId>` override, and `--lang=pl|en`. By default, `new` sets `styleId` in `*.props.json` and pairs `voiceId` + `score.moodPreset` in `production.json` from `style.audioDefaults` via `VOICE_ARCHETYPE_TO_ELEVENLABS_ID`.)*
+*(Supports `--space=2d|2.5d|3d`, all 7 kits via `--kit=...`, any of the 10 built-in or custom style slugs via `--style=...`, optional `--voice=<voiceId>` override, and `--lang=pl|en`. By default, `new` sets `styleId` in `*.props.json` and pairs `voiceId` + `score.moodPreset` in `production.json` from `style.audioDefaults` via `VOICE_ARCHETYPE_TO_ELEVENLABS_ID`.)*
 
 ---
 
