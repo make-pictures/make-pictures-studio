@@ -106,7 +106,7 @@ test('built @make-pictures/cli runs `onboard --lang=pl --json` in a minimal npx 
     const stylesPayload = JSON.parse(stylesRes.stdout.trim()) as {
       builtInStyles?: unknown[];
     };
-    assert.equal(stylesPayload.builtInStyles?.length, 7);
+    assert.equal(stylesPayload.builtInStyles?.length, 10);
   } finally {
     fs.rmSync(tmpRoot, { recursive: true, force: true });
   }

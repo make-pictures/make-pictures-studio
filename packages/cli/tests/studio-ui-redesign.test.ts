@@ -353,7 +353,7 @@ test('Topbar and ProjectPickerPopover SSR in both films and styles modes', () =>
   );
   assert.match(stylesPopoverHtml, /Katalog stylów \(Style Lab\)/);
   assert.match(stylesPopoverHtml, /Twoje style \(styles\/\*\.style\.json\)/);
-  assert.match(stylesPopoverHtml, /Style wbudowane \(7\)/);
+  assert.match(stylesPopoverHtml, /Style wbudowane \(10\)/);
   assert.match(stylesPopoverHtml, /Gazeta Neapolu/);
   assert.match(stylesPopoverHtml, />WŁASNY</);
   assert.match(stylesPopoverHtml, /Pominięto uszkodzony plik broken\.style\.json/);

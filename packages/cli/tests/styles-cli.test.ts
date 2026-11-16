@@ -58,7 +58,7 @@ test('make-pictures style new creates validated styles/<slug>.style.json and blo
     assert.equal(loaded.styles[0]?.id, 'neapolitan-chronicle');
 
     const listed = await runStylesListCommand({ cwd: tmpDir, json: true });
-    assert.equal(listed.builtInStyles.length, 7);
+    assert.equal(listed.builtInStyles.length, 10);
     assert.equal(listed.customStyles.length, 1);
     assert.equal(listed.visualKits.length, 7);
 

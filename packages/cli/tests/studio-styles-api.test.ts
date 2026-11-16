@@ -240,7 +240,7 @@ test('StudioApp empty state and Style Lab UI components export and render neutra
   assert.match(emptyMarkup, /Filmy/);
 });
 
-test('StyleCatalogSidebar, STYLE_LAB_KITS, and PropsInspector Zod introspection cover all 7 styles and 7 kits', () => {
+test('StyleCatalogSidebar, STYLE_LAB_KITS, and PropsInspector Zod introspection cover all 10 styles and 7 kits', () => {
   assert.equal(STYLE_LAB_DURATION_IN_FRAMES, 300);
   assert.equal(STYLE_LAB_FPS, 60);
   assert.deepEqual(
@@ -273,7 +273,7 @@ test('StyleCatalogSidebar, STYLE_LAB_KITS, and PropsInspector Zod introspection 
       onDuplicateAsCustom: () => {},
     })
   );
-  assert.match(sidebarMarkup, /Style wbudowane \(7\)/);
+  assert.match(sidebarMarkup, /Style wbudowane \(10\)/);
   assert.match(sidebarMarkup, /Twoje style \(styles\/\*\.style\.json\)/);
   assert.match(sidebarMarkup, /Kronika Pizzy/);
   assert.match(sidebarMarkup, /Playfair Display \+ DM Sans/);
