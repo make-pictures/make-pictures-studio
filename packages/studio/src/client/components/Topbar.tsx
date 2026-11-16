@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ChevronDown,
   Film,
@@ -15,7 +15,10 @@ import {
 } from '@make-pictures/core';
 import type { StudioThemeMode } from '../hooks/useStudioTheme';
 import { BrandLogo } from './BrandLogo';
-import { ProjectPickerPopover } from './ProjectPickerPopover';
+import {
+  ProjectPickerPopover,
+  type StyleSpaceFilterMode,
+} from './ProjectPickerPopover';
 
 export type StudioViewMode = 'films' | 'styles';
 
@@ -27,6 +30,8 @@ export interface TopbarProps {
   isPlaying: boolean;
   viewMode?: StudioViewMode;
   onChangeViewMode?: (mode: StudioViewMode) => void;
+  spaceFilter?: StyleSpaceFilterMode;
+  onChangeSpaceFilter?: (space: StyleSpaceFilterMode) => void;
   styleLabTitle?: string;
   styleLabRatioLabel?: string;
   builtInStyles?: StylePreset[];
@@ -70,6 +75,8 @@ export const Topbar: React.FC<TopbarProps> = ({
   isPlaying,
   viewMode = 'films',
   onChangeViewMode,
+  spaceFilter,
+  onChangeSpaceFilter,
   styleLabTitle,
   styleLabRatioLabel,
   builtInStyles,
@@ -90,6 +97,7 @@ export const Topbar: React.FC<TopbarProps> = ({
   onToggleInspector,
 }) => {
   const [popoverOpen, setPopoverOpen] = useState<boolean>(false);
+  const triggerBtnRef = useRef<HTMLButtonElement | null>(null);
 
   const isStylesView = viewMode === 'styles';
   const isVertical = activeComposition
@@ -173,6 +181,7 @@ export const Topbar: React.FC<TopbarProps> = ({
           <span className="mp-topbar-divider" aria-hidden="true" />
 
           <button
+            ref={triggerBtnRef}
             type="button"
             className={`mp-project-trigger ${popoverOpen ? 'is-open' : ''}`}
             aria-expanded={popoverOpen}
@@ -387,7 +396,10 @@ export const Topbar: React.FC<TopbarProps> = ({
       <ProjectPickerPopover
         isOpen={popoverOpen}
         onClose={() => setPopoverOpen(false)}
+        triggerRef={triggerBtnRef}
         viewMode={viewMode}
+        spaceFilter={spaceFilter}
+        onChangeSpaceFilter={onChangeSpaceFilter}
         compositions={compositions}
         activeComposition={activeComposition}
         onSelectComposition={onSelectComposition}

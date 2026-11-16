@@ -523,8 +523,7 @@ textarea:focus-visible {
   grid-template-columns: minmax(0, 1fr) 0px;
 }
 
-.mp-workspace.is-inspector-closed > .mp-sidebar-right,
-.mp-workspace.is-inspector-closed > .mp-style-right-col {
+.mp-workspace.is-inspector-closed > .mp-sidebar-right {
   overflow: hidden;
   opacity: 0;
   pointer-events: none;
@@ -572,8 +571,7 @@ textarea:focus-visible {
   justify-self: center;
 }
 
-.mp-topbar-right,
-.mp-topbar-meta {
+.mp-topbar-right {
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -589,18 +587,7 @@ textarea:focus-visible {
   flex-shrink: 0;
 }
 
-.mp-topbar-active-title {
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  color: var(--mp-text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 /* ==================== OFFICIAL MAKE.PICTURES BRAND LOGO ==================== */
-.mp-brand,
 .mp-brand-logo {
   display: inline-flex;
   align-items: center;
@@ -635,29 +622,6 @@ textarea:focus-visible {
   }
 }
 
-.mp-brand-mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4px 9px;
-  border-radius: 8px;
-  background: linear-gradient(135deg, var(--mp-brand-coral) 0%, var(--mp-brand-orange) 100%);
-  color: #ffffff;
-  font-family: var(--mp-font-mono);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  box-shadow: var(--mp-shadow-coral);
-}
-
-.mp-brand-title {
-  font-size: 14.5px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  color: var(--mp-text-primary);
-}
-
-.mp-brand-sub,
 .mp-brand-badge {
   font-family: var(--mp-font-mono);
   font-variant-numeric: tabular-nums;
@@ -969,8 +933,7 @@ textarea:focus-visible {
 }
 
 .mp-popover-item:hover,
-.mp-popover-item.is-focused,
-.mp-popover-item.is-highlighted {
+.mp-popover-item.is-focused {
   background-color: var(--mp-bg-subtle);
 }
 
@@ -1181,9 +1144,7 @@ textarea:focus-visible {
   background-image: var(--mp-canvas-ambient);
 }
 
-.mp-stage-top-bar,
-.mp-stage-toolbar,
-.mp-stylelab-toolbar {
+.mp-stage-top-bar {
   min-height: 44px;
   padding: 6px 14px;
   display: flex;
@@ -1529,8 +1490,7 @@ textarea:focus-visible {
   transition: transform 0.14s var(--mp-ease-spring);
 }
 
-.mp-timecode-pill,
-.mp-timecode {
+.mp-timecode-pill {
   font-family: var(--mp-font-mono);
   font-variant-numeric: tabular-nums;
   font-size: 11.5px;
@@ -1638,32 +1598,6 @@ textarea:focus-visible {
   background-color: var(--mp-accent-soft);
   border-color: var(--mp-accent-border);
   color: var(--mp-accent);
-}
-
-/* Legacy docked transport bar fallback */
-.mp-transport-bar {
-  background: var(--mp-glass-bg);
-  backdrop-filter: var(--mp-glass-blur);
-  -webkit-backdrop-filter: var(--mp-glass-blur);
-  border-top: 0.5px solid var(--mp-border-hairline);
-  padding: 10px 18px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.mp-scrubber-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-variant-numeric: tabular-nums;
-}
-
-.mp-transport-controls {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
 }
 
 /* ==================== EXPANDABLE BOTTOM TIMELINE & TRANSCRIPT DRAWER ==================== */
@@ -2020,8 +1954,7 @@ textarea:focus-visible {
   display: none;
 }
 
-.mp-sidebar-right,
-.mp-style-right-col {
+.mp-sidebar-right {
   background: var(--mp-glass-bg);
   backdrop-filter: var(--mp-glass-blur);
   -webkit-backdrop-filter: var(--mp-glass-blur);
@@ -2035,15 +1968,6 @@ textarea:focus-visible {
   transition:
     opacity 0.2s ease,
     transform 0.28s var(--mp-ease-spring);
-}
-
-.mp-style-right-col > .mp-sidebar-right {
-  flex: 1;
-  border-left: none;
-  background: transparent;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  box-shadow: none;
 }
 
 .mp-sheet-grabber {
@@ -2165,15 +2089,6 @@ textarea:focus-visible {
   padding: 10px 12px;
   margin-bottom: 10px;
   box-shadow: var(--mp-shadow-sm), var(--mp-specular-inset);
-}
-
-.mp-section-heading {
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--mp-accent);
-  margin-bottom: 10px;
 }
 
 .mp-section-header-btn {
@@ -3279,9 +3194,7 @@ textarea:focus-visible {
   }
 
   .mp-sidebar-right,
-  .mp-style-right-col,
-  .mp-workspace.is-inspector-closed > .mp-sidebar-right,
-  .mp-workspace.is-inspector-closed > .mp-style-right-col {
+  .mp-workspace.is-inspector-closed > .mp-sidebar-right {
     position: fixed;
     top: 56px;
     right: 10px;
@@ -3298,20 +3211,8 @@ textarea:focus-visible {
     transition: transform 0.3s var(--mp-ease-spring);
   }
 
-  /* Avoid double-positioning when PropsInspector is nested inside .mp-style-right-col */
-  .mp-style-right-col > .mp-sidebar-right {
-    position: static;
-    width: 100%;
-    border: none;
-    border-radius: 0;
-    box-shadow: none;
-    transform: none;
-  }
-
   .mp-sidebar-right.is-mobile-open,
-  .mp-style-right-col.is-mobile-open,
-  .mp-workspace.is-inspector-closed > .mp-sidebar-right.is-mobile-open,
-  .mp-workspace.is-inspector-closed > .mp-style-right-col.is-mobile-open {
+  .mp-workspace.is-inspector-closed > .mp-sidebar-right.is-mobile-open {
     transform: translateX(0);
   }
 
@@ -3344,8 +3245,7 @@ textarea:focus-visible {
 
   .mp-topbar-left,
   .mp-topbar-center,
-  .mp-topbar-right,
-  .mp-topbar-meta {
+  .mp-topbar-right {
     gap: 6px;
   }
 
@@ -3398,9 +3298,7 @@ textarea:focus-visible {
 
   /* Right Inspector -> Native iOS Bottom Sheet */
   .mp-sidebar-right,
-  .mp-style-right-col,
-  .mp-workspace.is-inspector-closed > .mp-sidebar-right,
-  .mp-workspace.is-inspector-closed > .mp-style-right-col {
+  .mp-workspace.is-inspector-closed > .mp-sidebar-right {
     position: fixed;
     left: 0;
     right: 0;
@@ -3416,9 +3314,7 @@ textarea:focus-visible {
   }
 
   .mp-sidebar-right.is-mobile-open,
-  .mp-style-right-col.is-mobile-open,
-  .mp-workspace.is-inspector-closed > .mp-sidebar-right.is-mobile-open,
-  .mp-workspace.is-inspector-closed > .mp-style-right-col.is-mobile-open {
+  .mp-workspace.is-inspector-closed > .mp-sidebar-right.is-mobile-open {
     transform: translateY(0);
   }
 
@@ -3443,9 +3339,7 @@ textarea:focus-visible {
   }
 
   /* Clean mobile stage & floating capsule without horizontal overflow */
-  .mp-stage-top-bar,
-  .mp-stage-toolbar,
-  .mp-stylelab-toolbar {
+  .mp-stage-top-bar {
     padding: 6px 10px;
     flex-wrap: wrap;
   }

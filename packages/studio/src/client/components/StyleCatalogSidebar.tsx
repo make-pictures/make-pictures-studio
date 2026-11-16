@@ -196,7 +196,7 @@ export const StyleCatalogSidebar: React.FC<StyleCatalogSidebarProps> = ({
           )}
         </div>
 
-        {/* ==================== 7 BUILT-IN STYLES ==================== */}
+        {/* ==================== 10 BUILT-IN STYLES ==================== */}
         <div className="mp-group-block">
           <div className="mp-group-label">
             <Palette size={13} style={{ color: 'var(--mp-accent)' }} />

@@ -4,15 +4,19 @@ import {
   BUILT_IN_STYLE_IDS,
   BUILT_IN_STYLES,
   StylePresetSchema,
+  filterStylesBySpace,
   isBuiltInStyleId,
   isVerticalComposition,
   listAllStudioStyles,
   registerCustomStyles,
+  resolveStyleSpaces,
   type BuiltinVisualKitId,
+  type DimensionalSpace,
   type StudioCompositionEntry,
   type StylePreset,
 } from '@make-pictures/core';
 import { BrandMarkSvg } from './components/BrandLogo';
+import type { StyleSpaceFilterMode } from './components/ProjectPickerPopover';
 import { PropsInspector } from './components/PropsInspector';
 import { StageViewport } from './components/StageViewport';
 import {
@@ -20,6 +24,10 @@ import {
   STYLE_LAB_FPS,
   StyleLabPreviewComposition,
   StyleLabShowcase,
+  defaultBuiltInStyleForSpace,
+  defaultPreviewKitForSpace,
+  resolveCompatibleKitForStyle,
+  resolveKitDimensionalSpace,
   type StyleLabAspectRatio,
 } from './components/StyleLabShowcase';
 import { Topbar, type StudioViewMode } from './components/Topbar';
@@ -187,8 +195,20 @@ export const StudioApp: React.FC<StudioAppProps> = ({
   const [selectedStyleId, setSelectedStyleId] = useState<string>(() =>
     readInitialStyleId()
   );
-  const [styleLabKit, setStyleLabKit] =
-    useState<BuiltinVisualKitId>('editorial-collage');
+  const [styleLabKit, setStyleLabKit] = useState<BuiltinVisualKitId>(() => {
+    const initialId = readInitialStyleId();
+    const initialCustom = listAllStudioStyles().find(
+      (entry) => entry.preset.id === initialId
+    )?.preset;
+    const initialPreset =
+      initialCustom ??
+      (isBuiltInStyleId(initialId)
+        ? BUILT_IN_STYLES[initialId]
+        : BUILT_IN_STYLES['minimal-product']);
+    return resolveCompatibleKitForStyle(initialPreset, 'editorial-collage');
+  });
+  const [styleSpaceFilter, setStyleSpaceFilter] =
+    useState<StyleSpaceFilterMode>('all');
   const [styleLabAspect, setStyleLabAspect] =
     useState<StyleLabAspectRatio>('16:9');
   const [styleLabOverlays, setStyleLabOverlays] = useState<OverlaySettings>({
@@ -738,27 +758,123 @@ export const StudioApp: React.FC<StudioAppProps> = ({
     styleLabAspect,
   ]);
 
+  // Ensure initial `?style=` (including async custom presets) aligns `styleLabKit` to a compatible space
+  useEffect(() => {
+    setStyleLabKit((prevKit) =>
+      resolveCompatibleKitForStyle(activeBaselineStyle, prevKit)
+    );
+  }, [activeBaselineStyle]);
+
+  const resolveKnownStylePreset = useCallback(
+    (styleId: string): StylePreset | undefined => {
+      const draft = styleDraftsById[styleId];
+      if (draft) {
+        const parsed = StylePresetSchema.safeParse({ ...draft, id: styleId });
+        if (parsed.success) return parsed.data;
+      }
+      const custom = customStyles.find((s) => s.id === styleId);
+      if (custom) return custom;
+      if (isBuiltInStyleId(styleId)) return BUILT_IN_STYLES[styleId];
+      return undefined;
+    },
+    [styleDraftsById, customStyles]
+  );
+
+  const alignKitAndFilterForStyle = useCallback(
+    (styleId: string) => {
+      const nextPreset = resolveKnownStylePreset(styleId);
+      if (!nextPreset) return;
+      const { preferredSpace, spaces } = resolveStyleSpaces(nextPreset);
+      setStyleLabKit((prevKit) =>
+        spaces.includes(resolveKitDimensionalSpace(prevKit))
+          ? prevKit
+          : defaultPreviewKitForSpace(preferredSpace)
+      );
+      setStyleSpaceFilter((prevFilter) =>
+        prevFilter !== 'all' && !spaces.includes(prevFilter)
+          ? preferredSpace
+          : prevFilter
+      );
+    },
+    [resolveKnownStylePreset]
+  );
+
   const handleSelectStyle = useCallback(
     (styleId: string) => {
       setSelectedStyleId(styleId);
+      alignKitAndFilterForStyle(styleId);
       setStyleSaveError(null);
       setShowSaveAsCustomForm(false);
       setSaveAsSlugError(null);
       syncUrlParams('styles', styleId);
     },
-    [syncUrlParams]
+    [alignKitAndFilterForStyle, syncUrlParams]
   );
 
   const handleOpenStyleLab = useCallback(
     (styleId: string) => {
       setSelectedStyleId(styleId);
+      alignKitAndFilterForStyle(styleId);
       setStyleSaveError(null);
       setShowSaveAsCustomForm(false);
       setSaveAsSlugError(null);
       handleChangeViewMode('styles');
       syncUrlParams('styles', styleId);
     },
-    [handleChangeViewMode, syncUrlParams]
+    [alignKitAndFilterForStyle, handleChangeViewMode, syncUrlParams]
+  );
+
+  const handleSelectStyleLabKit = useCallback((kit: BuiltinVisualKitId) => {
+    setStyleLabKit(kit);
+    const kitSpace = resolveKitDimensionalSpace(kit);
+    setStyleSpaceFilter((prevFilter) =>
+      prevFilter === 'all' ? 'all' : kitSpace
+    );
+  }, []);
+
+  const handleSelectStyleLabSpace = useCallback(
+    (space: DimensionalSpace) => {
+      setStyleLabKit(defaultPreviewKitForSpace(space));
+      setStyleSpaceFilter(space);
+
+      if (
+        !isStyleDirty &&
+        !resolveStyleSpaces(activeLiveStylePreset).spaces.includes(space)
+      ) {
+        const preferredId = defaultBuiltInStyleForSpace(space);
+        const matching = filterStylesBySpace(
+          [...builtInStyles, ...customStyles],
+          space
+        );
+        const nextStyle =
+          matching.find((s) => s.id === preferredId) ?? matching[0];
+        if (nextStyle) {
+          setSelectedStyleId(nextStyle.id);
+          setStyleSaveError(null);
+          setShowSaveAsCustomForm(false);
+          setSaveAsSlugError(null);
+          syncUrlParams('styles', nextStyle.id);
+        }
+      }
+    },
+    [
+      isStyleDirty,
+      activeLiveStylePreset,
+      builtInStyles,
+      customStyles,
+      syncUrlParams,
+    ]
+  );
+
+  const handleChangeStyleSpaceFilter = useCallback(
+    (nextFilter: StyleSpaceFilterMode) => {
+      if (nextFilter === 'all') {
+        setStyleSpaceFilter('all');
+        return;
+      }
+      handleSelectStyleLabSpace(nextFilter);
+    },
+    [handleSelectStyleLabSpace]
   );
 
   const handleChangeStyleDraft = useCallback(
@@ -1021,6 +1137,8 @@ export const StudioApp: React.FC<StudioAppProps> = ({
     measuredFps,
     viewMode,
     onChangeViewMode: handleChangeViewMode,
+    spaceFilter: styleSpaceFilter,
+    onChangeSpaceFilter: handleChangeStyleSpaceFilter,
     styleLabTitle: `${activeLiveStylePreset.name} (${activeStyleId})`,
     styleLabRatioLabel,
     builtInStyles,
@@ -1133,7 +1251,8 @@ export const StudioApp: React.FC<StudioAppProps> = ({
           <StyleLabShowcase
             activeStyle={activeLiveStylePreset}
             activeKit={styleLabKit}
-            onSelectKit={setStyleLabKit}
+            onSelectKit={handleSelectStyleLabKit}
+            onSelectSpace={handleSelectStyleLabSpace}
             aspectRatio={styleLabAspect}
             onChangeAspectRatio={handleChangeStyleLabAspect}
             overlays={styleLabOverlays}

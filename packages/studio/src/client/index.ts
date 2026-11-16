@@ -63,6 +63,7 @@ export {
   ProjectPickerPopover,
   type ProjectPickerPopoverProps,
   type ProjectPickerViewMode,
+  type StyleSpaceFilterMode,
 } from './components/ProjectPickerPopover';
 export {
   PropsInspector,
@@ -92,8 +93,14 @@ export {
   STYLE_LAB_DURATION_IN_FRAMES,
   STYLE_LAB_FPS,
   STYLE_LAB_KITS,
+  STYLE_LAB_SPACES,
   StyleLabPreviewComposition,
   StyleLabShowcase,
+  defaultBuiltInStyleForSpace,
+  defaultPreviewKitForSpace,
+  resolveCompatibleKitForStyle,
+  resolveKitDimensionalSpace,
+  type SafeStageBounds,
   type StyleLabAspectRatio,
   type StyleLabCompositionProps,
   type StyleLabShowcaseProps,

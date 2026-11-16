@@ -8,20 +8,18 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import react from '@vitejs/plugin-react';
 import { createServer, type Plugin, type ViteDevServer } from 'vite';
-import type {
-  ProductionManifest,
-  SceneDefinition,
-  ScenesManifest,
-  SceneVoiceoverData,
-  VoiceAcousticPreset,
-  VoiceSettingsConfig,
-} from '../../../core/src/index';
 import {
   StylePresetSchema,
+  isBuiltInStyleId,
   withNormalizedStyleOptics,
+  type ProductionManifest,
+  type SceneDefinition,
+  type SceneVoiceoverData,
+  type ScenesManifest,
   type StylePreset,
-} from '../../../core/src/style/schema';
-import { isBuiltInStyleId } from '../../../core/src/style/presets';
+  type VoiceAcousticPreset,
+  type VoiceSettingsConfig,
+} from '@make-pictures/core';
 
 export interface StartStudioServerOptions {
   rootDir?: string;
@@ -87,6 +85,13 @@ const QA_FILE_PATTERN = /^qa-[A-Za-z0-9_-]+\.png$/;
 const MAX_JSON_BODY_BYTES = 256 * 1024;
 const VIRTUAL_MAIN_ID = 'virtual:make-pictures-studio-main';
 const RESOLVED_VIRTUAL_MAIN_ID = `\0${VIRTUAL_MAIN_ID}`;
+
+let atomicWriteSeq = 0;
+
+function nextAtomicTempPath(targetPath: string): string {
+  atomicWriteSeq = (atomicWriteSeq + 1) % 1_000_000_000;
+  return `${targetPath}.tmp-${process.pid}-${atomicWriteSeq}`;
+}
 
 // eslint-disable-next-line no-control-regex
 const ANSI_ESCAPE_RE = /\x1B\[[0-9;]*[A-Za-z]/g;
@@ -631,7 +636,7 @@ export function saveCustomStyleToDisk(
   const normalized = withNormalizedStyleOptics(parsed.data);
   fs.mkdirSync(stylesDir, { recursive: true });
   const formatted = `${JSON.stringify(normalized, null, 2)}\n`;
-  const tmpPath = `${resolvedTarget}.tmp-${process.pid}`;
+  const tmpPath = nextAtomicTempPath(resolvedTarget);
   fs.writeFileSync(tmpPath, formatted, 'utf8');
   fs.renameSync(tmpPath, resolvedTarget);
 
@@ -1207,7 +1212,7 @@ export function saveStudioSceneToDisk(
   };
 
   const formatted = `${JSON.stringify(nextManifest, null, 2)}\n`;
-  const tmpPath = `${resolvedManifestPath}.tmp-${process.pid}`;
+  const tmpPath = nextAtomicTempPath(resolvedManifestPath);
   fs.writeFileSync(tmpPath, formatted, 'utf8');
   fs.renameSync(tmpPath, resolvedManifestPath);
 
@@ -1480,7 +1485,7 @@ export function makePicturesStudioServerPlugin(
 
               fs.mkdirSync(path.dirname(resolvedTarget), { recursive: true });
               const formatted = `${JSON.stringify(props, null, 2)}\n`;
-              const tmpPath = `${resolvedTarget}.tmp-${process.pid}`;
+              const tmpPath = nextAtomicTempPath(resolvedTarget);
               fs.writeFileSync(tmpPath, formatted, 'utf8');
               fs.renameSync(tmpPath, resolvedTarget);
 
@@ -1813,7 +1818,10 @@ export function makePicturesStudioServerPlugin(
                 path.relative(rootDir, outputAbsPath)
               );
               const tempPropsPath = customProps
-                ? path.join(outDir, `.studio-props-${slug}-${process.pid}.json`)
+                ? path.join(
+                    outDir,
+                    `.studio-props-${slug}-${process.pid}-${++atomicWriteSeq}.json`
+                  )
                 : null;
 
               if (tempPropsPath && customProps) {
@@ -2314,14 +2322,27 @@ export async function startStudioServer(
   syncProductionAssetSymlinks(studioDir);
 
   const studioPkgRoot = findStudioPackageRoot();
-  const stylesCssPath = fs.existsSync(path.join(studioPkgRoot, 'dist/styles.css'))
-    ? path.join(studioPkgRoot, 'dist/styles.css')
-    : path.join(studioPkgRoot, 'src/client/styles.css');
-  const studioClientEntry = fs.existsSync(
-    path.join(studioPkgRoot, 'dist/client/index.mjs')
-  )
-    ? path.join(studioPkgRoot, 'dist/client/index.mjs')
-    : path.join(studioPkgRoot, 'src/client/index.ts');
+  const monorepoCoreSrc = path.join(rootDir, 'packages', 'core', 'src');
+  const monorepoKitsSrc = path.join(rootDir, 'packages', 'kits', 'src');
+  const isMonorepo = fs.existsSync(path.join(monorepoCoreSrc, 'index.ts'));
+
+  const srcStylesCss = path.join(studioPkgRoot, 'src/client/styles.css');
+  const distStylesCss = path.join(studioPkgRoot, 'dist/styles.css');
+  const stylesCssPath =
+    isMonorepo && fs.existsSync(srcStylesCss)
+      ? srcStylesCss
+      : fs.existsSync(distStylesCss)
+        ? distStylesCss
+        : srcStylesCss;
+
+  const srcClientEntry = path.join(studioPkgRoot, 'src/client/index.ts');
+  const distClientEntry = path.join(studioPkgRoot, 'dist/client/index.mjs');
+  const studioClientEntry =
+    isMonorepo && fs.existsSync(srcClientEntry)
+      ? srcClientEntry
+      : fs.existsSync(distClientEntry)
+        ? distClientEntry
+        : srcClientEntry;
 
   const aliases: Array<{ find: RegExp; replacement: string }> = [
     {
@@ -2339,9 +2360,7 @@ export async function startStudioServer(
   ];
 
   // If invoked inside the engine monorepo, keep 0ms source-first resolution
-  const monorepoCoreSrc = path.join(rootDir, 'packages', 'core', 'src');
-  const monorepoKitsSrc = path.join(rootDir, 'packages', 'kits', 'src');
-  if (fs.existsSync(path.join(monorepoCoreSrc, 'index.ts'))) {
+  if (isMonorepo) {
     aliases.push(
       {
         find: /^@make-pictures\/core\/(.*)$/,
