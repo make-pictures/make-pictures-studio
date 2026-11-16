@@ -38,10 +38,12 @@ import {
   getStyleSpringConfig,
   getTactileSurfaceStyle,
   resolveArtWorld,
+  resolveStyleMaterial3D,
   resolveStyleOptics,
   useStudioStyle,
   type ArtWorld,
   type BuiltinVisualKitId,
+  type DimensionalSpace,
   type OpticalShot2D,
   type StylePreset,
 } from '@make-pictures/core';
@@ -53,6 +55,22 @@ export type StyleLabAspectRatio = '16:9' | '9:16';
 
 export const STYLE_LAB_DURATION_IN_FRAMES = 300;
 export const STYLE_LAB_FPS = 60;
+
+export function resolveKitDimensionalSpace(
+  kit: BuiltinVisualKitId
+): DimensionalSpace {
+  if (kit === 'isometric-3d') return '3d';
+  if (kit === 'paper-diorama-3d') return '2.5d';
+  return '2d';
+}
+
+export function defaultPreviewKitForSpace(
+  space: DimensionalSpace
+): BuiltinVisualKitId {
+  if (space === '3d') return 'isometric-3d';
+  if (space === '2.5d') return 'paper-diorama-3d';
+  return 'motion-diagrams-2d';
+}
 
 export const STYLE_LAB_KITS: ReadonlyArray<{
   id: BuiltinVisualKitId;
@@ -2829,7 +2847,18 @@ const Isometric3DPreview: React.FC = () => {
   const style = useStudioStyle();
   const optics = resolveStyleOptics(style);
   const artWorld = resolveArtWorld(style);
+  const material3d = resolveStyleMaterial3D(style);
   const bounds = getSafeStageBounds(width, height);
+
+  if (frame <= 0) {
+    return null;
+  }
+
+  const isPodcastClayPreview =
+    material3d.finish === 'soft-clay' ||
+    style.id === 'soft-clay' ||
+    style.id === 'glass-studio' ||
+    style.id === 'retro-pc';
 
   const isoMaterial: 'ceramic-maquette' | 'anodized-telemetry' | 'ink-figurine' =
     style.surface.cardTreatment === 'brutalist-hard' ||
@@ -2895,13 +2924,200 @@ const Isometric3DPreview: React.FC = () => {
     primary: string,
     secondary: string,
     isSpeaking: boolean,
-    breath: number
+    breath: number,
+    speakerIdx: 0 | 1 = 0
   ) => {
     const blurPx = isSpeaking
       ? 0
       : computeCircleOfConfusionPx(-0.18, 0, optics.aperture);
     const filterCss = blurPx < 0.25 ? 'none' : `blur(${blurPx.toFixed(2)}px)`;
     const headTiltDeg = (isSpeaking ? 2.2 : -1.2) + breath * 1.4;
+
+    if (isPodcastClayPreview) {
+      const blinkCycle = (frame + (speakerIdx === 0 ? 28 : 112)) % 192;
+      const blinkClose =
+        blinkCycle > 12
+          ? 0
+          : blinkCycle <= 6
+            ? blinkCycle / 6
+            : (12 - blinkCycle) / 6;
+      const eyeOpenScale = Math.max(0.12, 1 - blinkClose * 0.88);
+      const isVoxel = material3d.finish === 'retro-voxel';
+      const headRx = isVoxel ? 8 : 26;
+      const torsoRx = isVoxel ? 6 : 22;
+      const clayHeadFill =
+        material3d.finish === 'soft-clay' && !style.surface.isDark
+          ? '#FDE8D7'
+          : bodyFill;
+      const browLift = isSpeaking ? -2.2 - syllableMod * 1.6 : 0;
+
+      return (
+        <g
+          data-clay-avatar="true"
+          data-clay-finish={material3d.finish}
+          transform={`translate(${cx}, ${cy})`}
+          style={{ filter: filterCss, opacity: isSpeaking ? 1 : 0.84 }}
+        >
+          {/* Ground Contact Shadow Ellipse */}
+          <ellipse
+            cx={0}
+            cy={76}
+            rx={54}
+            ry={16}
+            fill="#0F172A"
+            opacity={style.surface.isDark ? 0.54 : 0.22}
+          />
+          {/* Calibrated Speaker Plinth Ring */}
+          <ellipse
+            cx={0}
+            cy={76}
+            rx={58}
+            ry={17}
+            fill="none"
+            stroke={isSpeaking ? primary : strokeInk}
+            strokeWidth={isSpeaking ? 2.6 : 1.4}
+            opacity={isSpeaking ? 0.92 : 0.45}
+          />
+
+          {/* Rounded Soft-Clay Sweater Torso + Softbox Rim Highlight */}
+          <rect
+            x={-34}
+            y={-18}
+            width={68}
+            height={86}
+            rx={torsoRx}
+            fill={primary}
+            stroke={strokeInk}
+            strokeWidth={strokeWidth}
+          />
+          <rect
+            x={-25}
+            y={-11}
+            width={16}
+            height={46}
+            rx={isVoxel ? 2 : 8}
+            fill="#FFFFFF"
+            opacity={style.surface.isDark ? 0.16 : 0.28}
+          />
+          {/* Cozy Knit Collar Rim */}
+          <rect
+            x={-18}
+            y={-18}
+            width={36}
+            height={11}
+            rx={isVoxel ? 2 : 5.5}
+            fill={clayHeadFill}
+            stroke={strokeInk}
+            strokeWidth={1.4}
+          />
+
+          {/* Sculpted Rounded Clay Head + Headphones + 3D Eyes */}
+          <g transform={`translate(0, -54) rotate(${headTiltDeg.toFixed(2)})`}>
+            {/* Over-Ear Studio Headphones Band + Cups */}
+            <g data-clay-headphones="true">
+              <path
+                d="M -31,-4 A 31,28 0 0,1 31,-4"
+                fill="none"
+                stroke={secondary}
+                strokeWidth={5.5}
+                strokeLinecap="round"
+              />
+              <rect
+                x={-37}
+                y={-12}
+                width={10}
+                height={22}
+                rx={isVoxel ? 2 : 5}
+                fill={secondary}
+                stroke={strokeInk}
+                strokeWidth={1.4}
+              />
+              <rect
+                x={27}
+                y={-12}
+                width={10}
+                height={22}
+                rx={isVoxel ? 2 : 5}
+                fill={secondary}
+                stroke={strokeInk}
+                strokeWidth={1.4}
+              />
+            </g>
+
+            {/* Soft-Clay Head */}
+            <rect
+              x={-30}
+              y={-29}
+              width={60}
+              height={56}
+              rx={headRx}
+              fill={clayHeadFill}
+              stroke={strokeInk}
+              strokeWidth={strokeWidth}
+            />
+            {/* Sculpted Hair Bangs / Crown Cap */}
+            <path
+              d="M -26,-16 Q 0,-34 26,-16 Q 14,-22 -4,-20 Q -18,-19 -26,-16 Z"
+              fill={style.palette.textPrimary}
+              opacity={0.86}
+            />
+
+            {/* Rosy Clay Cheeks */}
+            <circle cx={-18} cy={6} r={5.2} fill={primary} opacity={0.28} />
+            <circle cx={18} cy={6} r={5.2} fill={primary} opacity={0.28} />
+
+            {/* Expressive 3D Eyes with Sclera, Iris, Pupil, Catchlight & Blink */}
+            {([-11, 11] as const).map((ex) => (
+              <g key={ex} transform={`translate(${ex}, -5)`}>
+                <rect
+                  x={-6}
+                  y={-11 + browLift}
+                  width={12}
+                  height={3}
+                  rx={1.5}
+                  fill={style.palette.textPrimary}
+                  opacity={0.85}
+                />
+                <g transform={`scale(1, ${eyeOpenScale.toFixed(3)})`}>
+                  <circle
+                    cx={0}
+                    cy={0}
+                    r={5.8}
+                    fill="#FFFFFF"
+                    stroke={strokeInk}
+                    strokeWidth={1}
+                  />
+                  <circle cx={0.4} cy={0.3} r={3.5} fill={secondary} />
+                  <circle cx={0.5} cy={0.3} r={1.9} fill="#0F172A" />
+                  <circle cx={-1.4} cy={-1.6} r={1.3} fill="#FFFFFF" />
+                </g>
+              </g>
+            ))}
+
+            {/* Sculpted Button Nose */}
+            <ellipse
+              cx={0}
+              cy={2.5}
+              rx={3.4}
+              ry={2.4}
+              fill={primary}
+              opacity={0.42}
+            />
+
+            {/* Speech-Reactive Rounded Mouth */}
+            <rect
+              x={-7.5}
+              y={9.5}
+              width={15}
+              height={isSpeaking ? 3.5 + syllableMod * 5.5 : 2.8}
+              rx={isVoxel ? 1.5 : 4}
+              fill={style.palette.textPrimary}
+              opacity={isSpeaking ? 0.9 : 0.55}
+            />
+          </g>
+        </g>
+      );
+    }
 
     return (
       <g
@@ -3015,6 +3231,93 @@ const Isometric3DPreview: React.FC = () => {
               />
             </>
           )}
+        </g>
+      </g>
+    );
+  };
+
+  const renderPodcastStudioOverlay = () => {
+    if (!isPodcastClayPreview) return null;
+    const onAirGlow =
+      style.id === 'retro-pc' ? style.palette.accentSecondary : '#EF4444';
+    return (
+      <g data-podcast-studio="true">
+        {/* Glowing ON AIR Studio Plaque */}
+        <g data-on-air-badge="true" transform="translate(360, 48)">
+          <rect
+            x={-54}
+            y={-18}
+            width={108}
+            height={34}
+            rx={11}
+            fill={onAirGlow}
+            opacity={0.22}
+          />
+          <rect
+            x={-46}
+            y={-13}
+            width={92}
+            height={24}
+            rx={7}
+            fill="#18181B"
+            stroke={onAirGlow}
+            strokeWidth={1.8}
+          />
+          <circle cx={-31} cy={-1} r={4} fill={onAirGlow} />
+          <text
+            x={6}
+            y={3}
+            textAnchor="middle"
+            fill="#FFFDF9"
+            fontFamily={monoFont}
+            fontSize={11}
+            fontWeight={800}
+            letterSpacing="0.12em"
+          >
+            ON AIR
+          </text>
+        </g>
+
+        {/* Articulated Boom-Arm Studio Microphones & Ceramic Mugs */}
+        <g data-podcast-mics="true">
+          {/* Left Speaker Boom Mic */}
+          <polyline
+            points="318,156 292,126 272,134"
+            fill="none"
+            stroke={style.palette.textPrimary}
+            strokeWidth={3}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <rect
+            x={263}
+            y={128}
+            width={11}
+            height={16}
+            rx={5}
+            fill={style.palette.accentPrimary}
+            stroke={strokeInk}
+            strokeWidth={1.3}
+          />
+          {/* Right Speaker Boom Mic */}
+          <polyline
+            points="402,156 428,126 448,134"
+            fill="none"
+            stroke={style.palette.textPrimary}
+            strokeWidth={3}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <rect
+            x={446}
+            y={128}
+            width={11}
+            height={16}
+            rx={5}
+            fill={style.palette.accentSecondary}
+            stroke={strokeInk}
+            strokeWidth={1.3}
+          />
         </g>
       </g>
     );
@@ -3324,6 +3627,7 @@ const Isometric3DPreview: React.FC = () => {
           >
             {/* 3-ArtWorld Isometric Architectural Room Set */}
             {renderScenicRoomBackdrop(artWorld)}
+            {renderPodcastStudioOverlay()}
 
             {/* Outer Base Bevel */}
             <ellipse
@@ -3378,7 +3682,8 @@ const Isometric3DPreview: React.FC = () => {
               style.palette.accentPrimary,
               style.palette.accentSecondary,
               speakerASpeaking,
-              breathA
+              breathA,
+              0
             )}
             {renderMaquetteFigure(
               485,
@@ -3386,7 +3691,8 @@ const Isometric3DPreview: React.FC = () => {
               style.palette.accentSecondary,
               style.palette.accentPrimary,
               !speakerASpeaking,
-              breathB
+              breathB,
+              1
             )}
           </svg>
 
@@ -3578,7 +3884,8 @@ export const StyleLabShowcase: React.FC<StyleLabShowcaseProps> = ({
   const compWidth = aspectRatio === '9:16' ? 1080 : 1920;
   const compHeight = aspectRatio === '9:16' ? 1920 : 1080;
   const maxFrameIndex = STYLE_LAB_DURATION_IN_FRAMES - 1;
-  const cliCommand = `npx make-pictures new moj-film --kit=${activeKit} --style=${activeStyle.id}`;
+  const activeSpace = resolveKitDimensionalSpace(activeKit);
+  const cliCommand = `npx make-pictures new moj-film --space=${activeSpace} --kit=${activeKit} --style=${activeStyle.id}`;
 
   const inputProps = useMemo<StyleLabCompositionProps>(
     () => ({
@@ -3647,8 +3954,50 @@ export const StyleLabShowcase: React.FC<StyleLabShowcaseProps> = ({
 
   return (
     <main className="mp-center-col">
-      {/* ==================== 7 VISUAL KITS + ASPECT RATIO + COPYABLE CLI TOP BAR ==================== */}
+      {/* ==================== 2D / 2.5D / 3D SPACE SWITCHER + 7 VISUAL KITS + ASPECT RATIO + COPYABLE CLI TOP BAR ==================== */}
       <div className="mp-stage-top-bar">
+        <div
+          className="mp-segmented mp-stylelab-space-switcher"
+          role="group"
+          aria-label="Przestrzeń wymiarowa (2D / 2.5D / 3D)"
+        >
+          {(
+            [
+              {
+                id: '2d',
+                label: '2D',
+                title: 'Przestrzeń 2D (Motion Diagrams)',
+              },
+              {
+                id: '2.5d',
+                label: '2.5D',
+                title: 'Przestrzeń 2.5D (Paper Diorama)',
+              },
+              {
+                id: '3d',
+                label: '3D',
+                title: 'Przestrzeń 3D (Isometric Studio)',
+              },
+            ] as const
+          ).map((sp) => {
+            const isSpaceActive = activeSpace === sp.id;
+            return (
+              <button
+                key={sp.id}
+                type="button"
+                data-space-pill={sp.id}
+                aria-pressed={isSpaceActive}
+                className={`mp-aspect-btn ${isSpaceActive ? 'is-active' : ''}`}
+                onMouseDown={preventButtonFocus}
+                onClick={() => onSelectKit(defaultPreviewKitForSpace(sp.id))}
+                title={sp.title}
+              >
+                <span>{sp.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
         <div
           className="mp-stylelab-kit-strip"
           role="tablist"

@@ -18,10 +18,13 @@ Design broadcast-ready, `-14 LUFS` mastered soundtracks combining word-aligned *
 ## 1. ElevenLabs Voice Cast & Phonetic Spelling (`eleven_multilingual_v2`)
 
 ### Phonetic Spelling Rules in `production.json` / `scenes.json`
-`eleven_multilingual_v2` can mispronounce raw uppercase acronyms or URLs in non-English scripts. Write phonetic spellings directly in `scene.text`:
+`eleven_multilingual_v2` can mispronounce raw uppercase acronyms, digits, or brand/style slugs in non-English scripts. Write natural phonetic spellings directly in `scene.text`:
+- **Brand & style names (CRITICAL):**
+  - `make.pictures`: write **`mejk pikczers`** in Polish and **`make pictures`** in English (**NEVER** write literal punctuation words like *„mejk kropka pikczers”* or *“make dot pictures”*!).
+  - `retro-pc`: write **`retro pi si`** in Polish and **`retro pee see`** in English (never *„retro pe ce”* or raw `retro-pc`).
+  - Dimensional spaces & numbers: spell out naturally (`dwa de`, `dwa i pół de`, `trzy de`, `jedenaście` in PL; `two dee`, `two point five dee`, `three dee`, `eleven` in EN — zero raw digits or uppercase acronyms in `scene.text`).
 - **Polish lettered acronyms:** Spell each letter separately with Polish phonetics (e.g., `e er p` instead of `ERP`, `a pe i` instead of `API`, `es ku el` instead of `SQL`).
-- **Domain names & URLs:** Write spoken words (`mejk kropka pikczers` in PL, `make dot pictures` in EN).
-- **Context continuity (`previousText` / `nextText`):** Pass optional `previousText` and `nextText` on `SceneDefinition` so multi-scene monologues maintain seamless prosody across cuts.
+- **Context continuity (`previousText` / `nextText`):** Pass optional `previousText` and `nextText` (prefixed with `. ` or `... ` to prevent trailing phoneme bleed) on `SceneDefinition` so multi-scene monologues maintain seamless prosody across cuts.
 
 ### Proven Studio Voice Profiles
 

@@ -8,6 +8,10 @@ import type {
   SfxFallbackPreset,
 } from '@make-pictures/core';
 import {
+  DimensionalSpaceSchema,
+  type DimensionalSpace,
+} from '../../core/src/style/presets';
+import {
   runAudioCommand,
   runMusicShortcutCommand,
   runSfxShortcutCommand,
@@ -16,6 +20,7 @@ import { runDoctorCommand } from './commands/doctor';
 import { runGenerateImageCommand } from './commands/generate-image';
 import { runInitCommand } from './commands/init';
 import {
+  defaultKitAndStyleForSpace,
   runNewProductionCommand,
   type ScaffoldKitId,
 } from './commands/new-production';
@@ -93,6 +98,23 @@ function getStringFlag(
     : undefined;
 }
 
+function parseSpaceFlag(
+  flags: Record<string, string | boolean>
+): DimensionalSpace | undefined {
+  const raw = flags.space;
+  if (raw === undefined || raw === false) {
+    return undefined;
+  }
+  const normalized = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
+  const parsed = DimensionalSpaceSchema.safeParse(normalized);
+  if (!parsed.success) {
+    throw new Error(
+      `Invalid --space value "${String(raw)}". Expected one of: 2d, 2.5d, 3d (e.g. --space=3d).`
+    );
+  }
+  return parsed.data;
+}
+
 function loadEnvFiles(cwd?: string): void {
   const baseDir = path.resolve(cwd || process.cwd());
   dotenv.config({ path: path.join(baseDir, '.env.local') });
@@ -115,7 +137,7 @@ Commands:
   studio [--port=3000] [--host=127.0.0.1] [--dir=<subdir>]
       Launch the 60 FPS Studio Web workstation (HMR + Props Inspector + Safe Box)
 
-  init [--dir=videos] [--kit=vector-scene-2d] [--style=minimal-product] [--lang=en|pl] [--force]
+  init [--dir=videos] [--space=2d|2.5d|3d] [--kit=vector-scene-2d] [--style=minimal-product] [--lang=en|pl] [--force]
       Initialize make.pictures capsules + AI agent skills inside an existing repo
 
   onboard [init|connect|wait|check|status] [--json|--human] [--no-browser]
@@ -124,13 +146,13 @@ Commands:
   doctor [--setup] [--dir=<subdir>]
       Verify Node.js, FFmpeg, ElevenLabs connectivity, capsules, and Remotion
 
-  styles [--json] [--dir=<subdir>]
-      List all 7 built-in Art Direction styles, custom styles/*.style.json, and 7 visual kits
+  styles [--space=2d|2.5d|3d] [--json] [--dir=<subdir>]
+      List all 10 built-in Art Direction styles, custom styles/*.style.json, and 7 visual kits
 
   style new <slug> [--from=minimal-product] [--force] [--dir=<subdir>]
       Create a reusable custom Art Direction preset in styles/<slug>.style.json
 
-  new <slug> [--kit=vector-scene-2d|editorial-collage|kinetic-typography|data-storytelling|motion-diagrams-2d|paper-diorama-3d|isometric-3d] [--style=minimal-product] [--voice=<voiceId>] [--lang=en|pl] [--dir=<subdir>]
+  new <slug> [--space=2d|2.5d|3d] [--kit=vector-scene-2d|editorial-collage|kinetic-typography|data-storytelling|motion-diagrams-2d|paper-diorama-3d|isometric-3d] [--style=minimal-product] [--voice=<voiceId>] [--lang=en|pl] [--dir=<subdir>]
       Scaffold an isolated production capsule in productions/<slug>/
 
   audio [--production=<slug>] [--mock] [--force] [--dir=<subdir>]
@@ -187,8 +209,14 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
     }
 
     case 'init': {
-      const kit = getStringFlag(flags, 'kit') as ScaffoldKitId | undefined;
-      const style = getStringFlag(flags, 'style');
+      const space = parseSpaceFlag(flags);
+      const spaceDefaults = space
+        ? defaultKitAndStyleForSpace(space)
+        : undefined;
+      const kit =
+        (getStringFlag(flags, 'kit') as ScaffoldKitId | undefined) ??
+        spaceDefaults?.kit;
+      const style = getStringFlag(flags, 'style') ?? spaceDefaults?.styleId;
       const voice = getStringFlag(flags, 'voice');
       const langRaw = getStringFlag(flags, 'lang');
       const lang = langRaw === 'pl' ? 'pl' : 'en';
@@ -250,6 +278,7 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
         cwd,
         dir,
         json: Boolean(flags.json),
+        space: parseSpaceFlag(flags),
       });
       return;
     }
@@ -261,6 +290,7 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
           cwd,
           dir,
           json: Boolean(flags.json),
+          space: parseSpaceFlag(flags),
         });
         return;
       }
@@ -289,9 +319,10 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
       const slug = positionals[1] || getStringFlag(flags, 'slug');
       if (!slug) {
         throw new Error(
-          'Missing <slug>. Usage: make-pictures new <slug> [--kit=vector-scene-2d] [--style=minimal-product] [--lang=pl|en]'
+          'Missing <slug>. Usage: make-pictures new <slug> [--space=2d|2.5d|3d] [--kit=vector-scene-2d] [--style=minimal-product] [--lang=pl|en]'
         );
       }
+      const space = parseSpaceFlag(flags);
       const kit = getStringFlag(flags, 'kit') as ScaffoldKitId | undefined;
       const style = getStringFlag(flags, 'style');
       const voice = getStringFlag(flags, 'voice');
@@ -301,6 +332,7 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
         cwd,
         dir,
         slug,
+        space,
         kit,
         style,
         voice,
