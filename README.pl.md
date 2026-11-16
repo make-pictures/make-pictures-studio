@@ -33,9 +33,9 @@ Przygotuj dla mnie studio filmowe make.pictures: uruchom `npx -y @make-pictures/
 ## 🖥️ Studio Web i 🎨 Style Lab (`v2.2.0`)
 
 <p align="center">
-  <a href="https://make.pictures"><img src="./docs/showcase/showreel-preview.gif" alt="make.pictures 25 s Showreel — 1 prompt do Studio Web i 4 style wizualne" width="760" /></a>
+  <a href="https://make.pictures"><img src="./docs/showcase/showreel-preview.gif" alt="make.pictures Showreel 39 s — 3 prompty do animacji 2D Retro-PC, wycinanki 2.5D Apollo 11 i modeliny 3D" width="760" /></a>
   <br />
-  <sub>▶ <strong>Showreel 25 s</strong> — prompt → <strong>Studio Web</strong> → 4 style wizualne (obejrzyj z głosem i muzyką na <a href="https://make.pictures">make.pictures</a>).</sub>
+  <sub>▶ <strong>Showreel 39 s</strong> — prompt → <strong>2D Retro-PC • Wycinanka 2.5D • Modelina 3D</strong> (obejrzyj z głosem i muzyką na <a href="https://make.pictures">make.pictures</a>).</sub>
 </p>
 
 <p align="center">

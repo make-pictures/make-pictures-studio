@@ -33,9 +33,9 @@ Set up make.pictures video studio for me: run `npx -y @make-pictures/cli@latest 
 ## 🖥️ Studio Web & 🎨 Style Lab (`v2.2.0`)
 
 <p align="center">
-  <a href="https://make.pictures"><img src="./docs/showcase/showreel-preview.gif" alt="make.pictures 25s Showreel — 1 prompt to Studio Web and 4 visual styles" width="760" /></a>
+  <a href="https://make.pictures"><img src="./docs/showcase/showreel-preview.gif" alt="make.pictures 39s Showreel — 3 prompts to 2D Retro-PC, 2.5D Apollo 11 cutouts & 3D Soft-Clay animations" width="760" /></a>
   <br />
-  <sub>▶ <strong>25s Showreel</strong> — prompt → <strong>Studio Web</strong> → 4 visual styles (watch with voice &amp; music at <a href="https://make.pictures">make.pictures</a>).</sub>
+  <sub>▶ <strong>39s Showreel</strong> — prompt → <strong>2D Retro-PC • 2.5D Cutouts • 3D Soft-Clay</strong> (watch with voice &amp; music at <a href="https://make.pictures">make.pictures</a>).</sub>
 </p>
 
 <p align="center">
