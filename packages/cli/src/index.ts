@@ -45,6 +45,7 @@ const BOOLEAN_FLAGS = new Set([
   'human',
   'no-browser',
   'replace',
+  'allow-fast-cuts',
 ]);
 
 function parseCliArgs(argv: string[]): ParsedArgs {
@@ -141,8 +142,8 @@ Commands:
   sfx [--production=<slug>] [--id=whoosh] [--prompt="..."] [--preset=whoosh] [--loop] [--mock] [--force]
       Generate or refresh Foley / SFX asset
 
-  qa <CompositionId> [--grid=4x3] [--out=out/qa-<id>.png] [--duration=<frames>] [--dir=<subdir>]
-      Render a 12-frame Contact-Sheet PNG (with 9:16 Golden Safe Box inspection)
+  qa <CompositionId> [--grid=4x3] [--out=out/qa-<id>.png] [--duration=<frames>] [--allow-fast-cuts] [--dir=<subdir>]
+      Run Hard Director QA Gate + render 12-frame Contact-Sheet PNG (with 9:16 Safe Box & Clean f=0 check)
 
   render <CompositionId> [outPath] [--no-master] [--props=<jsonOrFile>] [--dir=<subdir>]
       Render 60 FPS MP4 (auto --gl=angle for 3D) + master loudness to -14 LUFS
@@ -376,6 +377,7 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
         outPath: getStringFlag(flags, 'out'),
         durationOverride: durStr ? Number(durStr) : undefined,
         glAngle: flags.gl === 'angle' ? true : undefined,
+        allowFastCuts: Boolean(flags['allow-fast-cuts']),
       });
       return;
     }
@@ -448,6 +450,7 @@ export * from './commands/render';
 export * from './commands/studio';
 export * from './commands/styles';
 export * from './commands/workspace-paths';
+export * from './director/audit-direction';
 
 function resolveSelfFilename(): string | null {
   if (typeof __filename === 'string') {

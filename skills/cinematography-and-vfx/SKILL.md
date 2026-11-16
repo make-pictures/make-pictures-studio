@@ -1,18 +1,56 @@
 ---
 name: cinematography-and-vfx
 description: >-
-  Declarative Shot DSL camera direction (DirectorCamera3D, DirectorCamera2D, and
-  2.5D Multi-Plane OpticalStage2D + DepthPlane + StageLightingRig +
-  getTactileSurfaceStyle), 9:16 Golden Safe Box auto-framing, deterministic
-  handheld/impact camera noise, and 60 FPS VFX primitives (@make-pictures/kits/vfx:
-  CinematicLensOverlay, ParticleField, StagePostProcessing3D, SceneTransition).
-  Use whenever framing 2D/2.5D/3D shots, choreographing rack focus or transitions,
-  or adding directional lighting and lens/atmospheric effects.
+  Continuous scene composition (<ContinuousSceneFlow>, <OpticalCrossDissolve>,
+  CINEMATIC_SPRINGS, useFocalStagger, DIRECTOR_PACING_BUDGET,
+  <ScenicBackdropLayers>, <ClippedSurfaceChrome>), declarative Shot DSL camera
+  direction (DirectorCamera3D, DirectorCamera2D, OpticalStage2D + DepthPlane +
+  StageLightingRig + getTactileSurfaceStyle), 9:16 Golden Safe Box auto-framing,
+  and 60 FPS VFX primitives (@make-pictures/kits/vfx). Use whenever sequencing
+  scenes >= 4.5s, choreographing optical dissolves/rack focus, or framing 2D/3D shots.
 ---
 
-# Cinematography & Deterministic VFX (`@make-pictures/core` & `@make-pictures/kits/vfx`)
+# Cinematography, Continuous Scene Flow & Deterministic VFX (`@make-pictures/core` & `@make-pictures/kits/vfx`)
 
-Direct 3D, 2.5D multi-plane optical, and 2D infinite-canvas cameras using film-grammar shot names instead of raw trigonometry, with automatic `9:16` Golden Safe Box framing, Circle-of-Confusion rack focus, and 100% deterministic `60 FPS` visual effects.
+Direct continuous multi-scene optical dissolves, 3D, 2.5D multi-plane optical, and 2D infinite-canvas cameras using film-grammar shot names instead of raw trigonometry, with automatic `9:16` Golden Safe Box framing, Circle-of-Confusion rack focus, `<= 1` WebGL context safety, and 100% deterministic `60 FPS` visual effects.
+
+---
+
+## 0. Continuous Scene Composition & Director Pacing (`<ContinuousSceneFlow />` & `CINEMATIC_SPRINGS`)
+
+```tsx
+import {
+  CINEMATIC_SPRINGS,
+  ClippedSurfaceChrome,
+  ContinuousSceneFlow,
+  DIRECTOR_PACING_BUDGET,
+  OpticalCrossDissolve,
+  ScenicBackdropLayers,
+  computeContinuousSceneWindows,
+  interpolateStylePresets,
+  useFocalStagger,
+  type ContinuousSceneSpec,
+} from '@make-pictures/core';
+```
+
+### `DIRECTOR_PACING_BUDGET`, `CINEMATIC_SPRINGS` & `useFocalStagger`
+- **`DIRECTOR_PACING_BUDGET`** *(enforced by the hard `npx make-pictures qa` Director Gate on `origin: 'production'`)*:
+  - `minSceneDurationFrames: 270` (`4.5 s` @ `60 FPS` minimum per visual scene),
+  - `minSettleHoldFrames: 45` (`0.75 s` calm breathing hold; `qa` requires `>= 36` frames after speech),
+  - `maxWordsPerSecond: 2.8`,
+  - `defaultCrossDissolveFrames: 54` (`0.9 s`).
+- **`CINEMATIC_SPRINGS`:** High-mass, critically damped (`damping: 200`) motion curves that settle gracefully in `~0.85 s` without bounce:
+  - `entrance: { mass: 1.45, damping: 200, stiffness: 58 }`
+  - `drift: { mass: 1.8, damping: 200, stiffness: 34 }`
+  - `emphasis: { mass: 1.25, damping: 200, stiffness: 72 }`
+- **`useFocalStagger(frame, fps, options?)`:** Enforces the **Single Focal Point Law** (`startFrame >= 2`, `supportDelayFrames = 22`, `ambientDelayFrames = 40`), returning `{ lead, support, ambient }` so the primary hero settles before supporting elements enter. Never mount `<WordByWordStage>` in the same scene as card/node components (`ImpactKeywordCard`, `StoryCard2D`, `MetricComparisonCard`, `SystemNode`).
+
+### `<ContinuousSceneFlow scenes={...} crossDissolveFrames={54} />` & `<OpticalCrossDissolve />`
+Replaces manual `<Sequence>` stitching and abrupt `<SceneTransition>` wipes:
+- **2D ↔ 2D and 2D ↔ 3D Transitions:** Overlaps adjacent scenes across `crossDissolveFrames` with cubic smoothstep opacity, subtle `0 px → 4 px → 0 px` optical defocus (`< 0.25px` emits `filter: 'none'` outside the dissolve window!), and continuous `0.988 → 1.0 → 1.016` scale match-drift.
+- **3D ↔ 3D WebGL Context Budget (`<= 1` `<ThreeCanvas>`):** When both outgoing and incoming `ContinuousSceneSpec` entries set `usesThree: true`, `computeContinuousSceneWindows` **never overlaps** their `<Sequence>` mounts — the outgoing `<ThreeCanvas>` unmounts at exact boundary `B` and the incoming `<ThreeCanvas>` mounts at `B` beneath a smooth luminous `palette.bgCanvas` veil (`0 → 1 → 0` centered at `B`).
+- **Mid-Scene Style Morphing:** Pair with `interpolateStylePresets(fromStyle, toStyle, progress)` to glide across the 3 Artistic Worlds (`atelier`, `illustrative`, `editorial-gallery`) over `48–72` frames with zero cuts.
+- **Scenic Backdrops & Clipped Card Chrome:** `<ScenicBackdropLayers />` renders Clean Frame `0` (`null` on `frame <= 0`) and rich multi-plane scenery per `ArtWorld`; `<ClippedSurfaceChrome />` clips internal top accent bars and specular rims cleanly inside rounded cards that use `overflow: 'visible'`.
 
 ---
 
@@ -143,4 +181,4 @@ import {
 - **`CinematicLensOverlay`:** Viewport HTML overlay (`pointerEvents: 'none'`) adding subtle `vignetteIntensity` (`0..1`), seeded film `grainOpacity` (`0..0.18`), `warmLightLeak` (`0..1`), and velocity-coupled `chromaticAberration` (automatically peaks during `'whip'` camera transitions via frame-keyed camera telemetry and drops to `0` when steady!).
 - **`ParticleField`:** Pure analytical particle layer (`preset: 'dust-motes' | 'snow' | 'rain' | 'sparks' | 'confetti' | 'speed-lines'`, `count`, `color`, `seed`, `intensity`).
 - **`StagePostProcessing3D` & `ContactShadowDisc3D`:** Drop-in children inside `<ThreeCanvas>` providing exponential atmospheric depth fog (`THREE.FogExp2`), volumetric spotlight dust cones, depth-haze planes, and soft radial contact shadows without extra postprocessing bundle bloat (used automatically inside `<IsometricStage3D />` and `<Stylized3DCharacter />` alongside the `optics.lightAngleDeg` key/rim studio lighting rig).
-- **`SceneTransition`:** Declarative transition wipe centered at `atFrame` (`durationInFrames`, `type: 'iris-wipe' | 'whip-pan' | 'paper-curtain' | 'flash-cut' | 'ink-wash'`, `accentColor`). Pair with a `'whoosh'` or `'page-slide'` `<SoundCue />`!
+- **`SceneTransition` *(Legacy / Special Exceptions Only)*:** Declarative transition wipe (`durationInFrames`, `type: 'iris-wipe' | 'whip-pan' | 'paper-curtain' | 'flash-cut' | 'ink-wash'`). **Important:** The hard `npx make-pictures qa` Director Gate **blocks** choppy `type="flash-cut" | "paper-curtain" | "iris-wipe"` and `durationInFrames < 30` in `origin: 'production'` films (unless `--allow-fast-cuts` is explicitly passed) — always compose scene transitions with `<ContinuousSceneFlow />` / `<OpticalCrossDissolve />` instead!

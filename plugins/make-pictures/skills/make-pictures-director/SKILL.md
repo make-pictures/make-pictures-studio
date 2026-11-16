@@ -70,8 +70,12 @@ Confirm with the user (or propose 2–3 tailored art direction options if given 
    - `paper-diorama-3d` — Tactile 2.5D layered cutouts on neutral `DioramaStage3D` (`kit-paper-diorama-3d`)
    - `isometric-3d` — Multi-character 3D dialogue on neutral `IsometricStage3D` (`kit-isometric-3d`)
 4. **Art Direction Style (`--style=<styleId>`):**
-   - **7 Built-in Styles:** `minimal-product`, `editorial-press`, `archival-chronicle`, `cyber-telemetry`, `brutalist-poster`, `sketch-notebook`, `tactile-craft` (inspect via `npx make-pictures styles` or preview live at `60 FPS` in **Studio Web → `🎨 Style Lab`** at `http://127.0.0.1:3000?view=styles`).
-   - **Custom Brand / Era Style (`styles/<slug>.style.json`):** Create a bespoke style via `npx make-pictures style new <slug> --from=editorial-press` and customize its palette, 13 `latin-ext` Google Fonts, surface chrome, and motion profile.
+   - **3 Artistic Worlds & 7 Built-in Styles (`ArtWorld`):**
+     - **`atelier`** (studio acrylic glass, anodized metal & cyclorama): `minimal-product`, `cyber-telemetry`
+     - **`illustrative`** (painterly multi-plane vector hills, clouds & die-cut craft): `tactile-craft`, `sketch-notebook`
+     - **`editorial-gallery`** (monumental typography, passe-partout, cotton paper & warm window light): `editorial-press`, `archival-chronicle`, `brutalist-poster`
+     - Inspect via `npx make-pictures styles` or preview live at `60 FPS` in **Studio Web → `🎨 Style Lab`** at `http://127.0.0.1:3000?view=styles`. To morph smoothly between two styles mid-scene without cutting, use `interpolateStylePresets(fromStyle, toStyle, progress)` from `@make-pictures/core`.
+   - **Custom Brand / Era Style (`styles/<slug>.style.json`):** Create a bespoke style via `npx make-pictures style new <slug> --from=editorial-press` (including optional `artWorld: 'atelier' | 'illustrative' | 'editorial-gallery'`) and customize its palette, 13 `latin-ext` Google Fonts, surface chrome, and motion profile.
 
 Scaffold the capsule immediately (append `--dir=<subdir>` if working inside a subdirectory studio):
 
@@ -126,10 +130,12 @@ Load `sound-and-music-design` and write `productions/<slug>/production.json` con
 }
 ```
 
-#### Editorial & Pacing Rules (`60 FPS`)
-- **3–5 Second Visual Beat Rule:** Introduce a new camera angle (`ShotSpec3D` / `DirectorCamera2D`), layout transition, media card, or data highlight every **`180–300` frames (`3–5 s`)** so the frame never stagnates.
-- **Natural Breathing Pauses:** Leave **`32–42` frames** (`0.55–0.7 s`) between scenes and **`20–28` frames** after comedic or dramatic punchlines.
-- **Visual Minimalism:** Never render walls of text. Use **Icon (`lucide-react`) + 2–3 words + visual indicator** (badge, progress bar, metric).
+#### Director Pacing Law & Editorial Rules (`60 FPS` — Enforced by `npx make-pictures qa`)
+- **Minimum `4.5 s` (`270` Frames) Per Visual Scene (`DIRECTOR_PACING_BUDGET`):** Every visual scene in a `production` film MUST span **`>= 270` frames (`4.5 s` @ `60 FPS`)**. Compose multi-scene films with `<ContinuousSceneFlow scenes={...} crossDissolveFrames={54} />` (`0.9 s` optical cross-dissolve) instead of stitching short `<Sequence>` blocks or abrupt wipes.
+- **Single Focal Point (`useFocalStagger` & `CINEMATIC_SPRINGS`):** Keep at most **1 primary focal hero** entering at once (`useFocalStagger(frame, fps)` staggers `lead` at `frame >= 2`, `support` at `+22f`, and `ambient` at `+40f` using critically damped `CINEMATIC_SPRINGS.entrance`). **Never** mount `<WordByWordStage>` in the same scene/component as `<ImpactKeywordCard>`, `<StoryCard2D>`, `<MetricComparisonCard>`, or `<SystemNode>`.
+- **Calm Reading Cadence (`<= 2.8 words/s`) & Breathing Hold:** Spoken narration in `production.json` must stay **`<= 2.8` words/s** over its visual scene window and leave **`>= 36–45` frames (`0.60–0.75 s`)** of calm settle/breathing room before the next scene begins.
+- **Rounded-Card Clipping Precision (`<ClippedSurfaceChrome />`):** Whenever a rounded card/node uses `overflow: 'visible'` (e.g., for external port pins), wrap internal top accent bars and specular highlights inside `<ClippedSurfaceChrome />` from `@make-pictures/core` so zero square pixels protrude past rounded corners.
+- **Visual Minimalism:** Never render walls of text or developer clutter (`MOD 01`, `SLOT 01/03`). Use **Icon (`lucide-react`) + 2–3 words + visual indicator**.
 - **No Bottom Subtitles by Default:** Omit burned-in bottom captions unless the user explicitly asks for `VoiceoverCaptionBar`.
 - **Polish Sentence Case:** In Polish videos, write `Jak działa pamięć podręczna` (Sentence case), **never** Anglo-Saxon `Jak Działa Pamięć Podręczna`. Frame headlines around viewer curiosity or benefit.
 
@@ -153,24 +159,32 @@ Load `sound-and-music-design` and write `productions/<slug>/production.json` con
 
 1. **Read `<PascalSlug>.props.json` (and any `styles/*.style.json`) from disk first** before editing existing files so you never overwrite tweaks saved by the creator in **Studio Web** (`npx make-pictures studio`).
 2. Wrap the composition in `<StyleProvider style={props.styleId} renderBackdrop>` and keep `styleId: z.string().describe('Kolory & Styl :: Styl bazowy (Style ID)')` in your exported `zod` schema alongside `'Section :: Label'` props (`'Teksty & Napisy :: Tytuł'`, `'Audio :: Głośność muzyki'`).
-3. Load `cinematography-and-vfx` + your chosen `kit-*` skill(s). Synchronize visuals and audio via `getWordTriggerFrame(sceneId, word, fallbackFrame, voiceoverManifest?)`, `getSpeechStateAtFrame(sceneId, localFrame, voiceoverManifest?)`, `<VoiceoverTrack />`, `<SmartMusicBed />`, and `<SoundCue />` (never wrap `<Audio />` in `<Sequence>` without `durationInFrames`).
+3. Load `cinematography-and-vfx` + your chosen `kit-*` skill(s). Compose multi-scene arcs with `<ContinuousSceneFlow scenes={...} crossDissolveFrames={54} />` (which automatically hands off `usesThree: true` → `usesThree: true` transitions via a luminous veil so **at most 1 WebGL `<ThreeCanvas>`** is mounted on any frame) and `interpolateStylePresets` for liquid style morphing. Synchronize visuals and audio via `getWordTriggerFrame(sceneId, word, fallbackFrame, voiceoverManifest?)`, `getSpeechStateAtFrame(sceneId, localFrame, voiceoverManifest?)`, `<VoiceoverTrack />`, `<SmartMusicBed />`, and `<SoundCue />` (never wrap `<Audio />` in `<Sequence>` without `durationInFrames`).
 4. Wrap `productions/<slug>/index.ts` with `defineProduction({ id: '<slug>', manifest, voiceoverManifest, compositions: [...] })` from `@make-pictures/core` (auto-registering capsule timestamps and setting `origin: 'production'`, `productionId`, `sceneTimeline`, `cameraTimeline`, `sfxTimeline`, and `hasMusicScore`) so the Multi-Track Director Timeline in **Studio Web** visualizes every cut, voiceover segment, SFX cue, and ducking envelope.
 
 ---
 
-### Step 5: Contact-Sheet Visual QA (`qa`)
+### Step 5: Hard Director QA Gate & Contact-Sheet Visual QA (`qa`)
 
-Before running a full MP4 render, generate the automated 12-frame Contact-Sheet PNG:
+Before running a full MP4 render, run the automated Director QA Gate + 12-frame Contact-Sheet PNG:
 
 ```bash
 npx make-pictures qa <CompositionId>
 ```
 
-*(Optional flags: `--grid=4x3`, `--out=out/qa-<CompositionId>.png`, `--dir=<subdir>`.)*
+*(Optional flags: `--grid=4x3`, `--out=out/qa-<CompositionId>.png`, `--dir=<subdir>`, and `--allow-fast-cuts` ONLY for intentional fast-cut exceptions.)*
+
+**Automated Hard Director Gate (`auditCompositionDirection` + `verifyCleanFrameZeroImage`):**
+By default, `npx make-pictures qa` fails fast with a `DirectorAuditError` BEFORE rendering all 12 stills if any of these invariants are violated:
+1. **`MIN_SCENE_SPAN` (`>= 4.5 s` / `270f`):** Every visual scene span in `sceneTimeline` and every visual `<Sequence durationInFrames={N}>` (without `layout="none"`) in `origin: 'production'` must be `>= 270` frames (`4.5 s` @ `60 FPS`).
+2. **`COMPETING_FOCAL_POINT` & Cadence (`<= 2.8 words/s`, `>= 36f` breathing room):** Blocks mounting `<WordByWordStage>` alongside `<ImpactKeywordCard>`, `<StoryCard2D>`, `<MetricComparisonCard>`, or `<SystemNode>` in the same scene; verifies `production.json` scenes stay `<= 2.8` words/s with `>= 36` frames (`0.6 s`) of breathing room after speech.
+3. **`CHOPPY_SCENE_TRANSITION`:** Rejects `<SceneTransition>` with `type="flash-cut" | "paper-curtain" | "iris-wipe"` or `durationInFrames < 30` — use `<ContinuousSceneFlow>` / `<OpticalCrossDissolve>` instead.
+4. **`UNCLIPPED_CARD_BAR`:** Rejects `position: 'absolute', top: 0` bars (`height: 2..8`) inside `overflow: 'visible'` containers when `<ClippedSurfaceChrome>` is absent.
+5. **`DIRTY_FRAME_ZERO`:** Samples a `32×32` RGB24 buffer from rendered `f=0` and requires max per-channel spread `<= 6` (`100%` uniform `palette.bgCanvas`).
 
 **MANDATORY VISUAL INSPECTION:** Open `out/qa-<CompositionId>.png` with `read_file` and verify all 12 frames:
-- **`f=0` Clean Board:** Frame `0` shows a clean `bgCanvas` background without half-rendered text or broken layout (`spring({ frame: frame - 2 })`).
-- **Art Direction & Zero Collisions:** Typography (`latin-ext` Polish diacritics), palette, and card chrome match the chosen `StylePreset` with zero clipped headers, zero SVG curves slicing across titles, and zero 3D WebGL Z-fighting.
+- **`f=0` Clean Board:** Frame `0` shows a clean uniform `bgCanvas` background (`spring({ frame: frame - 2 })`).
+- **Art Direction & Zero Collisions:** Typography (`latin-ext` Polish diacritics), scenic backdrops, palette, and clipped card corners match the chosen `StylePreset` with zero clipped headers, zero SVG curves slicing across titles, and zero 3D WebGL Z-fighting.
 - **`9:16` Golden Safe Box (`1080×1920`):** On vertical compositions, `qa` draws the green Golden Safe Box (`x ∈ [40, 910]`, `y ∈ [220, 1380]`) and red social-UI dead zones (`top < 220`, `bottom < 480`, `right > 910` for `y > 900`). Confirm all key cards, faces, and titles sit strictly inside the green box.
 
 ---

@@ -6,6 +6,12 @@ import { pathToFileURL } from 'node:url';
 import type { openBrowser as OpenBrowserFn } from '@remotion/renderer';
 import { auditStudioAudioLifetimes } from '../audio/audit-audio-tags';
 import {
+  DirectorAuditError,
+  auditCompositionDirection,
+  verifyCleanFrameZeroImage,
+  type AuditVoiceoverEntry,
+} from '../director/audit-direction';
+import {
   resolveRemotionEntryPoint,
   resolveWorkspaceContext,
 } from './workspace-paths';
@@ -21,6 +27,7 @@ export interface QaContactSheetOptions {
   durationOverride?: number;
   inputProps?: Record<string, unknown>;
   glAngle?: boolean;
+  allowFastCuts?: boolean;
 }
 
 export interface QaContactSheetResult {
@@ -33,12 +40,24 @@ export interface QaContactSheetResult {
 }
 
 interface RegistryHint {
+  origin?: 'example' | 'production';
+  productionId?: string;
+  propsFile?: string;
+  durationInFrames?: number;
+  fps?: number;
   usesThree?: boolean;
   sceneTimeline?: Array<{
     sceneId: string;
     fromFrame: number;
     durationInFrames: number;
+    label?: string;
   }>;
+  cameraTimeline?: Array<{
+    shotLabel?: string;
+    fromFrame: number;
+    durationInFrames: number;
+  }>;
+  voiceoverManifest?: Record<string, AuditVoiceoverEntry | undefined>;
 }
 
 export function toKebabSlug(compId: string): string {
@@ -249,20 +268,139 @@ function writeRgbaPamBadge(params: {
   fs.writeFileSync(params.filePath, Buffer.concat([header, pixels]));
 }
 
-async function lookupRegistryHint(
+function extractEntryFromLoadedModule(
+  mod: Record<string, unknown> | undefined,
+  compositionId: string,
+  fallbackOrigin: 'example' | 'production',
+  fallbackProductionId: string
+): RegistryHint | null {
+  if (!mod || typeof mod !== 'object') return null;
+
+  const topVo =
+    (mod.VOICEOVER_MANIFEST as
+      | Record<string, AuditVoiceoverEntry | undefined>
+      | undefined) ??
+    (mod.voiceoverManifest as
+      | Record<string, AuditVoiceoverEntry | undefined>
+      | undefined);
+
+  for (const candidate of [
+    mod.default,
+    mod.production,
+    mod.COMPOSITIONS,
+    mod.compositions,
+  ]) {
+    if (!candidate || typeof candidate !== 'object') continue;
+
+    const asProd = candidate as {
+      id?: string;
+      origin?: 'example' | 'production';
+      voiceoverManifest?: Record<string, AuditVoiceoverEntry | undefined>;
+      compositions?: RegistryHint[];
+    };
+    if (Array.isArray(asProd.compositions)) {
+      const hit = asProd.compositions.find(
+        (c) => (c as { id?: string }).id === compositionId
+      );
+      if (hit) {
+        return {
+          ...hit,
+          origin: hit.origin ?? asProd.origin ?? fallbackOrigin,
+          productionId: hit.productionId ?? asProd.id ?? fallbackProductionId,
+          voiceoverManifest:
+            hit.voiceoverManifest ?? asProd.voiceoverManifest ?? topVo,
+        };
+      }
+    }
+
+    if (Array.isArray(candidate)) {
+      const hit = (candidate as Array<RegistryHint & { id?: string }>).find(
+        (c) => c && typeof c === 'object' && c.id === compositionId
+      );
+      if (hit) {
+        return {
+          ...hit,
+          origin: hit.origin ?? fallbackOrigin,
+          productionId: hit.productionId ?? fallbackProductionId,
+          voiceoverManifest: hit.voiceoverManifest ?? topVo,
+        };
+      }
+    }
+
+    if ((candidate as { id?: string }).id === compositionId) {
+      const hit = candidate as RegistryHint;
+      return {
+        ...hit,
+        origin: hit.origin ?? fallbackOrigin,
+        productionId: hit.productionId ?? fallbackProductionId,
+        voiceoverManifest: hit.voiceoverManifest ?? topVo,
+      };
+    }
+  }
+
+  return null;
+}
+
+function parseStaticProductionHintFromDisk(
   studioDir: string,
+  slug: string,
   compositionId: string
-): Promise<RegistryHint> {
-  // 1. Try scanning capsule `productions/<slug>/production.json` (pure JSON, works under raw `node`)
-  try {
-    const slug = toKebabSlug(compositionId);
-    const prodJsonPath = path.join(
-      studioDir,
-      'productions',
-      slug,
-      'production.json'
-    );
-    if (fs.existsSync(prodJsonPath)) {
+): RegistryHint | null {
+  const prodDir = path.join(studioDir, 'productions', slug);
+  if (!fs.existsSync(prodDir)) return null;
+
+  const propsCandidateRel = `productions/${slug}/compositions/${compositionId}.props.json`;
+  const hasMatchingProps = fs.existsSync(
+    path.join(studioDir, propsCandidateRel)
+  );
+
+  const indexTsPath = ['index.ts', 'index.tsx']
+    .map((f) => path.join(prodDir, f))
+    .find((p) => fs.existsSync(p));
+  const indexSrc = indexTsPath ? fs.readFileSync(indexTsPath, 'utf8') : '';
+  const escapedId = compositionId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const mentionsId = new RegExp(`\\bid\\s*:\\s*['"]${escapedId}['"]`).test(
+    indexSrc
+  );
+
+  if (!hasMatchingProps && !mentionsId && slug !== toKebabSlug(compositionId)) {
+    return null;
+  }
+
+  const hint: RegistryHint = {
+    origin: 'production',
+    productionId: slug,
+  };
+
+  const propsMatch = indexSrc.match(
+    new RegExp(
+      `id\\s*:\\s*['"]${escapedId}['"][\\s\\S]{0,600}?propsFile\\s*:\\s*['"]([^'"]+)['"]`
+    )
+  );
+  if (propsMatch) {
+    hint.propsFile = propsMatch[1];
+  } else if (hasMatchingProps) {
+    hint.propsFile = propsCandidateRel;
+  }
+
+  const usesThreeMatch = indexSrc.match(/\busesThree\s*:\s*(true|false)\b/);
+  if (usesThreeMatch) {
+    hint.usesThree = usesThreeMatch[1] === 'true';
+  }
+
+  const durMatch = indexSrc.match(/\bdurationInFrames\s*:\s*(\d+)\b/);
+  if (durMatch) {
+    hint.durationInFrames = Number(durMatch[1]);
+  }
+
+  const fpsMatch = indexSrc.match(/\bfps\s*:\s*(\d+)\b/);
+  if (fpsMatch) {
+    hint.fps = Number(fpsMatch[1]);
+  }
+
+  const prodJsonPath = path.join(prodDir, 'production.json');
+  if (fs.existsSync(prodJsonPath)) {
+    try {
       const manifest = JSON.parse(fs.readFileSync(prodJsonPath, 'utf8')) as {
         fps?: number;
         scenes?: Array<{
@@ -271,10 +409,11 @@ async function lookupRegistryHint(
           durationInSeconds?: number;
         }>;
       };
-      const fps = manifest.fps || 60;
+      const fps = hint.fps ?? manifest.fps ?? 60;
+      hint.fps = fps;
       if (Array.isArray(manifest.scenes) && manifest.scenes.length > 0) {
         let cursor = 12;
-        const sceneTimeline = manifest.scenes.map((s) => {
+        hint.sceneTimeline = manifest.scenes.map((s) => {
           const dur =
             s.durationInFrames ?? Math.round((s.durationInSeconds ?? 5) * fps);
           const seg = {
@@ -285,14 +424,20 @@ async function lookupRegistryHint(
           cursor += dur + 12;
           return seg;
         });
-        return { sceneTimeline };
       }
+    } catch {
+      // ignore
     }
-  } catch {
-    // ignore
   }
 
-  // 2. Fallback: try dynamic import of monorepo `src/compositions/registry.ts` (when run via `tsx`)
+  return hint;
+}
+
+async function lookupRegistryHint(
+  studioDir: string,
+  compositionId: string
+): Promise<RegistryHint> {
+  // 1. Try dynamic import of monorepo `src/compositions/registry.ts` (covers built-in `examples/*` under `tsx`)
   try {
     const registryPath = path.join(
       studioDir,
@@ -300,13 +445,87 @@ async function lookupRegistryHint(
       'compositions',
       'registry.ts'
     );
-    if (!fs.existsSync(registryPath)) return {};
-    const mod = (await import(pathToFileURL(registryPath).href)) as {
-      getCompositionById?: (id: string) => RegistryHint | undefined;
-    };
-    return mod.getCompositionById?.(compositionId) ?? {};
+    if (fs.existsSync(registryPath)) {
+      const mod = (await import(pathToFileURL(registryPath).href)) as {
+        getCompositionById?: (id: string) => RegistryHint | undefined;
+      };
+      const found = mod.getCompositionById?.(compositionId);
+      if (found) {
+        return found;
+      }
+    }
   } catch {
-    return {};
+    // Non-tsx runtime or missing optional peer — fall through to capsule discovery
+  }
+
+  // 2. Scan `productions/*/index.{ts,tsx}` and `examples/*/index.{ts,tsx}` directly
+  for (const [folder, fallbackOrigin] of [
+    ['productions', 'production'],
+    ['examples', 'example'],
+  ] as const) {
+    const baseDir = path.join(studioDir, folder);
+    if (!fs.existsSync(baseDir)) continue;
+
+    const dirs = fs
+      .readdirSync(baseDir, { withFileTypes: true })
+      .filter((d) => d.isDirectory() && !d.name.startsWith('.'))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    for (const dirEntry of dirs) {
+      const indexFile = ['index.ts', 'index.tsx']
+        .map((f) => path.join(baseDir, dirEntry.name, f))
+        .find((p) => fs.existsSync(p));
+      if (indexFile) {
+        try {
+          const mod = (await import(
+            pathToFileURL(indexFile).href
+          )) as Record<string, unknown>;
+          const matched = extractEntryFromLoadedModule(
+            mod,
+            compositionId,
+            fallbackOrigin,
+            dirEntry.name
+          );
+          if (matched) {
+            return matched;
+          }
+        } catch {
+          // Raw `node` runtime cannot import `.ts`/`.tsx` directly — handled by static fallback below
+        }
+      }
+
+      if (fallbackOrigin === 'production') {
+        const staticHint = parseStaticProductionHintFromDisk(
+          studioDir,
+          dirEntry.name,
+          compositionId
+        );
+        if (staticHint) {
+          return staticHint;
+        }
+      }
+    }
+  }
+
+  return {};
+}
+
+function logAllowedFastCutWarnings(
+  rootDir: string,
+  violations: ReadonlyArray<{
+    code: string;
+    message: string;
+    filePath?: string;
+    line?: number;
+  }>
+): void {
+  for (const v of violations) {
+    const loc = v.filePath
+      ? ` ${path.relative(rootDir, v.filePath)}${v.line ? `:${v.line}` : ''} —`
+      : '';
+    console.warn(
+      `  ⚠️  [Director QA Gate --allow-fast-cuts] [${v.code}]${loc} ${v.message}`
+    );
   }
 }
 
@@ -344,6 +563,46 @@ export async function runQaContactSheetCommand(
 
   const hint = await lookupRegistryHint(studioDir, compositionId);
   const useAngleGl = options.glAngle ?? hint.usesThree ?? true;
+  const preBundleDuration = options.durationOverride ?? hint.durationInFrames;
+  let preBundledAuditComplete = false;
+
+  console.log('==============================================================');
+  console.log(
+    ` 🔍 make.pictures — Contact-Sheet QA (${compositionId} • ${cols}x${rows})`
+  );
+  console.log('==============================================================');
+
+  const audioWarnings = auditStudioAudioLifetimes(studioDir);
+  if (audioWarnings.length > 0) {
+    for (const warn of audioWarnings) {
+      const relPath = path.relative(rootDir, warn.filePath);
+      console.warn(
+        `  ⚠️  [Audio Pool Guard] ${relPath}:${warn.line} — ${warn.message}`
+      );
+    }
+  }
+
+  // Fast-fail Director QA Gate BEFORE bundling or launching Chromium when duration metadata is known
+  if (typeof preBundleDuration === 'number') {
+    const auditResult = auditCompositionDirection({
+      studioDir,
+      rootDir,
+      compositionId,
+      origin: hint.origin,
+      productionId: hint.productionId,
+      propsFile: hint.propsFile,
+      durationInFrames: preBundleDuration,
+      fps: hint.fps,
+      sceneTimeline: hint.sceneTimeline,
+      voiceoverManifest: hint.voiceoverManifest,
+      inputProps: options.inputProps,
+      allowFastCuts: options.allowFastCuts,
+    });
+    if (auditResult.violations.length > 0 && options.allowFastCuts) {
+      logAllowedFastCutWarnings(rootDir, auditResult.violations);
+    }
+    preBundledAuditComplete = true;
+  }
 
   const tempWorkDir = fs.mkdtempSync(
     path.join(os.tmpdir(), 'make-pictures-qa-')
@@ -357,22 +616,6 @@ export async function runQaContactSheetCommand(
         import('@remotion/bundler'),
         import('@remotion/renderer'),
       ]);
-
-    console.log('==============================================================');
-    console.log(
-      ` 🔍 make.pictures — Contact-Sheet QA (${compositionId} • ${cols}x${rows})`
-    );
-    console.log('==============================================================');
-
-    const audioWarnings = auditStudioAudioLifetimes(studioDir);
-    if (audioWarnings.length > 0) {
-      for (const warn of audioWarnings) {
-        const relPath = path.relative(rootDir, warn.filePath);
-        console.warn(
-          `  ⚠️  [Audio Pool Guard] ${relPath}:${warn.line} — ${warn.message}`
-        );
-      }
-    }
 
     console.log(
       `  [1/3] Bundling Remotion entry (${path.relative(rootDir, entryPoint)})…`
@@ -420,6 +663,27 @@ export async function runQaContactSheetCommand(
     const { width, height, fps } = composition;
     const isVertical = height > width;
 
+    // Guarantee Director QA Gate runs BEFORE rendering the 12 stills even when duration came from selectComposition
+    if (!preBundledAuditComplete) {
+      const auditResult = auditCompositionDirection({
+        studioDir,
+        rootDir,
+        compositionId,
+        origin: hint.origin,
+        productionId: hint.productionId,
+        propsFile: hint.propsFile,
+        durationInFrames: totalFrames,
+        fps,
+        sceneTimeline: hint.sceneTimeline,
+        voiceoverManifest: hint.voiceoverManifest,
+        inputProps: options.inputProps,
+        allowFastCuts: options.allowFastCuts,
+      });
+      if (auditResult.violations.length > 0 && options.allowFastCuts) {
+        logAllowedFastCutWarnings(rootDir, auditResult.violations);
+      }
+    }
+
     const frames = selectQaSampleFrames(
       totalFrames,
       tileCount,
@@ -455,6 +719,23 @@ export async function runQaContactSheetCommand(
         puppeteerInstance: browser,
         chromiumOptions,
       });
+
+      if (frame === 0) {
+        const f0Check = verifyCleanFrameZeroImage(rawStillPath);
+        if (!f0Check.clean) {
+          throw new DirectorAuditError(
+            compositionId,
+            [
+              {
+                code: 'DIRTY_FRAME_ZERO',
+                rule: 'CLEAN_FRAME_ZERO',
+                message: `Rendered Frame 0 is not a uniform solid bgCanvas background (max RGB channel spread = ${f0Check.maxChannelSpread} > 6; spreads R=${f0Check.channelSpreads.r}, G=${f0Check.channelSpreads.g}, B=${f0Check.channelSpreads.b}). Ensure all foreground elements start at frame >= 2 (opacity: 0 on frame 0) and backdrops render pure solid palette.bgCanvas at frame 0.`,
+              },
+            ],
+            rootDir
+          );
+        }
+      }
 
       const secStr = (frame / fps).toFixed(2);
       const badgeLabel =

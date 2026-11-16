@@ -1,18 +1,19 @@
 ---
 name: style-and-art-direction
 description: >-
-  Mandatory Step 1 Art Direction Gate and Style System guide for make.pictures
-  Studio (@make-pictures/core/style, styles/*.style.json, and Studio Web Style
-  Lab). Use this skill before scaffolding or designing any film to match topic,
-  era, and brand to the 7 Visual Kits and 7 BUILT_IN_STYLES (or a custom
-  styles/<slug>.style.json preset), wire <StyleProvider>, useStudioStyle(),
-  resolveStyleOptics(), getTactileSurfaceStyle(), getCardChromeStyle(),
-  getStyleSpringConfig(), and pair voice archetypes.
+  Mandatory Step 1 Art Direction Gate, 3 Artistic Worlds (atelier, illustrative,
+  editorial-gallery), and Style System guide for make.pictures Studio
+  (@make-pictures/core/style, styles/*.style.json, and Studio Web Style Lab).
+  Use this skill before scaffolding or designing any film to match topic, era,
+  and brand to the 7 Visual Kits and 7 BUILT_IN_STYLES (or custom
+  styles/<slug>.style.json), wire <StyleProvider>, resolveArtWorld(),
+  interpolateStylePresets(), <ScenicBackdropLayers>, <ClippedSurfaceChrome>,
+  resolveStyleOptics(), getTactileSurfaceStyle(), and pair voice archetypes.
 ---
 
 # Style & Art Direction (`@make-pictures/core/style` & `styles/*.style.json`)
 
-In `make.pictures`, **Visual Scene Technique (`Kit`)** and **Art Direction (`StylePreset`)** are strictly decoupled. Any of the **7 scene kits** (or a multi-kit sequence across acts of one film) automatically inherits color palette, Google Fonts (`latin-ext`), backdrop texture, card chrome geometry, directional 2.5D optical lighting & kinetic typography grammar (`optics`), motion spring physics, and default voice/music profiles from the active `<StyleProvider>`.
+In `make.pictures`, **Visual Scene Technique (`Kit`)** and **Art Direction (`StylePreset`)** are strictly decoupled across **3 Artistic Worlds (`ArtWorld`: `'atelier' | 'illustrative' | 'editorial-gallery'`)**. Any of the **7 scene kits** (or a multi-kit sequence across acts of one film) automatically inherits multi-plane scenic backdrops (`<ScenicBackdropLayers />`), color palette, Google Fonts (`latin-ext`), card chrome geometry (`<ClippedSurfaceChrome />`), directional 2.5D optical lighting & kinetic typography grammar (`optics`), motion spring physics, and default voice/music profiles from the active `<StyleProvider>`.
 
 ---
 
@@ -39,19 +40,24 @@ Unless the user has already named a specific kit/style, propose **2–3 distinct
 
 ---
 
-## 2. Catalog of the 7 `BUILT_IN_STYLES`
+## 2. The 3 Artistic Worlds (`ArtWorld`) & Catalog of the 7 `BUILT_IN_STYLES`
+
+Every `StylePreset` belongs to one of three distinct **Artistic Worlds** (`resolveArtWorld(style): ArtWorld` from `@make-pictures/core`), which drives `<ScenicBackdropLayers />`, 2.5D diorama motifs, and 3D studio room architecture:
+1. **`'atelier'`** *(Apple / Linear studio aesthetic — acrylic glass, anodized metal, architectural studio cyclorama, floor reflection pool & subtle optical caustics)*: `minimal-product`, `cyber-telemetry`.
+2. **`'illustrative'`** *(Kurzgesagt / Buck painterly aesthetic — warm multi-plane parallax hills, organic clouds, celestial sun/moon disc & tactile die-cut craft)*: `tactile-craft`, `sketch-notebook`.
+3. **`'editorial-gallery'`** *(Pentagram / NYT Magazine / Vox gallery aesthetic — monumental display typography, passe-partout framing, cotton paper & warm window shadow cast)*: `editorial-press`, `archival-chronicle`, `brutalist-poster`.
 
 Inspect all built-in and workspace styles anytime via `npx make-pictures styles` (or `--json`):
 
-| Style ID (`BuiltInStyleId`) | Display + Body + Mono Fonts | Surface (`backdropType` / `cardTreatment`) | Motion Profile | Optics (lightingRig / typographyGrammar) | Default Audio (`musicMood` / `voiceArchetype`) |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| `minimal-product` | `Plus Jakarta Sans` + `Inter` + `JetBrains Mono` | `solid` / `minimal-clean` (`radiusScale: 1`, light) | `snappy-product` | `studio-macro / swiss-spatial` (`-20°`, aperture `0.36`, halation `0.08`) | `upbeat-launch` / `crisp-tech` |
-| `editorial-press` | `Fraunces` + `DM Sans` + `IBM Plex Mono` | `editorial-paper` / `editorial-ink` (`radiusScale: 0.45`, grain `0.05`) | `editorial-calm` | `window-gobo / swiss-spatial` (`-28°`, aperture `0.45`, halation `0.16`) | `news-pulse` / `calm-editorial` |
-| `archival-chronicle` | `Playfair Display` + `DM Sans` + `IBM Plex Mono` | `editorial-paper` / `editorial-ink` (`radiusScale: 0.35`, grain `0.08`) | `cinematic-fluid` | `window-gobo / swiss-spatial` (`-34°`, aperture `0.54`, halation `0.26`) | `warm-story` / `documentary-warm` |
-| `cyber-telemetry` | `Space Grotesk` + `Inter` + `JetBrains Mono` | `blueprint-grid` / `glass-glow` (`isDark: true`, `radiusScale: 0.85`) | `snappy-product` | `darkroom-halation / optical-gate` (`-24°`, aperture `0.50`, halation `0.58`) | `ambient-tech` / `crisp-tech` |
-| `brutalist-poster` | `Syne` (`uppercase`) + `Space Grotesk` + `JetBrains Mono` | `halftone-dots` / `brutalist-hard` (`radiusScale: 0`) | `tactile-pop` | `darkroom-halation / risograph-poster` (`-38°`, aperture `0.32`, halation `0.28`) | `upbeat-launch` / `storyteller-expressive` |
-| `sketch-notebook` | `Caveat` + `DM Sans` + `IBM Plex Mono` | `blueprint-grid` / `editorial-ink` (`radiusScale: 0.7`) | `tactile-pop` | `window-gobo / risograph-poster` (`-26°`, aperture `0.38`, halation `0.12`) | `warm-story` / `storyteller-expressive` |
-| `tactile-craft` | `Outfit` + `Plus Jakarta Sans` + `JetBrains Mono` | `mesh-aura` / `tactile-cutout` (`radiusScale: 1.35`, grain `0.05`) | `tactile-pop` | `window-gobo / risograph-poster` (`-30°`, aperture `0.48`, halation `0.20`) | `paper-expedition` / `storyteller-expressive` |
+| Style ID (`BuiltInStyleId`) | `ArtWorld` | Display + Body + Mono Fonts | Surface (`backdropType` / `cardTreatment`) | Motion Profile | Optics (lightingRig / typographyGrammar) | Default Audio (`musicMood` / `voiceArchetype`) |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `minimal-product` | `atelier` | `Plus Jakarta Sans` + `Inter` + `JetBrains Mono` | `solid` (`#F1F5F9` canvas / `#FFFFFF` surface) / `minimal-clean` (`radiusScale: 1`, light) | `snappy-product` | `studio-macro / swiss-spatial` (`-20°`, aperture `0.36`, halation `0.08`) | `upbeat-launch` / `crisp-tech` |
+| `editorial-press` | `editorial-gallery` | `Fraunces` + `DM Sans` + `IBM Plex Mono` | `editorial-paper` / `editorial-ink` (`radiusScale: 0.45`, grain `0.05`) | `editorial-calm` | `window-gobo / swiss-spatial` (`-28°`, aperture `0.45`, halation `0.16`) | `news-pulse` / `calm-editorial` |
+| `archival-chronicle` | `editorial-gallery` | `Playfair Display` + `DM Sans` + `IBM Plex Mono` | `editorial-paper` / `editorial-ink` (`radiusScale: 0.35`, grain `0.08`) | `cinematic-fluid` | `window-gobo / swiss-spatial` (`-34°`, aperture `0.54`, halation `0.26`) | `warm-story` / `documentary-warm` |
+| `cyber-telemetry` | `atelier` | `Space Grotesk` + `Inter` + `JetBrains Mono` | `blueprint-grid` / `glass-glow` (`isDark: true`, `radiusScale: 0.85`) | `snappy-product` | `darkroom-halation / optical-gate` (`-24°`, aperture `0.50`, halation `0.58`) | `ambient-tech` / `crisp-tech` |
+| `brutalist-poster` | `editorial-gallery` | `Syne` (`uppercase`) + `Space Grotesk` + `JetBrains Mono` | `halftone-dots` / `brutalist-hard` (`radiusScale: 0`) | `tactile-pop` | `darkroom-halation / risograph-poster` (`-38°`, aperture `0.32`, halation `0.28`) | `upbeat-launch` / `storyteller-expressive` |
+| `sketch-notebook` | `illustrative` | `Caveat` + `DM Sans` + `IBM Plex Mono` | `blueprint-grid` / `editorial-ink` (`radiusScale: 0.7`) | `tactile-pop` | `window-gobo / risograph-poster` (`-26°`, aperture `0.38`, halation `0.12`) | `warm-story` / `storyteller-expressive` |
+| `tactile-craft` | `illustrative` | `Outfit` + `Plus Jakarta Sans` + `JetBrains Mono` | `mesh-aura` / `tactile-cutout` (`radiusScale: 1.35`, grain `0.05`) | `tactile-pop` | `window-gobo / risograph-poster` (`-30°`, aperture `0.48`, halation `0.20`) | `paper-expedition` / `storyteller-expressive` |
 
 ### Voice Archetype Mapping (`VOICE_ARCHETYPE_TO_ELEVENLABS_ID`)
 
@@ -93,7 +99,8 @@ npx make-pictures new historia-pizzy --kit=editorial-collage --style=neapolitan-
 
 Every `StylePreset` conforms to `StylePresetSchema` (`@make-pictures/core/style` and `@make-pictures/core` — kept as a plain `z.object` so `introspectZodObject` renders live Studio Web controls):
 
-- **`id` / `name` / `description` / `recommendedFor`:** Slug identifier, display title, art direction summary, and topic tags.
+- **`id` / `name` / `description` / `recommendedFor` / `artWorld`:** Slug identifier, display title, art direction summary, topic tags, and optional `artWorld?: 'atelier' | 'illustrative' | 'editorial-gallery'` (`'Informacje :: Świat artystyczny'`, resolved safely with `resolveArtWorld(style)`).
+- **`interpolateStylePresets(fromStyle, toStyle, progress): StylePreset`:** Continuous `60 FPS` cubic smoothstep interpolation (`48–72` frames) across all 8 `palette` colors, `surface` (`radiusScale`, `grainOpacity`), `motion.cameraHandheld`, and `optics` (`lightAngleDeg`, `aperture`, `halation`), cleanly switching discrete enums (`typography`, `lightingRig`, `artWorld`, `isDark`) at `t >= 0.5` — allowing an entire scene to transform seamlessly from sunlit glass (`minimal-product`) into studio obsidian (`cyber-telemetry`) without a single hard cut.
 - **`palette`:** `bgCanvas`, `bgSurface`, `bgElevated`, `textPrimary`, `textSecondary`, `accentPrimary`, `accentSecondary`, `inkBorder` (CSS HEX `#RRGGBB` or `rgba(...)` / `hsla(...)`).
 - **`typography`:**
   - `displayFont`, `bodyFont`, `monoFont` — validated against `StyleFontFamilySchema` (all **13 Google Fonts** support full **`latin-ext` Polish diacritics** `ą ć ę ł ń ó ś ź ż`):
@@ -124,20 +131,25 @@ Every `StylePreset` conforms to `StylePresetSchema` (`@make-pictures/core/style`
 
 ---
 
-## 5. Runtime Integration (`<StyleProvider>` & Style Hooks)
+## 5. Runtime Integration (`<StyleProvider>`, `<ContinuousSceneFlow>`, `<ScenicBackdropLayers>` & `<ClippedSurfaceChrome>`)
 
-Wrap every composition in `<StyleProvider style={props.styleId} renderBackdrop>` and expose `styleId` in your composition's `zod` schema so `styleId` can be switched live in **Studio Web**:
+Wrap every composition in `<StyleProvider style={props.styleId} renderBackdrop>`, compose calm `>= 270`-frame (`>= 4.5 s`) scenes via `<ContinuousSceneFlow />`, and wrap any internal bars/sheens on `overflow: 'visible'` cards inside `<ClippedSurfaceChrome />` (enforced by the hard `npx make-pictures qa` Director Gate):
 
 ```tsx
 import React from 'react';
 import { z } from 'zod';
-import { AbsoluteFill, Sequence, spring, useCurrentFrame, useVideoConfig } from 'remotion';
+import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import {
+  BUILT_IN_STYLES,
+  CINEMATIC_SPRINGS,
+  ClippedSurfaceChrome,
+  ContinuousSceneFlow,
+  ScenicBackdropLayers,
   StyleProvider,
   formatFontFamilyCss,
   formatHeadingText,
-  getStyleSpringConfig,
   getTactileSurfaceStyle,
+  interpolateStylePresets,
   resolveStyleOptics,
   useStudioStyle,
 } from '@make-pictures/core';
@@ -155,11 +167,11 @@ const CustomSummaryBadge: React.FC<{ label: string }> = ({ label }) => {
   const style = useStudioStyle();
   const optics = resolveStyleOptics(style);
 
-  // Frame 0 Clean Invariant: entrance starts at frame - 2
+  // Frame 0 Clean Invariant: entrance starts at frame - 2 on CINEMATIC_SPRINGS.entrance
   const enter = spring({
     frame: frame - 2,
     fps,
-    config: getStyleSpringConfig(style, 'enter'),
+    config: CINEMATIC_SPRINGS.entrance,
   });
 
   return (
@@ -168,44 +180,74 @@ const CustomSummaryBadge: React.FC<{ label: string }> = ({ label }) => {
       style={getTactileSurfaceStyle(style, {
         elevation: 'lifted',
         overrides: {
+          position: 'relative',
+          overflow: 'visible',
           padding: '24px 32px',
           opacity: enter,
           fontFamily: formatFontFamilyCss(style.typography.displayFont, 'display'),
         },
       })}
     >
+      <ClippedSurfaceChrome topBarHeight={3} topBarColor={style.palette.accentPrimary} specularRim />
       {formatHeadingText(label, style)}
     </div>
   );
 };
 
-export const MyFilm: React.FC<z.infer<typeof FilmSchema>> = ({ styleId, headline }) => (
-  <AbsoluteFill>
-    <StyleProvider style={styleId} renderBackdrop>
-      {/* Multi-kit act composition sharing one cohesive StylePreset */}
-      <Sequence from={0} durationInFrames={180}>
-        <EditorialDeskStage renderBaseFill={false}>
-          <ChapterTitleCard chapterLabel="Akt I" title={headline} />
-        </EditorialDeskStage>
-      </Sequence>
-      <Sequence from={180} durationInFrames={240}>
-        <AnimatedBarRace
-          title="Wzrost udziału"
-          items={[
-            { id: 'a', label: 'Wariant A', value: 84 },
-            { id: 'b', label: 'Wariant B', value: 52 },
+export const MyFilm: React.FC<z.infer<typeof FilmSchema>> = ({ styleId, headline }) => {
+  const frame = useCurrentFrame();
+  const morphT = interpolate(frame, [300, 360], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+  const activeStyle = interpolateStylePresets(
+    BUILT_IN_STYLES[styleId as keyof typeof BUILT_IN_STYLES] ?? BUILT_IN_STYLES['editorial-press'],
+    BUILT_IN_STYLES['minimal-product'],
+    morphT
+  );
+
+  return (
+    <AbsoluteFill>
+      <StyleProvider style={activeStyle} renderBackdrop>
+        <ScenicBackdropLayers />
+        {/* Calm >= 4.5s (>= 270f) scenes connected via 54-frame optical cross-dissolve */}
+        <ContinuousSceneFlow
+          crossDissolveFrames={54}
+          scenes={[
+            {
+              id: 'scene-1-editorial',
+              durationInFrames: 360,
+              render: () => (
+                <EditorialDeskStage renderBaseFill={false}>
+                  <ChapterTitleCard chapterLabel="Akt I" title={headline} />
+                </EditorialDeskStage>
+              ),
+            },
+            {
+              id: 'scene-2-data',
+              durationInFrames: 360,
+              render: () => (
+                <AnimatedBarRace
+                  title="Wzrost udziału"
+                  items={[
+                    { id: 'a', label: 'Wariant A', value: 84 },
+                    { id: 'b', label: 'Wariant B', value: 52 },
+                  ]}
+                />
+              ),
+            },
+            {
+              id: 'scene-3-summary',
+              durationInFrames: 300,
+              render: () => <CustomSummaryBadge label={headline} />,
+            },
           ]}
         />
-      </Sequence>
-      <Sequence from={420} durationInFrames={180}>
-        <CustomSummaryBadge label={headline} />
-      </Sequence>
-    </StyleProvider>
-  </AbsoluteFill>
-);
+      </StyleProvider>
+    </AbsoluteFill>
+  );
+};
 ```
 
 ### Key Runtime Guarantees
-1. **Clean Frame `0` in `<StyleBackdrop />` & `<StageLightingRig />`:** When `renderBackdrop` is `true` (for 2D/editorial compositions; omit `renderBackdrop` or place `<ThreeCanvas>` above it for full-bleed 3D stages), `frame <= 0` renders a pure solid `palette.bgCanvas` background with zero pattern, lighting, or text artifacts.
-2. **Offline Render Safety (`2500 ms` timeout):** `useStyleFontsReady(style)` injects the exact Google Fonts CSS2 stylesheet for `displayFont`, `bodyFont`, and `monoFont` and holds Remotion `delayRender` until fonts settle — releasing cleanly after **`2500 ms`** onto CSS fallback stacks (`Georgia, serif`, system sans, `ui-monospace`) if rendering offline.
-3. **Graceful Unknown & Legacy Style Fallback:** `resolveStudioStyle(styleOrId)` resolves registered custom styles first, then `BUILT_IN_STYLES`, normalizes `optics` via `withNormalizedStyleOptics`, and falls back safely to `BUILT_IN_STYLES['minimal-product']` if a slug is missing.
+1. **Clean Frame `0` in `<StyleBackdrop />`, `<StageLightingRig />` & `<ScenicBackdropLayers />`:** When `renderBackdrop` is `true` (for 2D/editorial compositions; omit `renderBackdrop` or place `<ThreeCanvas>` above it for full-bleed 3D stages), `frame <= 0` renders a pure solid `palette.bgCanvas` background (`verifyCleanFrameZeroImage` in `npx make-pictures qa` checks max RGB spread `<= 6`).
+2. **Corner Clipping & Pacing QA Gate:** `npx make-pictures qa` enforces `>= 270f` (`4.5 s`) scene spans, `<= 2.8 words/s`, single focal point, zero choppy wipes, and `<ClippedSurfaceChrome />` on `overflow: 'visible'` rounded cards.
+3. **Offline Render Safety (`2500 ms` timeout):** `useStyleFontsReady(style)` injects the exact Google Fonts CSS2 stylesheet for `displayFont`, `bodyFont`, and `monoFont` and holds Remotion `delayRender` until fonts settle — releasing cleanly after **`2500 ms`** onto CSS fallback stacks (`Georgia, serif`, system sans, `ui-monospace`) if rendering offline.
+4. **Graceful Unknown & Legacy Style Fallback:** `resolveStudioStyle(styleOrId)` resolves registered custom styles first, then `BUILT_IN_STYLES`, normalizes `optics` via `withNormalizedStyleOptics`, and falls back safely to `BUILT_IN_STYLES['minimal-product']` if a slug is missing.
