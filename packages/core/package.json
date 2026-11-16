@@ -42,6 +42,11 @@
       "import": "./dist/camera/index.mjs",
       "require": "./dist/camera/index.cjs"
     },
+    "./director": {
+      "types": "./dist/director/index.d.ts",
+      "import": "./dist/director/index.mjs",
+      "require": "./dist/director/index.cjs"
+    },
     "./optics": {
       "types": "./dist/optics/index.d.ts",
       "import": "./dist/optics/index.mjs",

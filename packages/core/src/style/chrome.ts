@@ -1,4 +1,5 @@
 import type React from 'react';
+import { withStyleColorAlpha } from './interpolate';
 import type { StyleFontFamily, StylePreset } from './schema';
 
 const SERIF_FAMILIES = new Set<StyleFontFamily>([
@@ -73,7 +74,7 @@ export function getCardChromeStyle(
         color: palette.textPrimary,
         border: `1.5px solid ${palette.inkBorder}`,
         borderRadius: baseRadius,
-        boxShadow: `0 20px 50px rgba(0, 0, 0, 0.36), 0 0 28px ${palette.accentPrimary}22`,
+        boxShadow: `0 20px 50px rgba(0, 0, 0, 0.36), 0 0 28px ${withStyleColorAlpha(palette.accentPrimary, 0.13)}`,
         backdropFilter: 'blur(16px)',
       };
       break;

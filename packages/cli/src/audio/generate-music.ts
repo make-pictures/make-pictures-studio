@@ -32,7 +32,7 @@ export interface GenerateMusicOptions {
 }
 
 /**
- * Six pleasant, warm, loopable stereo `ffmpeg` `lavfi` synthesis presets (`c0|c1`).
+ * Seven pleasant, warm, loopable stereo `ffmpeg` `lavfi` synthesis presets (`c0|c1`).
  */
 const MOOD_PRESET_FILTERS: Record<
   MusicMoodPreset,

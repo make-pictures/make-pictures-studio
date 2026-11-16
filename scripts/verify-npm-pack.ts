@@ -847,6 +847,42 @@ async function main(): Promise<void> {
       }
     );
 
+    // 4a-quater. Scaffold --space=2.5d (paper-diorama-3d), --space=3d (isometric-3d), and --style=retro-pc capsules to permanently guard all 3 dimensional spaces against TS2322 regressions
+    runCmd(
+      process.execPath,
+      [mpBin, 'new', 'diorama-smoke', '--space=2.5d', '--lang=pl'],
+      {
+        cwd: standaloneDir,
+        label:
+          '(standalone-app) node ./node_modules/.bin/make-pictures new diorama-smoke --space=2.5d --lang=pl',
+      }
+    );
+    runCmd(
+      process.execPath,
+      [mpBin, 'new', 'clay-smoke', '--space=3d', '--lang=pl'],
+      {
+        cwd: standaloneDir,
+        label:
+          '(standalone-app) node ./node_modules/.bin/make-pictures new clay-smoke --space=3d --lang=pl',
+      }
+    );
+    runCmd(
+      process.execPath,
+      [
+        mpBin,
+        'new',
+        'retro-smoke',
+        '--space=2d',
+        '--style=retro-pc',
+        '--lang=pl',
+      ],
+      {
+        cwd: standaloneDir,
+        label:
+          '(standalone-app) node ./node_modules/.bin/make-pictures new retro-smoke --space=2d --style=retro-pc --lang=pl',
+      }
+    );
+
     // 4b. Create new film via unpacked CLI binary
     runCmd(
       process.execPath,

@@ -2,9 +2,8 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { masterMp4Loudness } from '../audio/master-loudness';
-import { toKebabSlug } from './qa-contact-sheet';
+import { lookupRegistryHint, toKebabSlug } from './qa-contact-sheet';
 import {
   resolveRemotionEntryPoint,
   resolveWorkspaceContext,
@@ -35,18 +34,8 @@ async function detectUsesThree(
   compositionId: string
 ): Promise<boolean> {
   try {
-    const registryPath = path.join(
-      studioDir,
-      'src',
-      'compositions',
-      'registry.ts'
-    );
-    if (!fs.existsSync(registryPath)) return true;
-    const mod = (await import(pathToFileURL(registryPath).href)) as {
-      getCompositionById?: (id: string) => { usesThree?: boolean } | undefined;
-    };
-    const entry = mod.getCompositionById?.(compositionId);
-    return entry?.usesThree ?? true;
+    const hint = await lookupRegistryHint(studioDir, compositionId);
+    return hint.usesThree ?? true;
   } catch {
     return true;
   }

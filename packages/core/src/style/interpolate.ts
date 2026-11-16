@@ -184,6 +184,18 @@ function formatPaletteOutputColor(rgba: ParsedRgba): string {
   )})`;
 }
 
+/**
+ * Safely applies a `[0, 1]` alpha multiplier to any valid CSS color token
+ * (`#RGB`, `#RGBA`, `#RRGGBB`, `#RRGGBBAA`, `rgb(...)`, `rgba(...)`, `hsl(...)`, `hsla(...)`),
+ * returning a valid `rgba(r, g, b, a)` CSS string without fragile `${color}XX` concatenation.
+ */
+export function withStyleColorAlpha(color: string, alpha01: number): string {
+  const rgba = parseCssColorToRgba(color);
+  const safeAlpha = Number.isFinite(alpha01) ? clamp(alpha01, 0, 1) : 0;
+  const combinedAlpha = Number(clamp(rgba.a * safeAlpha, 0, 1).toFixed(4));
+  return `rgba(${clampByte(rgba.r)}, ${clampByte(rgba.g)}, ${clampByte(rgba.b)}, ${combinedAlpha})`;
+}
+
 export function interpolateStyleColor(
   fromColor: string,
   toColor: string,

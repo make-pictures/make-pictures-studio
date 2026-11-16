@@ -1,5 +1,6 @@
 import React from 'react';
 import { AbsoluteFill, useCurrentFrame } from 'remotion';
+import { withStyleColorAlpha } from './interpolate';
 import type { StylePreset } from './schema';
 import { useStudioStyle } from './StyleProvider';
 
@@ -33,13 +34,13 @@ export const StyleBackdrop: React.FC<StyleBackdropProps> = ({
   switch (surface.backdropType) {
     case 'editorial-paper':
       patternLayer = {
-        backgroundImage: `radial-gradient(circle at 20% 18%, ${palette.bgElevated}99 0%, transparent 58%), radial-gradient(circle at 82% 84%, ${palette.accentSecondary}14 0%, transparent 52%), repeating-linear-gradient(0deg, transparent 0px, transparent 31px, ${palette.inkBorder}30 32px)`,
+        backgroundImage: `radial-gradient(circle at 20% 18%, ${withStyleColorAlpha(palette.bgElevated, 0.6)} 0%, transparent 58%), radial-gradient(circle at 82% 84%, ${withStyleColorAlpha(palette.accentSecondary, 0.08)} 0%, transparent 52%), repeating-linear-gradient(0deg, transparent 0px, transparent 31px, ${withStyleColorAlpha(palette.inkBorder, 0.19)} 32px)`,
       };
       break;
 
     case 'blueprint-grid':
       patternLayer = {
-        backgroundImage: `linear-gradient(to right, ${palette.inkBorder}38 1px, transparent 1px), linear-gradient(to bottom, ${palette.inkBorder}38 1px, transparent 1px)`,
+        backgroundImage: `linear-gradient(to right, ${withStyleColorAlpha(palette.inkBorder, 0.22)} 1px, transparent 1px), linear-gradient(to bottom, ${withStyleColorAlpha(palette.inkBorder, 0.22)} 1px, transparent 1px)`,
         backgroundSize: '48px 48px',
       };
       break;
@@ -48,21 +49,21 @@ export const StyleBackdrop: React.FC<StyleBackdropProps> = ({
       const driftX = Math.sin(frame * 0.015) * 3;
       const driftY = Math.cos(frame * 0.012) * 3;
       patternLayer = {
-        backgroundImage: `radial-gradient(circle at ${24 + driftX}% ${26 + driftY}%, ${palette.accentPrimary}26 0%, transparent 52%), radial-gradient(circle at ${78 - driftX}% ${74 - driftY}%, ${palette.accentSecondary}24 0%, transparent 55%)`,
+        backgroundImage: `radial-gradient(circle at ${24 + driftX}% ${26 + driftY}%, ${withStyleColorAlpha(palette.accentPrimary, 0.15)} 0%, transparent 52%), radial-gradient(circle at ${78 - driftX}% ${74 - driftY}%, ${withStyleColorAlpha(palette.accentSecondary, 0.14)} 0%, transparent 55%)`,
       };
       break;
     }
 
     case 'halftone-dots':
       patternLayer = {
-        backgroundImage: `radial-gradient(${palette.inkBorder}26 1.5px, transparent 1.5px)`,
+        backgroundImage: `radial-gradient(${withStyleColorAlpha(palette.inkBorder, 0.15)} 1.5px, transparent 1.5px)`,
         backgroundSize: '22px 22px',
       };
       break;
 
     case 'dark-vignette':
       patternLayer = {
-        backgroundImage: `radial-gradient(circle at 50% 45%, ${palette.bgElevated}66 0%, ${palette.bgCanvas} 76%)`,
+        backgroundImage: `radial-gradient(circle at 50% 45%, ${withStyleColorAlpha(palette.bgElevated, 0.4)} 0%, ${palette.bgCanvas} 76%)`,
       };
       break;
 

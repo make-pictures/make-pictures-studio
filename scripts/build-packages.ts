@@ -448,6 +448,11 @@ async function main(): Promise<void> {
           platform: 'browser',
         },
         {
+          outSubpath: 'director/index',
+          srcRelPath: 'src/director/index.ts',
+          platform: 'browser',
+        },
+        {
           outSubpath: 'optics/index',
           srcRelPath: 'src/optics/index.ts',
           platform: 'browser',

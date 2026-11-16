@@ -311,8 +311,11 @@ export function buildScaffoldCompositionTsx(params: {
   slug: string;
   pascalName: string;
   kit: ScaffoldKitId;
+  styleId?: string;
+  lang?: 'pl' | 'en';
 }): string {
-  const { slug, pascalName, kit } = params;
+  const { slug, pascalName, kit, styleId, lang = 'pl' } = params;
+  const isPl = lang === 'pl';
   const schemaBlock = buildSchemaBlock(pascalName);
   const audioBlock = buildAudioJsxBlock();
 
@@ -716,6 +719,175 @@ export const ${pascalName}: React.FC<${pascalName}Props> = (props) => {
 `;
 
     case 'motion-diagrams-2d':
+      if (styleId === 'retro-pc') {
+        const symbolicUrl = isPl
+          ? 'GET https://twoja-strona.pl'
+          : 'GET https://example.app';
+        const hop1Title = isPl ? 'Przeglądarka' : 'Browser Client';
+        const hop1Sub = isPl ? 'Zapytanie użytkownika' : 'Client request';
+        const hop2Title = isPl ? 'Katalog tras' : 'Edge Router';
+        const hop2Sub = isPl ? 'Wyszukanie ścieżki' : 'Route lookup';
+        const hop3Title = isPl ? 'Serwer aplikacji' : 'Origin Server';
+        const hop3Sub = isPl ? 'Odpowiedź gotowa' : 'Payload ready';
+        const payoffBanner = isPl
+          ? '200 OK • Odpowiedź wyświetlona'
+          : '200 OK • Response rendered';
+
+        return `import React from 'react';
+import {
+  AbsoluteFill,
+  interpolate,
+  staticFile,
+  useCurrentFrame,
+  useVideoConfig,
+} from 'remotion';
+import { z } from 'zod';
+import {
+  ContinuousSceneFlow,
+  SmartMusicBed,
+  SoundCue,
+  StageLightingRig,
+  StyleProvider,
+  VoiceoverTrack,
+} from '@make-pictures/core';
+import {
+  RetroPcWindowStage2D,
+  type RetroPcHopSpec,
+} from '@make-pictures/kits/motion-diagrams-2d';
+import {
+  MUSIC_MANIFEST,
+  SFX_MANIFEST,
+  VOICEOVER_MANIFEST,
+} from '../generated/audio-manifest';
+
+${schemaBlock}
+
+const DIALOGUE_SEGMENTS = [
+  { sceneId: '${slug}-intro', fromFrame: 12, durationInFrames: 252 },
+  { sceneId: '${slug}-payoff', fromFrame: 360, durationInFrames: 252 },
+];
+
+const RETRO_HOPS: ReadonlyArray<RetroPcHopSpec> = [
+  {
+    id: 'client',
+    title: '${hop1Title}',
+    subtitle: '${hop1Sub}',
+    badge: 'HOP 01',
+    latencyMs: 12,
+    icon: 'browser',
+  },
+  {
+    id: 'router',
+    title: '${hop2Title}',
+    subtitle: '${hop2Sub}',
+    badge: 'HOP 02',
+    latencyMs: 18,
+    icon: 'directory',
+  },
+  {
+    id: 'origin',
+    title: '${hop3Title}',
+    subtitle: '${hop3Sub}',
+    badge: 'HOP 03',
+    latencyMs: 24,
+    icon: 'server',
+  },
+];
+
+const IntroRetroPcScene: React.FC<${pascalName}Props> = (props) => {
+  const frame = useCurrentFrame();
+  const { width, height } = useVideoConfig();
+  const isVertical = height > width;
+
+  if (frame < 2) {
+    return null;
+  }
+
+  const progress = interpolate(frame, [16, 300], [0.08, 0.54], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+
+  return (
+    <AbsoluteFill>
+      <StageLightingRig renderBaseFill={false} seed="${slug}-retro-intro" />
+      <RetroPcWindowStage2D
+        windowTitle={props.headline}
+        addressLabel="${symbolicUrl}"
+        hops={RETRO_HOPS}
+        statusBanner={props.subheadline}
+        progress={progress}
+        isVertical={isVertical}
+        enterFrame={2}
+      />
+    </AbsoluteFill>
+  );
+};
+
+const PayoffRetroPcScene: React.FC<${pascalName}Props> = (props) => {
+  const frame = useCurrentFrame();
+  const { width, height } = useVideoConfig();
+  const isVertical = height > width;
+
+  if (frame < 2) {
+    return null;
+  }
+
+  const progress = interpolate(frame, [10, 290], [0.54, 1], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+
+  return (
+    <AbsoluteFill>
+      <StageLightingRig renderBaseFill={false} seed="${slug}-retro-payoff" />
+      <RetroPcWindowStage2D
+        windowTitle={props.headline}
+        addressLabel="${symbolicUrl}"
+        hops={RETRO_HOPS}
+        statusBanner="${payoffBanner}"
+        progress={progress}
+        isVertical={isVertical}
+        enterFrame={2}
+      />
+    </AbsoluteFill>
+  );
+};
+
+export const ${pascalName}: React.FC<${pascalName}Props> = (props) => {
+  const introVo = VOICEOVER_MANIFEST['${slug}-intro'];
+  const payoffVo = VOICEOVER_MANIFEST['${slug}-payoff'];
+  const whooshSfx = SFX_MANIFEST['whoosh-open'];
+  const popSfx = SFX_MANIFEST['card-pop'];
+
+  return (
+    <StyleProvider style={props.styleId} renderBackdrop>
+      <AbsoluteFill>
+        ${audioBlock}
+
+        <ContinuousSceneFlow
+          crossDissolveFrames={48}
+          style={{ backgroundColor: 'transparent' }}
+          scenes={[
+            {
+              id: 'intro',
+              durationInFrames: 360,
+              render: () => <IntroRetroPcScene {...props} />,
+            },
+            {
+              id: 'payoff',
+              durationInFrames: 360,
+              render: () => <PayoffRetroPcScene {...props} />,
+            },
+          ]}
+        />
+      </AbsoluteFill>
+    </StyleProvider>
+  );
+};
+`;
+      }
+
       return `import React from 'react';
 import {
   AbsoluteFill,
@@ -1046,7 +1218,7 @@ const DioramaLandscapeScene: React.FC<${pascalName}Props> = (props) => {
           fov={36}
         />
         <PaperStageLighting3D
-          preset={style.surface.isDark ? 'dramatic-night' : 'studio-bright'}
+          preset={style.surface.isDark ? 'spotlight' : 'golden-hour'}
         />
         <DioramaStage3D
           variant="minimal-plinth"
@@ -1150,7 +1322,7 @@ const DioramaAtelierScene: React.FC<${pascalName}Props> = (props) => {
           fov={35}
         />
         <PaperStageLighting3D
-          preset={style.surface.isDark ? 'dramatic-night' : 'studio-bright'}
+          preset={style.surface.isDark ? 'spotlight' : 'golden-hour'}
         />
         <DioramaStage3D
           variant="minimal-plinth"
@@ -1260,8 +1432,10 @@ import {
   useStudioStyle,
 } from '@make-pictures/core';
 import {
-  IsometricStage3D,
-  Stylized3DCharacter,
+  ClayCharacter3D,
+  PodcastStudioSet3D,
+  StudioHdrRig3D,
+  computePodcastStudioLayout,
 } from '@make-pictures/kits/isometric-3d';
 import {
   MUSIC_MANIFEST,
@@ -1276,7 +1450,7 @@ const DIALOGUE_SEGMENTS = [
   { sceneId: '${slug}-payoff', fromFrame: 360, durationInFrames: 252 },
 ];
 
-const IsometricRoomTurn: React.FC<
+const PodcastStudioTurn: React.FC<
   ${pascalName}Props & { activeSpeaker: 'A' | 'B' }
 > = (props) => {
   const frame = useCurrentFrame();
@@ -1294,11 +1468,12 @@ const IsometricRoomTurn: React.FC<
     config: CINEMATIC_SPRINGS.entrance,
   });
 
+  const layout = computePodcastStudioLayout({ compactVertical: isVertical });
   const speakerAWeight = props.activeSpeaker === 'A' ? 1 : 0;
   const speakerBWeight = props.activeSpeaker === 'B' ? 1 : 0;
   // Calm <= 0.055 rad/frame syllable envelope fallback before real TTS words
   const cadencePulse =
-    0.42 + 0.28 * Math.sin(frame * 0.048) + 0.16 * Math.cos(frame * 0.036);
+    0.42 + 0.28 * Math.sin(frame * 0.044) + 0.16 * Math.cos(frame * 0.034);
   const activeAccent =
     props.activeSpeaker === 'A' ? props.accentColor : props.secondaryColor;
 
@@ -1308,14 +1483,14 @@ const IsometricRoomTurn: React.FC<
         width={width}
         height={height}
         shadows
-        camera={{ position: [0, 4.4, 8.8], fov: 35 }}
+        camera={{ position: [0, 3.6, 7.6], fov: 35 }}
       >
         <DirectorCamera3D
           safeBox9x16Compensation
           handheldIntensity={style.motion.cameraHandheld}
           anchors={{
-            speakerA: { position: [-1.45, 0, 0.25], height: 2.45 },
-            speakerB: { position: [1.45, 0, 0.25], height: 2.45 },
+            leftHost: { position: layout.leftHostPosition, height: 2.15 },
+            rightHost: { position: layout.rightHostPosition, height: 2.15 },
           }}
           shots={
             props.activeSpeaker === 'A'
@@ -1323,16 +1498,16 @@ const IsometricRoomTurn: React.FC<
                   {
                     fromFrame: 0,
                     shot: 'medium-two-shot',
-                    target: 'speakerA',
-                    secondaryTarget: 'speakerB',
+                    target: 'leftHost',
+                    secondaryTarget: 'rightHost',
                     transition: 'cut',
                   },
                   {
                     fromFrame: 180,
                     shot: 'medium-two-shot',
-                    target: 'speakerA',
-                    secondaryTarget: 'speakerB',
-                    angleDeg: 8,
+                    target: 'leftHost',
+                    secondaryTarget: 'rightHost',
+                    angleDeg: 7,
                     transition: 'glide',
                   },
                 ]
@@ -1340,49 +1515,57 @@ const IsometricRoomTurn: React.FC<
                   {
                     fromFrame: 0,
                     shot: 'medium-two-shot',
-                    target: 'speakerB',
-                    secondaryTarget: 'speakerA',
+                    target: 'rightHost',
+                    secondaryTarget: 'leftHost',
                     angleDeg: -6,
                     transition: 'cut',
                   },
                   {
                     fromFrame: 168,
                     shot: 'medium',
-                    target: 'speakerB',
-                    secondaryTarget: 'speakerA',
+                    target: 'rightHost',
+                    secondaryTarget: 'leftHost',
                     transition: 'glide',
                   },
                 ]
           }
         />
-        <IsometricStage3D radius={5.2} accentColor={props.accentColor}>
-          <Stylized3DCharacter
-            position={[-1.45, 0, 0.25]}
-            rotationY={0.42}
-            primaryColor={props.accentColor}
+        <StudioHdrRig3D />
+        <PodcastStudioSet3D
+          compactVertical={isVertical}
+          onAirActive
+          accentColor={props.accentColor}
+          enterFrame={2}
+        >
+          <ClayCharacter3D
+            position={layout.leftHostPosition}
+            rotationY={layout.leftHostRotationY}
+            seated
+            accessory="headphones"
+            sweaterColor={props.accentColor}
             accentColor={props.secondaryColor}
-            speechEnergy={cadencePulse * speakerAWeight}
+            eyeColor="#059669"
+            pose={props.activeSpeaker === 'A' ? 'talking' : 'listening'}
             speakingWeight={speakerAWeight}
-            gestureWeights={{
-              presentRight: speakerAWeight * 0.62,
-              listenNod: speakerBWeight * 0.48,
-            }}
+            speechEnergy={cadencePulse * speakerAWeight}
+            seed="host-left"
             enterFrame={4}
           />
-          <Stylized3DCharacter
-            position={[1.45, 0, 0.25]}
-            rotationY={-0.42}
-            primaryColor={props.secondaryColor}
+          <ClayCharacter3D
+            position={layout.rightHostPosition}
+            rotationY={layout.rightHostRotationY}
+            seated
+            accessory="glasses"
+            sweaterColor={props.secondaryColor}
             accentColor={props.accentColor}
-            speechEnergy={cadencePulse * speakerBWeight}
+            eyeColor="#B45309"
+            pose={props.activeSpeaker === 'B' ? 'talking' : 'listening'}
             speakingWeight={speakerBWeight}
-            gestureWeights={{
-              presentLeft: speakerBWeight * 0.62,
-              listenNod: speakerAWeight * 0.48,
-            }}
-            enterFrame={10}
+            speechEnergy={cadencePulse * speakerBWeight}
+            seed="host-right"
+            enterFrame={8}
           />
-        </IsometricStage3D>
+        </PodcastStudioSet3D>
       </ThreeCanvas>
 
       {/* Architectural Conversation Nameplate (strictly inside 9:16 Safe Box x in [40, 910], y in [220, 1380]) */}
@@ -1465,13 +1648,13 @@ export const ${pascalName}: React.FC<${pascalName}Props> = (props) => {
               id: 'intro',
               durationInFrames: 360,
               usesThree: true,
-              render: () => <IsometricRoomTurn {...props} activeSpeaker="A" />,
+              render: () => <PodcastStudioTurn {...props} activeSpeaker="A" />,
             },
             {
               id: 'payoff',
               durationInFrames: 360,
               usesThree: true,
-              render: () => <IsometricRoomTurn {...props} activeSpeaker="B" />,
+              render: () => <PodcastStudioTurn {...props} activeSpeaker="B" />,
             },
           ]}
         />
@@ -1791,7 +1974,13 @@ export async function runNewProductionCommand(
 
   fs.writeFileSync(
     path.join(productionDir, 'compositions', `${pascalName}.tsx`),
-    buildScaffoldCompositionTsx({ slug, pascalName, kit }),
+    buildScaffoldCompositionTsx({
+      slug,
+      pascalName,
+      kit,
+      styleId: resolvedStyle.id,
+      lang,
+    }),
     'utf8'
   );
 

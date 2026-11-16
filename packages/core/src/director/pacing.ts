@@ -31,7 +31,7 @@ export interface FocalStaggerValues {
  * `support` waits `+22` frames, and `ambient` waits `+40` frames,
  * each driven by critically damped `CINEMATIC_SPRINGS.entrance`.
  */
-export function useFocalStagger(
+export function computeFocalStagger(
   frame: number,
   fps: number,
   options?: FocalStaggerOptions
@@ -76,3 +76,8 @@ export function useFocalStagger(
 
   return { lead, support, ambient };
 }
+
+/**
+ * Backwards-compatible alias for `computeFocalStagger`.
+ */
+export const useFocalStagger = computeFocalStagger;

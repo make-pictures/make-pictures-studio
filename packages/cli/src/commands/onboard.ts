@@ -643,7 +643,7 @@ export async function runOnboardCommand(
         say: isPl
           ? `Dodaję studio filmowe make.pictures w podfolderze \`${saasDir}/\` Twojej aplikacji i instaluję wymagane pakiety.`
           : `I'll add make.pictures Studio inside \`${saasDir}/\` of your existing app and install the required packages.`,
-        run: `npm install -D @make-pictures/core@latest @make-pictures/kits@latest @make-pictures/studio@latest @make-pictures/cli@latest remotion @remotion/cli @remotion/player @remotion/bundler @remotion/renderer zod lucide-react && npx make-pictures init --dir=${saasDir} ${langFlag} && npx make-pictures onboard init --dir=${saasDir} ${langFlag}${jsonSuffix}`,
+        run: `npm install -D @make-pictures/core@latest @make-pictures/kits@latest @make-pictures/studio@latest @make-pictures/cli@latest remotion @remotion/cli @remotion/player @remotion/bundler @remotion/renderer @remotion/media-utils @remotion/google-fonts @remotion/three @react-three/fiber @react-three/drei three @types/three zod lucide-react vite @vitejs/plugin-react && npx make-pictures init --dir=${saasDir} ${langFlag} && npx make-pictures onboard init --dir=${saasDir} ${langFlag}${jsonSuffix}`,
         details: {
           mode: 'saas',
           dir: saasDir,

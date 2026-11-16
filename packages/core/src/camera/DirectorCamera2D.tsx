@@ -6,7 +6,7 @@ import {
   useVideoConfig,
 } from 'remotion';
 import { StageLightingRig } from '../optics/StageLightingRig';
-import { useStudioStyle } from '../style';
+import { useStudioStyle, withStyleColorAlpha } from '../style';
 import { STUDIO_THEME, THEME, useStudioFontsReady } from '../theme';
 import { evaluateHandheldNoise, evaluateImpactShake } from './cameraNoise';
 import { DirectorCameraTelemetryProvider } from './DirectorCamera3D';
@@ -418,14 +418,14 @@ export const DirectorCamera2D: React.FC<DirectorCamera2DProps> = ({
         : 'rgba(15, 23, 42, 0.05)'
       : isDark
         ? 'rgba(255, 255, 255, 0.05)'
-        : `${studioStyle.palette.inkBorder}22`;
+        : withStyleColorAlpha(studioStyle.palette.inkBorder, 0.13);
 
   const gridDotColor =
     variant !== undefined
       ? isDark
         ? 'rgba(226, 232, 240, 0.16)'
         : 'rgba(51, 65, 85, 0.14)'
-      : `${studioStyle.palette.accentPrimary}2E`;
+      : withStyleColorAlpha(studioStyle.palette.accentPrimary, 0.18);
 
   return (
     <DirectorCameraTelemetryProvider telemetry={cam.telemetry}>

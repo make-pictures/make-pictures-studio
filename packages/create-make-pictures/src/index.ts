@@ -5,6 +5,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+export type StarterSpace = '2d' | '2.5d' | '3d';
+
 export type StarterKitId =
   | 'editorial-collage'
   | 'vector-scene-2d'
@@ -16,7 +18,9 @@ export type StarterKitId =
 
 export interface CreateMakePicturesOptions {
   targetDir: string;
+  space?: StarterSpace;
   kit?: StarterKitId;
+  style?: string;
   lang?: 'pl' | 'en';
   install?: boolean;
   force?: boolean;
@@ -27,6 +31,8 @@ interface ParsedCreateArgs {
   flags: Record<string, string | boolean>;
 }
 
+const VALID_SPACES = new Set<StarterSpace>(['2d', '2.5d', '3d']);
+
 const VALID_KITS = new Set<StarterKitId>([
   'editorial-collage',
   'vector-scene-2d',
@@ -36,6 +42,108 @@ const VALID_KITS = new Set<StarterKitId>([
   'paper-diorama-3d',
   'isometric-3d',
 ]);
+
+interface StarterStyleMeta {
+  accentPrimary: string;
+  accentSecondary: string;
+  mood: string;
+  voiceId: string;
+}
+
+const STARTER_STYLE_METADATA: Record<string, StarterStyleMeta> = {
+  'minimal-product': {
+    accentPrimary: '#2563EB',
+    accentSecondary: '#0EA5E9',
+    mood: 'upbeat-launch',
+    voiceId: 'TX3LPaxmHKxFdv7VOQHJ',
+  },
+  'editorial-press': {
+    accentPrimary: '#C83E2B',
+    accentSecondary: '#1D4ED8',
+    mood: 'news-pulse',
+    voiceId: 'EXAVITQu4vr4xnSDxMaL',
+  },
+  'archival-chronicle': {
+    accentPrimary: '#9E3B24',
+    accentSecondary: '#B07D2B',
+    mood: 'warm-story',
+    voiceId: 'nPczCjzI2devNBz1zQrb',
+  },
+  'cyber-telemetry': {
+    accentPrimary: '#00F5D4',
+    accentSecondary: '#8B5CF6',
+    mood: 'ambient-tech',
+    voiceId: 'TX3LPaxmHKxFdv7VOQHJ',
+  },
+  'brutalist-poster': {
+    accentPrimary: '#FF2A85',
+    accentSecondary: '#2563EB',
+    mood: 'upbeat-launch',
+    voiceId: 'JBFqnCBsd6RMkjVDRZzb',
+  },
+  'sketch-notebook': {
+    accentPrimary: '#0D9488',
+    accentSecondary: '#F59E0B',
+    mood: 'warm-story',
+    voiceId: 'JBFqnCBsd6RMkjVDRZzb',
+  },
+  'tactile-craft': {
+    accentPrimary: '#EA580C',
+    accentSecondary: '#059669',
+    mood: 'paper-expedition',
+    voiceId: 'JBFqnCBsd6RMkjVDRZzb',
+  },
+  'retro-pc': {
+    accentPrimary: '#38BDF8',
+    accentSecondary: '#4ADE80',
+    mood: 'ambient-tech',
+    voiceId: 'TX3LPaxmHKxFdv7VOQHJ',
+  },
+  'soft-clay': {
+    accentPrimary: '#EA580C',
+    accentSecondary: '#0D9488',
+    mood: 'warm-story',
+    voiceId: 'JBFqnCBsd6RMkjVDRZzb',
+  },
+  'glass-studio': {
+    accentPrimary: '#4F46E5',
+    accentSecondary: '#06B6D4',
+    mood: 'upbeat-launch',
+    voiceId: 'TX3LPaxmHKxFdv7VOQHJ',
+  },
+};
+
+function defaultStarterKitAndStyleForSpace(space: StarterSpace): {
+  kit: StarterKitId;
+  styleId: string;
+} {
+  switch (space) {
+    case '3d':
+      return { kit: 'isometric-3d', styleId: 'soft-clay' };
+    case '2.5d':
+      return { kit: 'paper-diorama-3d', styleId: 'tactile-craft' };
+    case '2d':
+    default:
+      return { kit: 'motion-diagrams-2d', styleId: 'minimal-product' };
+  }
+}
+
+function defaultStarterStyleForKit(kit: StarterKitId): string {
+  switch (kit) {
+    case 'isometric-3d':
+      return 'soft-clay';
+    case 'paper-diorama-3d':
+      return 'tactile-craft';
+    case 'editorial-collage':
+      return 'editorial-press';
+    case 'vector-scene-2d':
+    case 'kinetic-typography':
+    case 'data-storytelling':
+    case 'motion-diagrams-2d':
+    default:
+      return 'minimal-product';
+  }
+}
 
 const BOOLEAN_FLAGS = new Set(['no-install', 'force', 'help']);
 
@@ -589,8 +697,8 @@ Uniwersalne niezmienniki studia **make.pictures** (\`60 FPS\` Video-as-Code). Sz
   1. **Standalone Studio (\`npx create-make-pictures my-films\`):** \`productions/<slug>/\` to kod źródłowy użytkownika śledzony w Git; silnik działa z \`node_modules/@make-pictures/*\`.
   2. **Wewnątrz istniejącej aplikacji SaaS (\`npx make-pictures init --dir=videos\`):** przekazuj \`--dir=videos\` do komend (\`npx make-pictures new <slug> --dir=videos\`, \`npx make-pictures studio --dir=videos\`).
   3. **Monorepo silnika (\`make-pictures-studio\`):** pokazy żyją w \`examples/*\`, a filmy użytkownika w izolowanym \`productions/<slug>/\`. Zakaz zaszywania ID scen filmów w kodzie silnika.
-- Tworzenie nowego filmu: \`npx make-pictures new <slug> --kit=vector-scene-2d --style=minimal-product --lang=pl\` (\`production.json\`, \`compositions/\`, \`assets/\`, \`generated/audio-manifest.ts\`).
-- Style i kierunek plastyczny: \`npx make-pictures styles\` oraz \`npx make-pictures style new <slug> --from=editorial-press\` (\`styles/*.style.json\`, zakładka **🎨 Style Lab** w Studio Web).
+- Tworzenie nowego filmu: \`npx make-pictures new <slug> --space=2d|2.5d|3d --lang=pl\` lub \`npx make-pictures new <slug> --kit=vector-scene-2d --style=minimal-product --lang=pl\` (\`production.json\`, \`compositions/\`, \`assets/\`, \`generated/audio-manifest.ts\`).
+- Style i kierunek plastyczny: \`npx make-pictures styles [--space=2d|2.5d|3d]\` oraz \`npx make-pictures style new <slug> --from=editorial-press\` (\`10\` stylów wbudowanych + \`styles/*.style.json\`, zakładka **🎨 Style Lab** w Studio Web).
 
 ## 3. Determinizm \`60 FPS\` i Kontrakt \`zod\` ↔ \`*.props.json\`
 - **Czysta klatka \`0\`:** Pierwsza klatka to puste tło; animacje wejścia startuj od \`frame - 2\`.
@@ -607,16 +715,16 @@ Uniwersalne niezmienniki studia **make.pictures** (\`60 FPS\` Video-as-Code). Sz
 ## 5. Tablica Routingu Skilli (Załaduj przed Pisaniem Scen!)
 | Zadanie / Warstwa | Skill (\`.agents/plugins/make-pictures/skills/<skill>/SKILL.md\`) | Zakres |
 | :--- | :--- | :--- |
-| Nowy film, \`production.json\`, QA, render | \`make-pictures-director\` | 6 kroków produkcji, tryby CLI, rytm ujęć 3–5 s |
-| Dobór stylu, fontów, palety i \`styles/*.style.json\` | \`style-and-art-direction\` | 7 stylów wbudowanych, \`StyleProvider\`, \`Style Lab\`, \`make-pictures style new\` |
+| Nowy film, \`production.json\`, QA, render | \`make-pictures-director\` | 6 kroków produkcji, tryby CLI, \`ContinuousSceneFlow\` + sceny \`>= 4.5 s\` |
+| Dobór stylu, fontów, palety i \`styles/*.style.json\` | \`style-and-art-direction\` | 10 stylów wbudowanych (\`2D / 2.5D / 3D\`), \`StyleProvider\`, \`Style Lab\`, \`make-pictures style new\` |
 | Dokument, kolaż redakcyjny i narracja 2D | \`kit-editorial-and-vector\` | \`editorial-collage\` (\`ChapterTitleCard\`, \`EditorialMediaCard\`, \`HighlightQuoteStage\`), \`vector-scene-2d\` (\`StoryCard2D\`, \`ComparisonSplit2D\`) |
 | Teatrzyk 2.5D Pop-Up Book | \`kit-paper-diorama-3d\` | \`DioramaStage3D\`, \`PaperCutout3D\`, \`ImageCutout3D\`, \`PopUpHinge3D\`, \`Δz\` |
-| Diagramy 2D i nieskończone płótno | \`kit-motion-diagrams-2d\` | \`NodeBox\`, \`FlowCurve\`, \`DirectorCamera2D\` |
+| Diagramy 2D i nieskończone płótno | \`kit-motion-diagrams-2d\` | \`RetroPcWindowStage2D\`, \`NodeBox\`, \`FlowCurve\`, \`DirectorCamera2D\` |
 | Nagrania ekranu SaaS \`.mp4\` (screencasty) | \`kit-motion-diagrams-2d\` + \`make-pictures-director\` | \`@make-pictures/kits/product-frames\`: \`BrowserFrame\`, \`PhoneFrame\`, \`ScreenSpotlightOverlay\` (\`<OffthreadVideo />\`, \`assets/videos/\`) |
-| Izometryczne studio 3D i dialogi | \`kit-isometric-3d\` | \`IsometricStage3D\`, \`Stylized3DCharacter\`, \`speakingWeight\` vs \`speechEnergy\` |
+| Studio 3D Soft-Clay i dialogi | \`kit-isometric-3d\` | \`StudioHdrRig3D\`, \`PodcastStudioSet3D\`, \`ClayCharacter3D\`, \`IsometricStage3D\` |
 | Kinetyczna typografia i wykresy | \`kit-kinetic-and-data\` | \`WordByWordStage\`, \`AnimatedBarRace\`, \`TimelineTrack\`, \`MetricComparisonCard\` |
 | Lektor, fonetyka, muzyka AI i SFX | \`sound-and-music-design\` | \`VoiceoverTrack\`, \`SmartMusicBed\`, \`SoundCue\`, \`VoiceAcousticPreset\`, \`-14 LUFS\` |
-| Kamera Shot DSL (2D/3D) i VFX | \`cinematography-and-vfx\` | \`DirectorCamera3D/2D\`, \`9:16\` Safe Box, \`CinematicLensOverlay\`, \`ParticleField\`, \`SceneTransition\` |
+| Kamera Shot DSL (2D/3D) i VFX | \`cinematography-and-vfx\` | \`DirectorCamera3D/2D\`, \`9:16\` Safe Box, \`ContinuousSceneFlow\`, \`OpticalCrossDissolve\`, \`ClippedSurfaceChrome\` |
 `;
 
 const EMBEDDED_PLUGIN_JSON = {
@@ -632,7 +740,12 @@ const EMBEDDED_PLUGIN_JSON = {
   repository: 'https://github.com/make-pictures/make-pictures-studio',
 };
 
-function buildHelloStudioCompositionTsx(kit: StarterKitId): string {
+function buildHelloStudioCompositionTsx(
+  kit: StarterKitId,
+  options?: { styleId?: string; lang?: 'pl' | 'en' }
+): string {
+  const styleId = options?.styleId;
+  const isPl = (options?.lang ?? 'pl') === 'pl';
   const schemaBlock = `export const HelloStudioSchema = z.object({
   styleId: z.string().describe('Kolory & Styl :: Styl bazowy (Style ID)'),
   headline: z.string().describe('Teksty & Napisy :: Nagłówek'),
@@ -1075,6 +1188,163 @@ export const HelloStudio: React.FC<HelloStudioProps> = (props) => {
   }
 
   if (kit === 'motion-diagrams-2d') {
+    if (styleId === 'retro-pc') {
+      const symbolicUrl = isPl
+        ? 'GET https://twoja-strona.pl'
+        : 'GET https://example.app';
+      const hop1Title = isPl ? 'Przeglądarka' : 'Browser Client';
+      const hop1Sub = isPl ? 'Zapytanie użytkownika' : 'Client request';
+      const hop2Title = isPl ? 'Katalog tras' : 'Edge Router';
+      const hop2Sub = isPl ? 'Wyszukanie ścieżki' : 'Route lookup';
+      const hop3Title = isPl ? 'Serwer aplikacji' : 'Origin Server';
+      const hop3Sub = isPl ? 'Odpowiedź gotowa' : 'Payload ready';
+      const payoffBanner = isPl
+        ? '200 OK • Odpowiedź wyświetlona'
+        : '200 OK • Response rendered';
+
+      return `import React from 'react';
+import {
+  AbsoluteFill,
+  interpolate,
+  staticFile,
+  useCurrentFrame,
+  useVideoConfig,
+} from 'remotion';
+import { z } from 'zod';
+import {
+  ContinuousSceneFlow,
+  SmartMusicBed,
+  SoundCue,
+  StageLightingRig,
+  StyleProvider,
+  VoiceoverTrack,
+} from '@make-pictures/core';
+import {
+  RetroPcWindowStage2D,
+  type RetroPcHopSpec,
+} from '@make-pictures/kits/motion-diagrams-2d';
+import {
+  MUSIC_MANIFEST,
+  SFX_MANIFEST,
+  VOICEOVER_MANIFEST,
+} from '../generated/audio-manifest';
+
+${schemaBlock}
+
+const DIALOGUE_SEGMENTS = [
+  { sceneId: 'hello-studio-intro', fromFrame: 12, durationInFrames: 252 },
+  { sceneId: 'hello-studio-payoff', fromFrame: 360, durationInFrames: 252 },
+];
+
+const RETRO_HOPS: ReadonlyArray<RetroPcHopSpec> = [
+  {
+    id: 'client',
+    title: '${hop1Title}',
+    subtitle: '${hop1Sub}',
+    badge: 'HOP 01',
+    latencyMs: 12,
+    icon: 'browser',
+  },
+  {
+    id: 'router',
+    title: '${hop2Title}',
+    subtitle: '${hop2Sub}',
+    badge: 'HOP 02',
+    latencyMs: 18,
+    icon: 'directory',
+  },
+  {
+    id: 'origin',
+    title: '${hop3Title}',
+    subtitle: '${hop3Sub}',
+    badge: 'HOP 03',
+    latencyMs: 24,
+    icon: 'server',
+  },
+];
+
+const IntroRetroPcScene: React.FC<HelloStudioProps> = (props) => {
+  const frame = useCurrentFrame();
+  const { width, height } = useVideoConfig();
+  const isVertical = height > width;
+
+  if (frame < 2) return null;
+
+  const progress = interpolate(frame, [16, 300], [0.08, 0.54], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+
+  return (
+    <AbsoluteFill>
+      <StageLightingRig renderBaseFill={false} seed="hello-studio-retro-intro" />
+      <RetroPcWindowStage2D
+        windowTitle={props.headline}
+        addressLabel="${symbolicUrl}"
+        hops={RETRO_HOPS}
+        statusBanner={props.subheadline}
+        progress={progress}
+        isVertical={isVertical}
+        enterFrame={2}
+      />
+    </AbsoluteFill>
+  );
+};
+
+const PayoffRetroPcScene: React.FC<HelloStudioProps> = (props) => {
+  const frame = useCurrentFrame();
+  const { width, height } = useVideoConfig();
+  const isVertical = height > width;
+
+  if (frame < 2) return null;
+
+  const progress = interpolate(frame, [10, 290], [0.54, 1], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+
+  return (
+    <AbsoluteFill>
+      <StageLightingRig renderBaseFill={false} seed="hello-studio-retro-payoff" />
+      <RetroPcWindowStage2D
+        windowTitle={props.headline}
+        addressLabel="${symbolicUrl}"
+        hops={RETRO_HOPS}
+        statusBanner="${payoffBanner}"
+        progress={progress}
+        isVertical={isVertical}
+        enterFrame={2}
+      />
+    </AbsoluteFill>
+  );
+};
+
+export const HelloStudio: React.FC<HelloStudioProps> = (props) => {
+  const introVo = VOICEOVER_MANIFEST['hello-studio-intro'];
+  const payoffVo = VOICEOVER_MANIFEST['hello-studio-payoff'];
+  const whooshSfx = SFX_MANIFEST['whoosh-open'];
+  const popSfx = SFX_MANIFEST['card-pop'];
+
+  return (
+    <StyleProvider style={props.styleId} renderBackdrop>
+      <AbsoluteFill>
+        ${audioBlock}
+
+        <ContinuousSceneFlow
+          crossDissolveFrames={48}
+          style={{ backgroundColor: 'transparent' }}
+          scenes={[
+            { id: 'intro', durationInFrames: 360, render: () => <IntroRetroPcScene {...props} /> },
+            { id: 'payoff', durationInFrames: 360, render: () => <PayoffRetroPcScene {...props} /> },
+          ]}
+        />
+      </AbsoluteFill>
+    </StyleProvider>
+  );
+};
+`;
+    }
+
     return `import React from 'react';
 import {
   AbsoluteFill,
@@ -1298,8 +1568,10 @@ import {
   useStudioStyle,
 } from '@make-pictures/core';
 import {
-  IsometricStage3D,
-  Stylized3DCharacter,
+  ClayCharacter3D,
+  PodcastStudioSet3D,
+  StudioHdrRig3D,
+  computePodcastStudioLayout,
 } from '@make-pictures/kits/isometric-3d';
 import {
   MUSIC_MANIFEST,
@@ -1314,7 +1586,7 @@ const DIALOGUE_SEGMENTS = [
   { sceneId: 'hello-studio-payoff', fromFrame: 360, durationInFrames: 252 },
 ];
 
-const HelloIsometricTurn: React.FC<HelloStudioProps & { activeSpeaker: 'A' | 'B' }> = (props) => {
+const HelloPodcastStudioTurn: React.FC<HelloStudioProps & { activeSpeaker: 'A' | 'B' }> = (props) => {
   const frame = useCurrentFrame();
   const { fps, width, height } = useVideoConfig();
   const style = useStudioStyle();
@@ -1323,55 +1595,72 @@ const HelloIsometricTurn: React.FC<HelloStudioProps & { activeSpeaker: 'A' | 'B'
   if (frame < 2) return null;
 
   const stageReveal = spring({ frame: frame - 2, fps, config: CINEMATIC_SPRINGS.entrance });
+  const layout = computePodcastStudioLayout({ compactVertical: isVertical });
   const speakerAWeight = props.activeSpeaker === 'A' ? 1 : 0;
   const speakerBWeight = props.activeSpeaker === 'B' ? 1 : 0;
   const cadencePulse =
-    0.42 + 0.28 * Math.sin(frame * 0.048) + 0.16 * Math.cos(frame * 0.036);
+    0.42 + 0.28 * Math.sin(frame * 0.044) + 0.16 * Math.cos(frame * 0.034);
   const activeAccent =
     props.activeSpeaker === 'A' ? props.accentColor : props.secondaryColor;
 
   return (
     <AbsoluteFill style={{ opacity: stageReveal }}>
-      <ThreeCanvas width={width} height={height} shadows camera={{ position: [0, 4.4, 8.8], fov: 35 }}>
+      <ThreeCanvas width={width} height={height} shadows camera={{ position: [0, 3.6, 7.6], fov: 35 }}>
         <DirectorCamera3D
           safeBox9x16Compensation
           handheldIntensity={style.motion.cameraHandheld}
           anchors={{
-            speakerA: { position: [-1.45, 0, 0.25], height: 2.45 },
-            speakerB: { position: [1.45, 0, 0.25], height: 2.45 },
+            leftHost: { position: layout.leftHostPosition, height: 2.15 },
+            rightHost: { position: layout.rightHostPosition, height: 2.15 },
           }}
           shots={
             props.activeSpeaker === 'A'
               ? [
-                  { fromFrame: 0, shot: 'medium-two-shot', target: 'speakerA', secondaryTarget: 'speakerB', transition: 'cut' },
-                  { fromFrame: 180, shot: 'medium-two-shot', target: 'speakerA', secondaryTarget: 'speakerB', angleDeg: 8, transition: 'glide' },
+                  { fromFrame: 0, shot: 'medium-two-shot', target: 'leftHost', secondaryTarget: 'rightHost', transition: 'cut' },
+                  { fromFrame: 180, shot: 'medium-two-shot', target: 'leftHost', secondaryTarget: 'rightHost', angleDeg: 7, transition: 'glide' },
                 ]
               : [
-                  { fromFrame: 0, shot: 'medium-two-shot', target: 'speakerB', secondaryTarget: 'speakerA', angleDeg: -6, transition: 'cut' },
-                  { fromFrame: 168, shot: 'medium', target: 'speakerB', secondaryTarget: 'speakerA', transition: 'glide' },
+                  { fromFrame: 0, shot: 'medium-two-shot', target: 'rightHost', secondaryTarget: 'leftHost', angleDeg: -6, transition: 'cut' },
+                  { fromFrame: 168, shot: 'medium', target: 'rightHost', secondaryTarget: 'leftHost', transition: 'glide' },
                 ]
           }
         />
-        <IsometricStage3D radius={5.2} accentColor={props.accentColor}>
-          <Stylized3DCharacter
-            position={[-1.45, 0, 0.25]}
-            rotationY={0.42}
-            primaryColor={props.accentColor}
+        <StudioHdrRig3D />
+        <PodcastStudioSet3D
+          compactVertical={isVertical}
+          onAirActive
+          accentColor={props.accentColor}
+          enterFrame={2}
+        >
+          <ClayCharacter3D
+            position={layout.leftHostPosition}
+            rotationY={layout.leftHostRotationY}
+            seated
+            accessory="headphones"
+            sweaterColor={props.accentColor}
             accentColor={props.secondaryColor}
-            speechEnergy={cadencePulse * speakerAWeight}
+            eyeColor="#059669"
+            pose={props.activeSpeaker === 'A' ? 'talking' : 'listening'}
             speakingWeight={speakerAWeight}
+            speechEnergy={cadencePulse * speakerAWeight}
+            seed="host-left"
             enterFrame={4}
           />
-          <Stylized3DCharacter
-            position={[1.45, 0, 0.25]}
-            rotationY={-0.42}
-            primaryColor={props.secondaryColor}
+          <ClayCharacter3D
+            position={layout.rightHostPosition}
+            rotationY={layout.rightHostRotationY}
+            seated
+            accessory="glasses"
+            sweaterColor={props.secondaryColor}
             accentColor={props.accentColor}
-            speechEnergy={cadencePulse * speakerBWeight}
+            eyeColor="#B45309"
+            pose={props.activeSpeaker === 'B' ? 'talking' : 'listening'}
             speakingWeight={speakerBWeight}
-            enterFrame={10}
+            speechEnergy={cadencePulse * speakerBWeight}
+            seed="host-right"
+            enterFrame={8}
           />
-        </IsometricStage3D>
+        </PodcastStudioSet3D>
       </ThreeCanvas>
 
       <div
@@ -1443,8 +1732,8 @@ export const HelloStudio: React.FC<HelloStudioProps> = (props) => {
           crossDissolveFrames={48}
           style={{ backgroundColor: 'transparent' }}
           scenes={[
-            { id: 'intro', durationInFrames: 360, usesThree: true, render: () => <HelloIsometricTurn {...props} activeSpeaker="A" /> },
-            { id: 'payoff', durationInFrames: 360, usesThree: true, render: () => <HelloIsometricTurn {...props} activeSpeaker="B" /> },
+            { id: 'intro', durationInFrames: 360, usesThree: true, render: () => <HelloPodcastStudioTurn {...props} activeSpeaker="A" /> },
+            { id: 'payoff', durationInFrames: 360, usesThree: true, render: () => <HelloPodcastStudioTurn {...props} activeSpeaker="B" /> },
           ]}
         />
       </AbsoluteFill>
@@ -1523,7 +1812,7 @@ const HelloDioramaLandscape: React.FC<HelloStudioProps> = (props) => {
     <AbsoluteFill style={{ opacity: stageReveal }}>
       <ThreeCanvas width={width} height={height} shadows camera={{ position: [0, 3.1, camZ], fov: 36 }}>
         <PaperCameraRig3D cameraPos={[camDriftX, isVertical ? 3.15 : 2.95, camZ]} lookAt={[0, isVertical ? 1.55 : 1.35, -0.4]} fov={36} />
-        <PaperStageLighting3D preset={style.surface.isDark ? 'dramatic-night' : 'studio-bright'} />
+        <PaperStageLighting3D preset={style.surface.isDark ? 'spotlight' : 'golden-hour'} />
         <DioramaStage3D variant="minimal-plinth" surfacePattern="spotlight" accentColor={props.accentColor}>
           <PopUpHinge3D foldProgress={archFold} position={[0, 0, -2.2]}>
             <SunburstArchCutout3D accentColor={props.accentColor} secondaryColor={props.secondaryColor} />
@@ -1566,7 +1855,7 @@ const HelloDioramaAtelier: React.FC<HelloStudioProps> = (props) => {
     <AbsoluteFill style={{ opacity: stageReveal }}>
       <ThreeCanvas width={width} height={height} shadows camera={{ position: [0, 2.85, camZ], fov: 35 }}>
         <PaperCameraRig3D cameraPos={[camDriftX, isVertical ? 2.95 : 2.75, camZ]} lookAt={[0, isVertical ? 1.35 : 1.15, 0.1]} fov={35} />
-        <PaperStageLighting3D preset={style.surface.isDark ? 'dramatic-night' : 'studio-bright'} />
+        <PaperStageLighting3D preset={style.surface.isDark ? 'spotlight' : 'golden-hour'} />
         <DioramaStage3D variant="minimal-plinth" surfacePattern="spotlight" accentColor={props.accentColor}>
           <SunburstArchCutout3D position={[0, 0, -2.15]} accentColor={props.accentColor} secondaryColor={props.secondaryColor} />
           <MountainRangeCutout3D position={[0, 0, -1.25]} accentColor={props.accentColor} secondaryColor={props.secondaryColor} />
@@ -1818,7 +2107,7 @@ Read [\`AGENTS.md\`](./AGENTS.md) alongside this file for universal \`60 FPS\` V
 
 ## Capsule Architecture & Determinism
 - **Isolated Capsules (\`productions/<slug>/\`):** Keep every film self-contained (\`production.json\`, \`compositions/\`, \`assets/\`, \`generated/audio-manifest.ts\`). In embedded SaaS repos (\`--dir=videos\`), capsules live in \`videos/productions/<slug>/\`.
-- **Art Direction (\`styles/*.style.json\`):** Match every film's topic to one of the 7 visual kits and either a built-in style or a custom \`styles/<slug>.style.json\` preset wrapped in \`<StyleProvider style={props.styleId} renderBackdrop>\`.
+- **Art Direction (\`styles/*.style.json\`):** Match every film's topic along the \`2D / 2.5D / 3D\` dimensional spaces to one of the 7 visual kits and either one of the **10 built-in styles** or a custom \`styles/<slug>.style.json\` preset wrapped in \`<StyleProvider style={props.styleId} renderBackdrop>\`. Compose calm scenes \`>= 4.5s\` (\`>= 270f\`) connected via \`<ContinuousSceneFlow>\`.
 - **60 FPS Determinism:** Frame \`0\` must render a clean empty background (start entrance springs at \`frame - 2\`). Never use \`Math.random()\` or cross-frame \`useRef\` state — use \`SPRING_PRESETS\` and \`createSeededRandom(seed)\` from \`@make-pictures/core\`.
 - **Audio Tag Pool Hygiene:** Use \`<VoiceoverTrack />\` and \`<SoundCue />\` from \`@make-pictures/core\`; never wrap raw \`<Audio />\` inside \`<Sequence>\` without an explicit finite \`durationInFrames\`.
 - **Props Inspector (\`zod\` ↔ \`*.props.json\`):** Always read \`<CompositionId>.props.json\` from disk before editing so live tweaks from Studio Web are preserved. Never open or print \`.env.local\`.
@@ -1826,23 +2115,23 @@ Read [\`AGENTS.md\`](./AGENTS.md) alongside this file for universal \`60 FPS\` V
 ## CLI Commands (\`npx make-pictures\`)
 - \`npx make-pictures onboard\` / \`npx make-pictures doctor\` — Verify Node.js, FFmpeg, and ElevenLabs OAuth (\`.env.local\`).
 - \`npx make-pictures init --dir=videos\` — Initialize capsules + AI skills inside an existing app repo.
-- \`npx make-pictures styles\` / \`npx make-pictures style new <slug> --from=editorial-press\` — List or create reusable Art Direction presets.
-- \`npx make-pictures new <slug> --kit=vector-scene-2d --style=minimal-product --lang=en\` — Scaffold a new \`60 FPS\` production capsule.
+- \`npx make-pictures styles [--space=2d|2.5d|3d]\` / \`npx make-pictures style new <slug> --from=editorial-press\` — List all 10 built-in styles or create reusable Art Direction presets.
+- \`npx make-pictures new <slug> --space=2d|2.5d|3d --lang=en\` (or \`--kit=vector-scene-2d --style=minimal-product\`) — Scaffold a new \`60 FPS\` production capsule.
 - \`npx make-pictures audio --production=<slug> [--mock]\` — Synthesize ElevenLabs TTS + word timestamps + AI Music + AI SFX.
 - \`npx make-pictures studio [--port=3000] [--dir=.]\` — Launch local \`60 FPS\` Studio Web workstation (\`http://127.0.0.1:3000\`, including 🎨 Style Lab).
-- \`npx make-pictures qa <CompositionId>\` — Render 12-frame Contact-Sheet PNG (\`out/qa-<CompositionId>.png\`) and inspect via \`Read\` (\`9:16\` Golden Safe Box \`x ∈ [40, 910], y ∈ [220, 1380]\`).
+- \`npx make-pictures qa <CompositionId>\` — Run Hard Director QA Gate (\`>= 4.5s\` scenes) + render 12-frame Contact-Sheet PNG (\`out/qa-<CompositionId>.png\`) and inspect via \`Read\` (\`9:16\` Golden Safe Box \`x ∈ [40, 910], y ∈ [220, 1380]\`).
 - \`npm run typecheck\` && \`npx make-pictures render <CompositionId>\` — Typecheck and render \`60 FPS\` MP4 mastered to \`-14 LUFS\`.
 
 ## Auto-Discovered Skills (\`.claude/skills/<skill>/SKILL.md\`)
-1. \`make-pictures-director\` — 6-step production workflow, \`production.json\`, CLI modes, and QA gates.
-2. \`style-and-art-direction\` — Art Direction gate, 7 built-in styles, \`StyleProvider\`, \`Style Lab\`, and \`styles/*.style.json\`.
+1. \`make-pictures-director\` — 6-step production workflow, \`production.json\`, CLI modes, \`ContinuousSceneFlow\` (\`>= 4.5s\` scenes), and QA gates.
+2. \`style-and-art-direction\` — Art Direction gate, 10 built-in styles (\`2D / 2.5D / 3D\`), \`StyleProvider\`, \`Style Lab\`, and \`styles/*.style.json\`.
 3. \`kit-editorial-and-vector\` — Universal 2D narrative kits: \`editorial-collage\` & \`vector-scene-2d\`.
 4. \`kit-paper-diorama-3d\` — 2.5D pop-up stage (\`DioramaStage3D\`, \`PaperCutout3D\`, \`ImageCutout3D\`, \`PopUpHinge3D\`, \`Δz\` layering).
-5. \`kit-motion-diagrams-2d\` — 2D infinite-canvas diagrams (\`NodeBox\` ports, \`FlowCurve\`, \`92–120f\` packets), plus SaaS \`.mp4\` screencasts via \`@make-pictures/kits/product-frames\` (\`BrowserFrame\`, \`PhoneFrame\`, \`ScreenSpotlightOverlay\`).
-6. \`kit-isometric-3d\` — 3D isometric dialogue (\`IsometricStage3D\`, \`Stylized3DCharacter\`, \`speakingWeight\` vs \`speechEnergy\`).
+5. \`kit-motion-diagrams-2d\` — 2D infinite-canvas diagrams (\`RetroPcWindowStage2D\`, \`NodeBox\` ports, \`FlowCurve\`, \`92–120f\` packets), plus SaaS \`.mp4\` screencasts via \`@make-pictures/kits/product-frames\` (\`BrowserFrame\`, \`PhoneFrame\`, \`ScreenSpotlightOverlay\`).
+6. \`kit-isometric-3d\` — 3D Soft-Clay & spatial studio dialogue (\`StudioHdrRig3D\`, \`PodcastStudioSet3D\`, \`ClayCharacter3D\`, \`IsometricStage3D\`).
 7. \`kit-kinetic-and-data\` — Kinetic typography & data charts (\`WordByWordStage\`, \`AnimatedBarRace\`, \`TimelineTrack\`).
 8. \`sound-and-music-design\` — ElevenLabs voices, PL/EN phonetics, \`SmartMusicBed\` auto-ducking, \`SoundCue\`, \`-14 LUFS\`.
-9. \`cinematography-and-vfx\` — Shot DSL (\`DirectorCamera3D/2D\`), \`9:16\` Safe Box, deterministic particles & transitions.
+9. \`cinematography-and-vfx\` — Shot DSL (\`DirectorCamera3D/2D\`), \`9:16\` Safe Box, \`ContinuousSceneFlow\`, \`OpticalCrossDissolve\`, deterministic particles.
 `;
 
 function writeAiPluginAndAgentsMd(targetRoot: string): void {
@@ -1981,7 +2270,41 @@ export async function createMakePicturesApp(
 ): Promise<{ targetDir: string; projectName: string }> {
   const targetDir = path.resolve(options.targetDir);
   const projectName = toPackageSlug(path.basename(targetDir));
-  const kit: StarterKitId = options.kit ?? 'vector-scene-2d';
+
+  if (options.space !== undefined) {
+    const normalizedSpace = String(options.space).trim().toLowerCase();
+    if (!VALID_SPACES.has(normalizedSpace as StarterSpace)) {
+      throw new Error(
+        `Invalid --space value "${String(options.space)}". Expected one of: 2d, 2.5d, 3d.`
+      );
+    }
+  }
+
+  if (options.kit !== undefined) {
+    if (!VALID_KITS.has(options.kit)) {
+      throw new Error(
+        `Unknown visual kit "${String(options.kit)}". Supported kits: ${Array.from(VALID_KITS).join(', ')}`
+      );
+    }
+  }
+
+  const normalizedSpace = options.space
+    ? (String(options.space).trim().toLowerCase() as StarterSpace)
+    : undefined;
+  const spaceDefaults = normalizedSpace
+    ? defaultStarterKitAndStyleForSpace(normalizedSpace)
+    : undefined;
+  const kit: StarterKitId =
+    options.kit ?? spaceDefaults?.kit ?? 'vector-scene-2d';
+  const requestedStyle = options.style?.trim();
+  const resolvedStyleId =
+    requestedStyle ||
+    spaceDefaults?.styleId ||
+    defaultStarterStyleForKit(kit);
+  const styleMeta =
+    STARTER_STYLE_METADATA[resolvedStyleId] ??
+    STARTER_STYLE_METADATA[defaultStarterStyleForKit(kit)] ??
+    STARTER_STYLE_METADATA['minimal-product']!;
   const lang: 'pl' | 'en' = options.lang ?? 'en';
   const isPl = lang === 'pl';
 
@@ -2042,7 +2365,13 @@ export async function createMakePicturesApp(
   fs.mkdirSync(path.join(prodDir, 'assets', 'videos'), { recursive: true });
   fs.mkdirSync(path.join(prodDir, 'generated'), { recursive: true });
 
-  const mood = moodForKit(kit);
+  const mood =
+    requestedStyle && STARTER_STYLE_METADATA[requestedStyle]
+      ? styleMeta.mood
+      : normalizedSpace
+        ? styleMeta.mood
+        : moodForKit(kit);
+  const voiceId = styleMeta.voiceId;
   const introText = isPl
     ? 'Hello Studio otwiera spokojną opowieść pełną światła i ruchu.'
     : 'Hello Studio opens a calm visual story shaped by light.';
@@ -2061,7 +2390,7 @@ export async function createMakePicturesApp(
         component: 'HelloStudio',
         durationInSeconds: 4.2,
         durationInFrames: 252,
-        voiceId: 'TX3LPaxmHKxFdv7VOQHJ',
+        voiceId,
         speaker: 'Narrator',
         voiceEffect: 'clean',
         text: introText,
@@ -2072,7 +2401,7 @@ export async function createMakePicturesApp(
         component: 'HelloStudio',
         durationInSeconds: 4.2,
         durationInFrames: 252,
-        voiceId: 'TX3LPaxmHKxFdv7VOQHJ',
+        voiceId,
         speaker: kit === 'isometric-3d' ? 'Partner' : 'Narrator',
         voiceEffect: 'clean',
         text: payoffText,
@@ -2111,14 +2440,14 @@ export async function createMakePicturesApp(
   );
 
   const defaultProps = {
-    styleId: 'minimal-product',
+    styleId: resolvedStyleId,
     headline: 'Hello Studio',
     subheadline: isPl
       ? 'Spokojna opowieść w świetle i ruchu'
       : 'Calm visual storytelling in light and motion',
     badgeLabel: isPl ? 'Rozdział 01' : 'Chapter 01',
-    accentColor: '#2563EB',
-    secondaryColor: '#0EA5E9',
+    accentColor: styleMeta.accentPrimary,
+    secondaryColor: styleMeta.accentSecondary,
     voiceoverVolume: 1.0,
     musicVolume: 0.25,
     sfxVolume: 0.35,
@@ -2131,7 +2460,7 @@ export async function createMakePicturesApp(
   );
   fs.writeFileSync(
     path.join(prodDir, 'compositions', 'HelloStudio.tsx'),
-    buildHelloStudioCompositionTsx(kit),
+    buildHelloStudioCompositionTsx(kit, { styleId: resolvedStyleId, lang }),
     'utf8'
   );
   fs.writeFileSync(
@@ -2153,7 +2482,7 @@ export async function createMakePicturesApp(
         .update(introText)
         .digest('hex')
         .slice(0, 16),
-      voiceId: 'TX3LPaxmHKxFdv7VOQHJ',
+      voiceId,
       modelId: 'eleven_multilingual_v2',
       provider: 'synthetic-fallback' as const,
       fps: 60,
@@ -2171,7 +2500,7 @@ export async function createMakePicturesApp(
         .update(payoffText)
         .digest('hex')
         .slice(0, 16),
-      voiceId: 'TX3LPaxmHKxFdv7VOQHJ',
+      voiceId,
       modelId: 'eleven_multilingual_v2',
       provider: 'synthetic-fallback' as const,
       fps: 60,
@@ -2251,7 +2580,9 @@ export const SFX_MANIFEST: Record<string, ProductionSfxEntry> = {};
   console.log(` 🎬 Created make.pictures Studio Project: ${projectName}`);
   console.log('==============================================================');
   console.log(`  • Location:   ${targetDir}`);
-  console.log(`  • Starter:    productions/hello-studio (${kit}, ${lang})`);
+  console.log(
+    `  • Starter:    productions/hello-studio (${kit}, style: ${resolvedStyleId}, ${lang})`
+  );
   console.log('  • AI Skills:  .agents/plugins/make-pictures/ + AGENTS.md');
 
   if (options.install !== false) {
@@ -2290,9 +2621,14 @@ Usage:
   npx create-make-pictures@latest <project-directory> [options]
 
 Options:
+  --space=<space>   Dimensional space: 2d | 2.5d | 3d
   --kit=<kit>       Starter kit: vector-scene-2d (default), editorial-collage,
                     kinetic-typography, data-storytelling, motion-diagrams-2d,
                     paper-diorama-3d, isometric-3d
+  --style=<style>   Built-in or custom style ID (10 built-in styles: minimal-product,
+                    editorial-press, archival-chronicle, cyber-telemetry,
+                    brutalist-poster, sketch-notebook, tactile-craft, retro-pc,
+                    soft-clay, glass-studio)
   --lang=<en|pl>    Starter narration language (default: en)
   --no-install      Skip running npm install
   --force           Allow scaffolding into a non-empty directory
@@ -2314,16 +2650,41 @@ export async function runCreateCli(
   }
 
   const targetDir = positionals[0];
-  const rawKit = typeof flags.kit === 'string' ? flags.kit.trim() : undefined;
-  const kit: StarterKitId =
-    rawKit && VALID_KITS.has(rawKit as StarterKitId)
-      ? (rawKit as StarterKitId)
-      : 'vector-scene-2d';
+
+  let space: StarterSpace | undefined;
+  if (flags.space !== undefined && flags.space !== false) {
+    const rawSpace =
+      typeof flags.space === 'string' ? flags.space.trim().toLowerCase() : '';
+    if (!VALID_SPACES.has(rawSpace as StarterSpace)) {
+      throw new Error(
+        `Invalid --space value "${String(flags.space)}". Expected one of: 2d, 2.5d, 3d (e.g. --space=3d).`
+      );
+    }
+    space = rawSpace as StarterSpace;
+  }
+
+  let kit: StarterKitId | undefined;
+  if (flags.kit !== undefined && flags.kit !== false) {
+    const rawKit = typeof flags.kit === 'string' ? flags.kit.trim() : '';
+    if (!VALID_KITS.has(rawKit as StarterKitId)) {
+      throw new Error(
+        `Unknown visual kit "${String(flags.kit)}". Supported kits: ${Array.from(VALID_KITS).join(', ')}`
+      );
+    }
+    kit = rawKit as StarterKitId;
+  }
+
+  const style =
+    typeof flags.style === 'string' && flags.style.trim().length > 0
+      ? flags.style.trim()
+      : undefined;
   const lang = flags.lang === 'pl' ? 'pl' : 'en';
 
   await createMakePicturesApp({
     targetDir,
+    space,
     kit,
+    style,
     lang,
     install: !Boolean(flags['no-install']),
     force: Boolean(flags.force),

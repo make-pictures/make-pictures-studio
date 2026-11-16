@@ -1,6 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import type { DimensionalSpace } from '../../../core/src/style/presets';
 import {
+  defaultKitAndStyleForSpace,
   runNewProductionCommand,
   type ScaffoldKitId,
 } from './new-production';
@@ -14,6 +16,7 @@ import {
 export interface InitCommandOptions {
   cwd?: string;
   dir?: string;
+  space?: DimensionalSpace;
   kit?: ScaffoldKitId;
   style?: string;
   voice?: string;
@@ -29,6 +32,11 @@ const REQUIRED_RUNTIME_PACKAGES = [
   'remotion',
   '@remotion/cli',
   '@remotion/player',
+  '@remotion/bundler',
+  '@remotion/renderer',
+  '@remotion/media-utils',
+  '@remotion/google-fonts',
+  'lucide-react',
   'zod',
 ];
 
@@ -90,7 +98,12 @@ export async function runInitCommand(
     dir: options.dir,
   });
 
-  const kit: ScaffoldKitId = options.kit ?? 'vector-scene-2d';
+  const spaceDefaults = options.space
+    ? defaultKitAndStyleForSpace(options.space)
+    : undefined;
+  const kit: ScaffoldKitId =
+    options.kit ?? spaceDefaults?.kit ?? 'vector-scene-2d';
+  const style = options.style ?? spaceDefaults?.styleId;
   const lang: 'pl' | 'en' = options.lang ?? 'en';
   const force = Boolean(options.force);
 
@@ -107,8 +120,9 @@ export async function runInitCommand(
       cwd: rootDir,
       dir: dirRel,
       slug: 'hello-studio',
+      space: options.space,
       kit,
-      style: options.style,
+      style,
       voice: options.voice,
       lang,
       force,
@@ -142,7 +156,7 @@ export async function runInitCommand(
   if (missingPkgs.length > 0) {
     console.log('\n📦 Install studio packages if not installed yet:');
     console.log(
-      '   npm install @make-pictures/core @make-pictures/kits @make-pictures/studio @make-pictures/cli remotion @remotion/cli @remotion/player @remotion/three three @types/three react react-dom zod'
+      '   npm install -D @make-pictures/core @make-pictures/kits @make-pictures/studio @make-pictures/cli remotion @remotion/cli @remotion/player @remotion/bundler @remotion/renderer @remotion/media-utils @remotion/google-fonts @remotion/three @react-three/fiber @react-three/drei three @types/three react react-dom zod lucide-react vite @vitejs/plugin-react'
     );
   }
 

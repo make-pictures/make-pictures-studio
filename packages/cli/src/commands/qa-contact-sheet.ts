@@ -39,7 +39,7 @@ export interface QaContactSheetResult {
   isVertical: boolean;
 }
 
-interface RegistryHint {
+export interface RegistryHint {
   origin?: 'example' | 'production';
   productionId?: string;
   propsFile?: string;
@@ -80,8 +80,10 @@ function parseGridSpec(gridSpec = '4x3'): { cols: number; rows: number } {
 /**
  * Selects `count` key frames across `[0, durationInFrames - 1]`:
  * - Always starts at `frame = 0` (clean empty background invariant)
- * - Incorporates scene transition boundaries when present
- * - Distributes remaining slots evenly across the story arc
+ * - For each scene segment `i`, samples BOTH an early prompt/entrance frame
+ *   (`seg.fromFrame + Math.min(24, Math.floor(span * 0.12))`) AND a settled payoff frame
+ *   (`seg.fromFrame + Math.floor(span * 0.68)`), plus a final settle frame (`durationInFrames - 24`)
+ * - Deduplicates and evenly trims or pads to `count` frames (`gridCols * gridRows`)
  */
 export function selectQaSampleFrames(
   durationInFrames: number,
@@ -93,27 +95,76 @@ export function selectQaSampleFrames(
     return [0];
   }
 
-  const usableEnd =
-    durationInFrames > 48 ? durationInFrames - 16 : maxFrame;
+  const clampFrame = (f: number): number =>
+    Math.max(0, Math.min(maxFrame, Math.round(f)));
+
+  const finalSettle =
+    durationInFrames > 48 ? clampFrame(durationInFrames - 24) : maxFrame;
 
   const selected = new Set<number>([0]);
 
-  if (sceneTimeline && sceneTimeline.length > 1) {
-    for (const seg of sceneTimeline) {
-      if (seg.fromFrame > 0 && seg.fromFrame <= maxFrame) {
-        selected.add(Math.min(maxFrame, seg.fromFrame));
+  if (sceneTimeline && sceneTimeline.length > 0) {
+    const segments = [...sceneTimeline]
+      .filter((s) => s.fromFrame <= maxFrame)
+      .sort((a, b) => a.fromFrame - b.fromFrame);
+
+    for (let i = 0; i < segments.length; i++) {
+      const seg = segments[i]!;
+      const nextStart = segments[i + 1]?.fromFrame ?? durationInFrames;
+      const span = Math.max(1, nextStart - seg.fromFrame);
+      const earlyFrame = clampFrame(
+        seg.fromFrame + Math.min(24, Math.floor(span * 0.12))
+      );
+      const payoffFrame = clampFrame(seg.fromFrame + Math.floor(span * 0.68));
+      if (earlyFrame > 0) {
+        selected.add(earlyFrame);
       }
-      const postEnter = seg.fromFrame + 24;
-      if (postEnter > 0 && postEnter <= usableEnd && selected.size < count) {
-        selected.add(postEnter);
+      if (payoffFrame > 0) {
+        selected.add(payoffFrame);
       }
+    }
+
+    if (finalSettle > 0) {
+      selected.add(finalSettle);
+    }
+  } else {
+    for (let i = 1; i < count; i++) {
+      const f = clampFrame((i / (count - 1)) * finalSettle);
+      selected.add(f);
     }
   }
 
-  for (let i = 1; i < count; i++) {
-    if (selected.size >= count) break;
-    const f = Math.round((i / (count - 1)) * usableEnd);
-    selected.add(Math.max(0, Math.min(maxFrame, f)));
+  let sorted = Array.from(selected).sort((a, b) => a - b);
+
+  if (sorted.length > count) {
+    const trimmed: number[] = [];
+    for (let k = 0; k < count; k++) {
+      const idx = Math.round((k * (sorted.length - 1)) / (count - 1));
+      trimmed.push(sorted[idx]!);
+    }
+    trimmed[0] = 0;
+    return trimmed;
+  }
+
+  // Evenly bisect largest uncovered intervals until `count` frames are reached
+  while (sorted.length < count) {
+    let bestGap = 0;
+    let bestMid = -1;
+    for (let i = 0; i < sorted.length - 1; i++) {
+      const gap = sorted[i + 1]! - sorted[i]!;
+      if (gap >= 2 && gap > bestGap) {
+        const mid = Math.floor((sorted[i]! + sorted[i + 1]!) / 2);
+        if (!selected.has(mid)) {
+          bestGap = gap;
+          bestMid = mid;
+        }
+      }
+    }
+    if (bestMid === -1) {
+      break;
+    }
+    selected.add(bestMid);
+    sorted = Array.from(selected).sort((a, b) => a - b);
   }
 
   let cursor = 1;
@@ -122,7 +173,7 @@ export function selectQaSampleFrames(
     cursor += 1;
   }
 
-  const sorted = Array.from(selected)
+  sorted = Array.from(selected)
     .sort((a, b) => a - b)
     .slice(0, count);
 
@@ -383,7 +434,12 @@ function parseStaticProductionHintFromDisk(
     hint.propsFile = propsCandidateRel;
   }
 
-  const usesThreeMatch = indexSrc.match(/\busesThree\s*:\s*(true|false)\b/);
+  const usesThreeMatch =
+    indexSrc.match(
+      new RegExp(
+        `id\\s*:\\s*['"]${escapedId}['"][\\s\\S]{0,800}?usesThree\\s*:\\s*(true|false)\\b`
+      )
+    ) ?? indexSrc.match(/\busesThree\s*:\s*(true|false)\b/);
   if (usesThreeMatch) {
     hint.usesThree = usesThreeMatch[1] === 'true';
   }
@@ -461,7 +517,7 @@ function parseStaticProductionHintFromDisk(
   return hint;
 }
 
-async function lookupRegistryHint(
+export async function lookupRegistryHint(
   studioDir: string,
   compositionId: string
 ): Promise<RegistryHint> {
