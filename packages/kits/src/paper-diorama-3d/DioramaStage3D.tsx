@@ -1,6 +1,17 @@
-import React, { useMemo } from 'react';
+import React, { useContext, useEffect, useMemo } from 'react';
+import { Internals } from 'remotion';
 import * as THREE from 'three';
 import { useStudioStyle } from '@make-pictures/core';
+
+function useOptionalRemotionFrame(): number {
+  const canUseRemotion = useContext(Internals.CanUseRemotionHooks);
+  const timelinePos = Internals.Timeline.useTimelinePosition();
+  const seqCtx = useContext(Internals.SequenceContext);
+  if (!canUseRemotion) {
+    return 1;
+  }
+  return timelinePos - (seqCtx ? seqCtx.cumulatedFrom + seqCtx.relativeFrom : 0);
+}
 
 export interface DioramaStage3DProps {
   variant?: 'minimal-plinth' | 'flat-sheet' | 'open-book';
@@ -10,6 +21,8 @@ export interface DioramaStage3DProps {
   depth?: number;
   accentColor?: string;
   surfaceColor?: string;
+  /** Respects Frame 0 clean-board invariant (returns `null` at `frame <= 0`, default `true`) */
+  cleanFrameZero?: boolean;
   children?: React.ReactNode;
 }
 
@@ -21,16 +34,19 @@ export const DioramaStage3D: React.FC<DioramaStage3DProps> = ({
   depth = 7.4,
   accentColor,
   surfaceColor,
+  cleanFrameZero = true,
   children,
 }) => {
+  const frame = useOptionalRemotionFrame();
   const style = useStudioStyle();
+  const isHiddenAtZero = cleanFrameZero && frame <= 0;
   const resolvedSurface = surfaceColor ?? style.palette.bgSurface;
   const resolvedBase = style.palette.bgElevated;
   const resolvedBorder = style.palette.inkBorder;
   const resolvedAccent = accentColor ?? style.palette.accentPrimary;
 
   const surfaceTexture = useMemo(() => {
-    if (typeof document === 'undefined') return null;
+    if (isHiddenAtZero || typeof document === 'undefined') return null;
     const canvas = document.createElement('canvas');
     canvas.width = 1024;
     canvas.height = 640;
@@ -82,7 +98,31 @@ export const DioramaStage3D: React.FC<DioramaStage3DProps> = ({
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.needsUpdate = true;
     return tex;
-  }, [resolvedSurface, resolvedBase, resolvedBorder, resolvedAccent, surfacePattern]);
+  }, [
+    isHiddenAtZero,
+    resolvedSurface,
+    resolvedBase,
+    resolvedBorder,
+    resolvedAccent,
+    surfacePattern,
+  ]);
+
+  useEffect(() => {
+    return () => {
+      if (surfaceTexture) {
+        const img = surfaceTexture.image as HTMLCanvasElement | undefined;
+        surfaceTexture.dispose();
+        if (img && typeof img.width === 'number') {
+          img.width = 0;
+          img.height = 0;
+        }
+      }
+    };
+  }, [surfaceTexture]);
+
+  if (isHiddenAtZero) {
+    return null;
+  }
 
   const turnAngle = Math.max(0, Math.min(1, pageTurnProgress)) * Math.PI;
 

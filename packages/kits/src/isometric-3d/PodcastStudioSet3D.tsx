@@ -112,25 +112,20 @@ const StudioClayMaterial: React.FC<{
   finishProps,
   roughnessOffset = 0,
   metalnessOverride,
-}) => {
-  const isTranslucent = finishProps.transmission > 0 && metalnessOverride === undefined;
-  return (
-    <meshPhysicalMaterial
-      color={color}
-      roughness={clamp(finishProps.roughness + roughnessOffset, 0.06, 0.95)}
-      metalness={metalnessOverride ?? finishProps.metalness}
-      clearcoat={finishProps.clearcoat}
-      clearcoatRoughness={finishProps.clearcoatRoughness}
-      sheen={finishProps.sheen}
-      sheenColor="#FFF4E6"
-      sheenRoughness={0.65}
-      transmission={isTranslucent ? finishProps.transmission * 0.5 : 0}
-      ior={finishProps.ior}
-      transparent={isTranslucent || undefined}
-      opacity={isTranslucent ? 0.95 : 1}
-    />
-  );
-};
+}) => (
+  <meshPhysicalMaterial
+    color={color}
+    roughness={clamp(finishProps.roughness + roughnessOffset, 0.06, 0.95)}
+    metalness={metalnessOverride ?? finishProps.metalness}
+    clearcoat={finishProps.clearcoat}
+    clearcoatRoughness={finishProps.clearcoatRoughness}
+    sheen={finishProps.sheen}
+    sheenColor="#FFF4E6"
+    sheenRoughness={0.65}
+    transmission={0}
+    ior={finishProps.ior}
+  />
+);
 
 interface LetterStroke {
   x: number;

@@ -12,6 +12,7 @@ import {
   formatFontFamilyCss,
   getStyleSpringConfig,
   getTactileSurfaceStyle,
+  hashToHex,
   resolveArtWorld,
   resolveStyleOptics,
   useStudioStyle,
@@ -360,7 +361,9 @@ export const EditorialMediaCard: React.FC<EditorialMediaCardProps> = ({
     },
   });
 
-  const uid = `ed-art-${style.id}-${caption.length}`;
+  const uid = `ed-art-${hashToHex(
+    `${style.id}\u001f${caption}\u001f${cleanSourceTag ?? ''}`
+  )}`;
 
   return (
     <div data-mount-type={effectiveMount} style={cardSurface}>

@@ -32,6 +32,35 @@ export interface ComparisonSplit2DProps {
   focusShiftFrame?: number;
   /** Initial focal behavior before `focusShiftFrame` (`'left'` when `focusShiftFrame` is set, otherwise `'both'`) */
   initialFocus?: 'both' | 'left';
+  /** Chrome badge language (`'pl'` renders `'BAZA'`/`'TEZA'`, `'en'` renders `'BASELINE'`/`'THESIS'`; auto-inferred when omitted) */
+  lang?: 'pl' | 'en';
+}
+
+function resolveComparisonLang(
+  explicitLang: 'pl' | 'en' | undefined,
+  left: ComparisonSideSpec,
+  right: ComparisonSideSpec
+): 'pl' | 'en' {
+  if (explicitLang === 'pl' || explicitLang === 'en') {
+    return explicitLang;
+  }
+  const corpus = `${left.tag} ${left.title} ${left.detail} ${right.tag} ${right.title} ${right.detail}`;
+  if (
+    /[ąćęłńóśźżĄĆĘŁŃÓŚŹŻ]/.test(corpus) ||
+    /\b(przed|po|pierwsza|druga|punkt|kierunek|lewa|prawa|opis|baza|teza|wynik|szablon|optyka)\b/i.test(
+      corpus
+    )
+  ) {
+    return 'pl';
+  }
+  if (
+    /\b(the|before|after|baseline|thesis|payoff|old|new|legacy|modern|with|without|from|into|vs|versus)\b/i.test(
+      corpus
+    )
+  ) {
+    return 'en';
+  }
+  return 'pl';
 }
 
 export function computeSafeSplitBounds(
@@ -72,6 +101,7 @@ export const ComparisonSplit2D: React.FC<ComparisonSplit2DProps> = ({
   rightDelayFrames = 14,
   focusShiftFrame,
   initialFocus,
+  lang,
 }) => {
   const frame = useCurrentFrame();
   const { fps, width, height } = useVideoConfig();
@@ -79,6 +109,7 @@ export const ComparisonSplit2D: React.FC<ComparisonSplit2DProps> = ({
   const optics = resolveStyleOptics(style);
   const grammar = optics.typographyGrammar;
   const isDark = style.surface.isDark;
+  const resolvedLang = resolveComparisonLang(lang, left, right);
 
   const effectiveStart = Math.max(2, startFrame);
   if (frame < effectiveStart) return null;
@@ -245,7 +276,13 @@ export const ComparisonSplit2D: React.FC<ComparisonSplit2DProps> = ({
         >
           <span>{item.tag}</span>
           <span style={{ fontSize: 12, opacity: 0.72 }}>
-            {isPayoff ? 'TEZA' : 'BAZA'}
+            {isPayoff
+              ? resolvedLang === 'en'
+                ? 'THESIS'
+                : 'TEZA'
+              : resolvedLang === 'en'
+                ? 'BASELINE'
+                : 'BAZA'}
           </span>
         </div>
 

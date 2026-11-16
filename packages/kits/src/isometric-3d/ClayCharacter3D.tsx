@@ -115,9 +115,9 @@ export function resolvePhysicalFinishProps(
         metalness: 0.06,
         clearcoat: 0.88,
         clearcoatRoughness: 0.12,
-        sheen: 0.12,
-        transmission: 0.42,
-        ior: 1.52,
+        sheen: 0.08,
+        transmission: 0,
+        ior: 1.48,
       };
     case 'retro-voxel':
       return {
@@ -157,25 +157,20 @@ const ClaySurfaceMaterial: React.FC<{
   color: string;
   finishProps: PhysicalFinishProps;
   roughnessOffset?: number;
-}> = ({ color, finishProps, roughnessOffset = 0 }) => {
-  const isTranslucent = finishProps.transmission > 0;
-  return (
-    <meshPhysicalMaterial
-      color={color}
-      roughness={clamp(finishProps.roughness + roughnessOffset, 0.05, 0.96)}
-      metalness={finishProps.metalness}
-      clearcoat={finishProps.clearcoat}
-      clearcoatRoughness={finishProps.clearcoatRoughness}
-      sheen={finishProps.sheen}
-      sheenColor="#FFF4E6"
-      sheenRoughness={0.62}
-      transmission={finishProps.transmission}
-      ior={finishProps.ior}
-      transparent={isTranslucent || undefined}
-      opacity={isTranslucent ? 0.92 : 1}
-    />
-  );
-};
+}> = ({ color, finishProps, roughnessOffset = 0 }) => (
+  <meshPhysicalMaterial
+    color={color}
+    roughness={clamp(finishProps.roughness + roughnessOffset, 0.05, 0.96)}
+    metalness={finishProps.metalness}
+    clearcoat={finishProps.clearcoat}
+    clearcoatRoughness={finishProps.clearcoatRoughness}
+    sheen={finishProps.sheen}
+    sheenColor="#FFF4E6"
+    sheenRoughness={0.62}
+    transmission={finishProps.transmission}
+    ior={finishProps.ior}
+  />
+);
 
 /**
  * Expressive Blender Soft-Clay / Vinyl Toy 3D character with true 3D eyeballs,
@@ -278,9 +273,19 @@ export const ClayCharacter3D: React.FC<ClayCharacter3DProps> = ({
   const browLift = 0.014 * activeGesture + 0.024 * clampedEnergy;
   const browTiltMag = 0.07 + 0.09 * activeGesture + 0.07 * clampedEnergy;
 
-  // Speech-reactive 3D mouth squash & stretch
+  // Speech-reactive 3D mouth squash & stretch (driven via mesh scale over static unit CapsuleGeometry)
   const mouthOpen = 0.024 + clampedEnergy * 0.092 + activeGesture * 0.01;
   const mouthWidth = 0.132 + activeGesture * 0.016 - clampedEnergy * 0.014;
+  const lipRadius = mouthOpen * 0.5 + 0.018;
+  const lipLen = Math.max(0.026, mouthWidth - mouthOpen * 0.6);
+  const lipScaleX = lipRadius / 0.04;
+  const lipScaleY = (lipLen + lipRadius * 2) / 0.16;
+  const lipScaleZ = (lipRadius * 0.4) / 0.04;
+  const cavRadius = mouthOpen * 0.46;
+  const cavLen = Math.max(0.022, mouthWidth - mouthOpen * 0.64);
+  const cavScaleX = cavRadius / 0.04;
+  const cavScaleY = (cavLen + cavRadius * 2) / 0.16;
+  const cavScaleZ = (cavRadius * 0.36) / 0.04;
 
   // Articulated arm kinematics (hovering naturally above table when seated)
   const baseShoulderX = seated ? -0.54 : -0.16;
@@ -806,20 +811,13 @@ export const ClayCharacter3D: React.FC<ClayCharacter3DProps> = ({
             position={[0, -0.144, 0.378]}
             rotation={[0.16, 0, 0]}
           >
-            {/* Smooth Oval Pill Lip Cushion */}
+            {/* Smooth Oval Pill Lip Cushion (static unit geometry scaled per-frame -> zero VBO churn) */}
             <mesh
               rotation={[0, 0, Math.PI / 2]}
-              scale={[1, 1, 0.4]}
+              scale={[lipScaleX, lipScaleY, lipScaleZ]}
               castShadow
             >
-              <capsuleGeometry
-                args={[
-                  mouthOpen * 0.5 + 0.018,
-                  Math.max(0.026, mouthWidth - mouthOpen * 0.6),
-                  14,
-                  24,
-                ]}
-              />
+              <capsuleGeometry args={[0.04, 0.08, 14, 24]} />
               <ClaySurfaceMaterial
                 color="#DE7058"
                 finishProps={skinFinishProps}
@@ -830,16 +828,9 @@ export const ClayCharacter3D: React.FC<ClayCharacter3DProps> = ({
             <mesh
               position={[0, 0, 0.018]}
               rotation={[0, 0, Math.PI / 2]}
-              scale={[1, 1, 0.36]}
+              scale={[cavScaleX, cavScaleY, cavScaleZ]}
             >
-              <capsuleGeometry
-                args={[
-                  mouthOpen * 0.46,
-                  Math.max(0.022, mouthWidth - mouthOpen * 0.64),
-                  14,
-                  24,
-                ]}
-              />
+              <capsuleGeometry args={[0.04, 0.08, 14, 24]} />
               <meshPhysicalMaterial color="#4A1511" roughness={0.84} />
             </mesh>
 
