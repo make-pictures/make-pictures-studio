@@ -3,3 +3,6 @@ export * from './Stylized3DCharacter';
 export * from './IsometricStudioEnvironment';
 export * from './IsometricScenicSet3D';
 export { IsometricStage3D, type IsometricStage3DProps } from './IsometricStage3D';
+export * from './StudioHdrRig3D';
+export * from './ClayCharacter3D';
+export * from './PodcastStudioSet3D';
