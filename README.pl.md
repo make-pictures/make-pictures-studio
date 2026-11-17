@@ -15,6 +15,7 @@
   <a href="https://make.pictures">🌐 make.pictures</a> •
   <a href="https://www.youtube.com/@makepicturespl">📺 YouTube (PL)</a> •
   <a href="https://www.youtube.com/@makepicturestv">📺 YouTube (EN)</a> •
+  <a href="./CHANGELOG.md">📋 Changelog</a> •
   <a href="./README.md">🇬🇧 English version</a>
 </p>
 
