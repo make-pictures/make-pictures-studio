@@ -262,7 +262,7 @@ export const AnimatedMetricCounter: React.FC<AnimatedMetricCounterProps> = ({
           <span
             style={{
               fontFamily: monoFontCss,
-              fontSize: 14,
+              fontSize: 18,
               fontWeight: 700,
               letterSpacing: '0.06em',
               padding: '3px 10px',

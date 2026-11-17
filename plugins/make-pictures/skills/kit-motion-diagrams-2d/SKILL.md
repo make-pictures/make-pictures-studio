@@ -39,9 +39,14 @@ import {
   portRight,
   FlowCurve,
   DataFlowEdge,
+  buildCubicBezierPath,
+  evaluateCubicBezier,
+  evaluateCubicBezierAngleDeg,
   SystemNode,
   CodePayloadToast,
   resolvePayloadTokenColors,
+  type CubicBezierCurve2D,
+  type Point2D,
   type MotionDiagramStage2DProps,
   type MotionDiagramFocusState,
   type RetroPcWindowStage2DProps,
@@ -55,9 +60,10 @@ import {
 
 ## Mandatory Layout, Corner Clipping, Optical Focus, Port & Camera Rules
 
-### 1. Single Source of Truth for Node Coordinates (`NodeBox`)
+### 1. Single Source of Truth for Node Coordinates (`NodeBox` & `boxSizing: 'border-box'`)
 - **Zero manual coordinate guessing:** Never write separate approximate `(x, y)` numbers for HTML cards and SVG connection curves.
 - Define every block on the 2D canvas inside one dictionary (`WORLD_NODES` for `16:9` and a dedicated `VERTICAL_WORLD_NODES` for `9:16`) as `NodeBox` (`{ cx, cy, w, h }`).
+- **Explicit `boxSizing: 'border-box'` (`WorldBox` & Custom Nodes):** `WorldBox` and `getCardChromeStyle` always set `boxSizing: 'border-box'` so `padding` + `border` never inflate the rendered box beyond `{ w, h }`, keeping `portTop` / `portBottom` / `portLeft` / `portRight` pixel-accurate on card borders (`>= 18px` minimum font size across all node labels and badges).
 - Mount HTML cards with `<WorldBox node={NODES.apiGateway} nodeId="apiGateway">` or `<SystemNode id="apiGateway" x={NODES.apiGateway.cx} y={NODES.apiGateway.cy} width={NODES.apiGateway.w} height={NODES.apiGateway.h} ... />` and attach all edges (`FlowCurve` / `DataFlowEdge`) **exclusively** via mathematical border port helpers:
   - `portTop(node, dx = 0)` — top border (`y = cy - h / 2`)
   - `portBottom(node, dx = 0)` — bottom border (`y = cy + h / 2`)
@@ -73,14 +79,15 @@ import {
   - **Automatic 3-ArtWorld Scenery (`showScenicBackdrop = true`):** Renders studio cyclorama & glass caustics (`'atelier'`), warm parallax hills & clouds (`'illustrative'`), or gallery passe-partout & window light (`'editorial-gallery'`) behind the infinite grid while returning `null` on `frame <= 0`.
   - **Dignified Light-Mode Rack Focus:** When `shots: ShotSpec2D[]` or `focusedNodeIds` recesses non-targeted `SystemNode` / `WorldBox` modules on light surfaces (`!surface.isDark`), `MotionDiagramStage2D` keeps `opacityScale >= 0.88`, caps `blurPx <= 1.85px` (`blur(...) saturate(0.88)`), and preserves crisp `inkBorder` definition so background nodes read as physical acrylic/paper objects sitting deeper in studio light — never washed-out `0.55` gray HTML inputs. Emits `filter: 'none'` whenever CoC blur `< 0.25px`.
 
-### 4. `DataFlowEdge` Luminous Trails & `>= 26px` Label Clearance
-- **`>= 26px` Label Clearance:** When `label` is set on `<DataFlowEdge />`, default offsets automatically place the floating label **`>= 30px`** clear of the cubic Bézier apex (`-32px` above upward arches, `+32px` below downward arches, and `±30px` horizontally clear on vertical `9:16` spans).
-- **Luminous Flow Trails:** Traveling couplers emit a smooth, tapered cubic-Bézier gradient comet (`data-flow-trail="true"`) behind each polymorphic coupler (`swiss-spatial`, `optical-gate`, `risograph-poster`).
-- **Header & Card Border Avoidance (`curveX` / `curveOffsetX`):** Never slice section headers with lines; bypass headers with a smooth lateral Bézier arch (`curveX` on `FlowCurve` or `curveOffsetX` on vertical `DataFlowEdge`).
+### 4. Visual Noise Ban, Single-Source Cubic Bézier Geometry (`buildCubicBezierPath`) & `DataFlowEdge`
+- **Visual Noise Ban & The 2-Second Test:** Never decorate diagrams with simultaneous packet clouds on every edge, spinning dashed radar rings, wavy multi-color cables, or tangled spaghetti graphs with color legends. If a viewer needs `> 2 s` to decode edge colors/dots, replace the graph with `<ComparisonSplit2D />` or at most `3` calm nodes connected by clean directional strokes (`packetCount={0}`).
+- **Single Source of Truth for SVG Curves (`buildCubicBezierPath` & `evaluateCubicBezier`):** Both `FlowCurve` and `DataFlowEdge` default to **`packetCount = 0`** (clean `strokeDashoffset` line draw without wandering dots). Whenever a single pulse (`packetCount={1}`) is genuinely warranted, both `<path d={curve.d} />` and `evaluateCubicBezier(curve.p0, curve.p1, curve.p2, curve.p3, t)` derive from the **exact same 4 control points** — never approximate dot motion with linear interpolation or `Math.sin(...)`!
+- **`>= 26px` Label Clearance & Header Avoidance (`curveX` / `curveOffsetX`):** Floating `<DataFlowEdge />` labels sit `>= 30px` clear of the cubic Bézier apex (`>= 18px` font floor), and lateral arches (`curveX` / `curveOffsetX`) cleanly bypass section headers.
 
-### 5. Calm `60 FPS` Pacing (`>= 4.5s` Scenes & `92–120f` Packet Cadence)
-- Set `packetSpeedFrames` / `traverseFrames` between **`92` and `120` frames (`1.5–2.0 s`)** with `packetCount={2}` — never `< 60`.
-- Every visual scene in `productions/*` must span **`>= 270` frames (`4.5 s` @ `60 FPS`)** and connect via `<ContinuousSceneFlow />` or continuous `interpolateStylePresets` morphing (`npx make-pictures qa` hard gate).
+### 5. Calm `60 FPS` Pacing (`>= 4.5s` Scenes & Optional `92–120f` Single-Pulse Cadence)
+- Keep `packetCount={0}` by default; when a single pulse (`packetCount={1}`) illustrates an active hop, set `packetSpeedFrames` / `traverseFrames` between **`92` and `120` frames (`1.5–2.0 s`)** — never `< 60`.
+- Every visual scene in `productions/*` must span **`>= 270` frames (`4.5 s` @ `60 FPS`)** with full voiceover breathing room (`computeSceneTimingFromVoiceover`), connected via `<ContinuousSceneFlow />` (`npx make-pictures qa` hard gate).
+- For sub-pixel callout pins on UI screenshots or hardware plates inside `@make-pictures/kits/product-frames`, use `<PinnedMediaStage />` (`sourceWidth`, `sourceHeight`, `pins`, `Δx = 0.00 px` — re-exported directly from `@make-pictures/kits/product-frames`).
 
 ### 6. Dedicated `9:16` Vertical Layout (`1080×1920`)
 - Create a dedicated `VERTICAL_WORLD_NODES` layout stacking cards top-to-bottom (`w <= 640 px`) strictly inside the **Golden Safe Box (`x ∈ [40, 910]`, `y ∈ [220, 1380]`)**, connecting vertical ports (`portBottom` -> `portTop`).
@@ -91,9 +98,9 @@ import {
 
 ```tsx
 const WORLD_NODES = {
-  prompt: { cx: 460, cy: 480, w: 380, h: 192 },
-  direction: { cx: 960, cy: 440, w: 390, h: 192 },
-  master: { cx: 1460, cy: 480, w: 380, h: 192 },
+  prompt: { cx: 460, cy: 480, w: 380, h: 196 },
+  direction: { cx: 960, cy: 440, w: 390, h: 196 },
+  master: { cx: 1460, cy: 480, w: 380, h: 196 },
 } satisfies Record<string, NodeBox>;
 
 <StyleProvider style={morphedStyle} renderBackdrop>

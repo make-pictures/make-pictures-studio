@@ -23,19 +23,34 @@ Design broadcast-ready, `-14 LUFS` mastered soundtracks combining word-aligned *
   - `make.pictures`: write **`mejk pikczers`** in Polish and **`make pictures`** in English (**NEVER** write literal punctuation words like *„mejk kropka pikczers”* or *“make dot pictures”*!).
   - `retro-pc`: write **`retro pi si`** in Polish and **`retro pee see`** in English (never *„retro pe ce”* or raw `retro-pc`).
   - Dimensional spaces & numbers: spell out naturally (`dwa de`, `dwa i pół de`, `trzy de`, `jedenaście` in PL; `two dee`, `two point five dee`, `three dee`, `eleven` in EN — zero raw digits or uppercase acronyms in `scene.text`).
-- **Polish lettered acronyms:** Spell each letter separately with Polish phonetics (e.g., `e er p` instead of `ERP`, `a pe i` instead of `API`, `es ku el` instead of `SQL`).
+- **Polish technical acronyms — Głoskowce vs Literowce (CRITICAL — never confuse the two!):**
+  1. **Głoskowce (word-acronyms spoken as a single Polish word — NEVER lettered!):**
+     Write in lowercase as one cohesive word:
+     - `API` → **`"api"`** (**NEVER** `"a-pe-i"`, `"a pe i"`, or English `"ej-pi-aj"`!)
+     - `LED` → `"led"`, `RAM` → `"ram"`, `LAN` → `"lan"`, `PIN` → `"pin"`, `SIM` → `"sim"`, `CAD` → `"kad"`, `SaaS` → `"sas"`, `JSON` → `"dżejson"`.
+  2. **Literowce (lettered acronyms spelled with mandatory hyphens `-`, never spaces):**
+     Spaces between letters (`"e er p"`, `"es ku el"`) cause `eleven_multilingual_v2` to slur adjacent syllables; always join letter names with hyphens (`-`):
+     - `USB` → `"u-es-be"`, `SQL` → `"es-ku-el"`, `CRM` → `"ce-er-em"`, `ERP` → `"e-er-pe"`, `GSM` → `"gie-es-em"`, `PDF` → `"pe-de-ef"`, `HTML` → `"ha-te-em-el"`, `SDK` → `"es-de-ka"`, `HTTPS` → `"ha-te-te-pe-es"`, `CPU` → `"ce-pe-u"`.
+  3. **Colloquial engineering digit grouping in standards & norms:**
+     Group digits in pairs or single digits the way Polish engineers actually speak — never force long thousand-ordinals or literal `"kropka"`:
+     - `ISO 8601` → `"izo osiemdziesiąt sześć zero jeden"`, `RFC 9110` → `"er-ef-ce dziewięćdziesiąt jeden dziesięć"`, `IEEE 802.11` → `"osiemset dwa jedenaście"`, `USB 3.2` → `"u-es-be trzy dwa"`, `HTTP 404` → `"błąd cztery-zero-cztery"`, `x86-64` → `"iks osiemdziesiąt sześć sześćdziesiąt cztery"`.
+     - Spell out all numerals in the proper grammatical case (*„poniżej dwudziestu milisekund”*).
+  4. **Zero catalog SKU / part numbers in `scene.text`:**
+     Never read hardware SKUs or model strings (`DK-940X-TB4`, `PD-140W-G2`) aloud — speak the concrete function and user benefit in narration, and place model badges visually on the card (`badge="Seria 940"`). `npx make-pictures audio` runs `lintManifestVoiceovers` (`phonetics-lint.ts`) automatically before synthesis.
 - **Context continuity (`previousText` / `nextText`):** Pass optional `previousText` and `nextText` (prefixed with `. ` or `... ` to prevent trailing phoneme bleed) on `SceneDefinition` so multi-scene monologues maintain seamless prosody across cuts.
 
-### Proven Studio Voice Profiles
+### Proven Studio Voice Profiles & Natural `0.98–1.00` Speech Speed
+
+Keep `voiceSettings.speed` in the natural **`0.98–1.00`** range (`0.99` CLI default) for Polish and English explainers, product presentations, and essays — speeds `>= 1.10` rush phrasing and clip Polish consonant endings.
 
 1. **Dynamic Narrator / Young Hero (`Liam` — default):** `TX3LPaxmHKxFdv7VOQHJ`
-   - `voiceSettings`: `{ stability: 0.35, similarityBoost: 0.78, style: 0.55, speed: 1.1, useSpeakerBoost: true }`
-   - Responds well to exclamation marks (`!`) on energetic hook/climax sentences.
+   - `voiceSettings`: `{ stability: 0.42, similarityBoost: 0.78, style: 0.45, speed: 0.99, useSpeakerBoost: true }`
+   - Suitable for launch films and product stories; use exclamation marks sparingly.
 2. **Calm / Analytical Explainer:** `CLuTGacrAhcIhaJslbXt`
-   - `voiceSettings`: `{ stability: 0.58, similarityBoost: 0.80, style: 0.18, speed: 1.0, useSpeakerBoost: true }`
+   - `voiceSettings`: `{ stability: 0.58, similarityBoost: 0.80, style: 0.18, speed: 0.99, useSpeakerBoost: true }`
    - Always end sentences with periods (`.`), never `!`, to keep word endings crisp and unclipped.
 3. **Broadcast Journalist / Documentary Anchor (`Daniel — Steady Broadcaster`):** `onwK4e9ZLuTAKqWW03F9`
-   - `voiceSettings`: `{ stability: 0.62, similarityBoost: 0.84, style: 0.22, speed: 1.18, useSpeakerBoost: true }`
+   - `voiceSettings`: `{ stability: 0.62, similarityBoost: 0.84, style: 0.22, speed: 1.00, useSpeakerBoost: true }`
    - **Zero exclamation marks (`!`)** in news/documentary scripts—use periods (`.`) and em-dashes (`—`) for authoritative TV anchor cadence.
 4. **Multi-Character Dialogue Ensemble:**
    - `nPczCjzI2devNBz1zQrb` (*Brian* — senior authority / colonel)
@@ -78,16 +93,16 @@ const beatPulse = useMusicBeatPulse(scoreSrc, { lowBinCount: 4, smoothingFrames:
 <SmartMusicBed
   src={scoreSrc}
   dialogueSegments={[
-    { sceneId: 's1-hook', fromFrame: 24, durationInFrames: 210 },
-    { sceneId: 's2-reveal', fromFrame: 270, durationInFrames: 240 },
+    { sceneId: 's1-hook', fromFrame: 42, durationInFrames: 210 },
+    { sceneId: 's2-reveal', fromFrame: 390, durationInFrames: 240 },
   ]}
   voiceoverManifest={AUDIO_MANIFEST}
-  baseVolume={0.26}
+  baseVolume={0.25}
   duckedVolume={0.085}
   lookaheadFrames={12}
   releaseFrames={28}
   fadeInFrames={30}
-  fadeOutFrames={45}
+  fadeOutFrames={90}
   loop
 />
 ```
@@ -105,8 +120,8 @@ const beatPulse = useMusicBeatPulse(scoreSrc, { lowBinCount: 4, smoothingFrames:
 - **For Foley / SFX:** Mount `<SoundCue />` from `@make-pictures/core` and pass `durationSeconds={sfx.durationSeconds}` when available (even when omitted, `<SoundCue />` auto-unmounts after a finite `6s` window unless `loop` is set).
 - **Live Web Embeds:** When embedding compositions in your own custom `<Player />` from `@remotion/player`, pass `numberOfSharedAudioTags={32}` (Studio Web configures `STUDIO_SHARED_AUDIO_TAGS = 32` automatically).
 
-### Declaring `sfx` in `production.json` (`SfxAssetSpec`)
-Each entry in `sfx` generates a cached `.mp3` via ElevenLabs Text-to-Sound-Effects (`prompt`, `durationSeconds`, `loop?: boolean` for seamless room/wind ambients, `promptInfluence?: number` default `0.35`) with offline `fallbackPreset` (`'whoosh' | 'pop' | 'click' | 'chime' | 'wind' | 'impact' | 'ambient-hum'`).
+### Sparse Foley Budget (`3–5` Cues per Film at `volume: 0.14–0.26`) & `sfx` in `production.json`
+Never attach a whoosh or pop to every single card entrance or scene cut. Across a `60–90 s` explainer or product film, place **at most `3–5` subtle Foley accents** (chapter opening, key metric shift, closing resolve) mixed quietly at **`volume: 0.14–0.26`** so they never mask spoken consonants. Each entry in `sfx` generates a cached `.mp3` via ElevenLabs Text-to-Sound-Effects (`prompt`, `durationSeconds`, `loop?: boolean`, `promptInfluence?: number` default `0.35`) with offline `fallbackPreset` (`'whoosh' | 'pop' | 'click' | 'chime' | 'wind' | 'impact' | 'ambient-hum'`).
 
 ### Mounting `<VoiceoverTrack />` & `<SoundCue />`
 
@@ -114,19 +129,19 @@ Each entry in `sfx` generates a cached `.mp3` via ElevenLabs Text-to-Sound-Effec
 import { SoundCue, VoiceoverTrack } from '@make-pictures/core';
 import { SFX_MANIFEST, VOICEOVER_MANIFEST } from '../generated/audio-manifest';
 
-{/* 1. Bounded scene voiceover (auto-unmounts after durationInSeconds + 0.35s) */}
+{/* 1. Bounded scene voiceover starting after ~42f (0.7s) Pre-Speech Settle */}
 <VoiceoverTrack
   voiceover={VOICEOVER_MANIFEST['s2-reveal']}
-  fromFrame={270}
+  fromFrame={42}
   volume={1.0}
 />
 
-{/* 2. SFX triggered at an exact composition frame */}
+{/* 2. Subtle Foley cue mixed at 0.14..0.26 */}
 <SoundCue
   src={staticFile(SFX_MANIFEST['page-slide'].audioFile)}
-  atFrame={180}
+  atFrame={38}
   durationSeconds={SFX_MANIFEST['page-slide'].durationSeconds}
-  volume={0.38}
+  volume={0.20}
 />
 
 {/* 3. SFX automatically synced to a spoken word in the voiceover! */}
@@ -134,19 +149,19 @@ import { SFX_MANIFEST, VOICEOVER_MANIFEST } from '../generated/audio-manifest';
   src={staticFile(SFX_MANIFEST['chime-reveal'].audioFile)}
   sceneId="s2-reveal"
   onWord="odkrycie"
-  sceneStartFrame={270}
+  sceneStartFrame={42}
   offsetFrames={-3}
   fallbackFrame={60}
   durationSeconds={SFX_MANIFEST['chime-reveal'].durationSeconds}
   voiceoverManifest={VOICEOVER_MANIFEST}
-  volume={0.42}
+  volume={0.22}
 />
 ```
 
 ---
 
-## 4. Mandatory `.mp3` Audition & `-14 LUFS` Loudness Mastering
+## 4. Mandatory `.mp3` & Final Mastered `.mp4` (`-14 LUFS`) Audition Gate
 
-1. **Generate all capsule audio:** `npm run audio -- --production=<slug>` (or `--mock` for zero-credit procedural dry runs; shortcuts `npm run music` and `npm run sfx` are also available).
-2. **Mandatory listen check:** Always inspect every newly generated voiceover `.mp3` with `read_file` before rendering video.
-3. **Broadcast EBU R128 Mastering (`-14 LUFS`):** `npm run render -- <CompositionId>` automatically runs `ffmpeg` `loudnorm=I=-14:TP=-1.5:LRA=11` (`-1.5 dBTP` true-peak ceiling) so exported MP4s hit YouTube, Shorts, Reels, and TikTok loudness targets out of the box.
+1. **Generate & lint capsule audio:** `npx make-pictures audio --production=<slug>` (runs `lintManifestVoiceovers` automatically; pass `--mock` for zero-credit procedural dry runs).
+2. **Pre-render `.mp3` check:** Inspect every newly generated `assets/voiceovers/*.mp3` with `read_file` and recalculate each scene's `durationInFrames` with `computeSceneTimingFromVoiceover` (`~42f` pre-speech settle + `~96f` post-speech hold, `+144f` outro hold).
+3. **Broadcast EBU R128 Mastering (`-14 LUFS`) & Mandatory Final `.mp4` Audition:** `npx make-pictures render <CompositionId>` automatically runs `ffmpeg` `loudnorm=I=-14:TP=-1.5:LRA=11`. **Listening to `.mp3` voiceovers alone is not enough** — after rendering `.mp4`, always inspect the mastered `.mp4` mix to verify `<SmartMusicBed fadeOutFrames={90} />` ducking, `<SoundCue />` balance (`0.14–0.26`), Polish `"api"` vs `"u-es-be"` pronunciation, and unclipped outro tails.

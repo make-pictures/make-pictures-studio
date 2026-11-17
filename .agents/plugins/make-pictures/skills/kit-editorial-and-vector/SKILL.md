@@ -30,6 +30,7 @@ import {
 
 import {
   EditorialDeskStage,
+  EditorialPanoramaTrack,
   ChapterTitleCard,
   EditorialMediaCard,
   HighlightQuoteStage,
@@ -38,6 +39,8 @@ import {
   computeSplitStoryVerticalBounds,
   resolveHighlightStartFrame,
   type EditorialDeskStageProps,
+  type EditorialPanoramaItem,
+  type EditorialPanoramaTrackProps,
   type ChapterTitleCardProps,
   type EditorialMediaCardProps,
   type EditorialMountType,
@@ -48,11 +51,18 @@ import {
 import {
   VectorSceneStage2D,
   StoryCard2D,
+  HorizontalFeatureGrid2x2,
+  computeHorizontalFeatureGridBounds,
+  PinnedMediaStage,
   AnnotatedCallout2D,
   ComparisonSplit2D,
   computeSafeSplitBounds,
   type VectorSceneStage2DProps,
   type StoryCard2DProps,
+  type HorizontalFeatureItem,
+  type HorizontalFeatureGrid2x2Props,
+  type MediaPinSpec,
+  type PinnedMediaStageProps,
   type AnnotatedCallout2DProps,
   type ComparisonSideSpec,
   type ComparisonSplit2DProps,
@@ -95,9 +105,11 @@ Physical baryta print, passe-partout frame, or darkroom slide mount with `<Clipp
 - **Zero Default Noise:** `sourceTag` is optional; `slide-mount` renders a clean dark frame without fake `35MM ARCHIVE POSITIVE` / `KADR 14A` stamps when `sourceTag` is omitted.
 - **3-ArtWorld Painterly Artwork (`when src is omitted`):** Renders bespoke multi-layered vector paintings (`data-contact-sheet="true"`, `data-editorial-artworld="atelier" | "illustrative" | "editorial-gallery"`) — studio glass orb & arch (`atelier`), sunlit storybook mountains & clouds (`illustrative`), or museum travertine arch & horizon relief (`editorial-gallery`).
 
-### `HighlightQuoteStage` & `SplitStoryLayout`
+### `HighlightQuoteStage`, `SplitStoryLayout` & `EditorialPanoramaTrack`
 - `HighlightQuoteStage`: Tactile quotation card (`„…”`) with word-synced organic SVG ink-brush / halation sweep (`words={VOICEOVER_MANIFEST[sceneId]?.words}`).
 - `SplitStoryLayout`: Dual-elevation responsive composition (`1.08fr 0.92fr` in `16:9`; vertical stack strictly inside `9:16` Golden Safe Box `x ∈ [40, 910], y ∈ [220, 1380]`) with optional `focusShiftFrame` optical rack focus.
+- **`EditorialPanoramaTrack` (`items: EditorialPanoramaItem[]`, `durationInFrames`):** **Mandatory replacement for robotic `3×2` blinking tile grids.** Lays out `3–6` large `EditorialMediaCard` plates (`660×480 px`, `cy ± 20 px` vertical rhythm) along a panoramic `<DirectorCamera2D />` ribbon (`transition: 'glide'`) with subtle Ken Burns (`1.02 → 1.08`) and `<ScenicBackdropLayers />` parallax (automatically adapting to vertical cascade inside the `9:16` Golden Safe Box).
+- **AI Illustration Style Anchor & Safe Cutouts:** Generate raster artwork via `npx make-pictures image "<subject>" --style=<styleId> --out=...` (which enforces a shared `Base Style Anchor` and strictly **no text/letters/numbers** inside the raster), always render images with Remotion `<Img>` (never raw `<img>`), and extract bright objects on white backgrounds with `npx make-pictures cutout` (never global white thresholding `rgb > 245 => alpha = 0`).
 
 ---
 
@@ -109,9 +121,14 @@ Multi-plane 2.5D graphic plate stage combining `<StageLightingRig />` + **3-ArtW
 - **`showScenicBackdrop?: boolean`** defaults to `true` (`null` on `frame <= 0`).
 - **`foregroundCallouts?: React.ReactNode`** mounts on elevated parallax plane `z = +0.42`, and `foregroundAccents` renders a quiet, wordless corner registration bracket on `z = +0.72` outside the `9:16` Safe Box.
 
-### `StoryCard2D`
-Tactile graphic card (`data-medallion-grammar={grammar}`) wrapped internally with **`<ClippedSurfaceChrome />`** (clipped top accent bar + specular rim + subtle surface sheen — zero corner bleed) and a `60×60` polymorphic SVG engraved medallion:
-- **Zero Default Clutter:** Both `badge` and `plateCode` default to `undefined`; the top monospace header row is omitted completely unless `badge` or `plateCode` is explicitly passed (never prints fallback `FIG. 01` or `OPTICAL PLATE`).
+### `StoryCard2D` & `HorizontalFeatureGrid2x2` (`>= 18 px` Floor & Zero Vertical Voids)
+- **`StoryCard2D`:** Tactile graphic card wrapped internally with **`<ClippedSurfaceChrome />`** and a `60×60` polymorphic SVG medallion. Enforces `TYPOGRAPHY_FLOOR_1080P`: **`28px` title (`2–5` words) + `20px` supporting sentence (`6–11` words) + `18px` badge**, with `height: 'auto'`, `justifyContent: 'center'`, and `boxSizing: 'border-box'` (zero `space-between` vertical voids; `badge` and `plateCode` default to `undefined`).
+- **`HorizontalFeatureGrid2x2` (`items: ReadonlyArray<HorizontalFeatureItem>`):** Balanced `2×2` summary layout on `16:9` (and single-column stack inside the `9:16` Golden Safe Box) using horizontal medallion cards (`gridTemplateColumns: '64px 1fr'`, `alignItems: 'center'`, `gap: 24`, `28px` title + `20px` sentence) so `16:9` quadrants fill cleanly with zero vertical holes.
+
+### `PinnedMediaStage` (Sub-Pixel `Δx = 0.00 px` Media Annotations)
+Eliminates the two classic callout drift bugs (`objectFit: 'contain'` pillarbox offset and `translate(-50%, -50%) scale(...)` origin drift):
+- Pass exact source pixel dimensions `sourceWidth` (`W`) & `sourceHeight` (`H`) plus `pins: MediaPinSpec[]` (`{ id, cx, cy, label, placement?: 'top' | 'bottom', ringRadiusPx?, startFrame?, accentColor? }`).
+- Locks an `aspectRatio: '${W} / ${H}'` wrapper `1:1` to the `<Img>` bounds and mounts each reticle + `[-240px, +240px]` symmetric `>= 18px` label pill on a **`width: 0, height: 0` point anchor** at `(cx / W * 100%, cy / H * 100%)` for **`Δx = 0.00 px`** alignment at every spring frame.
 
 ### `AnnotatedCallout2D` & `ComparisonSplit2D`
 - `AnnotatedCallout2D`: Optical target reticle + `45° -> horizontal` architectural elbow leader auto-clamped inside the `9:16` Golden Safe Box.
@@ -141,11 +158,11 @@ import { VOICEOVER_MANIFEST } from '../generated/audio-manifest';
 export const GalleryEssay: React.FC<{ styleId: string }> = ({ styleId }) => (
   <StyleProvider style={styleId} renderBackdrop>
     <AbsoluteFill>
-      <VoiceoverTrack voiceover={VOICEOVER_MANIFEST['scene-1']} fromFrame={18} />
-      <VoiceoverTrack voiceover={VOICEOVER_MANIFEST['scene-2']} fromFrame={378} />
+      <VoiceoverTrack voiceover={VOICEOVER_MANIFEST['scene-1']} fromFrame={42} />
+      <VoiceoverTrack voiceover={VOICEOVER_MANIFEST['scene-2']} fromFrame={402} />
 
       <ContinuousSceneFlow
-        crossDissolveFrames={48}
+        crossDissolveFrames={54}
         scenes={[
           {
             id: 'opener',

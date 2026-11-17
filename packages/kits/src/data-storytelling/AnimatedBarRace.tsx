@@ -332,7 +332,7 @@ export const AnimatedBarRace: React.FC<AnimatedBarRaceProps> = ({
                 style={{
                   marginTop: 4,
                   fontFamily: bodyFontCss,
-                  fontSize: 17,
+                  fontSize: 19,
                   color: textSecondary,
                 }}
               >
@@ -344,8 +344,8 @@ export const AnimatedBarRace: React.FC<AnimatedBarRaceProps> = ({
             style={{
               fontFamily: monoFontCss,
               fontVariantNumeric: 'tabular-nums',
-              fontSize: 13,
-              letterSpacing: '0.12em',
+              fontSize: 18,
+              letterSpacing: '0.08em',
               color: textSecondary,
               flexShrink: 0,
             }}
@@ -449,7 +449,7 @@ export const AnimatedBarRace: React.FC<AnimatedBarRaceProps> = ({
                       justifyContent: 'center',
                       fontFamily: monoFontCss,
                       fontVariantNumeric: 'tabular-nums',
-                      fontSize: 15,
+                      fontSize: 18,
                       fontWeight: 700,
                       color:
                         isLeader && grammar === 'risograph-poster'
@@ -512,7 +512,7 @@ export const AnimatedBarRace: React.FC<AnimatedBarRaceProps> = ({
                           <span
                             style={{
                               fontFamily: monoFontCss,
-                              fontSize: 12,
+                              fontSize: 18,
                               fontWeight: 700,
                               padding: '1px 6px',
                               border: `1px solid ${color}`,
@@ -628,12 +628,12 @@ export const AnimatedBarRace: React.FC<AnimatedBarRaceProps> = ({
             style={{
               position: 'relative',
               marginLeft: 48,
-              height: 16,
+              height: 22,
               borderTop: `1px solid ${borderColor}`,
               fontFamily: monoFontCss,
               fontVariantNumeric: 'tabular-nums',
-              fontSize: 11,
-              letterSpacing: '0.08em',
+              fontSize: 18,
+              letterSpacing: '0.06em',
               color: textSecondary,
               opacity: 0.72,
             }}
@@ -719,7 +719,7 @@ export const AnimatedBarRace: React.FC<AnimatedBarRaceProps> = ({
                     style={{
                       fontFamily: monoFontCss,
                       fontVariantNumeric: 'tabular-nums',
-                      fontSize: 15,
+                      fontSize: 18,
                       fontWeight: isLeader ? 800 : 600,
                       color: isLeader ? color : textSecondary,
                     }}
@@ -788,7 +788,7 @@ export const AnimatedBarRace: React.FC<AnimatedBarRaceProps> = ({
                     style={{
                       paddingTop: 6,
                       fontFamily: bodyFontCss,
-                      fontSize: 15,
+                      fontSize: 18,
                       fontWeight: isLeader ? 700 : 600,
                       textAlign: 'center',
                       color: textPrimary,

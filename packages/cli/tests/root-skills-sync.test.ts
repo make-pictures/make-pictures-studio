@@ -119,3 +119,67 @@ test('root AGENTS.md and CLAUDE.md mirror plugins/make-pictures/rules/{AGENTS,CL
     assert.match(canonicalContent, /glass-studio/);
   }
 });
+
+test('Part I universal guidelines are documented across canonical AGENTS.md, CLAUDE.md, and all 8 updated skills (with upstream API -> "a pe i" anti-pattern removed)', () => {
+  const agentsMd = fs.readFileSync(
+    path.join(CANONICAL_RULES_DIR, 'AGENTS.md'),
+    'utf8'
+  );
+  const claudeMd = fs.readFileSync(
+    path.join(CANONICAL_RULES_DIR, 'CLAUDE.md'),
+    'utf8'
+  );
+
+  // AGENTS.md & CLAUDE.md core Part I invariants
+  for (const [label, doc] of [
+    ['AGENTS.md', agentsMd],
+    ['CLAUDE.md', claudeMd],
+  ] as const) {
+    assert.match(doc, /computeSceneTimingFromVoiceover/, `${label} must document computeSceneTimingFromVoiceover`);
+    assert.match(doc, /SceneSubViewDissolve/, `${label} must document SceneSubViewDissolve`);
+    assert.match(doc, /PinnedMediaStage/, `${label} must document PinnedMediaStage`);
+    assert.match(doc, /cutout/, `${label} must document npx make-pictures cutout`);
+    assert.match(doc, /--grid=auto|auto-grid/i, `${label} must document --grid=auto QA coverage`);
+    assert.match(doc, /border-box/, `${label} must document boxSizing: 'border-box'`);
+  }
+
+  // sound-and-music-design/SKILL.md: mandatory fix of upstream anti-pattern `a pe i instead of API`
+  const soundSkill = fs.readFileSync(
+    path.join(CANONICAL_SKILLS_DIR, 'sound-and-music-design', 'SKILL.md'),
+    'utf8'
+  );
+  assert.doesNotMatch(
+    soundSkill,
+    /a pe i instead of API/i,
+    'sound-and-music-design/SKILL.md must NOT contain the upstream anti-pattern "a pe i instead of API"'
+  );
+  assert.match(soundSkill, /"api"/, 'sound-and-music-design must document "api" as a głoskowiec');
+  assert.match(soundSkill, /u-es-be/, 'sound-and-music-design must document hyphenated literowce (u-es-be)');
+  assert.match(soundSkill, /es-ku-el/, 'sound-and-music-design must document hyphenated es-ku-el');
+  assert.match(soundSkill, /e-er-pe/, 'sound-and-music-design must document hyphenated e-er-pe');
+  assert.match(soundSkill, /mejk pikczers/);
+  assert.match(soundSkill, /retro pi si/);
+
+  // Domain skill coverage checks across the remaining 7 canonical skills
+  const skillExpectations: Array<[string, RegExp]> = [
+    ['make-pictures-director', /computeSceneTimingFromVoiceover[\s\S]*cutout|--grid=auto/],
+    ['style-and-art-direction', /TYPOGRAPHY_FLOOR_1080P|18/],
+    ['cinematography-and-vfx', /SceneSubViewDissolve/],
+    ['kit-editorial-and-vector', /EditorialPanoramaTrack[\s\S]*PinnedMediaStage|PinnedMediaStage[\s\S]*EditorialPanoramaTrack/],
+    ['kit-motion-diagrams-2d', /buildCubicBezierPath|evaluateCubicBezier/],
+    ['kit-kinetic-and-data', /tabular-nums/],
+    ['kit-paper-diorama-3d', /cutout/],
+  ];
+
+  for (const [skillName, pattern] of skillExpectations) {
+    const content = fs.readFileSync(
+      path.join(CANONICAL_SKILLS_DIR, skillName, 'SKILL.md'),
+      'utf8'
+    );
+    assert.match(
+      content,
+      pattern,
+      `Expected ${skillName}/SKILL.md to document ${String(pattern)}`
+    );
+  }
+});

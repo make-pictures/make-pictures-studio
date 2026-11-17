@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   blankCommentsPreservingNewlines,
+  blankStringsAndCommentsPreservingNewlines,
   lineNumberAtOffset,
   readJsxOpeningTagEnd,
 } from '../utils/jsx-source-scan';
@@ -12,9 +13,13 @@ export type DirectorAuditRuleCode =
   | 'COMPETING_FOCAL_POINT'
   | 'READING_CADENCE_OVER_BUDGET'
   | 'INSUFFICIENT_BREATHING_ROOM'
+  | 'EXCESSIVE_SUBVIEWS'
   | 'CHOPPY_SCENE_TRANSITION'
   | 'UNCLIPPED_CARD_BAR'
-  | 'DIRTY_FRAME_ZERO';
+  | 'DIRTY_FRAME_ZERO'
+  | 'RAW_HTML_IMG_TAG'
+  | 'FONT_BELOW_1080P_FLOOR'
+  | 'CARD_VERTICAL_VOID';
 
 export interface DirectorAuditViolation {
   code: DirectorAuditRuleCode;
@@ -34,11 +39,18 @@ export interface DirectorAuditResult {
   violations: DirectorAuditViolation[];
 }
 
+export interface AuditSubViewSegment {
+  id?: string;
+  fromOffsetFrames: number;
+  label?: string;
+}
+
 export interface AuditSceneSegment {
   sceneId: string;
   fromFrame: number;
   durationInFrames: number;
   label?: string;
+  subViews?: ReadonlyArray<AuditSubViewSegment>;
 }
 
 export interface AuditVoiceoverEntry {
@@ -68,7 +80,13 @@ export interface AuditDirectionParams {
 export interface CleanFrameZeroResult {
   clean: boolean;
   maxChannelSpread: number;
+  maxChannelVariance: number;
   channelSpreads: {
+    r: number;
+    g: number;
+    b: number;
+  };
+  channelVariances: {
     r: number;
     g: number;
     b: number;
@@ -309,6 +327,44 @@ function extractNumericConstMap(cleaned: string): Map<string, number> {
   while ((m = constRe.exec(cleaned)) !== null) {
     map.set(m[1], Number(m[2]));
   }
+
+  // Also resolve `const t1 = computeSceneTimingFromVoiceover(...)` -> `t1.durationInFrames`
+  const timingHelperRe =
+    /\bconst\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*(?::[^=]+)?=\s*computeSceneTimingFromVoiceover\s*\(([\s\S]{0,280}?)\)/g;
+  while ((m = timingHelperRe.exec(cleaned)) !== null) {
+    const ident = m[1]!;
+    const argsText = m[2]!;
+    const fpsArg = argsText.match(/\bfps\s*:\s*(\d+(?:\.\d+)?)/);
+    const fps = fpsArg ? Number(fpsArg[1]) : 60;
+    const minDurArg = argsText.match(
+      /\bminDurationSeconds\s*:\s*(\d+(?:\.\d+)?)/
+    );
+    const minFrames = Math.round((minDurArg ? Number(minDurArg[1]) : 4.5) * fps);
+    const isFinal = /\bisFinalScene\s*:\s*true\b/.test(argsText);
+    const preSecArg = argsText.match(
+      /\bpreSettleSeconds\s*:\s*(\d+(?:\.\d+)?)/
+    );
+    const postSecArg = argsText.match(
+      /\bpostHoldSeconds\s*:\s*(\d+(?:\.\d+)?)/
+    );
+    const preF = Math.round((preSecArg ? Number(preSecArg[1]) : 0.7) * fps);
+    const postF = Math.round(
+      (postSecArg ? Number(postSecArg[1]) : isFinal ? 2.4 : 1.6) * fps
+    );
+    const literalVo = argsText.trim().match(/^(\d+(?:\.\d+)?)\b/);
+    const fallbackVo = argsText.match(/\?\?\s*(\d+(?:\.\d+)?)/);
+    const voSec = literalVo
+      ? Number(literalVo[1])
+      : fallbackVo
+        ? Number(fallbackVo[1])
+        : 0;
+    const voF = voSec > 0 ? Math.ceil(Math.max(0, voSec * fps - 1e-9)) : 0;
+    const resolvedDuration = Math.max(minFrames, preF + voF + postF);
+
+    map.set(`${ident}.durationInFrames`, resolvedDuration);
+    map.set(`${ident}.voiceoverStartFrame`, preF);
+  }
+
   return map;
 }
 
@@ -872,6 +928,174 @@ export function scanTsxForUnclippedCardBars(
   return violations;
 }
 
+/**
+ * Rule 6: Rejects raw HTML `<img>` tags in TSX compositions, requiring `<Img>` from `'remotion'`
+ * so `delayRender` synchronizes image loading deterministically under `--concurrency=100%`.
+ */
+export function scanTsxForRawHtmlImgTags(
+  source: string,
+  filePath: string
+): DirectorAuditViolation[] {
+  const cleaned = blankStringsAndCommentsPreservingNewlines(source);
+  const cleanedForTagEnd = blankCommentsPreservingNewlines(source);
+  const violations: DirectorAuditViolation[] = [];
+
+  const imgRe = /<img(?=[\s/>])/g;
+  let match: RegExpExecArray | null;
+  while ((match = imgRe.exec(cleaned)) !== null) {
+    const offset = match.index;
+    const tagEnd = readJsxOpeningTagEnd(cleanedForTagEnd, offset);
+    const snippet =
+      tagEnd !== -1
+        ? source
+            .slice(offset, tagEnd + 1)
+            .replace(/\s+/g, ' ')
+            .trim()
+        : '<img ... />';
+    if (tagEnd !== -1) {
+      imgRe.lastIndex = tagEnd + 1;
+    }
+    violations.push({
+      code: 'RAW_HTML_IMG_TAG',
+      rule: 'REMOTION_IMG_REQUIRED',
+      filePath,
+      line: lineNumberAtOffset(source, offset),
+      snippet: snippet.length > 140 ? `${snippet.slice(0, 137)}...` : snippet,
+      message:
+        'Zastąp surowy znacznik <img> komponentem <Img> z pakietu \'remotion\', aby zagwarantować synchronizację ładowania zasobów przez delayRender przy --concurrency=100%.',
+    });
+  }
+
+  return violations;
+}
+
+/**
+ * Rule 7: Flags explicit numeric `fontSize < 18` literals in TSX style objects / JSX attributes
+ * (`FONT_BELOW_1080P_FLOOR` static layer).
+ */
+export function scanTsxForSmallFontSizes(
+  source: string,
+  filePath: string,
+  minPx = 18
+): DirectorAuditViolation[] {
+  const cleaned = blankCommentsPreservingNewlines(source);
+  const violations: DirectorAuditViolation[] = [];
+
+  // 1. Object property `fontSize: 13` or `fontSize: '13px'`
+  const propRe =
+    /\bfontSize\s*:\s*(?:(\d+(?:\.\d+)?)(?![A-Za-z0-9_.])|['"](\d+(?:\.\d+)?)(?:px)?['"])/g;
+  let m: RegExpExecArray | null;
+  while ((m = propRe.exec(cleaned)) !== null) {
+    const rawNum = Number(m[1] ?? m[2]);
+    if (rawNum > 0 && rawNum < minPx) {
+      const offset = m.index;
+      violations.push({
+        code: 'FONT_BELOW_1080P_FLOOR',
+        rule: 'TYPOGRAPHY_FLOOR_1080P',
+        filePath,
+        line: lineNumberAtOffset(source, offset),
+        snippet: source
+          .slice(offset, offset + m[0].length)
+          .replace(/\s+/g, ' ')
+          .trim(),
+        message: `Explicit fontSize ${rawNum}px is below the ${minPx}px 1080p legibility floor (TYPOGRAPHY_FLOOR_1080P.minPx = ${minPx}). Remove micro-stamps or increase fontSize >= ${minPx}px.`,
+      });
+    }
+  }
+
+  // 2. JSX SVG/component attribute `fontSize={12}`
+  const jsxAttrRe = /\bfontSize\s*=\s*\{\s*(\d+(?:\.\d+)?)\s*\}/g;
+  while ((m = jsxAttrRe.exec(cleaned)) !== null) {
+    const rawNum = Number(m[1]);
+    if (rawNum > 0 && rawNum < minPx) {
+      const offset = m.index;
+      violations.push({
+        code: 'FONT_BELOW_1080P_FLOOR',
+        rule: 'TYPOGRAPHY_FLOOR_1080P',
+        filePath,
+        line: lineNumberAtOffset(source, offset),
+        snippet: source
+          .slice(offset, offset + m[0].length)
+          .replace(/\s+/g, ' ')
+          .trim(),
+        message: `JSX fontSize={${rawNum}} is below the ${minPx}px 1080p legibility floor. Increase fontSize >= ${minPx}px.`,
+      });
+    }
+  }
+
+  return violations;
+}
+
+/**
+ * Rule 8: Flags components mounting >= 2 `<SceneSubViewDissolve>` instances inside a single scene
+ * component (which creates 3+ sub-views inside one scene).
+ */
+export function scanTsxForExcessiveSubViews(
+  source: string,
+  filePath: string
+): DirectorAuditViolation[] {
+  const cleaned = blankStringsAndCommentsPreservingNewlines(source);
+  const violations: DirectorAuditViolation[] = [];
+  const compRanges = splitTopLevelComponentRanges(cleaned);
+
+  for (const r of compRanges) {
+    const slice = cleaned.slice(r.start, r.end);
+    const hits = [...slice.matchAll(/<SceneSubViewDissolve(?=[\s/>])/g)];
+    if (hits.length >= 2) {
+      const absOffset = r.start + (hits[1]!.index ?? 0);
+      violations.push({
+        code: 'EXCESSIVE_SUBVIEWS',
+        rule: 'SUB_VIEW_BUDGET',
+        filePath,
+        line: lineNumberAtOffset(source, absOffset),
+        snippet: '<SceneSubViewDissolve ... />',
+        message:
+          'Single scene component mounts multiple <SceneSubViewDissolve> blocks (3+ sub-views). Limit each scene to at most 1 evolving layout or 2 sub-views (View A -> View B); split 3+ views into separate scenes in production.json.',
+      });
+    }
+  }
+
+  return violations;
+}
+
+function extractContinuousSceneFlowNominalDurations(
+  tsxFiles: ReadonlyArray<string>
+): number[] | null {
+  for (const file of tsxFiles) {
+    if (!fs.existsSync(file)) continue;
+    const raw = fs.readFileSync(file, 'utf8');
+    const cleaned = blankCommentsPreservingNewlines(raw);
+    if (!/<ContinuousSceneFlow(?=[\s>/])/.test(cleaned)) continue;
+
+    const constMap = extractNumericConstMap(cleaned);
+    const scenesPropMatch = cleaned.match(/\bscenes\s*=\s*\{\s*\[/);
+    if (!scenesPropMatch || scenesPropMatch.index === undefined) continue;
+
+    const openBraceOffset =
+      scenesPropMatch.index + scenesPropMatch[0].indexOf('{');
+    const closeBraceOffset = readBalancedBraceEnd(cleaned, openBraceOffset);
+    if (closeBraceOffset === -1) continue;
+
+    const scenesSlice = cleaned.slice(openBraceOffset, closeBraceOffset + 1);
+    const durRe = /\bdurationInFrames\s*:\s*([A-Za-z0-9_$.]+)/g;
+    const durations: number[] = [];
+    let dm: RegExpExecArray | null;
+    while ((dm = durRe.exec(scenesSlice)) !== null) {
+      const tok = dm[1]!;
+      const num = /^\d+(?:\.\d+)?$/.test(tok)
+        ? Number(tok)
+        : (constMap.get(tok) ?? NaN);
+      if (Number.isFinite(num) && num > 0) {
+        durations.push(num);
+      }
+    }
+    if (durations.length > 0) {
+      return durations;
+    }
+  }
+  return null;
+}
+
 function countSpokenWords(text: string): number {
   if (!text || !text.trim()) return 0;
   return text
@@ -933,17 +1157,56 @@ export function auditCompositionDirection(
   const origin = inferOrigin(params);
   const fps = params.fps && params.fps > 0 ? params.fps : 60;
   const minSceneFrames = Math.round(4.5 * fps);
-  const minBreathingFrames = Math.round(0.6 * fps);
+  const minPreSettleFrames = Math.round(0.6 * fps);
+  const minPostHoldFrames = Math.round(1.5 * fps);
+  const minFinalPostHoldFrames = Math.round(2.2 * fps);
   const capsuleDir = resolveTargetCapsuleDir(params, origin);
   const effectiveProps = loadMergedPropsJson(params);
 
   const violations: DirectorAuditViolation[] = [];
   const inspectedFiles: string[] = [];
+  const capsuleTsxFiles =
+    capsuleDir && fs.existsSync(capsuleDir)
+      ? collectTsxFilesRecursive(capsuleDir)
+      : [];
 
   const sceneTimeline = params.sceneTimeline ?? [];
   const durationInFrames = params.durationInFrames;
 
+  const nominalFlowDurations =
+    extractContinuousSceneFlowNominalDurations(capsuleTsxFiles);
+  const nominalBoundaries: number[] | null =
+    nominalFlowDurations &&
+    nominalFlowDurations.length === sceneTimeline.length
+      ? (() => {
+          const bounds = [0];
+          let acc = 0;
+          for (const d of nominalFlowDurations) {
+            acc += d;
+            bounds.push(acc);
+          }
+          return bounds;
+        })()
+      : null;
+
+  // Sub-view budget check (`<= 2` sub-views per scene)
+  if (origin === 'production') {
+    for (const seg of sceneTimeline) {
+      if (seg.subViews && seg.subViews.length > 2) {
+        violations.push({
+          code: 'EXCESSIVE_SUBVIEWS',
+          rule: 'SUB_VIEW_BUDGET',
+          message: `Scene "${seg.sceneId}" declares ${seg.subViews.length} subViews (> 2 maximum). Limit each scene to at most 2 spacious sub-views (View A -> View B) and split additional views into separate scenes.`,
+        });
+      }
+    }
+  }
+
   // Rule 1A — Visual Scene Span Minimum on `sceneTimeline` (`origin === 'production'`)
+  const leadingDialogueOffset = nominalBoundaries
+    ? 0
+    : Math.max(0, sceneTimeline[0]?.fromFrame ?? 0);
+
   if (
     origin === 'production' &&
     typeof durationInFrames === 'number' &&
@@ -951,11 +1214,19 @@ export function auditCompositionDirection(
     sceneTimeline.length > 1
   ) {
     for (let i = 0; i < sceneTimeline.length; i++) {
-      const seg = sceneTimeline[i];
-      const visualStart = i === 0 ? 0 : seg.fromFrame;
-      const visualEnd =
-        i + 1 < sceneTimeline.length
-          ? sceneTimeline[i + 1].fromFrame
+      const seg = sceneTimeline[i]!;
+      const visualStart = nominalBoundaries
+        ? nominalBoundaries[i]!
+        : i === 0
+          ? 0
+          : Math.max(0, seg.fromFrame - leadingDialogueOffset);
+      const visualEnd = nominalBoundaries
+        ? nominalBoundaries[i + 1]!
+        : i + 1 < sceneTimeline.length
+          ? Math.max(
+              visualStart + 1,
+              sceneTimeline[i + 1]!.fromFrame - leadingDialogueOffset
+            )
           : durationInFrames;
       const visualSpan = visualEnd - visualStart;
 
@@ -970,7 +1241,7 @@ export function auditCompositionDirection(
     }
   }
 
-  // Rule 2B — Reading Cadence (`<= 2.8 words/s`) & Breathing Room (`>= 0.6s` / `36f`) on `production.json`
+  // Rule 2B — Reading Cadence (`<= 2.8 words/s`) & Breathing Room (`pre >= 36f`, `post >= 90f`, `outro >= 132f`) on `production.json`
   if (origin === 'production' && capsuleDir && sceneTimeline.length > 0) {
     const prodJsonPath = path.join(capsuleDir, 'production.json');
     if (fs.existsSync(prodJsonPath)) {
@@ -987,16 +1258,25 @@ export function auditCompositionDirection(
             ? params.voiceoverManifest
             : loadCapsuleVoiceoverManifestFromDisk(capsuleDir);
 
-        const lastSeg = sceneTimeline[sceneTimeline.length - 1];
+        const lastSeg = sceneTimeline[sceneTimeline.length - 1]!;
         const fallbackTotal = lastSeg.fromFrame + lastSeg.durationInFrames;
         const resolvedTotalFrames = durationInFrames ?? fallbackTotal;
 
         for (let i = 0; i < sceneTimeline.length; i++) {
-          const seg = sceneTimeline[i];
-          const visualStart = i === 0 ? 0 : seg.fromFrame;
-          const visualEnd =
-            i + 1 < sceneTimeline.length
-              ? sceneTimeline[i + 1].fromFrame
+          const seg = sceneTimeline[i]!;
+          const isFinalScene = i === sceneTimeline.length - 1;
+          const visualStart = nominalBoundaries
+            ? nominalBoundaries[i]!
+            : i === 0
+              ? 0
+              : Math.max(0, seg.fromFrame - leadingDialogueOffset);
+          const visualEnd = nominalBoundaries
+            ? nominalBoundaries[i + 1]!
+            : i + 1 < sceneTimeline.length
+              ? Math.max(
+                  visualStart + 1,
+                  sceneTimeline[i + 1]!.fromFrame - leadingDialogueOffset
+                )
               : resolvedTotalFrames;
           const visualSpanFrames = Math.max(1, visualEnd - visualStart);
           const visualSpanSeconds = visualSpanFrames / fps;
@@ -1043,14 +1323,42 @@ export function auditCompositionDirection(
             }
 
             if (typeof spokenFrames === 'number' && spokenFrames > 0) {
-              const breathingFrames = visualSpanFrames - spokenFrames;
-              if (breathingFrames < minBreathingFrames) {
-                violations.push({
-                  code: 'INSUFFICIENT_BREATHING_ROOM',
-                  rule: 'SCENE_BREATHING_ROOM',
-                  filePath: prodJsonPath,
-                  message: `Scene "${seg.sceneId}" leaves only ${breathingFrames} frames (${(breathingFrames / fps).toFixed(2)}s) of calm breathing room (${visualSpanFrames}f visual span - ${spokenFrames}f spoken audio < ${minBreathingFrames}f / 0.60s minimum). Increase scene duration or shorten narration.`,
-                });
+              const requiredPostFrames = isFinalScene
+                ? minFinalPostHoldFrames
+                : minPostHoldFrames;
+
+              if (seg.fromFrame > visualStart) {
+                const preFrames = seg.fromFrame - visualStart;
+                const postFrames = visualEnd - (seg.fromFrame + spokenFrames);
+
+                if (preFrames < minPreSettleFrames) {
+                  violations.push({
+                    code: 'INSUFFICIENT_BREATHING_ROOM',
+                    rule: 'SCENE_BREATHING_ROOM',
+                    filePath: prodJsonPath,
+                    message: `Scene "${seg.sceneId}" starts voiceover after only ${preFrames} frames (${(preFrames / fps).toFixed(2)}s < ${minPreSettleFrames}f / 0.60s minimum pre-speech settle; target ~42f / 0.70s).`,
+                  });
+                }
+                if (postFrames < requiredPostFrames) {
+                  violations.push({
+                    code: 'INSUFFICIENT_BREATHING_ROOM',
+                    rule: 'SCENE_BREATHING_ROOM',
+                    filePath: prodJsonPath,
+                    message: `Scene "${seg.sceneId}" leaves only ${postFrames} frames (${(postFrames / fps).toFixed(2)}s) of ${isFinalScene ? 'final-scene outro' : 'post-speech'} hold (< ${requiredPostFrames}f / ${(requiredPostFrames / fps).toFixed(2)}s minimum). Increase scene duration or shorten narration.`,
+                  });
+                }
+              } else {
+                const totalRequiredBreathing =
+                  minPreSettleFrames + requiredPostFrames;
+                const breathingFrames = visualSpanFrames - spokenFrames;
+                if (breathingFrames < totalRequiredBreathing) {
+                  violations.push({
+                    code: 'INSUFFICIENT_BREATHING_ROOM',
+                    rule: 'SCENE_BREATHING_ROOM',
+                    filePath: prodJsonPath,
+                    message: `Scene "${seg.sceneId}" leaves only ${breathingFrames} frames (${(breathingFrames / fps).toFixed(2)}s) of total breathing room (${visualSpanFrames}f visual span - ${spokenFrames}f spoken audio < ${totalRequiredBreathing}f minimum: ${minPreSettleFrames}f pre + ${requiredPostFrames}f ${isFinalScene ? 'outro' : 'post'} hold). Increase scene duration or shorten narration.`,
+                  });
+                }
               }
             }
           }
@@ -1062,30 +1370,30 @@ export function auditCompositionDirection(
   }
 
   // TSX source rules scoped to the target capsule directory
-  if (capsuleDir && fs.existsSync(capsuleDir)) {
-    const tsxFiles = collectTsxFilesRecursive(capsuleDir);
-    for (const tsxFile of tsxFiles) {
-      inspectedFiles.push(tsxFile);
-      const source = fs.readFileSync(tsxFile, 'utf8');
+  for (const tsxFile of capsuleTsxFiles) {
+    inspectedFiles.push(tsxFile);
+    const source = fs.readFileSync(tsxFile, 'utf8');
 
-      if (origin === 'production') {
-        violations.push(...scanTsxForShortVisualSequences(source, tsxFile, fps));
-        violations.push(...scanTsxForChoppyTransitions(source, tsxFile));
-      }
-
-      if (origin === 'production' || Object.keys(effectiveProps).length > 0) {
-        violations.push(
-          ...scanTsxForCompetingFocalPoints(
-            source,
-            tsxFile,
-            fps,
-            effectiveProps
-          )
-        );
-      }
-
-      violations.push(...scanTsxForUnclippedCardBars(source, tsxFile));
+    if (origin === 'production') {
+      violations.push(...scanTsxForShortVisualSequences(source, tsxFile, fps));
+      violations.push(...scanTsxForChoppyTransitions(source, tsxFile));
+      violations.push(...scanTsxForSmallFontSizes(source, tsxFile));
+      violations.push(...scanTsxForExcessiveSubViews(source, tsxFile));
     }
+
+    if (origin === 'production' || Object.keys(effectiveProps).length > 0) {
+      violations.push(
+        ...scanTsxForCompetingFocalPoints(
+          source,
+          tsxFile,
+          fps,
+          effectiveProps
+        )
+      );
+    }
+
+    violations.push(...scanTsxForRawHtmlImgTags(source, tsxFile));
+    violations.push(...scanTsxForUnclippedCardBars(source, tsxFile));
   }
 
   const result: DirectorAuditResult = {
@@ -1111,7 +1419,7 @@ export function auditCompositionDirection(
 
 /**
  * Rule 5: Verifies that rendered Frame 0 (`rawStillPath`) is a 100% uniform solid `bgCanvas`
- * by sampling a `32x32` RGB24 buffer via `ffmpeg` and checking `(max - min) <= 6` per channel.
+ * at FULL native resolution (`0.00` RGB channel variance, zero single-pixel leaks or hairlines).
  */
 export function verifyCleanFrameZeroImage(
   imagePath: string
@@ -1123,55 +1431,91 @@ export function verifyCleanFrameZeroImage(
       'error',
       '-i',
       imagePath,
-      '-vf',
-      'scale=32:32',
       '-f',
       'rawvideo',
       '-pix_fmt',
       'rgb24',
       '-',
     ],
-    { maxBuffer: 1024 * 1024 }
+    { maxBuffer: 64 * 1024 * 1024 }
   );
 
   if (rawRgb.length < 3) {
     throw new Error(
-      `Failed to sample 32x32 RGB pixels from Frame 0 still: ${imagePath}`
+      `Failed to decode full-resolution RGB pixels from Frame 0 still: ${imagePath}`
     );
   }
 
+  const pixelCount = Math.floor(rawRgb.length / 3);
   let minR = 255;
   let maxR = 0;
   let minG = 255;
   let maxG = 0;
   let minB = 255;
   let maxB = 0;
+  let sumR = 0;
+  let sumG = 0;
+  let sumB = 0;
 
   for (let i = 0; i + 2 < rawRgb.length; i += 3) {
-    const r = rawRgb[i];
-    const g = rawRgb[i + 1];
-    const b = rawRgb[i + 2];
+    const r = rawRgb[i]!;
+    const g = rawRgb[i + 1]!;
+    const b = rawRgb[i + 2]!;
     if (r < minR) minR = r;
     if (r > maxR) maxR = r;
     if (g < minG) minG = g;
     if (g > maxG) maxG = g;
     if (b < minB) minB = b;
     if (b > maxB) maxB = b;
+    sumR += r;
+    sumG += g;
+    sumB += b;
   }
 
   const spreadR = maxR - minR;
   const spreadG = maxG - minG;
   const spreadB = maxB - minB;
   const maxChannelSpread = Math.max(spreadR, spreadG, spreadB);
-  const clean = spreadR <= 6 && spreadG <= 6 && spreadB <= 6;
+
+  let varR = 0;
+  let varG = 0;
+  let varB = 0;
+  if (maxChannelSpread > 0 && pixelCount > 0) {
+    const meanR = sumR / pixelCount;
+    const meanG = sumG / pixelCount;
+    const meanB = sumB / pixelCount;
+    let sqR = 0;
+    let sqG = 0;
+    let sqB = 0;
+    for (let i = 0; i + 2 < rawRgb.length; i += 3) {
+      const dr = rawRgb[i]! - meanR;
+      const dg = rawRgb[i + 1]! - meanG;
+      const db = rawRgb[i + 2]! - meanB;
+      sqR += dr * dr;
+      sqG += dg * dg;
+      sqB += db * db;
+    }
+    varR = Number((sqR / pixelCount).toFixed(6));
+    varG = Number((sqG / pixelCount).toFixed(6));
+    varB = Number((sqB / pixelCount).toFixed(6));
+  }
+
+  const maxChannelVariance = Math.max(varR, varG, varB);
+  const clean = maxChannelSpread === 0 && maxChannelVariance === 0;
 
   return {
     clean,
     maxChannelSpread,
+    maxChannelVariance,
     channelSpreads: {
       r: spreadR,
       g: spreadG,
       b: spreadB,
+    },
+    channelVariances: {
+      r: varR,
+      g: varG,
+      b: varB,
     },
   };
 }

@@ -27,6 +27,7 @@ import {
   generateSfxAsset,
   type GeneratedSfxMetadata,
 } from '../audio/generate-sfx';
+import { lintManifestVoiceovers } from '../audio/phonetics-lint';
 import { resolveWorkspaceContext } from './workspace-paths';
 
 const CLI_VOICE_ACOUSTIC_FILTERS: Record<VoiceAcousticPreset, string> = {
@@ -287,14 +288,14 @@ async function synthesizeSceneVoiceoverViaSdk(params: {
         stability: 0.35,
         similarityBoost: 0.78,
         style: 0.55,
-        speed: 1.1,
+        speed: 0.99,
         useSpeakerBoost: true,
       }
     : {
         stability: 0.58,
         similarityBoost: 0.8,
         style: 0.18,
-        speed: 1.0,
+        speed: 0.99,
         useSpeakerBoost: true,
       };
 
@@ -631,8 +632,13 @@ async function processProductionCapsule(params: {
 
   const manifest = JSON.parse(
     fs.readFileSync(manifestPath, 'utf8')
-  ) as ProductionManifest;
+  ) as ProductionManifest & { lang?: string };
   const fps = manifest.fps || 60;
+
+  const phoneticsWarnings = lintManifestVoiceovers(manifest);
+  for (const warn of phoneticsWarnings) {
+    console.warn(`  ⚠️  ${warn}`);
+  }
 
   const assetsDir = path.join(productionDir, 'assets');
   const voiceoversDir = path.join(assetsDir, 'voiceovers');

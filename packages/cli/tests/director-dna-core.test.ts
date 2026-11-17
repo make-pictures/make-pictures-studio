@@ -16,11 +16,13 @@ import {
   ContinuousSceneFlow,
   DIRECTOR_PACING_BUDGET,
   OpticalCrossDissolve,
+  SceneSubViewDissolve,
   ScenicBackdropLayers,
   StageLightingRig,
   StylePresetSchema,
   StyleProvider,
   computeContinuousSceneWindows,
+  computeSceneTimingFromVoiceover,
   getTactileSurfaceStyle,
   interpolateStylePresets,
   resolveArtWorld,
@@ -208,13 +210,120 @@ test('interpolateStylePresets smoothly morphs palette, surface, motion & optics 
   assert.match(midRgba.palette.accentPrimary, /^rgba\(/);
 });
 
-test('DIRECTOR_PACING_BUDGET, CINEMATIC_SPRINGS, and useFocalStagger enforce calm single-focus timing', () => {
+test('DIRECTOR_PACING_BUDGET, computeSceneTimingFromVoiceover, SceneSubViewDissolve, CINEMATIC_SPRINGS, and useFocalStagger enforce calm single-focus timing', () => {
   assert.deepEqual(DIRECTOR_PACING_BUDGET, {
     minSceneDurationFrames: 270,
+    preSpeechSettleFrames: 42,
+    minPreSpeechSettleFrames: 36,
+    postSpeechHoldFrames: 96,
+    minPostSpeechHoldFrames: 90,
+    finalScenePostHoldFrames: 144,
+    minFinalScenePostHoldFrames: 132,
+    maxSubViewsPerScene: 2,
+    defaultCrossDissolveFrames: 54,
     minSettleHoldFrames: 45,
     maxWordsPerSecond: 2.8,
-    defaultCrossDissolveFrames: 54,
   });
+
+  // Middle scene timing: 42 + ceil(3.5 * 60) + 96 = 348 frames
+  const midTiming = computeSceneTimingFromVoiceover(3.5);
+  assert.deepEqual(midTiming, {
+    voiceoverStartFrame: 42,
+    voiceoverDurationFrames: 210,
+    voiceoverEndFrame: 252,
+    postHoldFrames: 96,
+    durationInFrames: 348,
+  });
+
+  // Final scene timing: 42 + ceil(3.5 * 60) + 144 = 396 frames
+  const finalTiming = computeSceneTimingFromVoiceover(3.5, { isFinalScene: true });
+  assert.deepEqual(finalTiming, {
+    voiceoverStartFrame: 42,
+    voiceoverDurationFrames: 210,
+    voiceoverEndFrame: 252,
+    postHoldFrames: 144,
+    durationInFrames: 396,
+  });
+
+  // Short voiceover clamps to 270f (4.5s) minimum scene duration and expands postHoldFrames
+  const shortTiming = computeSceneTimingFromVoiceover(1.0);
+  assert.deepEqual(shortTiming, {
+    voiceoverStartFrame: 42,
+    voiceoverDurationFrames: 60,
+    voiceoverEndFrame: 102,
+    postHoldFrames: 168,
+    durationInFrames: 270,
+  });
+
+  // Fractional seconds ceil cleanly so final consonants never clip
+  const fracTiming = computeSceneTimingFromVoiceover(4.01);
+  assert.equal(fracTiming.voiceoverDurationFrames, 241);
+  assert.equal(fracTiming.durationInFrames, 42 + 241 + 96);
+
+  // SceneSubViewDissolve: Clean Frame 0, >= 48f clamp, A -> B soft crossfade
+  const SubViewProbe: React.FC<{ curve?: 'sin' | 'cubic'; dissolveFrames?: number }> = ({
+    curve,
+    dissolveFrames,
+  }) =>
+    React.createElement(SceneSubViewDissolve, {
+      firstView: React.createElement('div', { 'data-subview': 'A' }, 'Widok A'),
+      secondView: React.createElement('div', { 'data-subview': 'B' }, 'Widok B'),
+      switchAtFrame: 180,
+      dissolveFrames,
+      curve,
+    });
+
+  const subF0 = renderToStaticMarkup(
+    React.createElement(Thumbnail, {
+      component: () => React.createElement(SubViewProbe),
+      compositionWidth: 1920,
+      compositionHeight: 1080,
+      durationInFrames: 360,
+      fps: 60,
+      frameToDisplay: 0,
+    })
+  );
+  assert.doesNotMatch(subF0, /Widok A|Widok B/);
+
+  // Even when dissolveFrames=20 (< 48) is passed, span clamps to 48 ([156..204])
+  const subClampedMid = renderToStaticMarkup(
+    React.createElement(Thumbnail, {
+      component: () => React.createElement(SubViewProbe, { dissolveFrames: 20, curve: 'cubic' }),
+      compositionWidth: 1920,
+      compositionHeight: 1080,
+      durationInFrames: 360,
+      fps: 60,
+      frameToDisplay: 160,
+    })
+  );
+  assert.match(subClampedMid, /Widok A/);
+  assert.match(subClampedMid, /Widok B/);
+
+  const subEarly = renderToStaticMarkup(
+    React.createElement(Thumbnail, {
+      component: () => React.createElement(SubViewProbe),
+      compositionWidth: 1920,
+      compositionHeight: 1080,
+      durationInFrames: 360,
+      fps: 60,
+      frameToDisplay: 120,
+    })
+  );
+  assert.match(subEarly, /Widok A/);
+  assert.doesNotMatch(subEarly, /Widok B/);
+
+  const subLate = renderToStaticMarkup(
+    React.createElement(Thumbnail, {
+      component: () => React.createElement(SubViewProbe),
+      compositionWidth: 1920,
+      compositionHeight: 1080,
+      durationInFrames: 360,
+      fps: 60,
+      frameToDisplay: 240,
+    })
+  );
+  assert.doesNotMatch(subLate, /Widok A/);
+  assert.match(subLate, /Widok B/);
 
   assert.deepEqual(CINEMATIC_SPRINGS, {
     entrance: { mass: 1.45, damping: 200, stiffness: 58 },

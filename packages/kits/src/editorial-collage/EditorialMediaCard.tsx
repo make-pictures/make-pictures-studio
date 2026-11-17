@@ -405,8 +405,8 @@ export const EditorialMediaCard: React.FC<EditorialMediaCardProps> = ({
             justifyContent: 'flex-end',
             alignItems: 'center',
             fontFamily: monoFont,
-            fontSize: 12,
-            letterSpacing: '0.12em',
+            fontSize: 18,
+            letterSpacing: '0.08em',
             color: 'rgba(248, 250, 252, 0.72)',
           }}
         >
@@ -524,9 +524,9 @@ export const EditorialMediaCard: React.FC<EditorialMediaCardProps> = ({
             style={{
               flexShrink: 0,
               fontFamily: monoFont,
-              fontSize: 14,
+              fontSize: 18,
               fontWeight: 600,
-              letterSpacing: '0.08em',
+              letterSpacing: '0.06em',
               color: style.palette.accentPrimary,
             }}
           >

@@ -150,8 +150,8 @@ export const EditorialDeskStage: React.FC<EditorialDeskStageProps> = ({
                   alignItems: 'center',
                   gap: 14,
                   fontFamily: monoFont,
-                  fontSize: 13,
-                  letterSpacing: '0.14em',
+                  fontSize: 18,
+                  letterSpacing: '0.12em',
                   color: style.palette.textSecondary,
                   opacity: 0.62,
                 }}

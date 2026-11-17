@@ -443,6 +443,7 @@ test('4. DataFlowEdge renders luminous flow trails and maintains >= 26px clearan
         drawStartFrame: 2,
         flowStartFrame: 10,
         flowEndFrame: 120,
+        packetCount: 2,
         label: 'Górny łuk',
       }),
       React.createElement(DataFlowEdge, {

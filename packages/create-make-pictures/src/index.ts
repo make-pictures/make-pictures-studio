@@ -367,15 +367,17 @@ function buildPackageJson(projectName: string): Record<string, unknown> {
       audio: 'make-pictures audio',
       music: 'make-pictures music',
       sfx: 'make-pictures sfx',
+      image: 'make-pictures image',
+      cutout: 'make-pictures cutout',
       qa: 'make-pictures qa',
       render: 'make-pictures render',
       typecheck: 'tsc --noEmit',
     },
     dependencies: {
-      '@make-pictures/core': '^2.3.0',
-      '@make-pictures/kits': '^2.3.0',
-      '@make-pictures/studio': '^2.3.0',
-      '@make-pictures/cli': '^2.3.0',
+      '@make-pictures/core': '^2.3.1',
+      '@make-pictures/kits': '^2.3.1',
+      '@make-pictures/studio': '^2.3.1',
+      '@make-pictures/cli': '^2.3.1',
       remotion: '^4.0.276',
       '@remotion/cli': '^4.0.276',
       '@remotion/bundler': '^4.0.276',
@@ -704,12 +706,12 @@ Uniwersalne niezmienniki studia **make.pictures** (\`60 FPS\` Video-as-Code). Sz
 - **Czysta klatka \`0\`:** Pierwsza klatka to puste tło; animacje wejścia startuj od \`frame - 2\`.
 - **Sprężyny i determinizm:** Używaj \`SPRING_PRESETS\` (\`damping: 200\`) oraz \`createSeededRandom(seed)\` z \`@make-pictures/core\`. Całkowity **zakaz \`Math.random()\`** i akumulacji stanu w \`useRef\` między klatkami (\`--concurrency=100%\`).
 - **Props Inspector:** Eksportuj \`z.object\` z opisami \`.describe('Sekcja :: Etykieta')\` i trzymaj wartości domyślne w \`<CompositionId>.props.json\`. **Zawsze odczytaj \`*.props.json\` z dysku przed edycją**, by zachować zmiany z \`Studio Web\`.
-- **Higiena puli \`<Audio />\`:** Używaj \`<VoiceoverTrack />\` i \`<SoundCue />\` z \`@make-pictures/core\`; **zakaz** montowania \`<Audio />\` wewnątrz \`<Sequence>\` bez jawnego \`durationInFrames\`.
-- **Typografia:** Domyślnie bez dolnych napisów; karty *Ikona + 2–3 słowa*; po polsku *Sentence case* (bez *Title Case*).
+- **Higiena puli \`<Audio />\`:** Używaj \`<VoiceoverTrack />\` i oszczędnego \`<SoundCue />\` z \`@make-pictures/core\`; **zakaz** montowania \`<Audio />\` wewnątrz \`<Sequence>\` bez jawnego \`durationInFrames\`.
+- **Typografia \`>= 18 px\` (\`TYPOGRAPHY_FLOOR_1080P\`):** Domyślnie bez dolnych napisów; karty **nagłówek (\`26–32 px\`) + 1 zdanie (\`19–22 px\`)**; po polsku *Sentence case* (bez *Title Case*).
 
 ## 4. Obowiązkowe Bramki Jakości przed Renderem
-1. **Odsłuch Audio:** Po \`npx make-pictures audio --production=<slug>\` (lub \`npm run audio -- --production=<slug>\`) odsłuchaj wygenerowane \`.mp3\` przez \`read_file\`.
-2. **Contact-Sheet QA:** Uruchom \`npx make-pictures qa <CompositionId>\` (lub \`npm run qa -- <CompositionId>\`) i obejrzyj 12-klatkowy \`out/qa-<CompositionId>.png\` przez \`read_file\` (\`f=0\` puste tło, brak kolizji/Z-fightingu, w \`9:16\` karty w **Golden Safe Box \`x ∈ [40, 910], y ∈ [220, 1380]\`**).
+1. **Linter Fonetyki i Odsłuch Audio:** Po \`npx make-pictures audio --production=<slug>\` (lub \`npm run audio -- --production=<slug>\`) sprawdź ostrzeżenia fonetyczne i odsłuchaj wygenerowane \`.mp3\` przez \`read_file\`.
+2. **Auto-Grid Contact-Sheet QA:** Uruchom \`npx make-pictures qa <CompositionId>\` (\`--grid=auto\` pokrywa 100% scen i pod-widoków) i obejrzyj \`out/qa-<CompositionId>.png\` przez \`read_file\` (\`f=0\` puste tło, brak kolizji, w \`9:16\` karty w **Golden Safe Box \`x ∈ [40, 910], y ∈ [220, 1380]\`**).
 3. **Typy i Render (\`-14 LUFS\`):** \`npm run typecheck\`, a następnie \`npx make-pictures render <CompositionId>\` (lub \`npm run render -- <CompositionId>\`).
 
 ## 5. Tablica Routingu Skilli (Załaduj przed Pisaniem Scen!)
@@ -729,7 +731,7 @@ Uniwersalne niezmienniki studia **make.pictures** (\`60 FPS\` Video-as-Code). Sz
 
 const EMBEDDED_PLUGIN_JSON = {
   name: 'make-pictures',
-  version: '2.3.0',
+  version: '2.3.1',
   description:
     'make.pictures Studio — 60 FPS Video-as-Code skills, visual kits, Art Direction Style Lab, camera Shot DSL, and ElevenLabs AI Audio Studio.',
   author: {
@@ -767,25 +769,26 @@ export type HelloStudioProps = z.infer<typeof HelloStudioSchema>;`;
             voiceoverManifest={VOICEOVER_MANIFEST}
             baseVolume={props.musicVolume}
             duckedVolume={Math.min(props.musicVolume * 0.34, 0.09)}
+            fadeOutFrames={90}
           />
         ) : null}
 
         <VoiceoverTrack
           voiceover={introVo}
-          fromFrame={12}
+          fromFrame={42}
           volume={props.voiceoverVolume}
         />
 
         <VoiceoverTrack
           voiceover={payoffVo}
-          fromFrame={360}
+          fromFrame={402}
           volume={props.voiceoverVolume}
         />
 
         {whooshSfx?.audioFile ? (
           <SoundCue
             src={staticFile(whooshSfx.audioFile)}
-            atFrame={8}
+            atFrame={38}
             durationSeconds={whooshSfx.durationSeconds}
             volume={props.sfxVolume}
           />
@@ -794,7 +797,7 @@ export type HelloStudioProps = z.infer<typeof HelloStudioSchema>;`;
         {popSfx?.audioFile ? (
           <SoundCue
             src={staticFile(popSfx.audioFile)}
-            atFrame={358}
+            atFrame={398}
             durationSeconds={popSfx.durationSeconds}
             volume={props.sfxVolume}
           />
@@ -832,8 +835,8 @@ import {
 ${schemaBlock}
 
 const DIALOGUE_SEGMENTS = [
-  { sceneId: 'hello-studio-intro', fromFrame: 12, durationInFrames: 252 },
-  { sceneId: 'hello-studio-payoff', fromFrame: 360, durationInFrames: 252 },
+  { sceneId: 'hello-studio-intro', fromFrame: 42, durationInFrames: 180 },
+  { sceneId: 'hello-studio-payoff', fromFrame: 402, durationInFrames: 180 },
 ];
 
 const IntroEditorialScene: React.FC<HelloStudioProps> = (props) => {
@@ -955,8 +958,8 @@ import {
 ${schemaBlock}
 
 const DIALOGUE_SEGMENTS = [
-  { sceneId: 'hello-studio-intro', fromFrame: 12, durationInFrames: 252 },
-  { sceneId: 'hello-studio-payoff', fromFrame: 360, durationInFrames: 252 },
+  { sceneId: 'hello-studio-intro', fromFrame: 42, durationInFrames: 180 },
+  { sceneId: 'hello-studio-payoff', fromFrame: 402, durationInFrames: 180 },
 ];
 
 const IntroKineticScene: React.FC<HelloStudioProps> = (props) => (
@@ -1078,8 +1081,8 @@ import {
 ${schemaBlock}
 
 const DIALOGUE_SEGMENTS = [
-  { sceneId: 'hello-studio-intro', fromFrame: 12, durationInFrames: 252 },
-  { sceneId: 'hello-studio-payoff', fromFrame: 360, durationInFrames: 252 },
+  { sceneId: 'hello-studio-intro', fromFrame: 42, durationInFrames: 180 },
+  { sceneId: 'hello-studio-payoff', fromFrame: 402, durationInFrames: 180 },
 ];
 
 const IntroDataScene: React.FC<HelloStudioProps> = (props) => {
@@ -1232,8 +1235,8 @@ import {
 ${schemaBlock}
 
 const DIALOGUE_SEGMENTS = [
-  { sceneId: 'hello-studio-intro', fromFrame: 12, durationInFrames: 252 },
-  { sceneId: 'hello-studio-payoff', fromFrame: 360, durationInFrames: 252 },
+  { sceneId: 'hello-studio-intro', fromFrame: 42, durationInFrames: 180 },
+  { sceneId: 'hello-studio-payoff', fromFrame: 402, durationInFrames: 180 },
 ];
 
 const RETRO_HOPS: ReadonlyArray<RetroPcHopSpec> = [
@@ -1379,8 +1382,8 @@ import {
 ${schemaBlock}
 
 const DIALOGUE_SEGMENTS = [
-  { sceneId: 'hello-studio-intro', fromFrame: 12, durationInFrames: 252 },
-  { sceneId: 'hello-studio-payoff', fromFrame: 360, durationInFrames: 252 },
+  { sceneId: 'hello-studio-intro', fromFrame: 42, durationInFrames: 180 },
+  { sceneId: 'hello-studio-payoff', fromFrame: 402, durationInFrames: 180 },
 ];
 
 const HORIZONTAL_NODES = {
@@ -1582,8 +1585,8 @@ import {
 ${schemaBlock}
 
 const DIALOGUE_SEGMENTS = [
-  { sceneId: 'hello-studio-intro', fromFrame: 12, durationInFrames: 252 },
-  { sceneId: 'hello-studio-payoff', fromFrame: 360, durationInFrames: 252 },
+  { sceneId: 'hello-studio-intro', fromFrame: 42, durationInFrames: 180 },
+  { sceneId: 'hello-studio-payoff', fromFrame: 402, durationInFrames: 180 },
 ];
 
 const HelloPodcastStudioTurn: React.FC<HelloStudioProps & { activeSpeaker: 'A' | 'B' }> = (props) => {
@@ -1687,7 +1690,7 @@ const HelloPodcastStudioTurn: React.FC<HelloStudioProps & { activeSpeaker: 'A' |
           style={{
             position: 'relative',
             fontFamily: formatFontFamilyCss(style.typography.monoFont, 'mono'),
-            fontSize: 12,
+            fontSize: 18,
             fontWeight: 700,
             letterSpacing: '0.08em',
             textTransform: 'uppercase',
@@ -1784,8 +1787,8 @@ import {
 ${schemaBlock}
 
 const DIALOGUE_SEGMENTS = [
-  { sceneId: 'hello-studio-intro', fromFrame: 12, durationInFrames: 252 },
-  { sceneId: 'hello-studio-payoff', fromFrame: 360, durationInFrames: 252 },
+  { sceneId: 'hello-studio-intro', fromFrame: 42, durationInFrames: 180 },
+  { sceneId: 'hello-studio-payoff', fromFrame: 402, durationInFrames: 180 },
 ];
 
 const HelloDioramaLandscape: React.FC<HelloStudioProps> = (props) => {
@@ -1926,8 +1929,8 @@ import {
 ${schemaBlock}
 
 const DIALOGUE_SEGMENTS = [
-  { sceneId: 'hello-studio-intro', fromFrame: 12, durationInFrames: 252 },
-  { sceneId: 'hello-studio-payoff', fromFrame: 360, durationInFrames: 252 },
+  { sceneId: 'hello-studio-intro', fromFrame: 42, durationInFrames: 180 },
+  { sceneId: 'hello-studio-payoff', fromFrame: 402, durationInFrames: 180 },
 ];
 
 const IntroVectorScene: React.FC<HelloStudioProps> = (props) => {
@@ -2049,20 +2052,20 @@ export default defineProduction({
       sceneTimeline: [
         {
           sceneId: 'hello-studio-intro',
-          fromFrame: 12,
-          durationInFrames: 252,
+          fromFrame: 42,
+          durationInFrames: 180,
           label: '1. Intro',
         },
         {
           sceneId: 'hello-studio-payoff',
-          fromFrame: 360,
-          durationInFrames: 252,
+          fromFrame: 402,
+          durationInFrames: 180,
           label: '2. Payoff',
         },
       ],
       sfxTimeline: [
-        { sfxId: 'whoosh-open', fromFrame: 8, label: 'Opening Whoosh' },
-        { sfxId: 'card-pop', fromFrame: 358, label: 'Card Pop' },
+        { sfxId: 'whoosh-open', fromFrame: 38, label: 'Opening Whoosh' },
+        { sfxId: 'card-pop', fromFrame: 398, label: 'Card Pop' },
       ],
       cameraTimeline: [
         { shotLabel: 'Establishing Wide', fromFrame: 0, durationInFrames: 360 },
@@ -2118,16 +2121,17 @@ Read [\`AGENTS.md\`](./AGENTS.md) alongside this file for universal \`60 FPS\` V
 - \`npx make-pictures styles [--space=2d|2.5d|3d]\` / \`npx make-pictures style new <slug> --from=editorial-press\` — List all 10 built-in styles or create reusable Art Direction presets.
 - \`npx make-pictures new <slug> --space=2d|2.5d|3d --lang=en\` (or \`--kit=vector-scene-2d --style=minimal-product\`) — Scaffold a new \`60 FPS\` production capsule.
 - \`npx make-pictures audio --production=<slug> [--mock]\` — Synthesize ElevenLabs TTS + word timestamps + AI Music + AI SFX.
+- \`npx make-pictures image "<prompt>" --style=<styleId> --out=...\` / \`npx make-pictures cutout <file> --out=...\` — Generate style-anchored illustrations (zero raster text) or extract lossless PDF \`/SMask\` / Exterior Border Flood-Fill cutouts with dark checkerboard QA.
 - \`npx make-pictures studio [--port=3000] [--dir=.]\` — Launch local \`60 FPS\` Studio Web workstation (\`http://127.0.0.1:3000\`, including 🎨 Style Lab).
-- \`npx make-pictures qa <CompositionId>\` — Run Hard Director QA Gate (\`>= 4.5s\` scenes) + render 12-frame Contact-Sheet PNG (\`out/qa-<CompositionId>.png\`) and inspect via \`Read\` (\`9:16\` Golden Safe Box \`x ∈ [40, 910], y ∈ [220, 1380]\`).
+- \`npx make-pictures qa <CompositionId>\` — Run Hard Director QA Gate (\`>= 4.5s\` scenes, breathing margins, \`>= 18px\` font floor) + render Auto-Grid Contact-Sheet PNG (\`out/qa-<CompositionId>.png\`, covering 100% of scenes & sub-views) and inspect via \`Read\` (\`9:16\` Golden Safe Box \`x ∈ [40, 910], y ∈ [220, 1380]\`).
 - \`npm run typecheck\` && \`npx make-pictures render <CompositionId>\` — Typecheck and render \`60 FPS\` MP4 mastered to \`-14 LUFS\`.
 
 ## Auto-Discovered Skills (\`.claude/skills/<skill>/SKILL.md\`)
-1. \`make-pictures-director\` — 6-step production workflow, \`production.json\`, CLI modes, \`ContinuousSceneFlow\` (\`>= 4.5s\` scenes), and QA gates.
-2. \`style-and-art-direction\` — Art Direction gate, 10 built-in styles (\`2D / 2.5D / 3D\`), \`StyleProvider\`, \`Style Lab\`, and \`styles/*.style.json\`.
-3. \`kit-editorial-and-vector\` — Universal 2D narrative kits: \`editorial-collage\` & \`vector-scene-2d\`.
-4. \`kit-paper-diorama-3d\` — 2.5D pop-up stage (\`DioramaStage3D\`, \`PaperCutout3D\`, \`ImageCutout3D\`, \`PopUpHinge3D\`, \`Δz\` layering).
-5. \`kit-motion-diagrams-2d\` — 2D infinite-canvas diagrams (\`RetroPcWindowStage2D\`, \`NodeBox\` ports, \`FlowCurve\`, \`92–120f\` packets), plus SaaS \`.mp4\` screencasts via \`@make-pictures/kits/product-frames\` (\`BrowserFrame\`, \`PhoneFrame\`, \`ScreenSpotlightOverlay\`).
+1. \`make-pictures-director\` — 6-step production workflow, \`production.json\`, \`computeSceneTimingFromVoiceover\`, \`ContinuousSceneFlow\` + \`SceneSubViewDissolve\`, and Auto-Grid QA gates.
+2. \`style-and-art-direction\` — Art Direction gate, 10 built-in styles (\`2D / 2.5D / 3D\`), \`TYPOGRAPHY_FLOOR_1080P\` (\`>= 18px\`), \`StyleProvider\`, \`Style Lab\`, and \`styles/*.style.json\`.
+3. \`kit-editorial-and-vector\` — Universal 2D narrative kits: \`editorial-collage\` (\`EditorialPanoramaTrack\`) & \`vector-scene-2d\` (\`HorizontalFeatureGrid2x2\`, \`PinnedMediaStage\`).
+4. \`kit-paper-diorama-3d\` — 2.5D pop-up stage (\`DioramaStage3D\`, \`PaperCutout3D\`, \`ImageCutout3D\` + \`cutout\`, \`PopUpHinge3D\`, \`Δz\` layering).
+5. \`kit-motion-diagrams-2d\` — 2D infinite-canvas diagrams (\`RetroPcWindowStage2D\`, \`NodeBox\` ports, \`DataFlowEdge\` \`packetCount={0}\`, \`buildCubicBezierPath\`), plus SaaS \`.mp4\` screencasts via \`@make-pictures/kits/product-frames\` (\`BrowserFrame\`, \`PhoneFrame\`, \`ScreenSpotlightOverlay\`, \`PinnedMediaStage\`).
 6. \`kit-isometric-3d\` — 3D Soft-Clay & spatial studio dialogue (\`StudioHdrRig3D\`, \`PodcastStudioSet3D\`, \`ClayCharacter3D\`, \`IsometricStage3D\`).
 7. \`kit-kinetic-and-data\` — Kinetic typography & data charts (\`WordByWordStage\`, \`AnimatedBarRace\`, \`TimelineTrack\`).
 8. \`sound-and-music-design\` — ElevenLabs voices, PL/EN phonetics, \`SmartMusicBed\` auto-ducking, \`SoundCue\`, \`-14 LUFS\`.
@@ -2179,7 +2183,7 @@ function writeAiPluginAndAgentsMd(targetRoot: string): void {
         {
           name: 'make-pictures',
           description: EMBEDDED_PLUGIN_JSON.description,
-          version: '2.3.0',
+          version: '2.3.1',
         },
         null,
         2
@@ -2191,6 +2195,11 @@ function writeAiPluginAndAgentsMd(targetRoot: string): void {
       EMBEDDED_AGENTS_MD,
       'utf8'
     );
+    fs.writeFileSync(
+      path.join(pluginDestDir, 'rules', 'CLAUDE.md'),
+      EMBEDDED_CLAUDE_MD,
+      'utf8'
+    );
   }
 
   const rulesAgentsPath = path.join(pluginDestDir, 'rules', 'AGENTS.md');
@@ -2198,11 +2207,12 @@ function writeAiPluginAndAgentsMd(targetRoot: string): void {
     ? fs.readFileSync(rulesAgentsPath, 'utf8')
     : EMBEDDED_AGENTS_MD;
   fs.writeFileSync(path.join(targetRoot, 'AGENTS.md'), agentsContent, 'utf8');
-  fs.writeFileSync(
-    path.join(targetRoot, 'CLAUDE.md'),
-    EMBEDDED_CLAUDE_MD,
-    'utf8'
-  );
+
+  const rulesClaudePath = path.join(pluginDestDir, 'rules', 'CLAUDE.md');
+  const claudeContent = fs.existsSync(rulesClaudePath)
+    ? fs.readFileSync(rulesClaudePath, 'utf8')
+    : EMBEDDED_CLAUDE_MD;
+  fs.writeFileSync(path.join(targetRoot, 'CLAUDE.md'), claudeContent, 'utf8');
 
   const pluginSkillsDir = path.join(pluginDestDir, 'skills');
   if (fs.existsSync(pluginSkillsDir)) {
@@ -2253,7 +2263,7 @@ npm run studio
 # 3. Synthesize voiceovers, word timestamps, AI music & SFX
 npm run audio -- --production=hello-studio
 
-# 4. Inspect a 12-frame Contact-Sheet QA image
+# 4. Run Hard Director QA Gate + Auto-Grid Contact-Sheet QA image
 npm run qa -- HelloStudio
 
 # 5. Render 60 FPS MP4 mastered to -14 LUFS
@@ -2383,13 +2393,14 @@ export async function createMakePicturesApp(
     id: 'hello-studio',
     title: 'Hello Studio',
     fps: 60,
+    lang,
     scenes: [
       {
         id: 'hello-studio-intro',
         title: isPl ? 'Scena 1 — Wprowadzenie' : 'Scene 1 — Opening Scene',
         component: 'HelloStudio',
-        durationInSeconds: 4.2,
-        durationInFrames: 252,
+        durationInSeconds: 3.0,
+        durationInFrames: 180,
         voiceId,
         speaker: 'Narrator',
         voiceEffect: 'clean',
@@ -2399,8 +2410,8 @@ export async function createMakePicturesApp(
         id: 'hello-studio-payoff',
         title: isPl ? 'Scena 2 — Rozwinięcie' : 'Scene 2 — Core Insight',
         component: 'HelloStudio',
-        durationInSeconds: 4.2,
-        durationInFrames: 252,
+        durationInSeconds: 3.0,
+        durationInFrames: 180,
         voiceId,
         speaker: kit === 'isometric-3d' ? 'Partner' : 'Narrator',
         voiceEffect: 'clean',
@@ -2450,7 +2461,7 @@ export async function createMakePicturesApp(
     secondaryColor: styleMeta.accentSecondary,
     voiceoverVolume: 1.0,
     musicVolume: 0.25,
-    sfxVolume: 0.35,
+    sfxVolume: 0.22,
   };
 
   fs.writeFileSync(
@@ -2471,8 +2482,8 @@ export async function createMakePicturesApp(
 
   // Pre-populate deterministic word timestamps with empty audioFile so `qa` and `LiveTranscriptBar` work before `audio` runs
   const nowIso = new Date().toISOString();
-  const introSynth = buildSyntheticWords(introText, 4.2, 60);
-  const payoffSynth = buildSyntheticWords(payoffText, 4.2, 60);
+  const introSynth = buildSyntheticWords(introText, 3.0, 60);
+  const payoffSynth = buildSyntheticWords(payoffText, 3.0, 60);
   const preVoiceovers = {
     'hello-studio-intro': {
       sceneId: 'hello-studio-intro',
@@ -2486,7 +2497,7 @@ export async function createMakePicturesApp(
       modelId: 'eleven_multilingual_v2',
       provider: 'synthetic-fallback' as const,
       fps: 60,
-      durationInSeconds: 4.2,
+      durationInSeconds: 3.0,
       audioFile: '',
       generatedAt: nowIso,
       words: introSynth.words,
@@ -2504,7 +2515,7 @@ export async function createMakePicturesApp(
       modelId: 'eleven_multilingual_v2',
       provider: 'synthetic-fallback' as const,
       fps: 60,
-      durationInSeconds: 4.2,
+      durationInSeconds: 3.0,
       audioFile: '',
       generatedAt: nowIso,
       words: payoffSynth.words,
@@ -2615,7 +2626,7 @@ export const SFX_MANIFEST: Record<string, ProductionSfxEntry> = {};
 
 function printCreateHelp(): void {
   console.log(`
-create-make-pictures (v2.3.0)
+create-make-pictures (v2.3.1)
 
 Usage:
   npx create-make-pictures@latest <project-directory> [options]

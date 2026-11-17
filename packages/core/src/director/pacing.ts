@@ -2,10 +2,80 @@ import { spring } from 'remotion';
 
 export const DIRECTOR_PACING_BUDGET = {
   minSceneDurationFrames: 270,
+  preSpeechSettleFrames: 42,
+  minPreSpeechSettleFrames: 36,
+  postSpeechHoldFrames: 96,
+  minPostSpeechHoldFrames: 90,
+  finalScenePostHoldFrames: 144,
+  minFinalScenePostHoldFrames: 132,
+  maxSubViewsPerScene: 2,
+  defaultCrossDissolveFrames: 54,
   minSettleHoldFrames: 45,
   maxWordsPerSecond: 2.8,
-  defaultCrossDissolveFrames: 54,
 } as const;
+
+export interface SceneTimingOptions {
+  fps?: number;
+  isFinalScene?: boolean;
+  preSettleSeconds?: number;
+  postHoldSeconds?: number;
+  minDurationSeconds?: number;
+}
+
+export interface ComputedSceneTiming {
+  voiceoverStartFrame: number;
+  voiceoverDurationFrames: number;
+  voiceoverEndFrame: number;
+  postHoldFrames: number;
+  durationInFrames: number;
+}
+
+export function computeSceneTimingFromVoiceover(
+  voiceoverDurationSeconds: number,
+  options: SceneTimingOptions = {}
+): ComputedSceneTiming {
+  const fps =
+    typeof options.fps === 'number' && Number.isFinite(options.fps) && options.fps > 0
+      ? options.fps
+      : 60;
+  const preSec =
+    typeof options.preSettleSeconds === 'number' &&
+    Number.isFinite(options.preSettleSeconds)
+      ? Math.max(0, options.preSettleSeconds)
+      : 0.7;
+  const preFrames = Math.round(preSec * fps);
+  const defaultPostSec = options.isFinalScene ? 2.4 : 1.6;
+  const postSec =
+    typeof options.postHoldSeconds === 'number' &&
+    Number.isFinite(options.postHoldSeconds)
+      ? Math.max(0, options.postHoldSeconds)
+      : defaultPostSec;
+  const postFrames = Math.round(postSec * fps);
+  const safeVoSec =
+    typeof voiceoverDurationSeconds === 'number' &&
+    Number.isFinite(voiceoverDurationSeconds)
+      ? Math.max(0, voiceoverDurationSeconds)
+      : 0;
+  const voFrames =
+    safeVoSec <= 0 ? 0 : Math.ceil(Math.max(0, safeVoSec * fps - 1e-9));
+  const minSec =
+    typeof options.minDurationSeconds === 'number' &&
+    Number.isFinite(options.minDurationSeconds)
+      ? Math.max(0, options.minDurationSeconds)
+      : 4.5;
+  const minFrames = Math.round(minSec * fps);
+
+  const rawTotal = preFrames + voFrames + postFrames;
+  const durationInFrames = Math.max(minFrames, rawTotal);
+
+  return {
+    voiceoverStartFrame: preFrames,
+    voiceoverDurationFrames: voFrames,
+    voiceoverEndFrame: preFrames + voFrames,
+    postHoldFrames: durationInFrames - (preFrames + voFrames),
+    durationInFrames,
+  };
+}
 
 export const CINEMATIC_SPRINGS = {
   entrance: { mass: 1.45, damping: 200, stiffness: 58 },

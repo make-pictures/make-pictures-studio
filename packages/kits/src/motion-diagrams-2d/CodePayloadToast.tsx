@@ -134,7 +134,7 @@ function renderJsonValue(
 export const CodePayloadToast: React.FC<CodePayloadToastProps> = ({
   x,
   y,
-  width = 410,
+  width = 480,
   methodBadge,
   endpoint,
   latencyText = '18ms',
@@ -224,7 +224,7 @@ export const CodePayloadToast: React.FC<CodePayloadToastProps> = ({
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span
             style={{
-              padding: '2px 7px',
+              padding: '2px 8px',
               borderRadius: Math.max(
                 0,
                 Math.round(3 * studioStyle.surface.radiusScale)
@@ -232,10 +232,10 @@ export const CodePayloadToast: React.FC<CodePayloadToastProps> = ({
               backgroundColor: studioStyle.palette.bgSurface,
               border: `1px solid ${resolvedAccent}`,
               fontFamily: monoFontCss,
-              fontSize: 10,
+              fontSize: 18,
               fontWeight: 700,
               color: resolvedAccent,
-              letterSpacing: '0.05em',
+              letterSpacing: '0.04em',
             }}
           >
             {methodBadge}
@@ -243,7 +243,7 @@ export const CodePayloadToast: React.FC<CodePayloadToastProps> = ({
           <span
             style={{
               fontFamily: monoFontCss,
-              fontSize: 11.5,
+              fontSize: 18,
               fontWeight: 600,
               color: studioStyle.palette.textPrimary,
             }}
@@ -255,7 +255,7 @@ export const CodePayloadToast: React.FC<CodePayloadToastProps> = ({
         <span
           style={{
             fontFamily: monoFontCss,
-            fontSize: 10.5,
+            fontSize: 18,
             fontVariantNumeric: 'tabular-nums',
             color: studioStyle.palette.textSecondary,
           }}
@@ -270,8 +270,8 @@ export const CodePayloadToast: React.FC<CodePayloadToastProps> = ({
           zIndex: 1,
           padding: '11px 16px',
           fontFamily: monoFontCss,
-          fontSize: 12,
-          lineHeight: 1.55,
+          fontSize: 18,
+          lineHeight: 1.48,
           whiteSpace: 'pre',
         }}
       >
@@ -293,11 +293,11 @@ export const CodePayloadToast: React.FC<CodePayloadToastProps> = ({
             >
               <span
                 style={{
-                  width: 24,
+                  width: 30,
                   color: studioStyle.palette.textSecondary,
                   opacity: 0.55,
                   userSelect: 'none',
-                  fontSize: 10.5,
+                  fontSize: 18,
                   fontVariantNumeric: 'tabular-nums',
                 }}
               >

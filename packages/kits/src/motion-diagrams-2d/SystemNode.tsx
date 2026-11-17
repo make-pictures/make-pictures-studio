@@ -189,7 +189,7 @@ export const SystemNode: React.FC<SystemNodeProps> = ({
   x,
   y,
   width = 340,
-  height = 188,
+  height = 196,
   accentColor,
   variant,
   enterFrame = 2,
@@ -396,7 +396,7 @@ export const SystemNode: React.FC<SystemNodeProps> = ({
         willChange: 'transform, opacity',
         transform: `translate3d(0, ${translateY.toFixed(2)}px, 0) scale(${scale.toFixed(4)})`,
         ...tactileChrome,
-        padding: '18px 22px',
+        padding: '13px 20px',
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'space-between',
@@ -486,7 +486,7 @@ export const SystemNode: React.FC<SystemNodeProps> = ({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          marginTop: 2,
+          marginTop: 0,
         }}
       >
         <div
@@ -536,9 +536,9 @@ export const SystemNode: React.FC<SystemNodeProps> = ({
                   : studioStyle.palette.inkBorder
               }`,
               fontFamily: monoFontCss,
-              fontSize: 11,
+              fontSize: 18,
               fontWeight: 700,
-              letterSpacing: '0.07em',
+              letterSpacing: '0.06em',
               textTransform: 'uppercase',
               color:
                 grammar === 'risograph-poster' && isCurrentlyActive
@@ -554,11 +554,11 @@ export const SystemNode: React.FC<SystemNodeProps> = ({
       </div>
 
       {/* Row 2: Gallery-Grade Title & Subtitle */}
-      <div style={{ position: 'relative', zIndex: 1, marginTop: 4 }}>
+      <div style={{ position: 'relative', zIndex: 1, marginTop: 2 }}>
         <div
           style={{
             fontFamily: displayFontCss,
-            fontSize: 23,
+            fontSize: 26,
             fontWeight: 700,
             letterSpacing: `${studioStyle.typography.displayTrackingEm}em`,
             color: textPrimary,
@@ -571,11 +571,11 @@ export const SystemNode: React.FC<SystemNodeProps> = ({
           <div
             style={{
               fontFamily: bodyFontCss,
-              fontSize: 14,
+              fontSize: 19,
               fontWeight: 400,
               color: textSecondary,
-              marginTop: 4,
-              lineHeight: 1.36,
+              marginTop: 3,
+              lineHeight: 1.32,
             }}
           >
             {subtitle}
@@ -592,7 +592,7 @@ export const SystemNode: React.FC<SystemNodeProps> = ({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            paddingTop: 9,
+            paddingTop: 6,
             borderTop: `1px solid ${dividerColor}`,
           }}
         >
@@ -622,10 +622,10 @@ export const SystemNode: React.FC<SystemNodeProps> = ({
               <span
                 style={{
                   fontFamily: monoFontCss,
-                  fontSize: 11.5,
+                  fontSize: 18,
                   fontWeight: 600,
                   color: isCurrentlyActive ? textPrimary : textSecondary,
-                  letterSpacing: '0.03em',
+                  letterSpacing: '0.02em',
                 }}
               >
                 {displayedStatus}
@@ -639,7 +639,7 @@ export const SystemNode: React.FC<SystemNodeProps> = ({
             <div
               style={{
                 fontFamily: monoFontCss,
-                fontSize: 11,
+                fontSize: 18,
                 fontVariantNumeric: 'tabular-nums',
                 color: textSecondary,
               }}

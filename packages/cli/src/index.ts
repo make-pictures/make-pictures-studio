@@ -16,6 +16,7 @@ import {
   runMusicShortcutCommand,
   runSfxShortcutCommand,
 } from './commands/audio';
+import { runCutoutCommand } from './commands/cutout';
 import { runDoctorCommand } from './commands/doctor';
 import { runGenerateImageCommand } from './commands/generate-image';
 import { runInitCommand } from './commands/init';
@@ -164,15 +165,36 @@ Commands:
   sfx [--production=<slug>] [--id=whoosh] [--prompt="..."] [--preset=whoosh] [--loop] [--mock] [--force]
       Generate or refresh Foley / SFX asset
 
-  qa <CompositionId> [--grid=4x3] [--out=out/qa-<id>.png] [--duration=<frames>] [--allow-fast-cuts] [--dir=<subdir>]
-      Run Hard Director QA Gate + render 12-frame Contact-Sheet PNG (with 9:16 Safe Box & Clean f=0 check)
+  qa <CompositionId> [--grid=auto|4x3] [--out=out/qa-<id>.png] [--duration=<frames>] [--allow-fast-cuts] [--dir=<subdir>]
+      Run Hard Director QA Gate + render auto-sized Contact-Sheet PNG covering 100% of scenes & sub-views
 
   render <CompositionId> [outPath] [--no-master] [--props=<jsonOrFile>] [--dir=<subdir>]
       Render 60 FPS MP4 (auto --gl=angle for 3D) + master loudness to -14 LUFS
 
-  image "<prompt>" --out=<file.png> [--aspect=1:1|16:9|9:16] [--model=gemini-2.5-flash-image]
-      Generate illustration asset via Gemini Image API (requires GEMINI_API_KEY)
+  image "<prompt>" --out=<file.png> [--style=<styleId>] [--aspect=1:1|16:9|9:16] [--model=gemini-2.5-flash-image] [--dir=<subdir>]
+      Generate style-anchored illustration asset with strict no-text protection (requires GEMINI_API_KEY)
+
+  cutout <source.pdf|photo.png> --out=<file.png> [--page=1] [--tolerance=18] [--soft-ramp=10] [--qa-out=<qa.png>] [--dir=<subdir>]
+      Extract lossless PDF /SMask or Exterior Border Flood-Fill cutout + dark checkerboard QA PNG
 `);
+}
+
+function parseFiniteFlag(
+  flags: Record<string, string | boolean>,
+  name: string,
+  opts?: { min?: number }
+): number | undefined {
+  const raw = getStringFlag(flags, name);
+  if (raw === undefined) return undefined;
+  const num = Number(raw);
+  if (
+    raw.trim() === '' ||
+    !Number.isFinite(num) ||
+    (opts?.min !== undefined && num < opts.min)
+  ) {
+    throw new Error(`Invalid --${name} value: "${raw}"`);
+  }
+  return num;
 }
 
 export async function runCli(argv = process.argv.slice(2)): Promise<void> {
@@ -444,12 +466,14 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
       const outPath = getStringFlag(flags, 'out') || positionals[2];
       if (!prompt || !outPath) {
         throw new Error(
-          'Usage: make-pictures image "<prompt>" --out=<path.png> [--aspect=1:1|16:9|9:16]'
+          'Usage: make-pictures image "<prompt>" --out=<path.png> [--style=<styleId>] [--aspect=1:1|16:9|9:16]'
         );
       }
       await runGenerateImageCommand({
         cwd,
+        dir,
         prompt,
+        style: getStringFlag(flags, 'style'),
         outPath,
         aspectRatio: getStringFlag(flags, 'aspect') as
           | '1:1'
@@ -459,6 +483,27 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
           | '3:4'
           | undefined,
         model: getStringFlag(flags, 'model'),
+      });
+      return;
+    }
+
+    case 'cutout': {
+      const inputPath = positionals[1] || getStringFlag(flags, 'in');
+      const outPath = getStringFlag(flags, 'out') || positionals[2];
+      if (!inputPath || !outPath) {
+        throw new Error(
+          'Usage: make-pictures cutout <input.pdf|photo.png> --out=<path.png> [--page=1] [--tolerance=18]'
+        );
+      }
+      await runCutoutCommand({
+        cwd,
+        dir,
+        inputPath,
+        outPath,
+        qaOutPath: getStringFlag(flags, 'qa-out'),
+        page: parseFiniteFlag(flags, 'page', { min: 1 }),
+        tolerance: parseFiniteFlag(flags, 'tolerance', { min: 0 }),
+        softRamp: parseFiniteFlag(flags, 'soft-ramp', { min: 0 }),
       });
       return;
     }
@@ -474,7 +519,9 @@ export * from './audio/audit-audio-tags';
 export * from './audio/generate-music';
 export * from './audio/generate-sfx';
 export * from './audio/master-loudness';
+export * from './audio/phonetics-lint';
 export * from './commands/audio';
+export * from './commands/cutout';
 export * from './commands/doctor';
 export * from './commands/generate-image';
 export * from './commands/init';

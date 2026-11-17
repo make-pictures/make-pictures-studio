@@ -986,8 +986,8 @@ export type _StyleCheck = [StylePreset, ChapterTitleCardProps, StoryCard2DProps]
 export const _StyleProviderRef = StyleProvider;
 
 const DIALOGUE_SEGMENTS = [
-  { sceneId: 'test-film-intro', fromFrame: 12, durationInFrames: 300 },
-  { sceneId: 'test-film-payoff', fromFrame: 324, durationInFrames: 306 },
+  { sceneId: 'test-film-intro', fromFrame: 42, durationInFrames: 180 },
+  { sceneId: 'test-film-payoff', fromFrame: 402, durationInFrames: 180 },
 ];
 
 export const TestFilm: React.FC<TestFilmProps> = (props) => {
@@ -1011,23 +1011,24 @@ export const TestFilm: React.FC<TestFilmProps> = (props) => {
           voiceoverManifest={VOICEOVER_MANIFEST}
           baseVolume={props.musicVolume}
           duckedVolume={Math.min(props.musicVolume * 0.34, 0.09)}
+          fadeOutFrames={90}
         />
       ) : null}
 
       {introVo?.audioFile ? (
-        <Sequence from={12} durationInFrames={300} layout="none">
+        <Sequence from={42} durationInFrames={180} layout="none">
           <Audio src={staticFile(introVo.audioFile)} volume={props.voiceoverVolume} />
         </Sequence>
       ) : null}
 
       {payoffVo?.audioFile ? (
-        <Sequence from={324} durationInFrames={306} layout="none">
+        <Sequence from={402} durationInFrames={180} layout="none">
           <Audio src={staticFile(payoffVo.audioFile)} volume={props.voiceoverVolume} />
         </Sequence>
       ) : null}
 
       {whooshSfx?.audioFile ? (
-        <SoundCue src={staticFile(whooshSfx.audioFile)} atFrame={8} volume={props.sfxVolume} />
+        <SoundCue src={staticFile(whooshSfx.audioFile)} atFrame={38} volume={props.sfxVolume} />
       ) : null}
 
       <BrowserFrame

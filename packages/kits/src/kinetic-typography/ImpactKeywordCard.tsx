@@ -235,7 +235,7 @@ export const ImpactKeywordCard: React.FC<ImpactKeywordCardProps> = ({
             display: 'flex',
             justifyContent: 'space-between',
             fontFamily: monoFontCss,
-            fontSize: 13,
+            fontSize: 18,
             color: resolvedAccent,
             opacity: 0.78,
           }}
@@ -273,9 +273,9 @@ export const ImpactKeywordCard: React.FC<ImpactKeywordCardProps> = ({
               <span
                 style={{
                   fontFamily: monoFontCss,
-                  fontSize: 15,
+                  fontSize: 18,
                   fontWeight: 700,
-                  letterSpacing: '0.12em',
+                  letterSpacing: '0.1em',
                   textTransform: 'uppercase',
                   color: textSecondary,
                 }}
@@ -289,7 +289,7 @@ export const ImpactKeywordCard: React.FC<ImpactKeywordCardProps> = ({
             <span
               style={{
                 fontFamily: monoFontCss,
-                fontSize: 14,
+                fontSize: 18,
                 fontWeight: 700,
                 letterSpacing: '0.08em',
                 padding: '3px 10px',

@@ -102,18 +102,20 @@ export const StoryCard2D: React.FC<StoryCard2DProps> = ({
         overrides: {
           boxSizing: 'border-box',
           position: 'relative',
+          height: 'auto',
           padding: compact
             ? '24px 28px'
             : isVertical
-              ? '30px 34px'
-              : '36px 42px',
+              ? '28px 32px'
+              : '32px 38px',
           borderRadius:
             grammar === 'risograph-poster'
               ? 0
               : Math.max(0, Math.round(6 * style.surface.radiusScale)),
           display: 'flex',
           flexDirection: 'column',
-          gap: compact ? 14 : 18,
+          justifyContent: 'center',
+          gap: compact ? 14 : 16,
           opacity: enter,
           filter: filterCss,
           transform: `translateY(${Number(interpolate(enter, [0, 1], [20, 0]).toFixed(2))}px) scale(${Number(interpolate(enter, [0, 1], [0.975, 1]).toFixed(4))})`,
@@ -140,14 +142,14 @@ export const StoryCard2D: React.FC<StoryCard2DProps> = ({
             zIndex: 1,
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'space-between',
             gap: 14,
             paddingBottom: 10,
             borderBottom: `1px solid ${style.palette.inkBorder}`,
             fontFamily: monoFont,
-            fontSize: 15,
-            fontWeight: 700,
-            letterSpacing: '0.12em',
+            fontSize: 18,
+            fontWeight: 600,
+            lineHeight: 1.2,
+            letterSpacing: '0.06em',
           }}
         >
           {cleanBadge ? (
@@ -156,7 +158,7 @@ export const StoryCard2D: React.FC<StoryCard2DProps> = ({
                 style={{
                   display: 'inline-block',
                   width: grammar === 'risograph-poster' ? 10 : 3,
-                  height: 14,
+                  height: 16,
                   backgroundColor: accent,
                 }}
               />
@@ -178,7 +180,8 @@ export const StoryCard2D: React.FC<StoryCard2DProps> = ({
           {cleanPlateCode ? (
             <span
               style={{
-                fontSize: 13,
+                marginLeft: 'auto',
+                fontSize: 18,
                 fontWeight: 600,
                 color: style.palette.textSecondary,
               }}
@@ -195,7 +198,7 @@ export const StoryCard2D: React.FC<StoryCard2DProps> = ({
           position: 'relative',
           zIndex: 1,
           display: 'flex',
-          alignItems: 'flex-start',
+          alignItems: 'center',
           gap: compact ? 18 : 22,
         }}
       >
@@ -373,15 +376,16 @@ export const StoryCard2D: React.FC<StoryCard2DProps> = ({
             minWidth: 0,
             display: 'flex',
             flexDirection: 'column',
-            gap: 10,
+            justifyContent: 'center',
+            gap: 8,
           }}
         >
           <div
             style={{
               fontFamily: displayFont,
-              fontSize: compact ? 34 : isVertical ? 38 : 42,
+              fontSize: compact ? 26 : 28,
               fontWeight: 700,
-              lineHeight: 1.14,
+              lineHeight: 1.2,
               letterSpacing: `${style.typography.displayTrackingEm}em`,
               color: style.palette.textPrimary,
             }}
@@ -393,8 +397,8 @@ export const StoryCard2D: React.FC<StoryCard2DProps> = ({
             <div
               style={{
                 fontFamily: bodyFont,
-                fontSize: compact ? 21 : 24,
-                lineHeight: 1.4,
+                fontSize: compact ? 19 : 20,
+                lineHeight: 1.42,
                 color: style.palette.textSecondary,
               }}
             >

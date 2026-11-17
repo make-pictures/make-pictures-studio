@@ -15,6 +15,7 @@ import {
   StylePresetSchema,
   StyleProvider,
   StyleStudioHdrPresetSchema,
+  TYPOGRAPHY_FLOOR_1080P,
   buildGoogleFontsStylesheetUrl,
   clearCustomStyles,
   deriveDefaultOpticsForSurface,
@@ -125,6 +126,34 @@ test('getCardChromeStyle computes distinct CSS geometry across all 5 cardTreatme
 
   const tactile = getCardChromeStyle(BUILT_IN_STYLES['tactile-craft']);
   assert.match(String(tactile.border), /5px solid #FFFFFF/);
+
+  for (const id of BUILT_IN_STYLE_IDS) {
+    assert.equal(
+      getCardChromeStyle(BUILT_IN_STYLES[id]).boxSizing,
+      'border-box',
+      `Expected getCardChromeStyle(${id}) to enforce boxSizing: 'border-box'`
+    );
+  }
+
+  for (const calmStyleId of [
+    'minimal-product',
+    'editorial-press',
+    'archival-chronicle',
+    'cyber-telemetry',
+  ] as const) {
+    assert.ok(
+      BUILT_IN_STYLES[calmStyleId].motion.cameraHandheld <= 0.015,
+      `Expected ${calmStyleId} cameraHandheld <= 0.015, got ${BUILT_IN_STYLES[calmStyleId].motion.cameraHandheld}`
+    );
+  }
+
+  assert.deepEqual(TYPOGRAPHY_FLOOR_1080P, {
+    minPx: 18,
+    recommendedMinPx: 19,
+    cardTitlePx: 28,
+    cardSentencePx: 20,
+    badgePx: 18,
+  });
 });
 
 test('getStyleSpringConfig, formatFontFamilyCss, formatHeadingText, and buildGoogleFontsStylesheetUrl are deterministic', () => {

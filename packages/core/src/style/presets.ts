@@ -1,6 +1,7 @@
 import type { StylePreset } from './schema';
 
 export * from './schema';
+export * from './typographyScale';
 
 export const BUILT_IN_STYLE_IDS = [
   'minimal-product',
@@ -117,7 +118,7 @@ export const BUILT_IN_STYLES: Record<BuiltInStyleId, StylePreset> = {
     },
     motion: {
       profile: 'editorial-calm',
-      cameraHandheld: 0.04,
+      cameraHandheld: 0.012,
     },
     optics: {
       lightingRig: 'window-gobo',
@@ -172,7 +173,7 @@ export const BUILT_IN_STYLES: Record<BuiltInStyleId, StylePreset> = {
     },
     motion: {
       profile: 'cinematic-fluid',
-      cameraHandheld: 0.06,
+      cameraHandheld: 0.015,
     },
     optics: {
       lightingRig: 'window-gobo',

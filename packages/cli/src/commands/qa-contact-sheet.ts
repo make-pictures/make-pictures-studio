@@ -10,11 +10,13 @@ import {
   auditCompositionDirection,
   verifyCleanFrameZeroImage,
   type AuditVoiceoverEntry,
+  type DirectorAuditViolation,
 } from '../director/audit-direction';
 import {
   resolveRemotionEntryPoint,
   resolveWorkspaceContext,
 } from './workspace-paths';
+import { blankCommentsPreservingNewlines } from '../utils/jsx-source-scan';
 
 export interface QaContactSheetOptions {
   rootDir?: string;
@@ -22,7 +24,7 @@ export interface QaContactSheetOptions {
   dir?: string;
   entryPoint?: string;
   compositionId: string;
-  grid?: string; // e.g. '4x3'
+  grid?: string; // e.g. 'auto' (default) or '4x3'
   outPath?: string;
   durationOverride?: number;
   inputProps?: Record<string, unknown>;
@@ -39,6 +41,20 @@ export interface QaContactSheetResult {
   isVertical: boolean;
 }
 
+export interface QaTimelineSubViewHint {
+  id?: string;
+  fromOffsetFrames: number;
+  label?: string;
+}
+
+export interface QaTimelineSegmentHint {
+  sceneId?: string;
+  fromFrame: number;
+  durationInFrames: number;
+  label?: string;
+  subViews?: QaTimelineSubViewHint[];
+}
+
 export interface RegistryHint {
   origin?: 'example' | 'production';
   productionId?: string;
@@ -46,18 +62,22 @@ export interface RegistryHint {
   durationInFrames?: number;
   fps?: number;
   usesThree?: boolean;
-  sceneTimeline?: Array<{
-    sceneId: string;
-    fromFrame: number;
-    durationInFrames: number;
-    label?: string;
-  }>;
+  sceneTimeline?: Array<
+    QaTimelineSegmentHint & {
+      sceneId: string;
+    }
+  >;
   cameraTimeline?: Array<{
     shotLabel?: string;
     fromFrame: number;
     durationInFrames: number;
   }>;
   voiceoverManifest?: Record<string, AuditVoiceoverEntry | undefined>;
+}
+
+export interface QaSamplePoint {
+  frame: number;
+  tag?: string;
 }
 
 export function toKebabSlug(compId: string): string {
@@ -67,41 +87,77 @@ export function toKebabSlug(compId: string): string {
     .toLowerCase();
 }
 
-function parseGridSpec(gridSpec = '4x3'): { cols: number; rows: number } {
+/**
+ * Resolves QA contact-sheet grid dimensions (`cols × rows`).
+ * Defaults to `'auto'` (`cols = 4`, `rows = Math.max(3, Math.ceil(mandatoryCount / 4))`),
+ * guaranteeing 100% scene and sub-view coverage even on 8–12 scene narratives.
+ */
+export function resolveQaGridDimensions(
+  gridSpec?: string,
+  mandatoryCount = 12
+): { cols: number; rows: number } {
+  const autoRows = Math.max(
+    3,
+    Math.min(12, Math.ceil(Math.max(1, mandatoryCount) / 4))
+  );
+  if (!gridSpec || gridSpec.trim().toLowerCase() === 'auto') {
+    return { cols: 4, rows: autoRows };
+  }
   const match = gridSpec.trim().match(/^(\d+)\s*x\s*(\d+)$/i);
   if (!match) {
-    return { cols: 4, rows: 3 };
+    return { cols: 4, rows: autoRows };
   }
   const cols = Math.max(1, Math.min(8, Number(match[1])));
-  const rows = Math.max(1, Math.min(8, Number(match[2])));
+  const rows = Math.max(1, Math.min(12, Number(match[2])));
   return { cols, rows };
 }
 
 /**
- * Selects `count` key frames across `[0, durationInFrames - 1]`:
- * - Always starts at `frame = 0` (clean empty background invariant)
- * - For each scene segment `i`, samples BOTH an early prompt/entrance frame
- *   (`seg.fromFrame + Math.min(24, Math.floor(span * 0.12))`) AND a settled payoff frame
- *   (`seg.fromFrame + Math.floor(span * 0.68)`), plus a final settle frame (`durationInFrames - 24`)
- * - Deduplicates and evenly trims or pads to `count` frames (`gridCols * gridRows`)
+ * Collects mandatory QA sample points (`frame = 0`, 1 settled frame per scene or per declared
+ * `subView`, and a final outro settle frame at `durationInFrames - 30`) along with human-readable
+ * `sceneId` / `sceneId/subViewId` badge tags.
  */
-export function selectQaSampleFrames(
+export function collectMandatoryQaSamplePoints(
   durationInFrames: number,
-  count: number,
-  sceneTimeline?: Array<{ fromFrame: number; durationInFrames: number }>
-): number[] {
+  sceneTimeline?: ReadonlyArray<QaTimelineSegmentHint>,
+  cameraTimeline?: ReadonlyArray<{
+    shotLabel?: string;
+    fromFrame: number;
+    durationInFrames: number;
+  }>
+): QaSamplePoint[] {
   const maxFrame = Math.max(0, durationInFrames - 1);
-  if (count <= 1 || maxFrame === 0) {
-    return [0];
+  if (maxFrame === 0) {
+    return [{ frame: 0 }];
   }
 
   const clampFrame = (f: number): number =>
     Math.max(0, Math.min(maxFrame, Math.round(f)));
 
   const finalSettle =
-    durationInFrames > 48 ? clampFrame(durationInFrames - 24) : maxFrame;
+    durationInFrames > 60 ? clampFrame(durationInFrames - 30) : maxFrame;
 
-  const selected = new Set<number>([0]);
+  const byFrame = new Map<number, string | undefined>();
+  byFrame.set(0, undefined);
+
+  const insertMandatory = (
+    candidate: number,
+    minBound: number,
+    maxBound: number,
+    tag?: string
+  ): void => {
+    let f = clampFrame(candidate);
+    if (f === 0 && maxFrame > 0) f = 1;
+    while (byFrame.has(f) && f < Math.min(maxFrame, maxBound)) {
+      f += 1;
+    }
+    while (byFrame.has(f) && f > Math.max(1, minBound)) {
+      f -= 1;
+    }
+    if (!byFrame.has(f)) {
+      byFrame.set(f, tag);
+    }
+  };
 
   if (sceneTimeline && sceneTimeline.length > 0) {
     const segments = [...sceneTimeline]
@@ -110,44 +166,156 @@ export function selectQaSampleFrames(
 
     for (let i = 0; i < segments.length; i++) {
       const seg = segments[i]!;
+      const segStart = Math.max(0, seg.fromFrame);
       const nextStart = segments[i + 1]?.fromFrame ?? durationInFrames;
-      const span = Math.max(1, nextStart - seg.fromFrame);
-      const earlyFrame = clampFrame(
-        seg.fromFrame + Math.min(24, Math.floor(span * 0.12))
+      const segEnd = Math.min(
+        durationInFrames,
+        Math.max(segStart + 1, nextStart)
       );
-      const payoffFrame = clampFrame(seg.fromFrame + Math.floor(span * 0.68));
-      if (earlyFrame > 0) {
-        selected.add(earlyFrame);
-      }
-      if (payoffFrame > 0) {
-        selected.add(payoffFrame);
-      }
-    }
+      const span = Math.max(1, segEnd - segStart);
+      const sceneLabel = seg.sceneId ?? seg.label ?? `s${i + 1}`;
 
-    if (finalSettle > 0) {
-      selected.add(finalSettle);
+      if (seg.subViews && seg.subViews.length > 0) {
+        const sortedSubs = [...seg.subViews].sort(
+          (a, b) => a.fromOffsetFrames - b.fromOffsetFrames
+        );
+        const normalizedSubs: QaTimelineSubViewHint[] =
+          sortedSubs[0]!.fromOffsetFrames > 24
+            ? [{ id: 'v1', fromOffsetFrames: 0 }, ...sortedSubs]
+            : sortedSubs;
+
+        for (let k = 0; k < normalizedSubs.length; k++) {
+          const sub = normalizedSubs[k]!;
+          const subStart = Math.min(
+            segEnd - 1,
+            segStart + Math.max(0, sub.fromOffsetFrames)
+          );
+          const nextOffset = normalizedSubs[k + 1]?.fromOffsetFrames;
+          const subEnd =
+            nextOffset !== undefined
+              ? Math.min(
+                  segEnd,
+                  segStart + Math.max(sub.fromOffsetFrames + 1, nextOffset)
+                )
+              : segEnd;
+          const subSpan = Math.max(1, subEnd - subStart);
+          const offset =
+            subSpan > 48
+              ? Math.min(subSpan - 12, Math.max(36, Math.floor(subSpan * 0.62)))
+              : Math.max(1, Math.floor(subSpan * 0.6));
+          const subLabel = sub.id ?? sub.label ?? `v${k + 1}`;
+          insertMandatory(
+            subStart + offset,
+            subStart + 1,
+            Math.min(finalSettle, subEnd - 1),
+            `${sceneLabel}/${subLabel}`
+          );
+        }
+      } else {
+        const offset =
+          span > 78
+            ? Math.min(span - 24, Math.max(54, Math.floor(span * 0.58)))
+            : Math.max(1, Math.floor(span * 0.6));
+        insertMandatory(
+          segStart + offset,
+          segStart + 1,
+          Math.min(finalSettle, segEnd - 1),
+          sceneLabel
+        );
+      }
     }
-  } else {
-    for (let i = 1; i < count; i++) {
-      const f = clampFrame((i / (count - 1)) * finalSettle);
+  } else if (cameraTimeline && cameraTimeline.length > 0) {
+    const shots = [...cameraTimeline]
+      .filter((c) => c.fromFrame <= maxFrame)
+      .sort((a, b) => a.fromFrame - b.fromFrame);
+    for (let i = 0; i < shots.length; i++) {
+      const shot = shots[i]!;
+      const shotStart = Math.max(0, shot.fromFrame);
+      const shotEnd = Math.min(
+        durationInFrames,
+        Math.max(shotStart + 1, shotStart + shot.durationInFrames)
+      );
+      const span = Math.max(1, shotEnd - shotStart);
+      insertMandatory(
+        shotStart + Math.floor(span * 0.58),
+        shotStart + 1,
+        Math.min(finalSettle, shotEnd - 1),
+        shot.shotLabel ?? `cam${i + 1}`
+      );
+    }
+  }
+
+  if (finalSettle > 0 && !byFrame.has(finalSettle)) {
+    byFrame.set(finalSettle, 'outro');
+  }
+
+  return Array.from(byFrame.entries())
+    .sort((a, b) => a[0] - b[0])
+    .map(([frame, tag]) => ({ frame, tag }));
+}
+
+/**
+ * Selects key frames across `[0, durationInFrames - 1]`:
+ * - Always starts at `frame = 0` (clean empty background invariant)
+ * - Guarantees 100% presence of every scene and declared `subView` when `count` is omitted (`--grid=auto`)
+ * - Ends on the settled final frame (`durationInFrames - 30`) and fills remaining grid tiles by
+ *   bisecting the largest uncovered intervals.
+ */
+export function selectQaSampleFrames(
+  durationInFrames: number,
+  count?: number,
+  sceneTimeline?: ReadonlyArray<QaTimelineSegmentHint>,
+  cameraTimeline?: ReadonlyArray<{
+    shotLabel?: string;
+    fromFrame: number;
+    durationInFrames: number;
+  }>
+): number[] {
+  const maxFrame = Math.max(0, durationInFrames - 1);
+  if ((count !== undefined && count <= 1) || maxFrame === 0) {
+    return [0];
+  }
+
+  const mandatory = collectMandatoryQaSamplePoints(
+    durationInFrames,
+    sceneTimeline,
+    cameraTimeline
+  );
+  const autoGrid = resolveQaGridDimensions(undefined, mandatory.length);
+  const targetCount = count ?? autoGrid.cols * autoGrid.rows;
+
+  const clampFrame = (f: number): number =>
+    Math.max(0, Math.min(maxFrame, Math.round(f)));
+  const finalSettle =
+    durationInFrames > 60 ? clampFrame(durationInFrames - 30) : maxFrame;
+
+  const selected = new Set<number>(mandatory.map((m) => m.frame));
+
+  if (
+    (!sceneTimeline || sceneTimeline.length === 0) &&
+    (!cameraTimeline || cameraTimeline.length === 0)
+  ) {
+    for (let i = 1; i < targetCount; i++) {
+      const f = clampFrame((i / (targetCount - 1)) * finalSettle);
       selected.add(f);
     }
   }
 
   let sorted = Array.from(selected).sort((a, b) => a - b);
 
-  if (sorted.length > count) {
+  if (sorted.length > targetCount) {
     const trimmed: number[] = [];
-    for (let k = 0; k < count; k++) {
-      const idx = Math.round((k * (sorted.length - 1)) / (count - 1));
+    for (let k = 0; k < targetCount; k++) {
+      const idx = Math.round((k * (sorted.length - 1)) / (targetCount - 1));
       trimmed.push(sorted[idx]!);
     }
     trimmed[0] = 0;
+    trimmed[trimmed.length - 1] = sorted[sorted.length - 1]!;
     return trimmed;
   }
 
-  // Evenly bisect largest uncovered intervals until `count` frames are reached
-  while (sorted.length < count) {
+  // Evenly bisect largest uncovered intervals until `targetCount` frames are reached
+  while (sorted.length < targetCount) {
     let bestGap = 0;
     let bestMid = -1;
     for (let i = 0; i < sorted.length - 1; i++) {
@@ -168,21 +336,315 @@ export function selectQaSampleFrames(
   }
 
   let cursor = 1;
-  while (selected.size < count && cursor <= maxFrame) {
+  while (selected.size < targetCount && cursor <= maxFrame) {
     selected.add(cursor);
     cursor += 1;
   }
 
   sorted = Array.from(selected)
     .sort((a, b) => a - b)
-    .slice(0, count);
+    .slice(0, targetCount);
 
-  while (sorted.length < count) {
+  while (sorted.length < targetCount) {
     sorted.push(maxFrame);
   }
 
   sorted[0] = 0;
   return sorted;
+}
+
+/**
+ * Self-contained Chromium `page.evaluate` check on `frame = 0`.
+ * Uses zero inner helper functions so esbuild `__name` instrumentation never leaks into page context.
+ */
+export function auditFrameZeroDomInPage(): {
+  clean: boolean;
+  offendingElements: string[];
+} {
+  const offending: string[] = [];
+  if (typeof document === 'undefined' || typeof window === 'undefined') {
+    return { clean: true, offendingElements: offending };
+  }
+  const root = document.getElementById('root') ?? document.body;
+  if (!root) {
+    return { clean: true, offendingElements: offending };
+  }
+
+  const vw = window.innerWidth || 1920;
+  const vh = window.innerHeight || 1080;
+  const nodes = root.querySelectorAll('*');
+
+  for (let i = 0; i < nodes.length; i++) {
+    const el = nodes[i] as HTMLElement;
+    const tag = el.tagName ? el.tagName.toUpperCase() : '';
+    if (tag === 'STYLE' || tag === 'SCRIPT' || tag === 'DEFS') continue;
+
+    let accOpacity = 1;
+    let cur: HTMLElement | null = el;
+    while (cur && cur !== document.documentElement) {
+      const cStyle = window.getComputedStyle(cur);
+      if (cStyle.display === 'none' || cStyle.visibility === 'hidden') {
+        accOpacity = 0;
+        break;
+      }
+      const op = parseFloat(cStyle.opacity);
+      if (Number.isFinite(op)) {
+        accOpacity *= op;
+      }
+      if (accOpacity <= 0.002) {
+        accOpacity = 0;
+        break;
+      }
+      cur = cur.parentElement;
+    }
+    if (accOpacity <= 0.002) continue;
+
+    const rect = el.getBoundingClientRect();
+    if (rect.width < 1 || rect.height < 1) continue;
+    if (
+      rect.bottom <= 0 ||
+      rect.right <= 0 ||
+      rect.top >= vh ||
+      rect.left >= vw
+    ) {
+      continue;
+    }
+
+    if (tag === 'IMG' || tag === 'VIDEO' || tag === 'SVG') {
+      offending.push(`<${tag.toLowerCase()}> (${Math.round(rect.width)}x${Math.round(rect.height)})`);
+      if (offending.length >= 5) break;
+      continue;
+    }
+
+    let directText = '';
+    for (let c = 0; c < el.childNodes.length; c++) {
+      const child = el.childNodes[c]!;
+      if (child.nodeType === 3 && child.textContent) {
+        directText += child.textContent;
+      }
+    }
+    directText = directText.trim();
+    if (directText.length > 0) {
+      const cs = window.getComputedStyle(el);
+      const fSize = parseFloat(cs.fontSize);
+      if (fSize > 0 && cs.color !== 'rgba(0, 0, 0, 0)' && cs.color !== 'transparent') {
+        offending.push(
+          `<${tag.toLowerCase()}> "${directText.slice(0, 32)}" (opacity=${accOpacity.toFixed(2)})`
+        );
+        if (offending.length >= 5) break;
+      }
+    }
+  }
+
+  return {
+    clean: offending.length === 0,
+    offendingElements: offending,
+  };
+}
+
+export interface RenderedDomAuditIssue {
+  code: 'FONT_BELOW_1080P_FLOOR' | 'CARD_VERTICAL_VOID';
+  message: string;
+  snippet?: string;
+}
+
+/**
+ * Self-contained Chromium `page.evaluate` check on settled `frame > 0` stills:
+ * 1. `FONT_BELOW_1080P_FLOOR`: rejects visible rendered text `< 18px` at `1080p` scale.
+ * 2. `CARD_VERTICAL_VOID`: rejects vertical flex cards with `> 42%` (`> 140px`) dead empty space
+ *    between children (typically caused by `height: 100%` + `justifyContent: 'space-between'`).
+ */
+export function auditRenderedFrameDomInPage(
+  viewportWidth: number,
+  viewportHeight: number
+): RenderedDomAuditIssue[] {
+  const issues: RenderedDomAuditIssue[] = [];
+  if (typeof document === 'undefined' || typeof window === 'undefined') {
+    return issues;
+  }
+  const root = document.getElementById('root') ?? document.body;
+  if (!root) {
+    return issues;
+  }
+
+  const vw = viewportWidth || window.innerWidth || 1920;
+  const vh = viewportHeight || window.innerHeight || 1080;
+  const shortSide = Math.min(vw, vh);
+  const scaleRef = shortSide / 1080;
+  const minFontPx = 18 * scaleRef - 0.35;
+  const nodes = root.querySelectorAll('*');
+
+  for (let i = 0; i < nodes.length; i++) {
+    const el = nodes[i] as HTMLElement;
+    const tag = el.tagName ? el.tagName.toUpperCase() : '';
+    if (
+      tag === 'STYLE' ||
+      tag === 'SCRIPT' ||
+      tag === 'DEFS' ||
+      tag === 'TITLE' ||
+      tag === 'DESC'
+    ) {
+      continue;
+    }
+
+    let accOpacity = 1;
+    let cur: HTMLElement | null = el;
+    while (cur && cur !== document.documentElement) {
+      const cStyle = window.getComputedStyle(cur);
+      if (cStyle.display === 'none' || cStyle.visibility === 'hidden') {
+        accOpacity = 0;
+        break;
+      }
+      const op = parseFloat(cStyle.opacity);
+      if (Number.isFinite(op)) {
+        accOpacity *= op;
+      }
+      if (accOpacity < 0.85) {
+        break;
+      }
+      cur = cur.parentElement;
+    }
+    // Only audit settled elements (`opacity >= 0.85`) to avoid cross-dissolve / spring-in false positives
+    if (accOpacity < 0.85) continue;
+
+    const rect = el.getBoundingClientRect();
+    if (
+      rect.width < 4 ||
+      rect.height < 4 ||
+      rect.bottom <= 0 ||
+      rect.right <= 0 ||
+      rect.top >= vh ||
+      rect.left >= vw
+    ) {
+      continue;
+    }
+
+    const cs = window.getComputedStyle(el);
+
+    // 1. Check effective rendered font size on direct text nodes
+    let directText = '';
+    for (let c = 0; c < el.childNodes.length; c++) {
+      const child = el.childNodes[c]!;
+      if (child.nodeType === 3 && child.textContent) {
+        directText += child.textContent;
+      }
+    }
+    directText = directText.replace(/\s+/g, ' ').trim();
+    if (directText.length >= 2) {
+      const rawFontPx = parseFloat(cs.fontSize);
+      const maybeSvg = el as unknown as {
+        getScreenCTM?: () => { a: number; b: number } | null;
+      };
+      let cssScale = 1;
+      if (typeof maybeSvg.getScreenCTM === 'function') {
+        const ctm = maybeSvg.getScreenCTM();
+        if (ctm && Number.isFinite(ctm.a) && Number.isFinite(ctm.b)) {
+          cssScale = Math.max(0.2, Math.min(8, Math.hypot(ctm.a, ctm.b)));
+        }
+      } else {
+        const offsetH = (el as HTMLElement).offsetHeight;
+        if (typeof offsetH === 'number' && offsetH > 0) {
+          cssScale = Math.max(0.2, Math.min(5, rect.height / offsetH));
+        }
+      }
+      const renderedFontPx = rawFontPx * cssScale;
+
+      if (
+        Number.isFinite(renderedFontPx) &&
+        renderedFontPx > 0 &&
+        renderedFontPx < minFontPx &&
+        issues.length < 6
+      ) {
+        issues.push({
+          code: 'FONT_BELOW_1080P_FLOOR',
+          snippet: directText.slice(0, 60),
+          message: `Visible text "${directText.slice(0, 40)}" renders at ${renderedFontPx.toFixed(1)}px (< ${(18 * scaleRef).toFixed(0)}px 1080p legibility floor). Increase fontSize >= 18px or remove decorative micro-stamps.`,
+        });
+      }
+    }
+
+    // 2. Check vertical card dead-space voids (> 42% of card height and > 140px @ 1080p)
+    const borderRad = parseFloat(cs.borderRadius) || 0;
+    const borderTopW = parseFloat(cs.borderTopWidth) || 0;
+    const hasBg =
+      cs.backgroundColor !== 'rgba(0, 0, 0, 0)' &&
+      cs.backgroundColor !== 'transparent';
+    const isCardBox =
+      !el.hasAttribute('data-allow-vertical-spacer') &&
+      (borderRad >= 4 || borderTopW >= 1 || hasBg) &&
+      rect.width >= 160 * scaleRef &&
+      rect.width <= vw * 0.92 &&
+      rect.height >= 220 * scaleRef &&
+      rect.height <= vh * 0.9;
+
+    if (
+      isCardBox &&
+      cs.display.indexOf('flex') !== -1 &&
+      cs.flexDirection.indexOf('column') === 0
+    ) {
+      const childRects: Array<{ top: number; bottom: number }> = [];
+      const absVisualRects: Array<{ top: number; bottom: number }> = [];
+      for (let c = 0; c < el.children.length; c++) {
+        const ch = el.children[c] as HTMLElement;
+        const chStyle = window.getComputedStyle(ch);
+        if (
+          chStyle.display === 'none' ||
+          chStyle.visibility === 'hidden' ||
+          chStyle.position === 'fixed'
+        ) {
+          continue;
+        }
+        const chOp = parseFloat(chStyle.opacity);
+        if (Number.isFinite(chOp) && chOp < 0.85) continue;
+        const cr = ch.getBoundingClientRect();
+        if (cr.height < 4 || cr.width < 4) continue;
+
+        if (chStyle.position === 'absolute') {
+          const isSurfaceChrome =
+            ch.hasAttribute('data-clipped-surface-chrome') ||
+            (cr.width >= rect.width * 0.92 && cr.height >= rect.height * 0.92);
+          if (!isSurfaceChrome) {
+            absVisualRects.push({ top: cr.top, bottom: cr.bottom });
+          }
+          continue;
+        }
+
+        childRects.push({ top: cr.top, bottom: cr.bottom });
+      }
+
+      if (childRects.length >= 2) {
+        const allBands = childRects.concat(absVisualRects);
+        allBands.sort((a, b) => a.top - b.top);
+        let maxGap = 0;
+        let maxReachBottom = allBands[0]!.bottom;
+        for (let g = 1; g < allBands.length; g++) {
+          const band = allBands[g]!;
+          const gap = band.top - maxReachBottom;
+          if (gap > maxGap) maxGap = gap;
+          if (band.bottom > maxReachBottom) {
+            maxReachBottom = band.bottom;
+          }
+        }
+        if (
+          maxGap > rect.height * 0.42 &&
+          maxGap > 140 * scaleRef &&
+          issues.length < 6
+        ) {
+          const preview = (el.textContent || '')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .slice(0, 48);
+          issues.push({
+            code: 'CARD_VERTICAL_VOID',
+            snippet: preview,
+            message: `Card "${preview}" has a ${Math.round(maxGap)}px vertical empty void (${Math.round((maxGap / rect.height) * 100)}% of ${Math.round(rect.height)}px card height > 42% limit). Use height: 'auto' + justifyContent: 'center' (or <HorizontalFeatureGrid2x2 />) instead of stretching sparse text with justifyContent: 'space-between'.`,
+          });
+        }
+      }
+    }
+  }
+
+  return issues;
 }
 
 /**
@@ -239,6 +701,7 @@ const BITMAP_FONT_5X7: Record<string, string[]> = {
   '@': ['01110', '10001', '10111', '10101', '10110', '10000', '01111'],
   '(': ['00010', '00100', '01000', '01000', '01000', '00100', '00010'],
   ')': ['01000', '00100', '00010', '00010', '00010', '00100', '01000'],
+  '•': ['00000', '00100', '01110', '01110', '00100', '00000', '00000'],
   ' ': ['00000', '00000', '00000', '00000', '00000', '00000', '00000'],
 };
 
@@ -392,7 +855,106 @@ function extractEntryFromLoadedModule(
   return null;
 }
 
-function parseStaticProductionHintFromDisk(
+function readBalancedDelimEnd(
+  cleaned: string,
+  openIdx: number,
+  openChar: '{' | '[',
+  closeChar: '}' | ']'
+): number {
+  if (cleaned[openIdx] !== openChar) return -1;
+  let depth = 0;
+  let i = openIdx;
+  const len = cleaned.length;
+  while (i < len) {
+    const ch = cleaned[i]!;
+    if (ch === "'" || ch === '"' || ch === '`') {
+      const quote = ch;
+      i += 1;
+      while (i < len) {
+        if (cleaned[i] === '\\') {
+          i += 2;
+          continue;
+        }
+        if ((quote === "'" || quote === '"') && (cleaned[i] === '\n' || cleaned[i] === '\r')) {
+          break;
+        }
+        if (cleaned[i] === quote) {
+          i += 1;
+          break;
+        }
+        i += 1;
+      }
+      continue;
+    }
+    if (ch === openChar) {
+      depth += 1;
+    } else if (ch === closeChar) {
+      depth -= 1;
+      if (depth === 0) return i;
+    }
+    i += 1;
+  }
+  return -1;
+}
+
+function splitTopLevelObjectBlocks(arrayInner: string): string[] {
+  const blocks: string[] = [];
+  let i = 0;
+  const len = arrayInner.length;
+  while (i < len) {
+    const ch = arrayInner[i]!;
+    if (ch === "'" || ch === '"' || ch === '`') {
+      const quote = ch;
+      i += 1;
+      while (i < len) {
+        if (arrayInner[i] === '\\') {
+          i += 2;
+          continue;
+        }
+        if ((quote === "'" || quote === '"') && (arrayInner[i] === '\n' || arrayInner[i] === '\r')) {
+          break;
+        }
+        if (arrayInner[i] === quote) {
+          i += 1;
+          break;
+        }
+        i += 1;
+      }
+      continue;
+    }
+    if (ch === '{') {
+      const closeIdx = readBalancedDelimEnd(arrayInner, i, '{', '}');
+      if (closeIdx === -1) break;
+      blocks.push(arrayInner.slice(i, closeIdx + 1));
+      i = closeIdx + 1;
+      continue;
+    }
+    i += 1;
+  }
+  return blocks;
+}
+
+function findEnclosingObjectBlock(
+  cleaned: string,
+  matchIndex: number
+): string | null {
+  let depth = 0;
+  for (let p = matchIndex - 1; p >= 0; p--) {
+    const ch = cleaned[p]!;
+    if (ch === '}') {
+      depth += 1;
+    } else if (ch === '{') {
+      if (depth === 0) {
+        const closeIdx = readBalancedDelimEnd(cleaned, p, '{', '}');
+        return closeIdx !== -1 ? cleaned.slice(p, closeIdx + 1) : null;
+      }
+      depth -= 1;
+    }
+  }
+  return null;
+}
+
+export function parseStaticProductionHintFromDisk(
   studioDir: string,
   slug: string,
   compositionId: string
@@ -408,25 +970,42 @@ function parseStaticProductionHintFromDisk(
   const indexTsPath = ['index.ts', 'index.tsx']
     .map((f) => path.join(prodDir, f))
     .find((p) => fs.existsSync(p));
-  const indexSrc = indexTsPath ? fs.readFileSync(indexTsPath, 'utf8') : '';
+  const rawIndexSrc = indexTsPath ? fs.readFileSync(indexTsPath, 'utf8') : '';
+  const indexSrc = blankCommentsPreservingNewlines(rawIndexSrc);
   const escapedId = compositionId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const mentionsId = new RegExp(`\\bid\\s*:\\s*['"]${escapedId}['"]`).test(
+  const idMatch = new RegExp(`\\bid\\s*:\\s*['"]${escapedId}['"]`).exec(
     indexSrc
   );
+  const mentionsId = Boolean(idMatch);
 
   if (!hasMatchingProps && !mentionsId && slug !== toKebabSlug(compositionId)) {
     return null;
   }
+
+  const scopedBlock =
+    idMatch && idMatch.index !== undefined
+      ? (findEnclosingObjectBlock(indexSrc, idMatch.index) ?? indexSrc)
+      : indexSrc;
+
+  const constNums = new Map<string, number>();
+  for (const cm of indexSrc.matchAll(
+    /\bconst\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*(?::[^=]+)?=\s*(\d+(?:\.\d+)?)\b/g
+  )) {
+    constNums.set(cm[1]!, Number(cm[2]));
+  }
+  const resolveNumToken = (tok: string | undefined): number | undefined => {
+    if (!tok) return undefined;
+    if (/^\d+(?:\.\d+)?$/.test(tok)) return Number(tok);
+    return constNums.get(tok);
+  };
 
   const hint: RegistryHint = {
     origin: 'production',
     productionId: slug,
   };
 
-  const propsMatch = indexSrc.match(
-    new RegExp(
-      `id\\s*:\\s*['"]${escapedId}['"][\\s\\S]{0,600}?propsFile\\s*:\\s*['"]([^'"]+)['"]`
-    )
+  const propsMatch = scopedBlock.match(
+    /\bpropsFile\s*:\s*['"]([^'"]+)['"]/
   );
   if (propsMatch) {
     hint.propsFile = propsMatch[1];
@@ -435,43 +1014,118 @@ function parseStaticProductionHintFromDisk(
   }
 
   const usesThreeMatch =
-    indexSrc.match(
-      new RegExp(
-        `id\\s*:\\s*['"]${escapedId}['"][\\s\\S]{0,800}?usesThree\\s*:\\s*(true|false)\\b`
-      )
-    ) ?? indexSrc.match(/\busesThree\s*:\s*(true|false)\b/);
+    scopedBlock.match(/\busesThree\s*:\s*(true|false)\b/) ??
+    indexSrc.match(/\busesThree\s*:\s*(true|false)\b/);
   if (usesThreeMatch) {
     hint.usesThree = usesThreeMatch[1] === 'true';
   }
 
-  const durMatch = indexSrc.match(/\bdurationInFrames\s*:\s*(\d+)\b/);
-  if (durMatch) {
-    hint.durationInFrames = Number(durMatch[1]);
+  // Strip nested `sceneTimeline: [...]` before matching top-level composition `durationInFrames`
+  let scopedWithoutTimeline = scopedBlock;
+  const tlPropMatch = /\bsceneTimeline\s*:\s*\[/.exec(scopedBlock);
+  let timelineArrayInner: string | null = null;
+  if (tlPropMatch) {
+    const openBracket =
+      tlPropMatch.index + tlPropMatch[0].lastIndexOf('[');
+    const closeBracket = readBalancedDelimEnd(
+      scopedBlock,
+      openBracket,
+      '[',
+      ']'
+    );
+    if (closeBracket !== -1) {
+      timelineArrayInner = scopedBlock.slice(openBracket + 1, closeBracket);
+      scopedWithoutTimeline =
+        scopedBlock.slice(0, tlPropMatch.index) +
+        scopedBlock.slice(closeBracket + 1);
+    }
+  } else {
+    const fallbackTl = /\bsceneTimeline\s*:\s*\[/.exec(indexSrc);
+    if (fallbackTl) {
+      const openBracket =
+        fallbackTl.index + fallbackTl[0].lastIndexOf('[');
+      const closeBracket = readBalancedDelimEnd(
+        indexSrc,
+        openBracket,
+        '[',
+        ']'
+      );
+      if (closeBracket !== -1) {
+        timelineArrayInner = indexSrc.slice(openBracket + 1, closeBracket);
+      }
+    }
   }
 
-  const fpsMatch = indexSrc.match(/\bfps\s*:\s*(\d+)\b/);
+  const durMatch = scopedWithoutTimeline.match(
+    /\bdurationInFrames\s*:\s*([A-Za-z0-9_$]+)\b/
+  );
+  const resolvedDur = resolveNumToken(durMatch?.[1]);
+  if (resolvedDur !== undefined) {
+    hint.durationInFrames = resolvedDur;
+  }
+
+  const fpsMatch =
+    scopedWithoutTimeline.match(/\bfps\s*:\s*(\d+)\b/) ??
+    indexSrc.match(/\bfps\s*:\s*(\d+)\b/);
   if (fpsMatch) {
     hint.fps = Number(fpsMatch[1]);
   }
 
-  const sceneTimelineMatch =
-    indexSrc.match(
-      new RegExp(
-        `id\\s*:\\s*['"]${escapedId}['"][\\s\\S]{0,1400}?sceneTimeline\\s*:\\s*\\[([\\s\\S]*?)\\]`
-      )
-    ) ?? indexSrc.match(/\bsceneTimeline\s*:\s*\[([\s\S]*?)\]/);
-
-  if (sceneTimelineMatch) {
-    const segRe =
-      /\{[^{}]*?sceneId\s*:\s*['"]([^'"]+)['"][^{}]*?fromFrame\s*:\s*(\d+)[^{}]*?durationInFrames\s*:\s*(\d+)[^{}]*?\}/g;
+  if (timelineArrayInner !== null) {
+    const segBlocks = splitTopLevelObjectBlocks(timelineArrayInner);
     const parsedSegments: NonNullable<RegistryHint['sceneTimeline']> = [];
-    let sm: RegExpExecArray | null;
-    while ((sm = segRe.exec(sceneTimelineMatch[1])) !== null) {
-      parsedSegments.push({
-        sceneId: sm[1],
-        fromFrame: Number(sm[2]),
-        durationInFrames: Number(sm[3]),
-      });
+    for (const segObj of segBlocks) {
+      let segHeader = segObj;
+      let subViewsInner: string | null = null;
+      const svMatch = /\bsubViews\s*:\s*\[/.exec(segObj);
+      if (svMatch) {
+        const svOpen = svMatch.index + svMatch[0].lastIndexOf('[');
+        const svClose = readBalancedDelimEnd(segObj, svOpen, '[', ']');
+        if (svClose !== -1) {
+          subViewsInner = segObj.slice(svOpen + 1, svClose);
+          segHeader =
+            segObj.slice(0, svMatch.index) + segObj.slice(svClose + 1);
+        }
+      }
+
+      const sid = segHeader.match(/\bsceneId\s*:\s*['"]([^'"]+)['"]/)?.[1];
+      const fromRaw = segHeader.match(
+        /\bfromFrame\s*:\s*([A-Za-z0-9_$]+)\b/
+      )?.[1];
+      const durRaw = segHeader.match(
+        /\bdurationInFrames\s*:\s*([A-Za-z0-9_$]+)\b/
+      )?.[1];
+      const label = segHeader.match(/\blabel\s*:\s*['"]([^'"]+)['"]/)?.[1];
+      const fromVal = resolveNumToken(fromRaw);
+      const durVal = resolveNumToken(durRaw);
+
+      if (sid && fromVal !== undefined && durVal !== undefined) {
+        const parsedSubViews: QaTimelineSubViewHint[] = [];
+        if (subViewsInner !== null) {
+          for (const svObj of splitTopLevelObjectBlocks(subViewsInner)) {
+            const svId = svObj.match(/\bid\s*:\s*['"]([^'"]+)['"]/)?.[1];
+            const svLabel = svObj.match(/\blabel\s*:\s*['"]([^'"]+)['"]/)?.[1];
+            const svOffRaw = svObj.match(
+              /\bfromOffsetFrames\s*:\s*([A-Za-z0-9_$]+)\b/
+            )?.[1];
+            const svOff = resolveNumToken(svOffRaw);
+            if (svOff !== undefined) {
+              parsedSubViews.push({
+                ...(svId ? { id: svId } : {}),
+                fromOffsetFrames: svOff,
+                ...(svLabel ? { label: svLabel } : {}),
+              });
+            }
+          }
+        }
+        parsedSegments.push({
+          sceneId: sid,
+          fromFrame: fromVal,
+          durationInFrames: durVal,
+          ...(label ? { label } : {}),
+          ...(parsedSubViews.length > 0 ? { subViews: parsedSubViews } : {}),
+        });
+      }
     }
     if (parsedSegments.length > 0) {
       hint.sceneTimeline = parsedSegments;
@@ -496,16 +1150,21 @@ function parseStaticProductionHintFromDisk(
         Array.isArray(manifest.scenes) &&
         manifest.scenes.length > 0
       ) {
-        let cursor = 12;
-        hint.sceneTimeline = manifest.scenes.map((s) => {
+        const preSettle = Math.round(0.7 * fps);
+        const postHold = Math.round(1.6 * fps);
+        const minSpan = Math.round(4.5 * fps);
+        let sceneStart = 0;
+        hint.sceneTimeline = manifest.scenes.map((s, idx) => {
           const dur =
-            s.durationInFrames ?? Math.round((s.durationInSeconds ?? 5) * fps);
+            s.durationInFrames ?? Math.round((s.durationInSeconds ?? 4) * fps);
+          const isFinal = idx === (manifest.scenes?.length ?? 1) - 1;
+          const tailHold = isFinal ? Math.round(2.4 * fps) : postHold;
           const seg = {
             sceneId: s.id,
-            fromFrame: cursor,
+            fromFrame: sceneStart + preSettle,
             durationInFrames: dur,
           };
-          cursor += dur + 12;
+          sceneStart += Math.max(minSpan, preSettle + dur + tailHold);
           return seg;
         });
       }
@@ -614,10 +1273,10 @@ function logAllowedFastCutWarnings(
 }
 
 /**
- * Generates a high-signal multi-frame QA Contact Sheet (`4x3` = 12 frames by default),
- * starting at `frame = 0`, drawing frame badges (`f=0`, `f=78`, ...) and for vertical
- * `9:16` Shorts compositions drawing the green `Golden Safe Box` (`x=40..910, y=220..1380`)
- * plus red UI dead-zone overlays.
+ * Generates a high-signal multi-frame QA Contact Sheet (`--grid=auto` by default, guaranteeing
+ * 100% scene and sub-view coverage), starting at `frame = 0`, drawing frame & scene/sub-view
+ * badges (`f=0`, `f=490 (8.17s) • s2/view-a`, ...) and for vertical `9:16` Shorts compositions
+ * drawing the green `Golden Safe Box` (`x=40..910, y=220..1380`) plus red UI dead-zone overlays.
  */
 export async function runQaContactSheetCommand(
   options: QaContactSheetOptions
@@ -628,8 +1287,8 @@ export async function runQaContactSheetCommand(
   });
 
   const { compositionId } = options;
-  const { cols, rows } = parseGridSpec(options.grid);
-  const tileCount = cols * rows;
+  const isAutoGrid =
+    !options.grid || options.grid.trim().toLowerCase() === 'auto';
 
   const resolvedOutPath = options.outPath
     ? path.resolve(rootDir, options.outPath)
@@ -650,9 +1309,24 @@ export async function runQaContactSheetCommand(
   const preBundleDuration = options.durationOverride ?? hint.durationInFrames;
   let preBundledAuditComplete = false;
 
+  const previewMandatoryCount =
+    typeof preBundleDuration === 'number'
+      ? collectMandatoryQaSamplePoints(
+          preBundleDuration,
+          hint.sceneTimeline,
+          hint.cameraTimeline
+        ).length
+      : 12;
+  const previewGrid = resolveQaGridDimensions(
+    options.grid,
+    previewMandatoryCount
+  );
+
   console.log('==============================================================');
   console.log(
-    ` 🔍 make.pictures — Contact-Sheet QA (${compositionId} • ${cols}x${rows})`
+    ` 🔍 make.pictures — Contact-Sheet QA (${compositionId} • ${
+      isAutoGrid ? `auto ${previewGrid.cols}x${previewGrid.rows}` : `${previewGrid.cols}x${previewGrid.rows}`
+    })`
   );
   console.log('==============================================================');
 
@@ -747,7 +1421,7 @@ export async function runQaContactSheetCommand(
     const { width, height, fps } = composition;
     const isVertical = height > width;
 
-    // Guarantee Director QA Gate runs BEFORE rendering the 12 stills even when duration came from selectComposition
+    // Guarantee Director QA Gate runs BEFORE rendering stills even when duration came from selectComposition
     if (!preBundledAuditComplete) {
       const auditResult = auditCompositionDirection({
         studioDir,
@@ -768,14 +1442,48 @@ export async function runQaContactSheetCommand(
       }
     }
 
+    const mandatoryPoints = collectMandatoryQaSamplePoints(
+      totalFrames,
+      hint.sceneTimeline,
+      hint.cameraTimeline
+    );
+    const { cols, rows } = resolveQaGridDimensions(
+      options.grid,
+      mandatoryPoints.length
+    );
+    const tileCount = cols * rows;
+
     const frames = selectQaSampleFrames(
       totalFrames,
-      tileCount,
-      hint.sceneTimeline
+      isAutoGrid ? undefined : tileCount,
+      hint.sceneTimeline,
+      hint.cameraTimeline
     );
 
+    const tagByFrame = new Map<number, string>();
+    for (const mp of mandatoryPoints) {
+      if (mp.tag) {
+        tagByFrame.set(mp.frame, mp.tag);
+      }
+    }
+    if (hint.sceneTimeline && hint.sceneTimeline.length > 0) {
+      const sortedSegs = [...hint.sceneTimeline].sort(
+        (a, b) => a.fromFrame - b.fromFrame
+      );
+      for (const f of frames) {
+        if (f === 0 || tagByFrame.has(f)) continue;
+        for (let sIdx = sortedSegs.length - 1; sIdx >= 0; sIdx--) {
+          const seg = sortedSegs[sIdx]!;
+          if (f >= seg.fromFrame || sIdx === 0) {
+            tagByFrame.set(f, seg.sceneId);
+            break;
+          }
+        }
+      }
+    }
+
     console.log(
-      `  [2/3] Rendering ${frames.length} key frames (${width}x${height} @ ${fps}fps${
+      `  [2/3] Rendering ${frames.length} key frames (${cols}x${rows} • ${width}x${height} @ ${fps}fps${
         isVertical ? ' • 9:16 Safe-Box Overlay' : ''
       }): [${frames.join(', ')}]…`
     );
@@ -787,11 +1495,46 @@ export async function runQaContactSheetCommand(
       Math.round((tileContentW * height) / width / 2) * 2
     );
 
+    // Intercept still page teardown so Chromium DOM checks run at exact rendered frame with zero extra renders
+    let activeStillFrame: number | null = null;
+    let capturedF0Dom: ReturnType<typeof auditFrameZeroDomInPage> | null = null;
+    let capturedDomIssues: RenderedDomAuditIssue[] = [];
+    const origNewPage = browser.newPage.bind(browser);
+    browser.newPage = async (newPageOpts) => {
+      const page = await origNewPage(newPageOpts);
+      const origClose = page.close.bind(page);
+      page.close = async (closeOpts) => {
+        try {
+          if (activeStillFrame === 0) {
+            capturedF0Dom = await page.evaluate(auditFrameZeroDomInPage);
+          } else if (
+            typeof activeStillFrame === 'number' &&
+            activeStillFrame > 0 &&
+            hint.origin !== 'example'
+          ) {
+            capturedDomIssues = await page.evaluate(
+              auditRenderedFrameDomInPage,
+              width,
+              height
+            );
+          }
+        } catch {
+          // Ignore evaluation errors if page aborted; renderStill surfaces rendering failures directly
+        }
+        return origClose(closeOpts);
+      };
+      return page;
+    };
+
     for (let i = 0; i < frames.length; i++) {
-      const frame = frames[i];
+      const frame = frames[i]!;
       const rawStillPath = path.join(tempWorkDir, `raw-${i}.png`);
       const annotatedTilePath = path.join(tempWorkDir, `tile-${i}.png`);
       const badgePamPath = path.join(tempWorkDir, `badge-${i}.pam`);
+
+      activeStillFrame = frame;
+      capturedF0Dom = null;
+      capturedDomIssues = [];
 
       await renderStill({
         composition,
@@ -804,6 +1547,8 @@ export async function runQaContactSheetCommand(
         chromiumOptions,
       });
 
+      activeStillFrame = null;
+
       if (frame === 0) {
         const f0Check = verifyCleanFrameZeroImage(rawStillPath);
         if (!f0Check.clean) {
@@ -813,19 +1558,62 @@ export async function runQaContactSheetCommand(
               {
                 code: 'DIRTY_FRAME_ZERO',
                 rule: 'CLEAN_FRAME_ZERO',
-                message: `Rendered Frame 0 is not a uniform solid bgCanvas background (max RGB channel spread = ${f0Check.maxChannelSpread} > 6; spreads R=${f0Check.channelSpreads.r}, G=${f0Check.channelSpreads.g}, B=${f0Check.channelSpreads.b}). Ensure all foreground elements start at frame >= 2 (opacity: 0 on frame 0) and backdrops render pure solid palette.bgCanvas at frame 0.`,
+                message: `Rendered Frame 0 is not a uniform solid bgCanvas background (max RGB channel spread = ${f0Check.maxChannelSpread}, variance = ${f0Check.maxChannelVariance}; spreads R=${f0Check.channelSpreads.r}, G=${f0Check.channelSpreads.g}, B=${f0Check.channelSpreads.b}). Ensure all foreground elements start at frame >= 2 (opacity: 0 on frame 0) and backdrops render pure solid palette.bgCanvas at frame 0.`,
               },
             ],
             rootDir
           );
         }
+
+        const f0Dom = capturedF0Dom as ReturnType<
+          typeof auditFrameZeroDomInPage
+        > | null;
+        if (f0Dom && !f0Dom.clean) {
+          throw new DirectorAuditError(
+            compositionId,
+            [
+              {
+                code: 'DIRTY_FRAME_ZERO',
+                rule: 'CLEAN_FRAME_ZERO',
+                message: `Frame 0 DOM mounts visible foreground nodes (${f0Dom.offendingElements.join(', ')}). Keep Frame 0 completely empty (opacity: 0 on all foreground cards/text/media until frame >= 2).`,
+              },
+            ],
+            rootDir
+          );
+        }
+      } else if (capturedDomIssues.length > 0 && hint.origin !== 'example') {
+        const domViolations: DirectorAuditViolation[] = capturedDomIssues.map(
+          (issue) => ({
+            code: issue.code,
+            rule:
+              issue.code === 'FONT_BELOW_1080P_FLOOR'
+                ? 'TYPOGRAPHY_FLOOR_1080P'
+                : 'CARD_VERTICAL_DENSITY',
+            snippet: issue.snippet,
+            message: `[frame=${frame}] ${issue.message}`,
+          })
+        );
+        if (options.allowFastCuts) {
+          logAllowedFastCutWarnings(rootDir, domViolations);
+        } else {
+          throw new DirectorAuditError(compositionId, domViolations, rootDir);
+        }
       }
 
       const secStr = (frame / fps).toFixed(2);
+      const rawTag = tagByFrame.get(frame);
+      const maxTagLen = isVertical ? 12 : 20;
+      const cleanTag = rawTag
+        ? rawTag.length > maxTagLen
+          ? rawTag.slice(0, maxTagLen)
+          : rawTag
+        : '';
       const badgeLabel =
         isVertical && i === 0
           ? `f=${frame} (${secStr}s) SAFE 9:16`
-          : `f=${frame} (${secStr}s)`;
+          : cleanTag
+            ? `f=${frame} (${secStr}s) • ${cleanTag}`
+            : `f=${frame} (${secStr}s)`;
 
       writeRgbaPamBadge({
         filePath: badgePamPath,
@@ -928,11 +1716,15 @@ export async function runQaContactSheetCommand(
     ffmpegInputs.push('-i', headerPamPath);
     const headerIdx = tilePaths.length;
 
-    const filterComplex = `${inputTags.join('')}xstack=inputs=${
-      tilePaths.length
-    }:layout=${layoutTokens.join(
-      '|'
-    )}[grid];[grid]pad=iw:ih+50:0:50:color=0x090D16[sheet];[sheet][${headerIdx}:v]overlay=12:9[final]`;
+    const gridFilter =
+      tilePaths.length === 1
+        ? '[0:v]null[grid]'
+        : `${inputTags.join('')}xstack=inputs=${
+            tilePaths.length
+          }:layout=${layoutTokens
+            .slice(0, tilePaths.length)
+            .join('|')}[grid]`;
+    const filterComplex = `${gridFilter};[grid]pad=iw:ih+50:0:50:color=0x090D16[sheet];[sheet][${headerIdx}:v]overlay=12:9[final]`;
 
     execFileSync(
       'ffmpeg',

@@ -267,15 +267,15 @@ export const ComparisonSplit2D: React.FC<ComparisonSplit2DProps> = ({
             paddingBottom: 8,
             borderBottom: `1px ${isPayoff ? 'solid' : 'dashed'} ${style.palette.inkBorder}`,
             fontFamily: monoFont,
-            fontSize: 16,
+            fontSize: 18,
             fontWeight: 700,
             textTransform: 'uppercase',
-            letterSpacing: '0.12em',
+            letterSpacing: '0.1em',
             color: accent,
           }}
         >
           <span>{item.tag}</span>
-          <span style={{ fontSize: 12, opacity: 0.72 }}>
+          <span style={{ fontSize: 18, opacity: 0.72 }}>
             {isPayoff
               ? resolvedLang === 'en'
                 ? 'THESIS'
@@ -369,7 +369,7 @@ export const ComparisonSplit2D: React.FC<ComparisonSplit2DProps> = ({
           <span
             style={{
               fontFamily: monoFont,
-              fontSize: 13,
+              fontSize: 18,
               fontWeight: 700,
               letterSpacing: '0.14em',
               color: style.palette.accentPrimary,

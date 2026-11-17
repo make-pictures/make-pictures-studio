@@ -104,7 +104,12 @@ export function getCardChromeStyle(
       break;
   }
 
-  return overrides ? { ...base, ...overrides } : base;
+  const withBorderBox: React.CSSProperties = {
+    boxSizing: 'border-box',
+    ...base,
+  };
+
+  return overrides ? { ...withBorderBox, ...overrides } : withBorderBox;
 }
 
 export function getStyleSpringConfig(

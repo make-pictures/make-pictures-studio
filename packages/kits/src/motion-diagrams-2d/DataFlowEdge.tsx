@@ -8,11 +8,21 @@ import {
   resolveStyleOptics,
   useStudioStyle,
 } from '@make-pictures/core';
+import {
+  buildCubicBezierPath,
+  evaluateCubicBezier,
+  evaluateCubicBezierAngleDeg,
+  type CubicBezierCurve2D,
+  type Point2D,
+} from './bezierGeometry';
 
-export interface Point2D {
-  x: number;
-  y: number;
-}
+export {
+  buildCubicBezierPath,
+  evaluateCubicBezier,
+  evaluateCubicBezierAngleDeg,
+  type CubicBezierCurve2D,
+  type Point2D,
+};
 
 export interface DataFlowEdgeProps {
   id: string;
@@ -34,46 +44,6 @@ export interface DataFlowEdgeProps {
   labelOffsetX?: number;
   labelOffsetY?: number;
   zIndex?: number;
-}
-
-export function evaluateCubicBezier(
-  p0: Point2D,
-  p1: Point2D,
-  p2: Point2D,
-  p3: Point2D,
-  t: number
-): Point2D {
-  const u = 1 - t;
-  const tt = t * t;
-  const uu = u * u;
-  const uuu = uu * u;
-  const ttt = tt * t;
-
-  return {
-    x: uuu * p0.x + 3 * uu * t * p1.x + 3 * u * tt * p2.x + ttt * p3.x,
-    y: uuu * p0.y + 3 * uu * t * p1.y + 3 * u * tt * p2.y + ttt * p3.y,
-  };
-}
-
-function evaluateCubicBezierAngleDeg(
-  p0: Point2D,
-  p1: Point2D,
-  p2: Point2D,
-  p3: Point2D,
-  t: number,
-  reverse: boolean
-): number {
-  const u = 1 - t;
-  const tx =
-    3 * u * u * (p1.x - p0.x) +
-    6 * u * t * (p2.x - p1.x) +
-    3 * t * t * (p3.x - p2.x);
-  const ty =
-    3 * u * u * (p1.y - p0.y) +
-    6 * u * t * (p2.y - p1.y) +
-    3 * t * t * (p3.y - p2.y);
-  const sign = reverse ? -1 : 1;
-  return (Math.atan2(ty * sign, tx * sign) * 180) / Math.PI;
 }
 
 function sampleBezierTrailPath(
@@ -116,7 +86,7 @@ export const DataFlowEdge: React.FC<DataFlowEdgeProps> = ({
   drawStartFrame = 2,
   flowStartFrame = 30,
   flowEndFrame = 600,
-  packetCount = 2,
+  packetCount = 0,
   traverseFrames = 96,
   direction = 'forward',
   label,
@@ -151,39 +121,12 @@ export const DataFlowEdge: React.FC<DataFlowEdgeProps> = ({
   const dy = to.y - from.y;
   const isVerticalSpan = Math.abs(dy) > Math.abs(dx) * 1.35;
 
-  const p0 = from;
-  const p1: Point2D = isVerticalSpan
-    ? {
-        x: from.x + (curveOffsetX ?? 0),
-        y: from.y + dy * 0.42,
-      }
-    : Math.abs(curveOffsetY) < 1
-      ? {
-          x: from.x + dx * 0.42,
-          y: from.y,
-        }
-      : {
-          x: from.x + dx * 0.36,
-          y: from.y + curveOffsetY,
-        };
-
-  const p2: Point2D = isVerticalSpan
-    ? {
-        x: to.x + (curveOffsetX ?? 0),
-        y: to.y - dy * 0.42,
-      }
-    : Math.abs(curveOffsetY) < 1
-      ? {
-          x: to.x - dx * 0.42,
-          y: to.y,
-        }
-      : {
-          x: from.x + dx * 0.64,
-          y: to.y + curveOffsetY,
-        };
-  const p3 = to;
-
-  const pathData = `M ${p0.x} ${p0.y} C ${p1.x} ${p1.y}, ${p2.x} ${p2.y}, ${p3.x} ${p3.y}`;
+  const curve = buildCubicBezierPath(from, to, {
+    orientation: isVerticalSpan ? 'vertical' : 'horizontal',
+    curveX: curveOffsetX ?? 0,
+    curveY: Math.abs(curveOffsetY) < 1 ? 0 : curveOffsetY,
+  });
+  const { p0, p1, p2, p3, d: pathData } = curve;
 
   const drawProgress = spring({
     frame: frame - effectiveDrawStart,
@@ -211,7 +154,7 @@ export const DataFlowEdge: React.FC<DataFlowEdgeProps> = ({
   const flowAlpha = isFlowActive ? flowFadeIn * flowFadeOut : 0;
 
   const clampedLabelT = Math.max(0, Math.min(1, labelT));
-  const labelAnchor = evaluateCubicBezier(p0, p1, p2, p3, clampedLabelT);
+  const labelAnchor = curve.pointAt(clampedLabelT);
 
   // Enforce >= 26px clearance from the cubic Bézier curve at labelT
   const verticalSideSign = (curveOffsetX ?? 0) < 0 ? -1 : 1;
@@ -265,7 +208,7 @@ export const DataFlowEdge: React.FC<DataFlowEdgeProps> = ({
           extrapolateRight: 'clamp',
         }) * flowAlpha;
 
-      const head = evaluateCubicBezier(p0, p1, p2, p3, t);
+      const head = curve.pointAt(t);
       const deg = evaluateCubicBezierAngleDeg(
         p0,
         p1,
@@ -497,10 +440,10 @@ export const DataFlowEdge: React.FC<DataFlowEdgeProps> = ({
               position: 'relative',
               zIndex: 1,
               fontFamily: monoFontCss,
-              fontSize: 11.5,
+              fontSize: 18,
               fontWeight: 700,
               color: studioStyle.palette.textPrimary,
-              letterSpacing: '0.03em',
+              letterSpacing: '0.02em',
             }}
           >
             {label}
@@ -511,7 +454,7 @@ export const DataFlowEdge: React.FC<DataFlowEdgeProps> = ({
                 position: 'relative',
                 zIndex: 1,
                 fontFamily: monoFontCss,
-                fontSize: 10.5,
+                fontSize: 18,
                 color: studioStyle.palette.textSecondary,
               }}
             >

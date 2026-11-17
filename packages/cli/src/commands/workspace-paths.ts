@@ -380,12 +380,12 @@ Uniwersalne niezmienniki studia **make.pictures** (\`60 FPS\` Video-as-Code). Sz
 - **Płynny przepływ scen (\`>= 4.5 s\` / \`>= 270\` klatek):** Łącz sceny przez \`<ContinuousSceneFlow />\` i \`<OpticalCrossDissolve />\` (z \`<ClippedSurfaceChrome />\` dla zaokrąglonych kart \`overflow: 'visible'\`); każda scena wizualna trwa **\`>= 4.5 s\` (\`>= 270\` klatek)** — weryfikowane przez twardą bramkę reżyserską \`npx make-pictures qa\`.
 - **Sprężyny i determinizm:** Używaj \`<StyleProvider style={styleId} renderBackdrop>\`, \`CINEMATIC_SPRINGS\` / \`SPRING_PRESETS\` (\`damping: 200\`) oraz \`createSeededRandom(seed)\` z \`@make-pictures/core\`. Całkowity **zakaz \`Math.random()\`** i akumulacji stanu w \`useRef\` między klatkami (\`--concurrency=100%\`).
 - **Props Inspector i Style Lab:** Eksportuj \`z.object\` z opisami \`.describe('Sekcja :: Etykieta')\` i trzymaj wartości domyślne w \`<CompositionId>.props.json\`. **Zawsze odczytaj \`*.props.json\` oraz \`styles/*.style.json\` z dysku przed edycją**, by zachować zmiany z \`Studio Web\`.
-- **Higiena puli \`<Audio />\`:** Używaj \`<VoiceoverTrack />\` i \`<SoundCue />\` z \`@make-pictures/core\`; **zakaz** montowania \`<Audio />\` wewnątrz \`<Sequence>\` bez jawnego \`durationInFrames\`.
-- **Typografia (\`latin-ext\`):** Domyślnie bez dolnych napisów; karty *Ikona + 2–3 słowa*; po polsku *Sentence case* (bez *Title Case*).
+- **Higiena puli \`<Audio />\`:** Używaj \`<VoiceoverTrack />\` i oszczędnego \`<SoundCue />\` z \`@make-pictures/core\`; **zakaz** montowania \`<Audio />\` wewnątrz \`<Sequence>\` bez jawnego \`durationInFrames\`.
+- **Typografia \`>= 18 px\` (\`latin-ext\`, \`TYPOGRAPHY_FLOOR_1080P\`):** Domyślnie bez dolnych napisów; karty **nagłówek (\`26–32 px\`) + 1 zdanie (\`19–22 px\`)**; po polsku *Sentence case* (bez *Title Case*).
 
 ## 4. Obowiązkowe Bramki Jakości przed Renderem
-1. **Odsłuch Audio:** Po \`npx make-pictures audio --production=<slug>\` (lub \`npm run audio -- --production=<slug>\`) odsłuchaj wygenerowane \`.mp3\` przez \`read_file\`.
-2. **Twarda Bramka Reżyserska i Contact-Sheet QA:** Uruchom \`npx make-pictures qa <CompositionId>\` (lub \`npm run qa -- <CompositionId>\`) i obejrzyj 12-klatkowy \`out/qa-<CompositionId>.png\` przez \`read_file\` (\`f=0\` puste tło, brak kolizji/Z-fightingu, w \`9:16\` karty w **Golden Safe Box \`x ∈ [40, 910], y ∈ [220, 1380]\`**).
+1. **Linter Fonetyki i Odsłuch Audio:** Po \`npx make-pictures audio --production=<slug>\` (lub \`npm run audio -- --production=<slug>\`) sprawdź ostrzeżenia fonetyczne i odsłuchaj wygenerowane \`.mp3\` przez \`read_file\`.
+2. **Twarda Bramka Reżyserska i Auto-Grid Contact-Sheet QA:** Uruchom \`npx make-pictures qa <CompositionId>\` (\`--grid=auto\` pokrywa 100% scen i pod-widoków) i obejrzyj \`out/qa-<CompositionId>.png\` przez \`read_file\` (\`f=0\` puste tło, brak kolizji, w \`9:16\` karty w **Golden Safe Box \`x ∈ [40, 910], y ∈ [220, 1380]\`**).
 3. **Typy i Render (\`-14 LUFS\`):** \`npm run typecheck\`, a następnie \`npx make-pictures render <CompositionId>\` (lub \`npm run render -- <CompositionId>\`).
 
 ## 5. Tablica Routingu 9 Skilli (Załaduj przed Pisaniem Scen!)
@@ -405,7 +405,7 @@ Uniwersalne niezmienniki studia **make.pictures** (\`60 FPS\` Video-as-Code). Sz
 
 const FALLBACK_PLUGIN_JSON = {
   name: 'make-pictures',
-  version: '2.3.0',
+  version: '2.3.1',
   description:
     'make.pictures Studio — 60 FPS Video-as-Code skills, visual kits, Art Direction Style Lab, camera Shot DSL, and ElevenLabs AI Audio Studio.',
   author: {
@@ -434,8 +434,9 @@ Read [\`AGENTS.md\`](./AGENTS.md) alongside this file for universal \`60 FPS\` V
 - \`npx make-pictures styles [--space=2d|2.5d|3d]\` / \`npx make-pictures style new <slug> --from=soft-clay\` — List all 10 built-in & custom presets (e.g. \`npx make-pictures styles --space=3d\`) or fork a custom preset.
 - \`npx make-pictures new <slug> --space=3d --lang=en\` (or \`--space=2d --style=retro-pc\`, \`--kit=vector-scene-2d --style=minimal-product\`) — Scaffold a new \`60 FPS\` production capsule.
 - \`npx make-pictures audio --production=<slug> [--mock]\` — Synthesize ElevenLabs TTS + word timestamps + AI Music + AI SFX.
+- \`npx make-pictures image "<prompt>" --style=<styleId> --out=...\` / \`npx make-pictures cutout <file> --out=...\` — Generate style-anchored illustrations (zero raster text) or extract lossless PDF \`/SMask\` / Exterior Border Flood-Fill cutouts with dark checkerboard QA.
 - \`npx make-pictures studio [--port=3000] [--dir=.]\` — Launch local \`60 FPS\` Studio Web workstation (\`http://127.0.0.1:3000\`, including 🎨 Style Lab \`[ 2D ] [ 2.5D ] [ 3D ]\`).
-- \`npx make-pictures qa <CompositionId>\` — Run the hard Director QA Gate and render a 12-frame Contact-Sheet PNG (\`out/qa-<CompositionId>.png\`) for visual inspection (\`9:16\` Golden Safe Box \`x ∈ [40, 910], y ∈ [220, 1380]\`).
+- \`npx make-pictures qa <CompositionId>\` — Run the hard Director QA Gate and render an Auto-Grid Contact-Sheet PNG (\`out/qa-<CompositionId>.png\`, covering 100% of scenes & sub-views) for visual inspection (\`9:16\` Golden Safe Box \`x ∈ [40, 910], y ∈ [220, 1380]\`).
 - \`npm run typecheck\` && \`npx make-pictures render <CompositionId>\` — Typecheck and render \`60 FPS\` MP4 mastered to \`-14 LUFS\`.
 
 ## Auto-Discovered Skills (\`.claude/skills/<skill>/SKILL.md\`)
@@ -558,7 +559,7 @@ export function syncBundledAiPluginToProject(
         {
           name: 'make-pictures',
           description: FALLBACK_PLUGIN_JSON.description,
-          version: '2.3.0',
+          version: '2.3.1',
         },
         null,
         2

@@ -377,9 +377,9 @@ export const WordByWordStage: React.FC<WordByWordStageProps> = ({
               alignItems: 'center',
               gap: 14,
               fontFamily: monoFontCss,
-              fontSize: isVertical ? 16 : 17,
+              fontSize: 18,
               fontWeight: 600,
-              letterSpacing: '0.14em',
+              letterSpacing: '0.12em',
               textTransform: 'uppercase',
               color: textSecondary,
             }}
@@ -553,9 +553,9 @@ export const WordByWordStage: React.FC<WordByWordStageProps> = ({
               justifyContent: 'space-between',
               alignItems: 'center',
               fontFamily: monoFontCss,
-              fontSize: 14,
+              fontSize: 18,
               fontWeight: 600,
-              letterSpacing: '0.16em',
+              letterSpacing: '0.12em',
               textTransform: 'uppercase',
               color: textSecondary,
             }}
@@ -664,9 +664,9 @@ export const WordByWordStage: React.FC<WordByWordStageProps> = ({
           <div
             style={{
               fontFamily: monoFontCss,
-              fontSize: isVertical ? 16 : 17,
+              fontSize: 18,
               fontWeight: 700,
-              letterSpacing: '0.12em',
+              letterSpacing: '0.1em',
               textTransform: 'uppercase',
               padding: '5px 12px',
               backgroundColor: studioStyle.palette.bgElevated,

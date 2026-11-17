@@ -31,9 +31,9 @@ export interface BrowserFrameProps extends FrameMediaProps {
 }
 
 const TOOLBAR_HEIGHT: Record<NonNullable<BrowserFrameProps['variant']>, number> = {
-  macos: 52,
-  arc: 46,
-  minimal: 36,
+  macos: 56,
+  arc: 50,
+  minimal: 42,
 };
 
 function parseAspectRatio(ar: string | number): number {
@@ -189,11 +189,11 @@ export const BrowserFrame: React.FC<BrowserFrameProps> = ({
         {title && variant === 'macos' && (
           <div
             style={{
-              fontSize: 14,
+              fontSize: 18,
               fontWeight: 600,
               color: mutedText,
               whiteSpace: 'nowrap',
-              maxWidth: 220,
+              maxWidth: 240,
               overflow: 'hidden',
               textOverflow: 'ellipsis',
             }}
@@ -209,7 +209,7 @@ export const BrowserFrame: React.FC<BrowserFrameProps> = ({
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8,
-                height: variant === 'minimal' ? 22 : 30,
+                height: variant === 'minimal' ? 28 : 34,
                 minWidth: Math.min(520, width * 0.42),
                 maxWidth: width * 0.6,
                 padding: '0 16px',
@@ -218,7 +218,7 @@ export const BrowserFrame: React.FC<BrowserFrameProps> = ({
                 border: `1px solid ${chromeBorder}`,
                 boxSizing: 'border-box',
                 fontFamily: monoFontCss,
-                fontSize: variant === 'minimal' ? 12 : 14,
+                fontSize: 18,
                 fontWeight: 500,
                 color: textColor,
                 justifyContent: 'center',

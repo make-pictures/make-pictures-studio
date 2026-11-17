@@ -87,7 +87,17 @@ Never place overlapping cutouts at identical or near-identical `z` coordinates:
 - Every custom shape drawn inside `draw(ctx, w, h)` must keep a clear margin of at least **`34–38 px`** (`SCENIC_CUTOUT_INNER_MARGIN_PX = 38`, satisfying `whiteBorderPx + lineWidth + 14 px`) on all 4 edges so the dilated die-cut border is never clipped flat.
 - Pass the 4th `maxWidth = boxWidth - 48` argument to every `ctx.fillText(text, x, y, maxWidth)` so longer Polish words never overflow.
 
-### 4. HMR Cache Invalidation (`cacheDeps`), Clean `f=0` & Determinism
+### 4. Safe Cutout Extraction for `ImageCutout3D` (`npx make-pictures cutout` — No White Thresholding!)
+- **NEVER apply global brightness/white thresholding** (`R > 245 && G > 245 && B > 245 => alpha = 0` or `colorkey=white`) when preparing product photos, silver/white hardware, or PDF illustrations for `<ImageCutout3D />` — global thresholding punches Swiss-cheese holes inside bright enclosures, keys, screens, and specular highlights!
+- Always extract transparent RGBA assets with:
+  ```bash
+  npx make-pictures cutout <source.pdf|photo.png> --out=productions/<slug>/assets/subject.png
+  ```
+  1. **Native PDF `/SMask` First:** Directly extracts embedded PDF `/Subtype /Image` XObject RGBA streams with their lossless `/SMask` alpha channel instead of rasterizing onto a flat white page.
+  2. **Exterior Border Flood-Fill:** For flat white-background bitmaps, floods connected background pixels starting **exclusively** from the 4 outer image edges (`x = 0, W - 1; y = 0, H - 1`) with `1–1.5 px` contact feathering, keeping 100% of interior bright pixels fully opaque (`alpha = 255`) and verifying zero interior holes (`detectInteriorAlphaHoles`).
+  3. **Mandatory Dark Checkerboard QA:** Always inspect the generated `*.qa-checkerboard.png` (`#0F172A` / `#1E293B` high-contrast checkerboard) with `read_file` before mounting `<ImageCutout3D />`.
+
+### 5. HMR Cache Invalidation (`cacheDeps`), Clean `f=0` & Determinism
 - Always list every dynamic prop/palette value read inside custom `draw(ctx)` in `cacheDeps={[...]}` (`ScenicCutoutMotifs` wire `cacheDeps` automatically).
 - Start entrances at `frame >= 2` (`CINEMATIC_SPRINGS.entrance`) so `frame === 0` renders pure `palette.bgCanvas`, and use `createSeededRandom(seed)` (zero `Math.random()`).
 

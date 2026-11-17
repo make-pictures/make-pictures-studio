@@ -101,8 +101,8 @@ export function computeRetroPcWindowLayout(options: {
     // Strictly inside 9:16 Golden Safe Box: x in [40, 910], y in [220, 1380]
     const windowLeft = 64;
     const windowWidth = Math.min(816, Math.max(420, 910 - windowLeft - 30));
-    const windowTop = 264;
-    const windowHeight = 1044;
+    const windowTop = 232;
+    const windowHeight = 1136;
     const titlebarHeight = 46;
     const addressBarHeight = 56;
     const statusBarHeight = 60;
@@ -129,13 +129,13 @@ export function computeRetroPcWindowLayout(options: {
       };
     }
 
-    const verticalPad = 46;
-    const minGapY = 92;
-    const maxCardH = 190;
+    const verticalPad = 24;
+    const minGapY = 68;
+    const maxCardH = 204;
     const rawCardH = Math.floor(
       (bodyHeight - verticalPad * 2 - (safeCount - 1) * minGapY) / safeCount
     );
-    const cardH = Math.max(132, Math.min(maxCardH, rawCardH));
+    const cardH = Math.max(168, Math.min(maxCardH, rawCardH));
     const gapY = Math.floor(
       (bodyHeight - verticalPad * 2 - safeCount * cardH) / (safeCount - 1)
     );
@@ -666,7 +666,7 @@ export const RetroPcWindowStage2D: React.FC<RetroPcWindowStage2DProps> = ({
             border: `1px solid ${inkBorder}`,
             borderRadius: chipRadius,
             fontFamily: displayFontCss,
-            fontSize: 15,
+            fontSize: 18,
             fontWeight: 700,
             letterSpacing: '0.02em',
             color: textPrimary,
@@ -701,7 +701,7 @@ export const RetroPcWindowStage2D: React.FC<RetroPcWindowStage2DProps> = ({
               backgroundColor: palette.bgSurface,
               border: `1px solid ${isResponseComplete ? phosphorColor : inkBorder}`,
               fontFamily: monoFontCss,
-              fontSize: 11.5,
+              fontSize: 18,
               fontWeight: 700,
               fontVariantNumeric: 'tabular-nums',
               color: isResponseComplete ? phosphorColor : accentPrimary,
@@ -773,9 +773,9 @@ export const RetroPcWindowStage2D: React.FC<RetroPcWindowStage2DProps> = ({
               backgroundColor: `${accentPrimary}22`,
               border: `1px solid ${accentPrimary}`,
               fontFamily: monoFontCss,
-              fontSize: 12,
+              fontSize: 18,
               fontWeight: 700,
-              letterSpacing: '0.06em',
+              letterSpacing: '0.05em',
               color: accentPrimary,
               flexShrink: 0,
             }}
@@ -785,7 +785,7 @@ export const RetroPcWindowStage2D: React.FC<RetroPcWindowStage2DProps> = ({
           <span
             style={{
               fontFamily: monoFontCss,
-              fontSize: 14.5,
+              fontSize: 18,
               fontWeight: 600,
               color: textPrimary,
               letterSpacing: '0.01em',
@@ -846,11 +846,11 @@ export const RetroPcWindowStage2D: React.FC<RetroPcWindowStage2DProps> = ({
             style={{
               marginLeft: 6,
               fontFamily: monoFontCss,
-              fontSize: 11.5,
+              fontSize: 18,
               fontWeight: 700,
               fontVariantNumeric: 'tabular-nums',
               color: isResponseComplete ? phosphorColor : textSecondary,
-              minWidth: 36,
+              minWidth: 46,
               textAlign: 'right',
             }}
           >
@@ -979,7 +979,7 @@ export const RetroPcWindowStage2D: React.FC<RetroPcWindowStage2DProps> = ({
                   textAnchor={layout.isVertical ? 'start' : 'middle'}
                   fill={segFill > 0.35 ? phosphorColor : textSecondary}
                   fontFamily={monoFontCss}
-                  fontSize={12}
+                  fontSize={18}
                   fontWeight={700}
                 >
                   +{toHop.latencyMs} ms
@@ -1099,9 +1099,9 @@ export const RetroPcWindowStage2D: React.FC<RetroPcWindowStage2DProps> = ({
                     backgroundColor: palette.bgSurface,
                     border: `1px solid ${cardHighlightColor}`,
                     fontFamily: monoFontCss,
-                    fontSize: 11,
+                    fontSize: 18,
                     fontWeight: 700,
-                    letterSpacing: '0.06em',
+                    letterSpacing: '0.05em',
                     textTransform: 'uppercase',
                     color: isHopReached ? cardHighlightColor : textSecondary,
                   }}
@@ -1115,7 +1115,7 @@ export const RetroPcWindowStage2D: React.FC<RetroPcWindowStage2DProps> = ({
                 <div
                   style={{
                     fontFamily: displayFontCss,
-                    fontSize: layout.isVertical ? 22 : 23,
+                    fontSize: layout.isVertical ? 24 : 25,
                     fontWeight: 700,
                     letterSpacing: `${typography.displayTrackingEm}em`,
                     color: textPrimary,
@@ -1127,11 +1127,11 @@ export const RetroPcWindowStage2D: React.FC<RetroPcWindowStage2DProps> = ({
                 <div
                   style={{
                     fontFamily: bodyFontCss,
-                    fontSize: 14,
+                    fontSize: 18,
                     fontWeight: 400,
                     color: textSecondary,
                     marginTop: 5,
-                    lineHeight: 1.35,
+                    lineHeight: 1.32,
                   }}
                 >
                   {hop.subtitle}
@@ -1173,7 +1173,7 @@ export const RetroPcWindowStage2D: React.FC<RetroPcWindowStage2DProps> = ({
                   <span
                     style={{
                       fontFamily: monoFontCss,
-                      fontSize: 11.5,
+                      fontSize: 18,
                       fontWeight: 600,
                       color: isHopReached ? textPrimary : textSecondary,
                     }}
@@ -1197,7 +1197,7 @@ export const RetroPcWindowStage2D: React.FC<RetroPcWindowStage2DProps> = ({
                 <span
                   style={{
                     fontFamily: monoFontCss,
-                    fontSize: 12,
+                    fontSize: 18,
                     fontWeight: 700,
                     fontVariantNumeric: 'tabular-nums',
                     color: isHopReached ? cardHighlightColor : textSecondary,
@@ -1246,9 +1246,9 @@ export const RetroPcWindowStage2D: React.FC<RetroPcWindowStage2DProps> = ({
             <span
               style={{
                 fontFamily: monoFontCss,
-                fontSize: 11,
+                fontSize: 18,
                 fontWeight: 700,
-                letterSpacing: '0.05em',
+                letterSpacing: '0.04em',
                 color: phosphorColor,
               }}
             >
@@ -1313,7 +1313,7 @@ export const RetroPcWindowStage2D: React.FC<RetroPcWindowStage2DProps> = ({
           <span
             style={{
               fontFamily: monoFontCss,
-              fontSize: 14.5,
+              fontSize: 18,
               fontWeight: 700,
               color: isResponseComplete ? phosphorColor : textSecondary,
               letterSpacing: '0.02em',
@@ -1329,7 +1329,7 @@ export const RetroPcWindowStage2D: React.FC<RetroPcWindowStage2DProps> = ({
         <span
           style={{
             fontFamily: monoFontCss,
-            fontSize: 12,
+            fontSize: 18,
             fontWeight: 700,
             fontVariantNumeric: 'tabular-nums',
             color: isResponseComplete ? textPrimary : textSecondary,

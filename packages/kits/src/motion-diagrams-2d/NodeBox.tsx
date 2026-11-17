@@ -17,6 +17,10 @@ import {
   useMotionDiagramFocus,
   type MotionDiagramFocusState,
 } from './MotionDiagramStage2D';
+import {
+  buildCubicBezierPath,
+  evaluateCubicBezierAngleDeg,
+} from './bezierGeometry';
 
 function useOptionalRemotionFrame(): number {
   const canUseRemotion = useContext(Internals.CanUseRemotionHooks);
@@ -232,7 +236,7 @@ export const FlowCurve: React.FC<FlowCurveProps> = ({
   color,
   activeFromFrame,
   packetSpeedFrames = 100,
-  packetCount = 2,
+  packetCount = 0,
   strokeWidth = 2.6,
   dashed = false,
   blocked = false,
@@ -252,20 +256,12 @@ export const FlowCurve: React.FC<FlowCurveProps> = ({
   const terminalFill = studioStyle.palette.bgSurface;
   const inkBorder = studioStyle.palette.inkBorder;
 
-  const dx = to.x - from.x;
-  const dy = to.y - from.y;
-  const p0 = from;
-  const p1 =
-    orientation === 'vertical'
-      ? { x: from.x + curveX, y: from.y + dy * 0.45 }
-      : { x: from.x + dx * 0.4, y: from.y + curveY };
-  const p2 =
-    orientation === 'vertical'
-      ? { x: to.x + curveX, y: to.y - dy * 0.45 }
-      : { x: from.x + dx * 0.6, y: to.y + curveY };
-  const p3 = to;
-
-  const d = `M ${p0.x} ${p0.y} C ${p1.x} ${p1.y}, ${p2.x} ${p2.y}, ${p3.x} ${p3.y}`;
+  const curve = buildCubicBezierPath(from, to, {
+    orientation,
+    curveX,
+    curveY,
+  });
+  const { p0, p1, p2, p3, d } = curve;
 
   const drawProgress = spring({
     frame: frame - effectiveStart,
@@ -275,40 +271,17 @@ export const FlowCurve: React.FC<FlowCurveProps> = ({
 
   if (drawProgress <= 0.01) return null;
 
-  const evalBezier = (t: number) => {
-    const u = 1 - t;
-    const x =
-      u * u * u * p0.x +
-      3 * u * u * t * p1.x +
-      3 * u * t * t * p2.x +
-      t * t * t * p3.x;
-    const y =
-      u * u * u * p0.y +
-      3 * u * u * t * p1.y +
-      3 * u * t * t * p2.y +
-      t * t * t * p3.y;
-    const tx =
-      3 * u * u * (p1.x - p0.x) +
-      6 * u * t * (p2.x - p1.x) +
-      3 * t * t * (p3.x - p2.x);
-    const ty =
-      3 * u * u * (p1.y - p0.y) +
-      6 * u * t * (p2.y - p1.y) +
-      3 * t * t * (p3.y - p2.y);
-    const deg = (Math.atan2(ty, tx) * 180) / Math.PI;
-    return { x, y, deg };
-  };
-
   const packets: Array<{ x: number; y: number; deg: number; alpha: number }> = [];
-  if (!blocked && frame >= effectiveStart + 8) {
+  if (!blocked && packetCount > 0 && frame >= effectiveStart + 8) {
     for (let i = 0; i < packetCount; i++) {
       const offset = (i / packetCount) * packetSpeedFrames;
       const elapsed = frame - (effectiveStart + 8) - offset;
       if (elapsed < 0) continue;
       const t = (elapsed % packetSpeedFrames) / packetSpeedFrames;
       const alpha = t < 0.1 ? t / 0.1 : t > 0.9 ? (1 - t) / 0.1 : 1;
-      const pt = evalBezier(t);
-      packets.push({ ...pt, alpha });
+      const pt = curve.pointAt(t);
+      const deg = evaluateCubicBezierAngleDeg(p0, p1, p2, p3, t, false);
+      packets.push({ x: pt.x, y: pt.y, deg, alpha });
     }
   }
 

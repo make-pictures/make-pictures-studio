@@ -19,11 +19,19 @@ export type BuiltinVisualKitId =
 
 export type VisualKitId = BuiltinVisualKitId | (string & {});
 
+export interface CompositionSubViewSegment {
+  id?: string;
+  /** Offset of the sub-view start relative to `scene.fromFrame` (in frames) */
+  fromOffsetFrames: number;
+  label?: string;
+}
+
 export interface CompositionSceneSegment {
   sceneId: string;
   fromFrame: number;
   durationInFrames: number;
   label?: string;
+  subViews?: CompositionSubViewSegment[];
 }
 
 export interface StudioCompositionEntry {

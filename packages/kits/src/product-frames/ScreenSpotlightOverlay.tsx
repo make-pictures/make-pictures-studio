@@ -163,7 +163,7 @@ export const ScreenSpotlightOverlay: React.FC<ScreenSpotlightOverlayProps> = ({
               border: `1px solid ${studioStyle.palette.inkBorder}`,
               color: '#FFFFFF',
               fontFamily: bodyFontCss,
-              fontSize: 17,
+              fontSize: 19,
               fontWeight: 700,
               letterSpacing: '-0.01em',
               whiteSpace: 'nowrap',

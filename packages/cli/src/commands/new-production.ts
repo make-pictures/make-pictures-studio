@@ -172,13 +172,14 @@ export function buildScaffoldProductionManifest(
     id: slug,
     title,
     fps: 60,
+    lang,
     scenes: [
       {
         id: `${slug}-intro`,
         title: isPl ? 'Scena 1 — Wprowadzenie' : 'Scene 1 — Opening Scene',
         component: slugToPascalCase(slug),
-        durationInSeconds: 4.2,
-        durationInFrames: 252,
+        durationInSeconds: 3.0,
+        durationInFrames: 180,
         voiceId,
         speaker: 'Narrator',
         voiceEffect: 'clean',
@@ -190,8 +191,8 @@ export function buildScaffoldProductionManifest(
         id: `${slug}-payoff`,
         title: isPl ? 'Scena 2 — Rozwinięcie' : 'Scene 2 — Core Insight',
         component: slugToPascalCase(slug),
-        durationInSeconds: 4.2,
-        durationInFrames: 252,
+        durationInSeconds: 3.0,
+        durationInFrames: 180,
         voiceId,
         speaker: kit === 'isometric-3d' ? 'Partner' : 'Narrator',
         voiceEffect: 'clean',
@@ -245,7 +246,7 @@ export function buildScaffoldPropsJson(
     secondaryColor: style.palette.accentSecondary,
     voiceoverVolume: 1.0,
     musicVolume: 0.25,
-    sfxVolume: 0.35,
+    sfxVolume: 0.22,
   };
 }
 
@@ -273,25 +274,26 @@ function buildAudioJsxBlock(): string {
             voiceoverManifest={VOICEOVER_MANIFEST}
             baseVolume={props.musicVolume}
             duckedVolume={Math.min(props.musicVolume * 0.34, 0.09)}
+            fadeOutFrames={90}
           />
         ) : null}
 
         <VoiceoverTrack
           voiceover={introVo}
-          fromFrame={12}
+          fromFrame={42}
           volume={props.voiceoverVolume}
         />
 
         <VoiceoverTrack
           voiceover={payoffVo}
-          fromFrame={360}
+          fromFrame={402}
           volume={props.voiceoverVolume}
         />
 
         {whooshSfx?.audioFile ? (
           <SoundCue
             src={staticFile(whooshSfx.audioFile)}
-            atFrame={8}
+            atFrame={38}
             durationSeconds={whooshSfx.durationSeconds}
             volume={props.sfxVolume}
           />
@@ -300,7 +302,7 @@ function buildAudioJsxBlock(): string {
         {popSfx?.audioFile ? (
           <SoundCue
             src={staticFile(popSfx.audioFile)}
-            atFrame={358}
+            atFrame={398}
             durationSeconds={popSfx.durationSeconds}
             volume={props.sfxVolume}
           />
@@ -352,8 +354,8 @@ import {
 ${schemaBlock}
 
 const DIALOGUE_SEGMENTS = [
-  { sceneId: '${slug}-intro', fromFrame: 12, durationInFrames: 252 },
-  { sceneId: '${slug}-payoff', fromFrame: 360, durationInFrames: 252 },
+  { sceneId: '${slug}-intro', fromFrame: 42, durationInFrames: 180 },
+  { sceneId: '${slug}-payoff', fromFrame: 402, durationInFrames: 180 },
 ];
 
 const IntroEditorialScene: React.FC<${pascalName}Props> = (props) => {
@@ -474,8 +476,8 @@ import {
 ${schemaBlock}
 
 const DIALOGUE_SEGMENTS = [
-  { sceneId: '${slug}-intro', fromFrame: 12, durationInFrames: 252 },
-  { sceneId: '${slug}-payoff', fromFrame: 360, durationInFrames: 252 },
+  { sceneId: '${slug}-intro', fromFrame: 42, durationInFrames: 180 },
+  { sceneId: '${slug}-payoff', fromFrame: 402, durationInFrames: 180 },
 ];
 
 const IntroKineticScene: React.FC<${pascalName}Props> = (props) => (
@@ -596,8 +598,8 @@ import {
 ${schemaBlock}
 
 const DIALOGUE_SEGMENTS = [
-  { sceneId: '${slug}-intro', fromFrame: 12, durationInFrames: 252 },
-  { sceneId: '${slug}-payoff', fromFrame: 360, durationInFrames: 252 },
+  { sceneId: '${slug}-intro', fromFrame: 42, durationInFrames: 180 },
+  { sceneId: '${slug}-payoff', fromFrame: 402, durationInFrames: 180 },
 ];
 
 const IntroDataScene: React.FC<${pascalName}Props> = (props) => {
@@ -763,8 +765,8 @@ import {
 ${schemaBlock}
 
 const DIALOGUE_SEGMENTS = [
-  { sceneId: '${slug}-intro', fromFrame: 12, durationInFrames: 252 },
-  { sceneId: '${slug}-payoff', fromFrame: 360, durationInFrames: 252 },
+  { sceneId: '${slug}-intro', fromFrame: 42, durationInFrames: 180 },
+  { sceneId: '${slug}-payoff', fromFrame: 402, durationInFrames: 180 },
 ];
 
 const RETRO_HOPS: ReadonlyArray<RetroPcHopSpec> = [
@@ -922,8 +924,8 @@ import {
 ${schemaBlock}
 
 const DIALOGUE_SEGMENTS = [
-  { sceneId: '${slug}-intro', fromFrame: 12, durationInFrames: 252 },
-  { sceneId: '${slug}-payoff', fromFrame: 360, durationInFrames: 252 },
+  { sceneId: '${slug}-intro', fromFrame: 42, durationInFrames: 180 },
+  { sceneId: '${slug}-payoff', fromFrame: 402, durationInFrames: 180 },
 ];
 
 const HORIZONTAL_NODES = {
@@ -1157,8 +1159,8 @@ import {
 ${schemaBlock}
 
 const DIALOGUE_SEGMENTS = [
-  { sceneId: '${slug}-intro', fromFrame: 12, durationInFrames: 252 },
-  { sceneId: '${slug}-payoff', fromFrame: 360, durationInFrames: 252 },
+  { sceneId: '${slug}-intro', fromFrame: 42, durationInFrames: 180 },
+  { sceneId: '${slug}-payoff', fromFrame: 402, durationInFrames: 180 },
 ];
 
 const DioramaLandscapeScene: React.FC<${pascalName}Props> = (props) => {
@@ -1446,8 +1448,8 @@ import {
 ${schemaBlock}
 
 const DIALOGUE_SEGMENTS = [
-  { sceneId: '${slug}-intro', fromFrame: 12, durationInFrames: 252 },
-  { sceneId: '${slug}-payoff', fromFrame: 360, durationInFrames: 252 },
+  { sceneId: '${slug}-intro', fromFrame: 42, durationInFrames: 180 },
+  { sceneId: '${slug}-payoff', fromFrame: 402, durationInFrames: 180 },
 ];
 
 const PodcastStudioTurn: React.FC<
@@ -1596,7 +1598,7 @@ const PodcastStudioTurn: React.FC<
           style={{
             position: 'relative',
             fontFamily: formatFontFamilyCss(style.typography.monoFont, 'mono'),
-            fontSize: 12,
+            fontSize: 18,
             fontWeight: 700,
             letterSpacing: '0.08em',
             textTransform: 'uppercase',
@@ -1695,8 +1697,8 @@ import {
 ${schemaBlock}
 
 const DIALOGUE_SEGMENTS = [
-  { sceneId: '${slug}-intro', fromFrame: 12, durationInFrames: 252 },
-  { sceneId: '${slug}-payoff', fromFrame: 360, durationInFrames: 252 },
+  { sceneId: '${slug}-intro', fromFrame: 42, durationInFrames: 180 },
+  { sceneId: '${slug}-payoff', fromFrame: 402, durationInFrames: 180 },
 ];
 
 const IntroVectorScene: React.FC<${pascalName}Props> = (props) => {
@@ -1834,20 +1836,20 @@ export default defineProduction({
       sceneTimeline: [
         {
           sceneId: '${slug}-intro',
-          fromFrame: 12,
-          durationInFrames: 252,
+          fromFrame: 42,
+          durationInFrames: 180,
           label: '1. Intro',
         },
         {
           sceneId: '${slug}-payoff',
-          fromFrame: 360,
-          durationInFrames: 252,
+          fromFrame: 402,
+          durationInFrames: 180,
           label: '2. Payoff',
         },
       ],
       sfxTimeline: [
-        { sfxId: 'whoosh-open', fromFrame: 8, label: 'Opening Whoosh' },
-        { sfxId: 'card-pop', fromFrame: 358, label: 'Card Pop' },
+        { sfxId: 'whoosh-open', fromFrame: 38, label: 'Opening Whoosh' },
+        { sfxId: 'card-pop', fromFrame: 398, label: 'Card Pop' },
       ],
       cameraTimeline: [
         { shotLabel: 'Establishing Wide', fromFrame: 0, durationInFrames: 360 },

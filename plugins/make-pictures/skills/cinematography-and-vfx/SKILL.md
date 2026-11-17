@@ -25,20 +25,29 @@ import {
   ContinuousSceneFlow,
   DIRECTOR_PACING_BUDGET,
   OpticalCrossDissolve,
+  SceneSubViewDissolve,
   ScenicBackdropLayers,
   computeContinuousSceneWindows,
+  computeSceneTimingFromVoiceover,
   interpolateStylePresets,
   useFocalStagger,
   type ContinuousSceneSpec,
+  type SceneSubViewDissolveProps,
 } from '@make-pictures/core';
 ```
 
-### `DIRECTOR_PACING_BUDGET`, `CINEMATIC_SPRINGS` & `useFocalStagger`
-- **`DIRECTOR_PACING_BUDGET`** *(enforced by the hard `npx make-pictures qa` Director Gate on `origin: 'production'`)*:
+### `DIRECTOR_PACING_BUDGET`, `computeSceneTimingFromVoiceover` & `<SceneSubViewDissolve />`
+- **`DIRECTOR_PACING_BUDGET` & `computeSceneTimingFromVoiceover(voiceoverDurationSeconds, { isFinalScene })`** *(enforced by the hard `npx make-pictures qa` Director Gate on `origin: 'production'`)*:
   - `minSceneDurationFrames: 270` (`4.5 s` @ `60 FPS` minimum per visual scene),
-  - `minSettleHoldFrames: 45` (`0.75 s` calm breathing hold; `qa` requires `>= 36` frames after speech),
+  - `preSpeechSettleFrames: 42` (`~0.70 s` pre-speech settle; hard minimum `minPreSpeechSettleFrames: 36`),
+  - `postSpeechHoldFrames: 96` (`~1.60 s` post-speech breathing hold; hard minimum `minPostSpeechHoldFrames: 90`),
+  - `finalScenePostHoldFrames: 144` (`~2.40 s` outro hold on final scene; hard minimum `minFinalScenePostHoldFrames: 132`),
+  - `maxSubViewsPerScene: 2` (`<= 2` spacious sub-views per scene; `3+` sub-views are banned),
   - `maxWordsPerSecond: 2.8`,
   - `defaultCrossDissolveFrames: 54` (`0.9 s`).
+- **`<SceneSubViewDissolve firstView={...} secondView={...} switchAtFrame={...} dissolveFrames={54} curve="sin" />`:** Declaratively transitions between at most `2` spacious sub-views (`View A → View B`) inside one scene over `>= 48` frames using `Easing.inOut(Easing.sin)` or `Easing.inOut(Easing.cubic)` while preserving Clean Frame `0`. Never switch `3+` sub-views inside one scene — split them into separate scenes in `production.json`.
+- **Single Top-Level Backdrop & Calm Camera Profile:** Mount `<StyleProvider style={styleId} renderBackdrop>` **once** at the root of the composition (`cameraHandheld <= 0.015` on presentation/editorial presets). Reserve `transition: 'whip'` and `<SceneTransition>` strictly for short (`15–30 s`) `9:16` `brutalist-poster` social reels — never use them in product explainers, essays, or documentaries.
+- **Panoramic `<DirectorCamera2D />` Ribbon Instead of `3×2` Grids:** When narrating 4–6 categories or audiences, arrange large `EditorialMediaCard` frames (`~660×480 px`, `cy ± 20 px`) along a horizontal `<DirectorCamera2D />` ribbon (or use `<EditorialPanoramaTrack />`) with `'glide'` + Ken Burns instead of a static `3×2` blinking tile matrix.
 - **`CINEMATIC_SPRINGS`:** High-mass, critically damped (`damping: 200`) motion curves that settle gracefully in `~0.85 s` without bounce:
   - `entrance: { mass: 1.45, damping: 200, stiffness: 58 }`
   - `drift: { mass: 1.8, damping: 200, stiffness: 34 }`

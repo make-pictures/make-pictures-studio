@@ -11,6 +11,7 @@ import {
   ChapterTitleCard,
   EditorialDeskStage,
   EditorialMediaCard,
+  EditorialPanoramaTrack,
   HighlightQuoteStage,
   SplitStoryLayout,
   computeSplitStoryVerticalBounds,
@@ -19,10 +20,14 @@ import {
 import {
   AnnotatedCallout2D,
   ComparisonSplit2D,
+  HorizontalFeatureGrid2x2,
+  PinnedMediaStage,
   StoryCard2D,
   VectorSceneStage2D,
+  computeHorizontalFeatureGridBounds,
   computeSafeSplitBounds,
 } from '../../kits/src/vector-scene-2d';
+import * as productFrames from '../../kits/src/product-frames';
 import * as kitsRoot from '../../kits/src/index';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -110,9 +115,12 @@ test('narrative kit source files enforce Clean Frame 0, zero Math.random(), and 
   const files = [
     'editorial-collage/ChapterTitleCard.tsx',
     'editorial-collage/EditorialMediaCard.tsx',
+    'editorial-collage/EditorialPanoramaTrack.tsx',
     'editorial-collage/HighlightQuoteStage.tsx',
     'editorial-collage/SplitStoryLayout.tsx',
     'vector-scene-2d/StoryCard2D.tsx',
+    'vector-scene-2d/HorizontalFeatureGrid2x2.tsx',
+    'vector-scene-2d/PinnedMediaStage.tsx',
     'vector-scene-2d/AnnotatedCallout2D.tsx',
     'vector-scene-2d/ComparisonSplit2D.tsx',
   ];
@@ -550,4 +558,207 @@ test('VectorSceneStage2D, engraved StoryCard2D medallion, elbow AnnotatedCallout
     assert.match(splitBoth, /data-comparison-rack="both"/);
     assert.doesNotMatch(splitBoth, /(?:^|;)filter:blur\(/);
   }
+});
+
+test('StoryCard2D enforces >= 18px floor & centered auto-height, HorizontalFeatureGrid2x2, EditorialPanoramaTrack, and PinnedMediaStage (Δx = 0.00px) render cleanly', () => {
+  assert.equal(typeof HorizontalFeatureGrid2x2, 'function');
+  assert.equal(typeof EditorialPanoramaTrack, 'function');
+  assert.equal(typeof PinnedMediaStage, 'function');
+  assert.equal(kitsRoot.HorizontalFeatureGrid2x2, HorizontalFeatureGrid2x2);
+  assert.equal(kitsRoot.EditorialPanoramaTrack, EditorialPanoramaTrack);
+  assert.equal(kitsRoot.PinnedMediaStage, PinnedMediaStage);
+  assert.equal(productFrames.PinnedMediaStage, PinnedMediaStage);
+
+  // 1. StoryCard2D defaults: title 28px, subtitle 20px, badge 18px, justifyContent: center, height: auto, border-box
+  const StoryProbe: React.FC = () =>
+    React.createElement(
+      StyleProvider,
+      { style: 'minimal-product' },
+      React.createElement(StoryCard2D, {
+        title: 'Pamięć podręczna na brzegu sieci',
+        subtitle: 'Skraca czas odpowiedzi aplikacji poniżej dwudziestu milisekund.',
+        badge: 'Seria 200',
+        startFrame: 2,
+      })
+    );
+  const storyHtml = renderToStaticMarkup(
+    React.createElement(Thumbnail, {
+      component: StoryProbe,
+      compositionWidth: 1920,
+      compositionHeight: 1080,
+      durationInFrames: 90,
+      fps: 60,
+      frameToDisplay: 40,
+    })
+  );
+  assert.match(storyHtml, /font-size:28px/);
+  assert.match(storyHtml, /font-size:20px/);
+  assert.match(storyHtml, /font-size:18px/);
+  assert.match(storyHtml, /justify-content:center/);
+  assert.match(storyHtml, /height:auto/);
+  assert.match(storyHtml, /box-sizing:border-box/);
+  assert.doesNotMatch(storyHtml, /justify-content:space-between/);
+  assert.doesNotMatch(storyHtml, /font-size:1[0-7]px/);
+
+  // 2. HorizontalFeatureGrid2x2: 16:9 2x2 grid & 9:16 Golden Safe Box column
+  const vertGridBounds = computeHorizontalFeatureGridBounds(1080, 1920);
+  assert.equal(vertGridBounds.isVertical, true);
+  assert.ok(vertGridBounds.left >= 40);
+  assert.ok(vertGridBounds.left + vertGridBounds.width <= 910);
+  assert.ok(vertGridBounds.top >= 220);
+  assert.ok(vertGridBounds.top + vertGridBounds.maxHeight <= 1380);
+
+  const GridProbe: React.FC = () =>
+    React.createElement(
+      StyleProvider,
+      { style: 'minimal-product' },
+      React.createElement(HorizontalFeatureGrid2x2, {
+        startFrame: 2,
+        items: [
+          { id: 'f1', title: 'Szybki zapis', sentence: 'Zapisuje strumień zdarzeń bez blokowania wątków.' },
+          { id: 'f2', title: 'Czysta telemetria', sentence: 'Pokazuje wąskie gardła zapytań na jednym wykresie.' },
+          { id: 'f3', title: 'Bezpieczne klucze', sentence: 'Izoluje sekrety środowiskowe poza kodem aplikacji.' },
+          { id: 'f4', title: 'Płynne wdrożenia', sentence: 'Przełącza ruch użytkowników bez przerwy w działaniu.' },
+        ],
+      })
+    );
+
+  const gridF0 = renderToStaticMarkup(
+    React.createElement(Thumbnail, {
+      component: GridProbe,
+      compositionWidth: 1920,
+      compositionHeight: 1080,
+      durationInFrames: 90,
+      fps: 60,
+      frameToDisplay: 0,
+    })
+  );
+  assert.doesNotMatch(gridF0, /Szybki zapis/);
+
+  const gridF45 = renderToStaticMarkup(
+    React.createElement(Thumbnail, {
+      component: GridProbe,
+      compositionWidth: 1920,
+      compositionHeight: 1080,
+      durationInFrames: 90,
+      fps: 60,
+      frameToDisplay: 45,
+    })
+  );
+  assert.match(gridF45, /grid-template-columns:64px 1fr/);
+  assert.match(gridF45, /font-size:28px/);
+  assert.match(gridF45, /font-size:20px/);
+  assert.match(gridF45, /Szybki zapis/);
+  assert.match(gridF45, /Płynne wdrożenia/);
+
+  // 3. EditorialPanoramaTrack: Clean Frame 0 + panoramic DirectorCamera2D Ken Burns ribbon
+  const PanoramaProbe: React.FC = () =>
+    React.createElement(
+      StyleProvider,
+      { style: 'editorial-press' },
+      React.createElement(EditorialPanoramaTrack, {
+        startFrame: 2,
+        durationInFrames: 360,
+        items: [
+          { id: 'p1', title: 'Studia projektowe', sentence: 'Spójny kierunek plastyczny każdej kampanii.' },
+          { id: 'p2', title: 'Redakcje prasowe', sentence: 'Czytelne mapy i wykresy w tempie narracji.' },
+          { id: 'p3', title: 'Zespoły inżynieryjne', sentence: 'Przejrzysta architektura systemów bez szumu.' },
+          { id: 'p4', title: 'Uczelnie wyższe', sentence: 'Wykłady wizualne łatwe do przyswojenia.' },
+        ],
+      })
+    );
+
+  const panoF0 = renderToStaticMarkup(
+    React.createElement(Thumbnail, {
+      component: PanoramaProbe,
+      compositionWidth: 1920,
+      compositionHeight: 1080,
+      durationInFrames: 360,
+      fps: 60,
+      frameToDisplay: 0,
+    })
+  );
+  assert.doesNotMatch(panoF0, /Studia projektowe/);
+
+  const panoF120 = renderToStaticMarkup(
+    React.createElement(Thumbnail, {
+      component: PanoramaProbe,
+      compositionWidth: 1920,
+      compositionHeight: 1080,
+      durationInFrames: 360,
+      fps: 60,
+      frameToDisplay: 120,
+    })
+  );
+  assert.match(panoF120, /data-editorial-panorama="true"/);
+  assert.match(panoF120, /Studia projektowe/);
+  assert.match(panoF120, /Uczelnie wyższe/);
+
+  // 9:16 vertical mode on EditorialPanoramaTrack uses compact vertical slot aperture without overlapping cards
+  const panoVert = renderToStaticMarkup(
+    React.createElement(Thumbnail, {
+      component: PanoramaProbe,
+      compositionWidth: 1080,
+      compositionHeight: 1920,
+      durationInFrames: 360,
+      fps: 60,
+      frameToDisplay: 120,
+    })
+  );
+  assert.match(panoVert, /aspect-ratio:16 \/ 8\.2/);
+  assert.match(panoVert, /Studia projektowe/);
+  assert.doesNotMatch(panoVert, /display:none/);
+
+  // 4. PinnedMediaStage: exact aspectRatio wrapper + 0x0 anchor + symmetric [-240, +240] label (Δx = 0.00px)
+  const PinProbe: React.FC = () =>
+    React.createElement(
+      StyleProvider,
+      { style: 'minimal-product' },
+      React.createElement(PinnedMediaStage, {
+        src: 'data:image/gif;base64,R0lGODlhAQABAAAAACwAAAAAAQABAAA=',
+        sourceWidth: 1600,
+        sourceHeight: 1000,
+        startFrame: 2,
+        pins: [
+          {
+            id: 'usb-port',
+            cx: 400,
+            cy: 500,
+            label: 'Zasilanie i obraz jednym przewodem',
+            placement: 'top',
+            ringRadiusPx: 24,
+            startFrame: 6,
+          },
+        ],
+      })
+    );
+
+  const pinF0 = renderToStaticMarkup(
+    React.createElement(Thumbnail, {
+      component: PinProbe,
+      compositionWidth: 1920,
+      compositionHeight: 1080,
+      durationInFrames: 90,
+      fps: 60,
+      frameToDisplay: 0,
+    })
+  );
+  assert.doesNotMatch(pinF0, /Zasilanie i obraz/);
+
+  const pinF40 = renderToStaticMarkup(
+    React.createElement(Thumbnail, {
+      component: PinProbe,
+      compositionWidth: 1920,
+      compositionHeight: 1080,
+      durationInFrames: 90,
+      fps: 60,
+      frameToDisplay: 40,
+    })
+  );
+  assert.match(pinF40, /aspect-ratio:1600 \/ 1000/);
+  assert.match(pinF40, /left:25%;top:50%;width:0;height:0/);
+  assert.match(pinF40, /left:-24px;top:-24px;width:48px;height:48px/);
+  assert.match(pinF40, /left:-240px;width:480px/);
+  assert.match(pinF40, /font-size:19px/);
+  assert.match(pinF40, /Zasilanie i obraz jednym przewodem/);
 });

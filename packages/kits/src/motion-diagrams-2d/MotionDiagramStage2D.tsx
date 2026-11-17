@@ -238,7 +238,7 @@ export const MotionDiagramStage2D: React.FC<MotionDiagramStage2DProps> = ({
             border: `1px solid ${studioStyle.palette.inkBorder}`,
             borderLeft: `3px solid ${studioStyle.palette.accentPrimary}`,
             fontFamily: monoFontCss,
-            fontSize: 13,
+            fontSize: 18,
             fontWeight: 700,
             letterSpacing: '0.08em',
             color: studioStyle.palette.textSecondary,

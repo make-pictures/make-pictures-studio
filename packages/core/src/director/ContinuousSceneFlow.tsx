@@ -1,5 +1,11 @@
 import React, { useMemo } from 'react';
-import { AbsoluteFill, Easing, Sequence, useCurrentFrame } from 'remotion';
+import {
+  AbsoluteFill,
+  Easing,
+  Sequence,
+  interpolate,
+  useCurrentFrame,
+} from 'remotion';
 import { useStudioStyle } from '../style';
 import { DIRECTOR_PACING_BUDGET } from './pacing';
 
@@ -418,6 +424,54 @@ export const ContinuousSceneFlow: React.FC<ContinuousSceneFlowProps> = ({
             />
           );
         })}
+    </AbsoluteFill>
+  );
+};
+
+export interface SceneSubViewDissolveProps {
+  firstView: React.ReactNode;
+  secondView: React.ReactNode;
+  /** Local scene frame at the midpoint of the A -> B crossfade */
+  switchAtFrame: number;
+  /** Crossfade window length in frames (default 54, clamped to >= 48) */
+  dissolveFrames?: number;
+  curve?: 'sin' | 'cubic';
+}
+
+export const SceneSubViewDissolve: React.FC<SceneSubViewDissolveProps> = ({
+  firstView,
+  secondView,
+  switchAtFrame,
+  dissolveFrames = 54,
+  curve = 'sin',
+}) => {
+  const frame = useCurrentFrame();
+  if (frame <= 0) return null;
+
+  const span = Math.max(48, dissolveFrames);
+  const half = span / 2;
+  const easingFn =
+    curve === 'cubic' ? Easing.inOut(Easing.cubic) : Easing.inOut(Easing.sin);
+
+  const t = interpolate(
+    frame,
+    [switchAtFrame - half, switchAtFrame + half],
+    [0, 1],
+    {
+      easing: easingFn,
+      extrapolateLeft: 'clamp',
+      extrapolateRight: 'clamp',
+    }
+  );
+
+  return (
+    <AbsoluteFill>
+      {t < 1 && (
+        <AbsoluteFill style={{ opacity: 1 - t }}>{firstView}</AbsoluteFill>
+      )}
+      {t > 0 && (
+        <AbsoluteFill style={{ opacity: t }}>{secondView}</AbsoluteFill>
+      )}
     </AbsoluteFill>
   );
 };

@@ -417,7 +417,7 @@ export const MetricComparisonCard: React.FC<MetricComparisonCardProps> = ({
           style={{
             fontFamily: monoFontCss,
             fontVariantNumeric: 'tabular-nums',
-            fontSize: 16,
+            fontSize: 18,
             fontWeight: 800,
             letterSpacing: '0.06em',
             padding: '5px 12px',
@@ -490,8 +490,8 @@ export const MetricComparisonCard: React.FC<MetricComparisonCardProps> = ({
               gap: 6,
               opacity: badgePop,
               fontFamily: monoFontCss,
-              fontSize: 12,
-              letterSpacing: '0.14em',
+              fontSize: 18,
+              letterSpacing: '0.1em',
               color: textSecondary,
             }}
           >
@@ -554,7 +554,7 @@ export const MetricComparisonCard: React.FC<MetricComparisonCardProps> = ({
               alignItems: 'baseline',
               fontFamily: monoFontCss,
               fontVariantNumeric: 'tabular-nums',
-              fontSize: 16,
+              fontSize: 18,
             }}
           >
             <span style={{ color: textSecondary }}>

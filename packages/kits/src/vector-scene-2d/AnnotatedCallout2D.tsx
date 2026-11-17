@@ -188,9 +188,9 @@ export const AnnotatedCallout2D: React.FC<AnnotatedCallout2DProps> = ({
           <span
             style={{
               fontFamily: monoFont,
-              fontSize: 12,
+              fontSize: 18,
               fontWeight: 700,
-              letterSpacing: '0.14em',
+              letterSpacing: '0.1em',
               color: accent,
             }}
           >
@@ -201,7 +201,7 @@ export const AnnotatedCallout2D: React.FC<AnnotatedCallout2DProps> = ({
         <span
           style={{
             fontFamily: bodyFont,
-            fontSize: 21,
+            fontSize: 22,
             fontWeight: 700,
             lineHeight: 1.25,
             color: style.palette.textPrimary,
@@ -214,7 +214,7 @@ export const AnnotatedCallout2D: React.FC<AnnotatedCallout2DProps> = ({
           <span
             style={{
               fontFamily: bodyFont,
-              fontSize: 16,
+              fontSize: 19,
               lineHeight: 1.3,
               color: style.palette.textSecondary,
             }}

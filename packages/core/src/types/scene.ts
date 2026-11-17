@@ -127,6 +127,7 @@ export interface ProductionManifest {
   id: string;
   title: string;
   fps: number;
+  lang?: 'pl' | 'en';
   scenes: SceneDefinition[];
   sfx?: SfxAssetSpec[];
   score?: MusicScoreSpec;

@@ -117,8 +117,9 @@ Calibrated `240°` SVG degree-tick instrument dials (`mode="rings"`, default, `d
 
 ---
 
-## Design & Director QA Guardrails
+## Design, 1080p Legibility (`>= 18 px`) & Director QA Guardrails
 
-1. **Clean Frame `0`:** Keep `startFrame >= 2` and wrap scenes in `<DataStoryStage2D renderBaseFill={false}>` or `<OpticalStage2D startFrame={2}>` so `frame === 0` stays `100%` uniform `palette.bgCanvas`.
-2. **Calm Pacing (`>= 4.5s` Scenes & `<= 2.8 words/s`):** Compose data and kinetic acts inside `<ContinuousSceneFlow crossDissolveFrames={48} />` with at least `270` frames (`4.5s`) per scene and `>= 45` frames (`0.75s`) of calm settle hold after narration.
-3. **Polish Sentence Case (`latin-ext`):** Write labels in *Sentence case* (`Czas odpowiedzi serwera`, never `Czas Odpowiedzi Serwera`).
+1. **Clean Frame `0`:** Keep `startFrame >= 2` and wrap scenes in `<DataStoryStage2D renderBaseFill={false}>` or `<OpticalStage2D startFrame={2}>` so `frame === 0` stays `100%` uniform `palette.bgCanvas` (`0.00` RGB variance).
+2. **Hard `>= 18–19 px` 1080p Typography Floor & `tabular-nums` (`TYPOGRAPHY_FLOOR_1080P`):** Every axis label, milestone badge, and caption on `1920×1080` / `1080×1920` must render at **`>= 18–19 px`** (strictly zero `10–14 px` micro-eyebrows or corner stamps). Primary KPI metrics render at **`64–96 px`** with mandatory `fontVariantNumeric: 'tabular-nums'`, and charts/counters should occupy **`>= 60%`** of their container with `boxSizing: 'border-box'` and zero `space-between` vertical voids.
+3. **Calm Pacing & Breathing Room (`computeSceneTimingFromVoiceover`):** Compose data and kinetic acts inside `<ContinuousSceneFlow crossDissolveFrames={54} />` (`>= 270` frames / `4.5s` per scene, `<= 2.8` words/s) with **`~42` frames (`0.7s`)** pre-speech settle, **`90–102` frames (`1.5–1.7s`)** post-speech hold, and **`132–150` frames (`2.2–2.5s`)** outro hold on the closing scene.
+4. **Polish Sentence Case (`latin-ext`):** Write labels in *Sentence case* (`Czas odpowiedzi serwera`, never `Czas Odpowiedzi Serwera`).

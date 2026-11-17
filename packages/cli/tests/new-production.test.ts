@@ -152,13 +152,13 @@ test('all 7 new-production kit scaffolds (PL & EN) generate 720-frame Continuous
           sceneTimeline: [
             {
               sceneId: `${slug}-intro`,
-              fromFrame: 12,
-              durationInFrames: 252,
+              fromFrame: 42,
+              durationInFrames: 180,
             },
             {
               sceneId: `${slug}-payoff`,
-              fromFrame: 360,
-              durationInFrames: 252,
+              fromFrame: 402,
+              durationInFrames: 180,
             },
           ],
         });
@@ -219,13 +219,13 @@ test('all 7 create-make-pictures starter kits generate 720-frame HelloStudio cap
         sceneTimeline: [
           {
             sceneId: 'hello-studio-intro',
-            fromFrame: 12,
-            durationInFrames: 252,
+            fromFrame: 42,
+            durationInFrames: 180,
           },
           {
             sceneId: 'hello-studio-payoff',
-            fromFrame: 360,
-            durationInFrames: 252,
+            fromFrame: 402,
+            durationInFrames: 180,
           },
         ],
       });
@@ -313,13 +313,13 @@ test('--space=2d/2.5d/3d scaffolds (including --style=retro-pc, paper-diorama-3d
           sceneTimeline: [
             {
               sceneId: `${slug}-intro`,
-              fromFrame: 12,
-              durationInFrames: 252,
+              fromFrame: 42,
+              durationInFrames: 180,
             },
             {
               sceneId: `${slug}-payoff`,
-              fromFrame: 360,
-              durationInFrames: 252,
+              fromFrame: 402,
+              durationInFrames: 180,
             },
           ],
         });

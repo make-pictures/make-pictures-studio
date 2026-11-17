@@ -1,11 +1,23 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import dotenv from 'dotenv';
+import {
+  BUILT_IN_STYLES,
+  isBuiltInStyleId,
+  type StylePreset,
+} from '../../../core/src/style/presets';
+import { loadWorkspaceCustomStyles } from './styles';
+import { resolveWorkspaceContext } from './workspace-paths';
+
+export const NO_RASTER_TEXT_GUARD_CLAUSE =
+  'Strictly no text, no letters, no typography, no signage, no numbers, no UI labels, no watermarks, clean blank surfaces.';
 
 export interface GenerateImageCommandOptions {
   rootDir?: string;
   cwd?: string;
+  dir?: string;
   prompt: string;
+  style?: string;
   outPath: string;
   aspectRatio?: '1:1' | '16:9' | '9:16' | '4:3' | '3:4';
   model?: string;
@@ -32,16 +44,58 @@ interface GeminiGenerateContentResponse {
   };
 }
 
+function resolveImageStylePreset(
+  studioDir: string,
+  styleId?: string
+): StylePreset | undefined {
+  if (!styleId || !styleId.trim()) return undefined;
+  const trimmed = styleId.trim();
+  const { styles: customStyles } = loadWorkspaceCustomStyles(studioDir);
+  const customHit = customStyles.find((s) => s.id === trimmed);
+  if (customHit) return customHit;
+  if (isBuiltInStyleId(trimmed)) {
+    return BUILT_IN_STYLES[trimmed];
+  }
+  throw new Error(
+    `Unknown --style "${trimmed}". Run \`npx make-pictures styles\` to list available built-in and custom styles.`
+  );
+}
+
+export function buildStyledImagePrompt(
+  prompt: string,
+  style?: StylePreset
+): string {
+  const cleanSubject = prompt.trim().replace(/\s+/g, ' ');
+  if (!style) {
+    return `${cleanSubject}. ${NO_RASTER_TEXT_GUARD_CLAUSE}`;
+  }
+
+  const worldDescriptor =
+    style.artWorld === 'editorial-gallery'
+      ? `Editorial gallery illustration (${style.name}) on warm textured surface (${style.palette.bgCanvas}) with controlled accents (${style.palette.accentPrimary}, ${style.palette.accentSecondary}) and directional window light`
+      : style.artWorld === 'illustrative'
+        ? `Tactile illustrative craft (${style.name}) with soft diffused studio lighting, harmonious palette (${style.palette.bgCanvas}, ${style.palette.accentPrimary}, ${style.palette.accentSecondary})`
+        : `Clean studio atelier render (${style.name}) with crisp softbox lighting, refined material surfaces (${style.palette.bgCanvas}, ${style.palette.bgSurface}), and subtle accents (${style.palette.accentPrimary})`;
+
+  return `${worldDescriptor}. Subject: ${cleanSubject}. ${NO_RASTER_TEXT_GUARD_CLAUSE}`;
+}
+
 /**
  * Optional visual asset generator calling Gemini `gemini-2.5-flash-image` / Imagen REST API
  * when `GEMINI_API_KEY` is configured in `.env.local`.
  */
 export async function runGenerateImageCommand(
   options: GenerateImageCommandOptions
-): Promise<{ generated: boolean; outputPath?: string }> {
-  const rootDir = path.resolve(options.cwd ?? options.rootDir ?? process.cwd());
+): Promise<{ generated: boolean; outputPath?: string; finalPrompt: string }> {
+  const { rootDir, studioDir } = resolveWorkspaceContext({
+    cwd: options.cwd ?? options.rootDir,
+    dir: options.dir,
+  });
   dotenv.config({ path: path.join(rootDir, '.env.local') });
   dotenv.config({ path: path.join(rootDir, '.env') });
+
+  const resolvedStyle = resolveImageStylePreset(studioDir, options.style);
+  const finalPrompt = buildStyledImagePrompt(options.prompt, resolvedStyle);
 
   const apiKey = process.env.GEMINI_API_KEY?.trim();
 
@@ -60,7 +114,7 @@ export async function runGenerateImageCommand(
     console.log(
       `   2. Re-run: npx make-pictures image "${options.prompt}" --out=${options.outPath}`
     );
-    return { generated: false };
+    return { generated: false, finalPrompt };
   }
 
   const model = options.model || 'gemini-2.5-flash-image';
@@ -68,7 +122,9 @@ export async function runGenerateImageCommand(
   fs.mkdirSync(path.dirname(resolvedOut), { recursive: true });
 
   console.log(
-    `🎨 Generating image with ${model} → ${path.relative(rootDir, resolvedOut)}…`
+    `🎨 Generating image with ${model}${
+      resolvedStyle ? ` (style: ${resolvedStyle.id})` : ''
+    } → ${path.relative(rootDir, resolvedOut)}…`
   );
 
   const isImagenEndpoint = model.startsWith('imagen-');
@@ -82,7 +138,7 @@ export async function runGenerateImageCommand(
 
   const requestBody = isImagenEndpoint
     ? {
-        instances: [{ prompt: options.prompt }],
+        instances: [{ prompt: finalPrompt }],
         parameters: {
           sampleCount: 1,
           aspectRatio: options.aspectRatio ?? '1:1',
@@ -91,7 +147,7 @@ export async function runGenerateImageCommand(
     : {
         contents: [
           {
-            parts: [{ text: options.prompt }],
+            parts: [{ text: finalPrompt }],
           },
         ],
         generationConfig: {
@@ -111,12 +167,24 @@ export async function runGenerateImageCommand(
     body: JSON.stringify(requestBody),
   });
 
-  const payload = (await response.json()) as GeminiGenerateContentResponse;
+  const rawBodyText = await response.text();
+  let payload: GeminiGenerateContentResponse = {};
+  if (rawBodyText.trim()) {
+    try {
+      payload = JSON.parse(rawBodyText) as GeminiGenerateContentResponse;
+    } catch {
+      if (response.ok) {
+        throw new Error(
+          `Gemini Image API returned invalid JSON (${response.status}): ${rawBodyText.slice(0, 180)}`
+        );
+      }
+    }
+  }
 
   if (!response.ok) {
     throw new Error(
       `Gemini Image API error (${response.status}): ${
-        payload.error?.message || response.statusText
+        payload.error?.message || rawBodyText.slice(0, 180) || response.statusText
       }`
     );
   }
@@ -137,5 +205,6 @@ export async function runGenerateImageCommand(
   return {
     generated: true,
     outputPath: resolvedOut,
+    finalPrompt,
   };
 }

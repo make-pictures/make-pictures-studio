@@ -9,11 +9,21 @@ import { BUILTIN_EXAMPLE_PRODUCTIONS } from '../../../examples';
 import {
   DirectorAuditError,
   auditCompositionDirection,
+  scanTsxForCompetingFocalPoints,
+  scanTsxForExcessiveSubViews,
+  scanTsxForRawHtmlImgTags,
+  scanTsxForSmallFontSizes,
   scanTsxForUnclippedCardBars,
   verifyCleanFrameZeroImage,
   type DirectorAuditResult,
 } from '../src/director/audit-direction';
-import { selectQaSampleFrames } from '../src/commands/qa-contact-sheet';
+import {
+  auditFrameZeroDomInPage,
+  auditRenderedFrameDomInPage,
+  parseStaticProductionHintFromDisk,
+  resolveQaGridDimensions,
+  selectQaSampleFrames,
+} from '../src/commands/qa-contact-sheet';
 import { runCli } from '../src/index';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -422,16 +432,36 @@ test('Rule 5 (verifyCleanFrameZeroImage): accepts pure solid bgCanvas frame 0 PN
 
     const cleanRes = verifyCleanFrameZeroImage(cleanPng);
     assert.equal(cleanRes.clean, true);
-    assert.ok(
-      cleanRes.maxChannelSpread <= 6,
-      `Expected clean spread <= 6, got ${cleanRes.maxChannelSpread}`
-    );
+    assert.equal(cleanRes.maxChannelSpread, 0);
+    assert.equal(cleanRes.maxChannelVariance, 0);
 
     const dirtyRes = verifyCleanFrameZeroImage(dirtyPng);
     assert.equal(dirtyRes.clean, false);
-    assert.ok(
-      dirtyRes.maxChannelSpread > 6,
-      `Expected dirty spread > 6, got ${dirtyRes.maxChannelSpread}`
+    assert.ok(dirtyRes.maxChannelSpread > 0);
+
+    // A single 1x1 pixel dot on a 1920x1080 canvas MUST be caught by full-resolution variance check
+    const hairlinePng = path.join(tmpDir, 'hairline-f0.png');
+    execFileSync(
+      'ffmpeg',
+      [
+        '-y',
+        '-f',
+        'lavfi',
+        '-i',
+        'color=c=0xF1F5F9:s=1920x1080:d=1',
+        '-vf',
+        'drawbox=x=960:y=540:w=1:h=1:color=0xCBD5E1:t=fill',
+        '-frames:v',
+        '1',
+        hairlinePng,
+      ],
+      { stdio: 'ignore' }
+    );
+    const hairlineRes = verifyCleanFrameZeroImage(hairlinePng);
+    assert.equal(
+      hairlineRes.clean,
+      false,
+      'Full-resolution Frame 0 check must reject even a 1x1 pixel artifact missed by 32x32 downsampling'
     );
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
@@ -512,8 +542,8 @@ test('Well-paced <ContinuousSceneFlow> production passes cleanly, and capsule sc
       durationInFrames: 1320,
       fps: 60,
       sceneTimeline: [
-        { sceneId: 'scene1-pl', fromFrame: 18, durationInFrames: 288 },
-        { sceneId: 'scene2-pl', fromFrame: 648, durationInFrames: 312 },
+        { sceneId: 'scene1-pl', fromFrame: 42, durationInFrames: 288 },
+        { sceneId: 'scene2-pl', fromFrame: 672, durationInFrames: 312 },
       ],
     });
     assert.equal(res.ok, true);
@@ -696,49 +726,311 @@ test('scanTsxForUnclippedCardBars catches ternary height bars (height: cond ? 6 
   assert.equal(v2.length, 0);
 });
 
-test('selectQaSampleFrames samples f=0, early prompt/entrance beats, settled ~68% payoff beats, and end-settle across a 5-scene timeline', () => {
+test('selectQaSampleFrames and resolveQaGridDimensions default to --grid=auto, guaranteeing 100% scene and sub-view coverage on 8+ scene timelines', () => {
   const nominal5Scenes = [
-    { fromFrame: 0, durationInFrames: 450 },
-    { fromFrame: 450, durationInFrames: 480 },
-    { fromFrame: 930, durationInFrames: 540 },
-    { fromFrame: 1470, durationInFrames: 540 },
-    { fromFrame: 2010, durationInFrames: 330 },
+    { sceneId: 's1', fromFrame: 0, durationInFrames: 450 },
+    { sceneId: 's2', fromFrame: 450, durationInFrames: 480 },
+    { sceneId: 's3', fromFrame: 930, durationInFrames: 540 },
+    { sceneId: 's4', fromFrame: 1470, durationInFrames: 540 },
+    { sceneId: 's5', fromFrame: 2010, durationInFrames: 330 },
   ];
-  assert.deepEqual(selectQaSampleFrames(2340, 12, nominal5Scenes), [
-    0, 24, 306, 474, 776, 954, 1297, 1494, 1837, 2034, 2234, 2316,
-  ]);
+  const samples5 = selectQaSampleFrames(2340, 12, nominal5Scenes);
+  assert.equal(samples5.length, 12);
+  assert.equal(samples5[0], 0);
+  assert.equal(samples5[11], 2310);
 
-  // Voiceover-offset 5-scene Showreel timeline (scene starts [0, 390, 930, 1470, 2010], VO starts [14, 414, 954, 1494, 2028])
-  const showreelVoTimeline = [
-    { fromFrame: 14, durationInFrames: 325 },
-    { fromFrame: 414, durationInFrames: 417 },
-    { fromFrame: 954, durationInFrames: 341 },
-    { fromFrame: 1494, durationInFrames: 392 },
-    { fromFrame: 2028, durationInFrames: 244 },
+  // Every scene in the 5-scene timeline has a settled frame well past its entrance spring
+  for (const seg of nominal5Scenes) {
+    assert.ok(
+      samples5.some(
+        (f) =>
+          f >= seg.fromFrame + 54 && f < seg.fromFrame + seg.durationInFrames
+      ),
+      `Expected settled sample inside scene ${seg.sceneId}`
+    );
+  }
+
+  // 9-scene film with 2 dual sub-view scenes (A -> B): mandatory points > 12 -> auto-grid expands to 4x4!
+  const nineSceneWithSubViews = [
+    { sceneId: 's1', fromFrame: 0, durationInFrames: 360 },
+    {
+      sceneId: 's2',
+      fromFrame: 360,
+      durationInFrames: 420,
+      subViews: [
+        { id: 'view-a', fromOffsetFrames: 0 },
+        { id: 'view-b', fromOffsetFrames: 210 },
+      ],
+    },
+    { sceneId: 's3', fromFrame: 780, durationInFrames: 360 },
+    { sceneId: 's4', fromFrame: 1140, durationInFrames: 360 },
+    {
+      sceneId: 's5',
+      fromFrame: 1500,
+      durationInFrames: 440,
+      subViews: [
+        { id: 'overview', fromOffsetFrames: 0 },
+        { id: 'detail', fromOffsetFrames: 220 },
+      ],
+    },
+    { sceneId: 's6', fromFrame: 1940, durationInFrames: 360 },
+    { sceneId: 's7', fromFrame: 2300, durationInFrames: 360 },
+    { sceneId: 's8', fromFrame: 2660, durationInFrames: 360 },
+    { sceneId: 's9', fromFrame: 3020, durationInFrames: 420 },
   ];
-  const samples = selectQaSampleFrames(2340, 12, showreelVoTimeline);
-  assert.equal(samples.length, 12);
-  assert.equal(samples[0], 0);
-  assert.equal(samples[11], 2316);
+  // 1 (f=0) + 7 single scenes + 4 sub-views + 1 (end settle) = 13 mandatory frames -> 4x4 (16 tiles)!
+  const autoSamples = selectQaSampleFrames(3440, undefined, nineSceneWithSubViews);
+  const autoGrid = resolveQaGridDimensions(undefined, autoSamples.length);
+  assert.equal(autoGrid.cols, 4);
+  assert.equal(autoGrid.rows, 4);
+  assert.equal(autoSamples.length, 16);
+  assert.equal(autoSamples[0], 0);
 
-  // Every scene's settled ~68% payoff beat must be sampled well past the 138f PromptCard hold!
-  const sceneBounds = [
-    { start: 0, end: 390, minPayoffLocal: 240 },
-    { start: 390, end: 930, minPayoffLocal: 300 },
-    { start: 930, end: 1470, minPayoffLocal: 300 },
-    { start: 1470, end: 2010, minPayoffLocal: 300 },
-    { start: 2010, end: 2340, minPayoffLocal: 200 },
-  ] as const;
+  // Verify 100% presence of EVERY scene and EVERY sub-view
+  assert.ok(autoSamples.some((f) => f > 360 && f < 570), 'Missing s2/view-a');
+  assert.ok(autoSamples.some((f) => f > 570 && f < 780), 'Missing s2/view-b');
+  assert.ok(autoSamples.some((f) => f > 1500 && f < 1720), 'Missing s5/overview');
+  assert.ok(autoSamples.some((f) => f > 1720 && f < 1940), 'Missing s5/detail');
+  for (const seg of nineSceneWithSubViews) {
+    assert.ok(
+      autoSamples.some(
+        (f) => f > seg.fromFrame && f < seg.fromFrame + seg.durationInFrames
+      ),
+      `Missing sample in scene ${seg.sceneId}`
+    );
+  }
+});
 
-  for (const scene of sceneBounds) {
-    const inScene = samples.filter((f) => f > scene.start && f < scene.end);
-    assert.ok(
-      inScene.length >= 2,
-      `Expected both early and payoff sample frames inside [${scene.start}, ${scene.end}), got ${JSON.stringify(inScene)}`
+test('Extended QA rules catch RAW_HTML_IMG_TAG, FONT_BELOW_1080P_FLOOR, EXCESSIVE_SUBVIEWS, expanded INSUFFICIENT_BREATHING_ROOM (pre/post/outro), and DOM CARD_VERTICAL_VOID', () => {
+  // 1. RAW_HTML_IMG_TAG catches lowercase <img> while ignoring <Img> and commented/stringified <img>
+  const imgViolations = scanTsxForRawHtmlImgTags(
+    [
+      "import { Img } from 'remotion';",
+      'const note = "<img src=\'ignored-in-string.png\' />";',
+      '// <img src="ignored-in-comment.png" />',
+      'export const BadMedia = () => (',
+      '  <div>',
+      '    <Img src="good.png" />',
+      '    <img src="bad.png" alt="raw" />',
+      '  </div>',
+      ');',
+    ].join('\n'),
+    'BadMedia.tsx'
+  );
+  assert.equal(imgViolations.length, 1);
+  assert.equal(imgViolations[0]!.code, 'RAW_HTML_IMG_TAG');
+  assert.equal(imgViolations[0]!.line, 7);
+
+  // 2. Static FONT_BELOW_1080P_FLOOR catches fontSize: 10..17 while allowing >= 18
+  const fontViolations = scanTsxForSmallFontSizes(
+    [
+      'export const MicroType = () => (',
+      '  <div style={{ fontSize: 20 }}>',
+      '    <span style={{ fontSize: 13 }}>PLATE 03</span>',
+      '    <span style={{ fontSize: 18 }}>Badge OK</span>',
+      '  </div>',
+      ');',
+    ].join('\n'),
+    'MicroType.tsx'
+  );
+  assert.equal(fontViolations.length, 1);
+  assert.equal(fontViolations[0]!.code, 'FONT_BELOW_1080P_FLOOR');
+  assert.equal(fontViolations[0]!.line, 3);
+
+  // 3. EXCESSIVE_SUBVIEWS catches > 2 subViews on sceneTimeline or multiple SceneSubViewDissolve in one scene
+  const subViewTsxViolations = scanTsxForExcessiveSubViews(
+    [
+      'export const TooManySubViews = () => (',
+      '  <div>',
+      '    <SceneSubViewDissolve firstView={<div/>} secondView={<div/>} switchAtFrame={120} />',
+      '    <SceneSubViewDissolve firstView={<div/>} secondView={<div/>} switchAtFrame={240} />',
+      '  </div>',
+      ');',
+    ].join('\n'),
+    'TooManySubViews.tsx'
+  );
+  assert.equal(subViewTsxViolations.length, 1);
+  assert.equal(subViewTsxViolations[0]!.code, 'EXCESSIVE_SUBVIEWS');
+
+  // 4. Expanded INSUFFICIENT_BREATHING_ROOM (pre < 36f, post < 90f, outro < 132f) + EXCESSIVE_SUBVIEWS via auditCompositionDirection
+  const tightCapsule = makeTempCapsule({
+    'production.json': JSON.stringify({
+      id: 'tight-film',
+      title: 'Tight Pacing',
+      fps: 60,
+      scenes: [
+        { id: 's1', durationInSeconds: 3.0, text: 'Krótka pierwsza myśl.' },
+        { id: 's2', durationInSeconds: 3.5, text: 'Krótka druga myśl na finał.' },
+      ],
+    }),
+    'generated/audio-manifest.ts': `export const VOICEOVER_MANIFEST = ${JSON.stringify({
+      s1: { sceneId: 's1', durationInSeconds: 3.0, fps: 60 },
+      s2: { sceneId: 's2', durationInSeconds: 3.5, fps: 60 },
+    })};\n`,
+    'compositions/TightFilm.props.json': '{}',
+    'compositions/TightFilm.tsx': [
+      "import React from 'react';",
+      "import { ContinuousSceneFlow } from '@make-pictures/core';",
+      'export const TightFilm = () => (',
+      '  <ContinuousSceneFlow scenes={[',
+      "    { id: 's1', durationInFrames: 300, render: () => <div>A</div> },",
+      "    { id: 's2', durationInFrames: 360, render: () => <div>B</div> },",
+      '  ]} />',
+      ');',
+    ].join('\n'),
+  }, 'tight-film');
+
+  try {
+    const res = auditCompositionDirection({
+      studioDir: tightCapsule.studioDir,
+      compositionId: 'TightFilm',
+      origin: 'production',
+      propsFile: 'productions/tight-film/compositions/TightFilm.props.json',
+      durationInFrames: 660,
+      fps: 60,
+      allowFastCuts: true,
+      sceneTimeline: [
+        // s1 (0..300): pre=18 (< 36!), spoken=180 -> post=102 (>= 90), 3 subViews (> 2!)
+        {
+          sceneId: 's1',
+          fromFrame: 18,
+          durationInFrames: 180,
+          subViews: [
+            { id: 'a', fromOffsetFrames: 0 },
+            { id: 'b', fromOffsetFrames: 100 },
+            { id: 'c', fromOffsetFrames: 200 },
+          ],
+        },
+        // s2 (300..660, final): pre=42 (>= 36), spoken=210 -> outro=660-(342+210)=108 (< 132!)
+        { sceneId: 's2', fromFrame: 342, durationInFrames: 210 },
+      ],
+    });
+    const codes = res.violations.map((v) => v.code);
+    assert.ok(codes.includes('EXCESSIVE_SUBVIEWS'));
+    const breathingViolations = res.violations.filter(
+      (v) => v.code === 'INSUFFICIENT_BREATHING_ROOM'
     );
-    assert.ok(
-      inScene.some((f) => f - scene.start >= scene.minPayoffLocal),
-      `Expected settled ~68% payoff sample >= ${scene.start + scene.minPayoffLocal} in [${scene.start}, ${scene.end}), got ${JSON.stringify(inScene)}`
+    assert.equal(
+      breathingViolations.length,
+      2,
+      `Expected both s1 pre<36f and s2 outro<132f violations, got ${JSON.stringify(breathingViolations)}`
     );
+  } finally {
+    tightCapsule.cleanup();
+  }
+
+  // 5. Verify DOM evaluator functions are self-contained functions ready for Chromium page.evaluate
+  assert.equal(typeof auditRenderedFrameDomInPage, 'function');
+  assert.equal(typeof auditFrameZeroDomInPage, 'function');
+});
+
+test('JSX scanner preserves 1:1 UTF-16 offsets across emojis & nested templates, ignores JSX text apostrophes, and parseStaticProductionHintFromDisk preserves subViews across multi-composition capsules', () => {
+  // 1. Apostrophes in JSX copy ("It's", "User's") + emojis ("🎨🔍") + nested `${...}` template literals
+  const complexTsx = [
+    "import React from 'react';",
+    'const badge = `🎨 Styl: ${true ? `wewnętrzny ✅` : "brak"}`;',
+    'export const ApostropheScene: React.FC<{ title: string }> = () => (',
+    '  <div>',
+    "    <h1>It's User's Studio — zero fałszywych cudzysłowów</h1>",
+    '    {/* <img src="commented-out.png" /> fontSize: 11 */}',
+    '    // fontSize: 12 inside JSX text is plain copy, not a style object',
+    '    <img src="actual-raw-tag.png" alt={`🔍 ${"ikona"}`} />',
+    '  </div>',
+    ');',
+  ].join('\n');
+
+  const rawImgHits = scanTsxForRawHtmlImgTags(complexTsx, 'ApostropheScene.tsx');
+  assert.equal(
+    rawImgHits.length,
+    1,
+    `Expected 1 raw <img> hit despite preceding JSX apostrophe & emojis, got ${JSON.stringify(rawImgHits)}`
+  );
+  assert.equal(rawImgHits[0]!.line, 8);
+  assert.match(rawImgHits[0]!.snippet ?? '', /^<img src="actual-raw-tag\.png"/);
+  assert.equal(scanTsxForSmallFontSizes(complexTsx, 'ApostropheScene.tsx').length, 0);
+
+  // 2. computeSceneTimingFromVoiceover(...) recognized as >= 270f scene separation in scanTsxForCompetingFocalPoints
+  const computedTimingTsx = [
+    "import React from 'react';",
+    "import { ContinuousSceneFlow, computeSceneTimingFromVoiceover } from '@make-pictures/core';",
+    'const t1 = computeSceneTimingFromVoiceover(3.2);',
+    'const t2 = computeSceneTimingFromVoiceover(3.6, { isFinalScene: true });',
+    'export const CalmTwoScene = () => (',
+    '  <ContinuousSceneFlow scenes={[',
+    "    { id: 's1', durationInFrames: t1.durationInFrames, render: () => <WordByWordStage words={[]} /> },",
+    "    { id: 's2', durationInFrames: t2.durationInFrames, render: () => <StoryCard2D title=\"Tytuł\" /> },",
+    '  ]} />',
+    ');',
+  ].join('\n');
+  assert.deepEqual(
+    scanTsxForCompetingFocalPoints(computedTimingTsx, 'CalmTwoScene.tsx'),
+    []
+  );
+
+  // 3. parseStaticProductionHintFromDisk parses nested subViews without truncating sceneTimeline and scopes durationInFrames per compositionId
+  const multiCompCapsule = makeTempCapsule(
+    {
+      'index.ts': [
+        "import { defineProduction } from '@make-pictures/core';",
+        'export default defineProduction({',
+        "  id: 'multi-subview',",
+        '  compositions: [',
+        '    {',
+        "      id: 'TeaserShort',",
+        '      fps: 60,',
+        '      width: 1080,',
+        '      height: 1920,',
+        '      durationInFrames: 300,',
+        '      usesThree: false,',
+        "      propsFile: 'productions/multi-subview/compositions/TeaserShort.props.json',",
+        "      sceneTimeline: [{ sceneId: 't1', fromFrame: 42, durationInFrames: 168 }],",
+        '    },',
+        '    {',
+        "      id: 'FullMainFilm',",
+        '      fps: 60,',
+        '      width: 1920,',
+        '      height: 1080,',
+        '      durationInFrames: 1140,',
+        '      usesThree: true,',
+        "      propsFile: 'productions/multi-subview/compositions/FullMainFilm.props.json',",
+        '      sceneTimeline: [',
+        "        { sceneId: 's1', fromFrame: 42, durationInFrames: 180 },",
+        '        {',
+        "          sceneId: 's2',",
+        '          fromFrame: 402,',
+        '          durationInFrames: 240,',
+        '          subViews: [',
+        "            { id: 'overview', fromOffsetFrames: 0 },",
+        "            { id: 'closeup', fromOffsetFrames: 190 },",
+        '          ],',
+        '        },',
+        "        { sceneId: 's3', fromFrame: 822, durationInFrames: 180 },",
+        '      ],',
+        '    },',
+        '  ],',
+        '});',
+      ].join('\n'),
+    },
+    'multi-subview'
+  );
+
+  try {
+    const parsed = parseStaticProductionHintFromDisk(
+      multiCompCapsule.studioDir,
+      'multi-subview',
+      'FullMainFilm'
+    );
+    assert.ok(parsed);
+    assert.equal(parsed.durationInFrames, 1140);
+    assert.equal(parsed.usesThree, true);
+    assert.equal(parsed.sceneTimeline?.length, 3);
+    assert.equal(parsed.sceneTimeline?.[1]?.sceneId, 's2');
+    assert.deepEqual(parsed.sceneTimeline?.[1]?.subViews, [
+      { id: 'overview', fromOffsetFrames: 0 },
+      { id: 'closeup', fromOffsetFrames: 190 },
+    ]);
+    assert.equal(parsed.sceneTimeline?.[2]?.sceneId, 's3');
+  } finally {
+    multiCompCapsule.cleanup();
   }
 });

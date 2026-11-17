@@ -328,9 +328,9 @@ export const TimelineTrack: React.FC<TimelineTrackProps> = ({
                     style={{
                       display: 'inline-block',
                       fontFamily: monoFontCss,
-                      fontSize: 13,
+                      fontSize: 18,
                       fontWeight: 700,
-                      letterSpacing: '0.1em',
+                      letterSpacing: '0.08em',
                       color:
                         isActive && grammar === 'risograph-poster'
                           ? '#FFFFFF'
@@ -372,7 +372,7 @@ export const TimelineTrack: React.FC<TimelineTrackProps> = ({
                     <div
                       style={{
                         fontFamily: bodyFontCss,
-                        fontSize: 15,
+                        fontSize: 18,
                         color: textSecondary,
                         marginTop: 2,
                       }}
@@ -496,9 +496,9 @@ export const TimelineTrack: React.FC<TimelineTrackProps> = ({
                 style={{
                   display: 'inline-block',
                   fontFamily: monoFontCss,
-                  fontSize: 13,
+                  fontSize: 18,
                   fontWeight: 700,
-                  letterSpacing: '0.09em',
+                  letterSpacing: '0.08em',
                   color:
                     isActive && grammar === 'risograph-poster'
                       ? '#FFFFFF'
@@ -544,7 +544,7 @@ export const TimelineTrack: React.FC<TimelineTrackProps> = ({
                   style={{
                     marginTop: 4,
                     fontFamily: bodyFontCss,
-                    fontSize: 14,
+                    fontSize: 18,
                     lineHeight: 1.3,
                     color: textSecondary,
                   }}

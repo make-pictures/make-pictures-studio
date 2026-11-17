@@ -224,7 +224,7 @@ export const HighlightQuoteStage: React.FC<HighlightQuoteStageProps> = ({
           style={{
             marginTop: isEmbedded ? 18 : 24,
             fontFamily: formatFontFamilyCss(style.typography.monoFont, 'mono'),
-            fontSize: isEmbedded ? 17 : 19,
+            fontSize: isEmbedded ? 18 : 20,
             fontWeight: 600,
             letterSpacing: '0.04em',
             color: style.palette.textSecondary,

@@ -132,8 +132,8 @@ Every `StylePreset` conforms to `StylePresetSchema` (`@make-pictures/core/style`
   - `bevelRadius`: `0 .. 0.25` (`'Powierzchnia & Tło :: Zaokrąglenie krawędzi 3D (0–0.25)'`)
   - `studioHdr`: `'warm-softbox' | 'clean-atelier' | 'neon-grid'` (`'Powierzchnia & Tło :: Oświetlenie studyjne HDR 3D'` — offline procedural `<Environment><Lightformer /></Environment>`, zero external `.hdr` network fetches)
 - **`motion`:**
-  - `profile`: `'editorial-calm' | 'snappy-product' | 'tactile-pop' | 'cinematic-fluid'`
-  - `cameraHandheld`: `0 .. 0.35`
+  - `profile`: `'editorial-calm' | 'snappy-product' | 'tactile-pop' | 'cinematic-fluid'` (default to **`cinematic-fluid`** or **`editorial-calm`** with `damping: 200` for product presentations, explainers, and essays)
+  - `cameraHandheld`: `0 .. 0.35` — keep **`cameraHandheld <= 0.015`** across all presentation and editorial styles (`minimal-product`, `editorial-press`, `archival-chronicle`, `cyber-telemetry`, `retro-pc`, `glass-studio`) so cards and typography never wobble.
 - **`optics?: StyleOptics`** (`StyleOpticsSchema.optional()` — Inspector section **`Optyka & Światło`**):
   - `lightingRig`: `'window-gobo' | 'darkroom-halation' | 'studio-macro'` (`StyleLightingRigSchema`) — drives `<StageLightingRig />` and default `EditorialMediaCard` mount selection.
   - `typographyGrammar`: `'swiss-spatial' | 'optical-gate' | 'risograph-poster'` (`StyleTypographyGrammarSchema`) — selects the kinetic choreography and counter meter grammar in `@make-pictures/kits/kinetic-typography`.
@@ -146,6 +146,26 @@ Every `StylePreset` conforms to `StylePresetSchema` (`@make-pictures/core/style`
 - **`audioDefaults`:**
   - `musicMood`: `'ambient-tech' | 'warm-story' | 'upbeat-launch' | 'news-pulse' | 'paper-expedition' | 'cinematic-drone' | 'cinematic-epic'`
   - `voiceArchetype`: `'crisp-tech' | 'calm-editorial' | 'documentary-warm' | 'storyteller-expressive'`
+
+---
+
+## 4B. 1080p Typography Floor (`TYPOGRAPHY_FLOOR_1080P`), Card Density & Enumeration Rules
+
+1. **Hard Minimum `fontSize >= 18–19 px` on `1920×1080` (`TYPOGRAPHY_FLOOR_1080P`):**
+   - Video is not a zoomable web page: every visible text node on a `1080p` canvas must render at **`>= 18–19 px`**.
+   - **Strictly ban `10–14 px` micro-typography:** no tiny `11–13 px` eyebrows, no decorative `01 | 02 | 03` tab strips, no `PLATE 03 • REV B` corner stamps, and no small footer disclaimers.
+   - Recommended scale (`TYPOGRAPHY_FLOOR_1080P` in `@make-pictures/core`):
+     - Chapter / Opening Title: `52–74 px` (`700` / `1.08–1.14`, Polish *Sentence case*)
+     - Card Headline (`StoryCard2D` / `ComparisonSplit2D`): **`26–32 px`** (`650–700`, `2–5` words)
+     - Supporting Card Sentence: **`19–22 px`** (`450–500`, `6–11` words, readable in `<= 2 s`)
+     - Badge / Axis / Pin Label: **`18–20 px`** (`600`, never `< 18 px`!)
+     - Primary KPI Metric: **`64–96 px`** (`700`, mandatory `fontVariantNumeric: 'tabular-nums'`)
+2. **"Headline + 1 Concise Sentence" & Zero `space-between` Voids:**
+   - Avoid both empty one-word buzzwords (*"Wydajność"*) and 3-line gray paragraphs. Pair a **`26–32 px` headline (`2–5` words)** with **one concrete `19–22 px` sentence (`6–11` words)**.
+   - Size cards with `height: 'auto'`, `justifyContent: 'center'`, and `boxSizing: 'border-box'` (`getCardChromeStyle` sets `border-box` automatically) — never stretch sparse text across tall containers with `justifyContent: 'space-between'`. Use `<HorizontalFeatureGrid2x2 />` for `2×2` horizontal medallion summaries, and ensure primary visuals occupy **`>= 60%`** of their container.
+3. **Ban `3×2` Blinking Tile Grids & Anchor AI Illustrations (`--style`):**
+   - Never visualize 4–6 categories as a static `3×2` grid lighting up `1 → 2 → 3 → 4`. Use `<EditorialPanoramaTrack />` (`DirectorCamera2D` + Ken Burns), layered editorial collage, or a spatial cross-section.
+   - When generating AI illustrations (`npx make-pictures image "<subject>" --style=<styleId> --out=...`), always anchor every asset to the active `StylePreset` (`buildStyledImagePrompt`) with **strictly zero text, letters, numbers, or signage** inside the raster image.
 
 ---
 

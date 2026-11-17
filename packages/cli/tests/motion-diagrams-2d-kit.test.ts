@@ -22,11 +22,13 @@ import {
   RetroPcWindowStage2D,
   SystemNode,
   WorldBox,
+  buildCubicBezierPath,
   computeRetroPcWindowLayout,
   evaluateCubicBezier,
   portLeft,
   portRight,
   resolvePayloadTokenColors,
+  type CubicBezierCurve2D,
   type NodeBox,
   type RetroPcHopSpec,
 } from '../../kits/src/motion-diagrams-2d';
@@ -608,4 +610,116 @@ test('RetroPcWindowStage2D renders bilingual chrome labels for lang="en" vs lang
   const donePl = renderWithLang('pl', 0.95);
   assert.match(donePl, /\bGOTOWE\b/);
   assert.doesNotMatch(donePl, /\bDONE\b/);
+});
+
+test('buildCubicBezierPath provides single-source-of-truth SVG geometry, FlowCurve & DataFlowEdge default packetCount to 0, and WorldBox sets boxSizing: border-box', () => {
+  const horiz: CubicBezierCurve2D = buildCubicBezierPath(
+    { x: 420, y: 540 },
+    { x: 980, y: 360 },
+    { orientation: 'horizontal', curveY: -60 }
+  );
+  assert.equal(
+    horiz.d,
+    `M ${horiz.p0.x} ${horiz.p0.y} C ${horiz.p1.x} ${horiz.p1.y}, ${horiz.p2.x} ${horiz.p2.y}, ${horiz.p3.x} ${horiz.p3.y}`
+  );
+  assert.deepEqual(horiz.pointAt(0), { x: 420, y: 540 });
+  assert.deepEqual(horiz.pointAt(1), { x: 980, y: 360 });
+  assert.deepEqual(horiz.pointAt(-0.5), { x: 420, y: 540 });
+  assert.deepEqual(horiz.pointAt(1.5), { x: 980, y: 360 });
+  assert.deepEqual(
+    horiz.pointAt(0.37),
+    evaluateCubicBezier(horiz.p0, horiz.p1, horiz.p2, horiz.p3, 0.37)
+  );
+
+  const vert = buildCubicBezierPath(
+    { x: 540, y: 300 },
+    { x: 540, y: 780 },
+    { orientation: 'vertical', curveX: 48 }
+  );
+  assert.equal(vert.p1.x, 588);
+  assert.equal(vert.p2.x, 588);
+  assert.equal(vert.p1.y, 540);
+  assert.equal(vert.p2.y, 540);
+
+  // Default packetCount = 0 on both FlowCurve and DataFlowEdge -> zero drifting dots/trails
+  const DefaultCleanEdges: React.FC = () =>
+    React.createElement(
+      StyleProvider,
+      { style: 'minimal-product' },
+      React.createElement(
+        WorldBox,
+        { node: { cx: 400, cy: 500, w: 320, h: 160 } },
+        'Węzeł z border-box'
+      ),
+      React.createElement(FlowCurve, {
+        from: { x: 560, y: 500 },
+        to: { x: 1120, y: 500 },
+        activeFromFrame: 2,
+      }),
+      React.createElement(DataFlowEdge, {
+        id: 'clean-edge',
+        from: { x: 560, y: 540 },
+        to: { x: 1120, y: 540 },
+        drawStartFrame: 2,
+        flowStartFrame: 10,
+        flowEndFrame: 120,
+      })
+    );
+
+  const defaultHtml = renderToStaticMarkup(
+    React.createElement(Thumbnail, {
+      component: DefaultCleanEdges,
+      compositionWidth: 1920,
+      compositionHeight: 1080,
+      durationInFrames: 120,
+      fps: 60,
+      frameToDisplay: 60,
+    })
+  );
+  assert.match(defaultHtml, /box-sizing:border-box/);
+  assert.doesNotMatch(
+    defaultHtml,
+    /data-flow-trail="true"/,
+    'DataFlowEdge must render 0 packets by default when packetCount is omitted'
+  );
+  assert.doesNotMatch(
+    defaultHtml,
+    /<polygon\b/,
+    'FlowCurve must render 0 courier polygons by default when packetCount is omitted'
+  );
+
+  // Explicit packetCount={1} renders single coupler aligned to buildCubicBezierPath
+  const ExplicitPulseEdges: React.FC = () =>
+    React.createElement(
+      StyleProvider,
+      { style: 'minimal-product' },
+      React.createElement(FlowCurve, {
+        from: { x: 560, y: 500 },
+        to: { x: 1120, y: 500 },
+        activeFromFrame: 2,
+        packetCount: 1,
+      }),
+      React.createElement(DataFlowEdge, {
+        id: 'pulse-edge',
+        from: { x: 560, y: 540 },
+        to: { x: 1120, y: 540 },
+        drawStartFrame: 2,
+        flowStartFrame: 10,
+        flowEndFrame: 120,
+        packetCount: 1,
+      })
+    );
+
+  const pulseHtml = renderToStaticMarkup(
+    React.createElement(Thumbnail, {
+      component: ExplicitPulseEdges,
+      compositionWidth: 1920,
+      compositionHeight: 1080,
+      durationInFrames: 120,
+      fps: 60,
+      frameToDisplay: 60,
+    })
+  );
+  assert.match(pulseHtml, /data-flow-trail="true"/);
+  assert.match(pulseHtml, /<polygon\b/);
 });
