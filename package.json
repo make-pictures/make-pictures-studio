@@ -1,6 +1,6 @@
 {
   "name": "make-pictures-studio",
-  "version": "2.3.0",
+  "version": "2.3.1",
   "private": true,
   "description": "make.pictures — Open-Source Video-as-Code Studio built with Remotion, Three.js, TypeScript, and ElevenLabs for Google Antigravity & Claude Code",
   "homepage": "https://make.pictures",
@@ -28,6 +28,7 @@
     "sfx": "tsx packages/cli/src/index.ts sfx",
     "qa": "tsx packages/cli/src/index.ts qa",
     "image": "tsx packages/cli/src/index.ts image",
+    "cutout": "tsx packages/cli/src/index.ts cutout",
     "voiceover": "tsx packages/cli/src/index.ts audio",
     "studio": "vite --host 127.0.0.1 --port 3000",
     "studio:remotion": "remotion studio src/index.ts",
