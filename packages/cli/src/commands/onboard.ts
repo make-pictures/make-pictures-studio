@@ -3,6 +3,10 @@ import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
 import { BUILT_IN_STYLE_IDS } from '../../../core/src/style/presets';
+import {
+  DEFAULT_ELEVENLABS_MODEL_ID,
+  getDefaultVoiceIdForLang,
+} from '../../../core/src/audio/voices';
 import { SCENES_KIT_IDS } from './new-production';
 import { resolveWorkspaceContext } from './workspace-paths';
 
@@ -436,15 +440,17 @@ function readApiKeyFromEnvLocal(envLocalPath: string): string | null {
 
 function ensureEnvLocalTemplate(
   envLocalPath: string,
-  envExamplePath: string
+  envExamplePath: string,
+  lang: 'pl' | 'en' = 'en'
 ): void {
   if (fs.existsSync(envLocalPath)) return;
   if (fs.existsSync(envExamplePath)) {
     fs.copyFileSync(envExamplePath, envLocalPath);
   } else {
+    const defaultVoiceId = getDefaultVoiceIdForLang(lang);
     fs.writeFileSync(
       envLocalPath,
-      'ELEVENLABS_API_KEY=your_elevenlabs_api_key_here\nELEVENLABS_VOICE_ID=TX3LPaxmHKxFdv7VOQHJ\nELEVENLABS_MODEL_ID=eleven_multilingual_v2\n',
+      `ELEVENLABS_API_KEY=your_elevenlabs_api_key_here\nELEVENLABS_VOICE_ID=${defaultVoiceId}\nELEVENLABS_MODEL_ID=${DEFAULT_ELEVENLABS_MODEL_ID}\n`,
       { mode: 0o600 }
     );
   }
@@ -452,18 +458,20 @@ function ensureEnvLocalTemplate(
 
 function ensureVoiceDefaultsInEnvLocal(
   rootDir: string,
-  envLocalPath: string
+  envLocalPath: string,
+  lang: 'pl' | 'en' = 'en'
 ): void {
   ensureGitignore(rootDir);
   if (!fs.existsSync(envLocalPath)) return;
   let content = fs.readFileSync(envLocalPath, 'utf8');
   let updated = false;
   if (!content.includes('ELEVENLABS_VOICE_ID=')) {
-    content = `${content.trimEnd()}\nELEVENLABS_VOICE_ID=TX3LPaxmHKxFdv7VOQHJ\n`;
+    const defaultVoiceId = getDefaultVoiceIdForLang(lang);
+    content = `${content.trimEnd()}\nELEVENLABS_VOICE_ID=${defaultVoiceId}\n`;
     updated = true;
   }
   if (!content.includes('ELEVENLABS_MODEL_ID=')) {
-    content = `${content.trimEnd()}\nELEVENLABS_MODEL_ID=eleven_multilingual_v2\n`;
+    content = `${content.trimEnd()}\nELEVENLABS_MODEL_ID=${DEFAULT_ELEVENLABS_MODEL_ID}\n`;
     updated = true;
   }
   if (updated) {
@@ -762,7 +770,7 @@ export async function runOnboardCommand(
     };
 
     const printReadySummary = (key: string): void => {
-      ensureVoiceDefaultsInEnvLocal(rootDir, envLocalPath);
+      ensureVoiceDefaultsInEnvLocal(rootDir, envLocalPath, lang);
       const checkReply = elevenLabsRunner(rootDir, ['check']);
       if (
         checkReply &&
@@ -837,7 +845,7 @@ export async function runOnboardCommand(
     }
 
     if (!reply) {
-      ensureEnvLocalTemplate(envLocalPath, envExamplePath);
+      ensureEnvLocalTemplate(envLocalPath, envExamplePath, lang);
       writeLine('⚠️  Could not launch browser authorization automatically.');
       writeLine('📄 Created `.env.local` template.\n');
       writeLine('Next steps:');
@@ -920,7 +928,7 @@ export async function runOnboardCommand(
   ];
 
   const handleCheck = async (): Promise<void> => {
-    ensureVoiceDefaultsInEnvLocal(rootDir, envLocalPath);
+    ensureVoiceDefaultsInEnvLocal(rootDir, envLocalPath, lang);
     const key =
       readApiKeyFromEnvLocal(envLocalPath) || env.ELEVENLABS_API_KEY?.trim();
 
@@ -1042,7 +1050,7 @@ export async function runOnboardCommand(
     const reply = elevenLabsRunner(rootDir, ['connect', ...extraArgs]);
 
     if (!reply) {
-      ensureEnvLocalTemplate(envLocalPath, envExamplePath);
+      ensureEnvLocalTemplate(envLocalPath, envExamplePath, lang);
       emit({
         next: 'ask_user',
         say: isPl

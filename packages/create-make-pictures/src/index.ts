@@ -48,6 +48,7 @@ interface StarterStyleMeta {
   accentSecondary: string;
   mood: string;
   voiceId: string;
+  voiceIdPl: string;
 }
 
 const STARTER_STYLE_METADATA: Record<string, StarterStyleMeta> = {
@@ -56,60 +57,70 @@ const STARTER_STYLE_METADATA: Record<string, StarterStyleMeta> = {
     accentSecondary: '#0EA5E9',
     mood: 'upbeat-launch',
     voiceId: 'TX3LPaxmHKxFdv7VOQHJ',
+    voiceIdPl: 'Bz1e1clEKwgN71Vx7cxj',
   },
   'editorial-press': {
     accentPrimary: '#C83E2B',
     accentSecondary: '#1D4ED8',
     mood: 'news-pulse',
     voiceId: 'EXAVITQu4vr4xnSDxMaL',
+    voiceIdPl: 'F9eb9uZYeJuHuO7Uvs1R',
   },
   'archival-chronicle': {
     accentPrimary: '#9E3B24',
     accentSecondary: '#B07D2B',
     mood: 'warm-story',
     voiceId: 'nPczCjzI2devNBz1zQrb',
+    voiceIdPl: 'CLuTGacrAhcIhaJslbXt',
   },
   'cyber-telemetry': {
     accentPrimary: '#00F5D4',
     accentSecondary: '#8B5CF6',
     mood: 'ambient-tech',
     voiceId: 'TX3LPaxmHKxFdv7VOQHJ',
+    voiceIdPl: 'Bz1e1clEKwgN71Vx7cxj',
   },
   'brutalist-poster': {
     accentPrimary: '#FF2A85',
     accentSecondary: '#2563EB',
     mood: 'upbeat-launch',
     voiceId: 'JBFqnCBsd6RMkjVDRZzb',
+    voiceIdPl: 'C8ZVSJxcymeT86xT429O',
   },
   'sketch-notebook': {
     accentPrimary: '#0D9488',
     accentSecondary: '#F59E0B',
     mood: 'warm-story',
     voiceId: 'JBFqnCBsd6RMkjVDRZzb',
+    voiceIdPl: 'C8ZVSJxcymeT86xT429O',
   },
   'tactile-craft': {
     accentPrimary: '#EA580C',
     accentSecondary: '#059669',
     mood: 'paper-expedition',
     voiceId: 'JBFqnCBsd6RMkjVDRZzb',
+    voiceIdPl: 'C8ZVSJxcymeT86xT429O',
   },
   'retro-pc': {
     accentPrimary: '#38BDF8',
     accentSecondary: '#4ADE80',
     mood: 'ambient-tech',
     voiceId: 'TX3LPaxmHKxFdv7VOQHJ',
+    voiceIdPl: 'Bz1e1clEKwgN71Vx7cxj',
   },
   'soft-clay': {
     accentPrimary: '#EA580C',
     accentSecondary: '#0D9488',
     mood: 'warm-story',
     voiceId: 'JBFqnCBsd6RMkjVDRZzb',
+    voiceIdPl: 'C8ZVSJxcymeT86xT429O',
   },
   'glass-studio': {
     accentPrimary: '#4F46E5',
     accentSecondary: '#06B6D4',
     mood: 'upbeat-launch',
     voiceId: 'TX3LPaxmHKxFdv7VOQHJ',
+    voiceIdPl: 'Bz1e1clEKwgN71Vx7cxj',
   },
 };
 
@@ -674,15 +685,20 @@ public/_productions/
 .DS_Store
 `;
 
-const ENV_EXAMPLE_CONTENT = `# make.pictures Studio — Environment Variables
+function buildEnvExampleContent(lang: 'pl' | 'en'): string {
+  const defaultVoiceId =
+    lang === 'pl' ? 'C8ZVSJxcymeT86xT429O' : 'TX3LPaxmHKxFdv7VOQHJ';
+  return `# make.pictures Studio — Environment Variables
 # Connect automatically via: npm run onboard
+# Discover native voices via: npx make-pictures voices --lang=${lang}
 ELEVENLABS_API_KEY=your_elevenlabs_api_key_here
-ELEVENLABS_VOICE_ID=TX3LPaxmHKxFdv7VOQHJ
+ELEVENLABS_VOICE_ID=${defaultVoiceId}
 ELEVENLABS_MODEL_ID=eleven_multilingual_v2
 
 # Optional: Gemini Image generation (npx make-pictures image "..." --out=...)
 # GEMINI_API_KEY=your_gemini_api_key_here
 `;
+}
 
 const EMBEDDED_AGENTS_MD = `# AGENTS.md — Core Studio Rulebook (make.pictures)
 
@@ -2357,7 +2373,7 @@ export async function createMakePicturesApp(
   writeMergedGitignore(path.join(targetDir, '.gitignore'), GITIGNORE_CONTENT);
   fs.writeFileSync(
     path.join(targetDir, '.env.example'),
-    ENV_EXAMPLE_CONTENT,
+    buildEnvExampleContent(lang),
     'utf8'
   );
   fs.writeFileSync(
@@ -2381,7 +2397,7 @@ export async function createMakePicturesApp(
       : normalizedSpace
         ? styleMeta.mood
         : moodForKit(kit);
-  const voiceId = styleMeta.voiceId;
+  const voiceId = isPl ? styleMeta.voiceIdPl : styleMeta.voiceId;
   const introText = isPl
     ? 'Hello Studio otwiera spokojną opowieść pełną światła i ruchu.'
     : 'Hello Studio opens a calm visual story shaped by light.';

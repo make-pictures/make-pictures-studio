@@ -39,24 +39,50 @@ Design broadcast-ready, `-14 LUFS` mastered soundtracks combining word-aligned *
      Never read hardware SKUs or model strings (`DK-940X-TB4`, `PD-140W-G2`) aloud — speak the concrete function and user benefit in narration, and place model badges visually on the card (`badge="Seria 940"`). `npx make-pictures audio` runs `lintManifestVoiceovers` (`phonetics-lint.ts`) automatically before synthesis.
 - **Context continuity (`previousText` / `nextText`):** Pass optional `previousText` and `nextText` (prefixed with `. ` or `... ` to prevent trailing phoneme bleed) on `SceneDefinition` so multi-scene monologues maintain seamless prosody across cuts.
 
-### Proven Studio Voice Profiles & Natural `0.98–1.00` Speech Speed
+### Native Voice Selection Rule (CRITICAL — Never Use English Premade Voices for Polish!)
+
+Default ElevenLabs premade voices (**Liam** `TX3LPaxmHKxFdv7VOQHJ`, **Sarah** `EXAVITQu4vr4xnSDxMaL`, **Brian** `nPczCjzI2devNBz1zQrb`, **George** `JBFqnCBsd6RMkjVDRZzb`, **Daniel** `onwK4e9ZLuTAKqWW03F9`, **Adam**, **Callum**, **Bill**) are **English-native voices** speaking Polish only via cross-lingual transfer — which produces foreign prosody and awkward accentuation on Polish numerals.
+
+**Before choosing or changing a voice for any film:**
+1. Run **`npx make-pictures voices --lang=pl --json`** (or `--lang=en`, `--gender=female|male`, `--query="..."`) — this lists **curated native voices**, checks **the user's own ElevenLabs account voices first**, and searches the **ElevenLabs Voice Library** with free `previewUrl` samples (`0` credits).
+2. When testing a new voice on difficult text (e.g. long Polish numerals), audition **1 short sentence** before synthesizing the whole film:
+   ```bash
+   npx make-pictures voices --voice=C8ZVSJxcymeT86xT429O --lang=pl --audition="Czterysta czterdzieści cztery tysiące pięćset pięćdziesiąt pięć."
+   ```
+3. You can also set optional `modelId` (`eleven_multilingual_v2` default, or `eleven_v3` / `eleven_turbo_v2_5` / `eleven_flash_v2_5`) and `languageCode` (`"pl"` / `"en"`) per manifest or per scene in `production.json` (note: `languageCode` is automatically sent only for models that support it — skipped for `eleven_multilingual_v2`). `lintManifestVoiceovers` automatically warns if a Polish production uses a known English-native premade voice.
+
+### Proven Native Studio Voice Profiles & Natural `0.98–1.00` Speech Speed
 
 Keep `voiceSettings.speed` in the natural **`0.98–1.00`** range (`0.99` CLI default) for Polish and English explainers, product presentations, and essays — speeds `>= 1.10` rush phrasing and clip Polish consonant endings.
 
-1. **Dynamic Narrator / Young Hero (`Liam` — default):** `TX3LPaxmHKxFdv7VOQHJ`
-   - `voiceSettings`: `{ stability: 0.42, similarityBoost: 0.78, style: 0.45, speed: 0.99, useSpeakerBoost: true }`
-   - Suitable for launch films and product stories; use exclamation marks sparingly.
-2. **Calm / Analytical Explainer:** `CLuTGacrAhcIhaJslbXt`
+#### Verified Native Polish (`lang: 'pl'`) Voices (`language: pl`, direct `voiceId` support)
+1. **Luiza — Warm Storyteller / Educator (PL female, default PL):** `C8ZVSJxcymeT86xT429O`
+   - `voiceSettings`: `{ stability: 0.48, similarityBoost: 0.80, style: 0.30, speed: 0.99, useSpeakerBoost: true }`
+   - Natural Polish penultimate stress even on complex multi-digit numerals; warm, engaging teaching and storytelling cadence.
+2. **Asia — Crisp Product & Tech Presenter (PL female):** `Bz1e1clEKwgN71Vx7cxj`
+   - `voiceSettings`: `{ stability: 0.45, similarityBoost: 0.80, style: 0.32, speed: 0.99, useSpeakerBoost: true }`
+   - Friendly, clear, upbeat native Polish for SaaS demos, product explainers, and tutorials.
+3. **Arleta — Calm Instructor / Editorial Anchor (PL female):** `F9eb9uZYeJuHuO7Uvs1R`
+   - `voiceSettings`: `{ stability: 0.56, similarityBoost: 0.82, style: 0.18, speed: 0.99, useSpeakerBoost: true }`
+   - Measured, crisp classroom/editorial diction for essays and structured guides.
+4. **Rafał — Calm Analytical / Documentary Narrator (PL male):** `CLuTGacrAhcIhaJslbXt`
    - `voiceSettings`: `{ stability: 0.58, similarityBoost: 0.80, style: 0.18, speed: 0.99, useSpeakerBoost: true }`
-   - Always end sentences with periods (`.`), never `!`, to keep word endings crisp and unclipped.
-3. **Broadcast Journalist / Documentary Anchor (`Daniel — Steady Broadcaster`):** `onwK4e9ZLuTAKqWW03F9`
+   - Natural, calm Polish male voice; always end sentences with periods (`.`), never `!`, to keep word endings unclipped.
+
+#### Verified Native English (`lang: 'en'`) Voices (Use ONLY for English Scripts!)
+1. **Dynamic Narrator / Tech Launch (`Liam` — default EN):** `TX3LPaxmHKxFdv7VOQHJ`
+   - `voiceSettings`: `{ stability: 0.42, similarityBoost: 0.78, style: 0.45, speed: 0.99, useSpeakerBoost: true }`
+2. **Calm Editorial & Science Anchor (`Sarah` — EN female):** `EXAVITQu4vr4xnSDxMaL`
+   - `voiceSettings`: `{ stability: 0.54, similarityBoost: 0.80, style: 0.22, speed: 0.99, useSpeakerBoost: true }`
+3. **Broadcast Journalist / Documentary Anchor (`Daniel` — EN male):** `onwK4e9ZLuTAKqWW03F9`
    - `voiceSettings`: `{ stability: 0.62, similarityBoost: 0.84, style: 0.22, speed: 1.00, useSpeakerBoost: true }`
-   - **Zero exclamation marks (`!`)** in news/documentary scripts—use periods (`.`) and em-dashes (`—`) for authoritative TV anchor cadence.
-4. **Multi-Character Dialogue Ensemble:**
-   - `nPczCjzI2devNBz1zQrb` (*Brian* — senior authority / colonel)
-   - `pNInz6obpgDQGcFmaJgB` (*Adam* — director / documentary narrator)
+   - **Zero exclamation marks (`!`)** in news/documentary scripts—use periods (`.`) and em-dashes (`—`).
+4. **English Multi-Character Dialogue Ensemble:**
+   - `nPczCjzI2devNBz1zQrb` (*Brian* — warm documentary authority)
+   - `JBFqnCBsd6RMkjVDRZzb` (*George* — expressive storyteller)
+   - `pNInz6obpgDQGcFmaJgB` (*Adam* — director / narrator)
    - `N2lVS1w4EtoT3dr4eOWO` (*Callum* — assistant / analyst)
-   - `pqHfZKP75CvOlQylNhV4` (*Bill* — elderly aristocrat / mentor)
+   - `pqHfZKP75CvOlQylNhV4` (*Bill* — elderly mentor)
 
 ### Declarative Voice Acoustic Filters (`voiceEffect`)
 Never hardcode scene IDs in audio scripts. Set `voiceEffect?: VoiceAcousticPreset` directly on any scene in `production.json`:

@@ -20,6 +20,12 @@ import {
   type VoiceAcousticPreset,
   type VoiceSettingsConfig,
 } from '@make-pictures/core';
+import {
+  ELEVENLABS_TTS_MODELS,
+  getCuratedVoices,
+  getKnownEnglishVoiceName,
+  type ElevenLabsModelInfo,
+} from '../../../core/src/audio/voices';
 
 export interface StartStudioServerOptions {
   rootDir?: string;
@@ -51,7 +57,36 @@ export interface StudioCapsuleScenesGroup {
   origin: 'root' | 'production';
   manifestFile: string;
   fps: number;
+  lang?: 'pl' | 'en';
   scenes: SceneDefinition[];
+}
+
+export interface StudioVoiceItem {
+  voiceId: string;
+  name: string;
+  source: 'curated' | 'account' | 'shared';
+  language?: string;
+  gender?: string;
+  role?: string;
+  useCase?: string;
+  category?: string;
+  description?: string;
+  previewUrl?: string;
+  freeUsersAllowed?: boolean;
+  recommendedSettings?: VoiceSettingsConfig;
+}
+
+export interface StudioVoicesResponse {
+  ok: true;
+  configured: boolean;
+  lang: string;
+  gender?: string;
+  query?: string;
+  recommended: StudioVoiceItem[];
+  account: StudioVoiceItem[];
+  shared: StudioVoiceItem[];
+  models: ReadonlyArray<ElevenLabsModelInfo>;
+  warning?: string;
 }
 
 export interface StudioScenesResponse {
@@ -299,9 +334,9 @@ export function syncProductionAssetSymlinks(studioDir: string): void {
   }
 }
 
-function checkEnvFileForApiKey(envFilePath: string): boolean {
-  if (!fs.existsSync(envFilePath)) return false;
-  const content = fs.readFileSync(envFilePath, 'utf8');
+function readApiKeyFromEnvFile(envPath: string): string | null {
+  if (!fs.existsSync(envPath)) return null;
+  const content = fs.readFileSync(envPath, 'utf8');
   for (const rawLine of content.split(/\r?\n/)) {
     const line = rawLine.trim();
     if (!line || line.startsWith('#')) continue;
@@ -318,23 +353,253 @@ function checkEnvFileForApiKey(envFilePath: string): boolean {
       val !== 'your_elevenlabs_api_key_here' &&
       val !== 'twoj_klucz_api_elevenlabs'
     ) {
-      return true;
+      return val;
     }
   }
-  return false;
+  return null;
+}
+
+function resolveConfiguredApiKey(rootDir: string, studioDir: string): string | null {
+  const fromEnv = process.env.ELEVENLABS_API_KEY?.trim();
+  if (
+    fromEnv &&
+    fromEnv !== 'your_elevenlabs_api_key_here' &&
+    fromEnv !== 'twoj_klucz_api_elevenlabs'
+  ) {
+    return fromEnv;
+  }
+  return (
+    readApiKeyFromEnvFile(path.join(studioDir, '.env.local')) ||
+    readApiKeyFromEnvFile(path.join(rootDir, '.env.local')) ||
+    readApiKeyFromEnvFile(path.join(rootDir, '.env'))
+  );
 }
 
 function hasConfiguredApiKey(rootDir: string, studioDir: string): boolean {
-  if (
-    process.env.ELEVENLABS_API_KEY &&
-    process.env.ELEVENLABS_API_KEY.trim().length > 0
-  ) {
-    return true;
+  return resolveConfiguredApiKey(rootDir, studioDir) !== null;
+}
+
+interface StudioVoicesCacheEntry {
+  expiresAt: number;
+  payload: StudioVoicesResponse;
+}
+
+const STUDIO_VOICES_CACHE = new Map<string, StudioVoicesCacheEntry>();
+const STUDIO_VOICES_CACHE_TTL_MS = 60_000;
+
+export async function fetchStudioVoicesCatalog(
+  rootDir: string,
+  studioDir: string,
+  options?: {
+    lang?: string;
+    gender?: string;
+    query?: string;
+    limit?: number;
+    refresh?: boolean;
+  },
+  deps?: {
+    fetchImpl?: typeof fetch;
+    apiKeyOverride?: string | null;
   }
-  return (
-    checkEnvFileForApiKey(path.join(studioDir, '.env.local')) ||
-    checkEnvFileForApiKey(path.join(rootDir, '.env.local'))
-  );
+): Promise<StudioVoicesResponse> {
+  const rawLang = (options?.lang ?? '').trim().toLowerCase();
+  const langFilter = rawLang && rawLang !== 'all' ? rawLang : undefined;
+  const rawGender = (options?.gender ?? '').trim().toLowerCase();
+  const genderFilter =
+    rawGender === 'female' || rawGender === 'male' ? rawGender : undefined;
+  const queryFilter = options?.query?.trim() || undefined;
+  const limit = Math.min(Math.max(options?.limit ?? 15, 1), 30);
+
+  const apiKey =
+    deps?.apiKeyOverride !== undefined
+      ? deps.apiKeyOverride
+      : resolveConfiguredApiKey(rootDir, studioDir);
+  const configured = Boolean(apiKey);
+
+  const cacheKey = `${rootDir}|${studioDir}|${configured}|${langFilter ?? 'all'}|${genderFilter ?? 'all'}|${queryFilter ?? ''}|${limit}`;
+  if (!options?.refresh && !deps?.fetchImpl) {
+    const cached = STUDIO_VOICES_CACHE.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.payload;
+    }
+  }
+
+  const recommended: StudioVoiceItem[] = getCuratedVoices({
+    lang: langFilter,
+    gender: genderFilter,
+  }).map((v) => ({
+    voiceId: v.voiceId,
+    name: v.name,
+    source: 'curated',
+    language: v.lang,
+    gender: v.gender,
+    role: v.role,
+    description: v.description,
+    freeUsersAllowed: true,
+    recommendedSettings: v.recommendedSettings,
+  }));
+
+  const account: StudioVoiceItem[] = [];
+  const shared: StudioVoiceItem[] = [];
+  let warning: string | undefined;
+
+  if (configured && apiKey) {
+    const fetchFn = deps?.fetchImpl ?? globalThis.fetch;
+
+    // 1. Account voices (`GET /v1/voices`)
+    try {
+      const accRes = await fetchFn('https://api.elevenlabs.io/v1/voices', {
+        headers: { 'xi-api-key': apiKey },
+      });
+      if (accRes.ok) {
+        const accJson = (await accRes.json()) as {
+          voices?: Array<{
+            voice_id?: string;
+            name?: string;
+            category?: string;
+            description?: string;
+            preview_url?: string;
+            labels?: Record<string, string | undefined>;
+            verified_languages?: Array<{ language?: string }>;
+          }>;
+        };
+        for (const v of accJson.voices ?? []) {
+          const voiceId = (v.voice_id ?? '').trim();
+          if (!voiceId) continue;
+          if (langFilter === 'pl' && getKnownEnglishVoiceName(voiceId)) {
+            continue;
+          }
+          const voiceLang = (
+            v.labels?.language ??
+            v.verified_languages?.[0]?.language ??
+            ''
+          )
+            .trim()
+            .toLowerCase();
+          const voiceGender = (v.labels?.gender ?? '').trim().toLowerCase();
+
+          if (langFilter) {
+            if (voiceLang) {
+              if (
+                voiceLang !== langFilter &&
+                !voiceLang.startsWith(`${langFilter}-`)
+              ) {
+                continue;
+              }
+            } else {
+              const hay = `${v.name ?? ''} ${v.description ?? ''}`.toLowerCase();
+              const kws =
+                langFilter === 'pl' ? ['polish', 'polsk'] : [langFilter];
+              if (!kws.some((kw) => hay.includes(kw))) continue;
+            }
+          }
+          if (genderFilter && voiceGender && voiceGender !== genderFilter) {
+            continue;
+          }
+          if (queryFilter) {
+            const q = queryFilter.toLowerCase();
+            const hay =
+              `${v.name ?? ''} ${v.description ?? ''} ${v.labels?.use_case ?? ''} ${voiceId}`.toLowerCase();
+            if (!hay.includes(q)) continue;
+          }
+
+          account.push({
+            voiceId,
+            name: v.name ?? voiceId,
+            source: 'account',
+            language: voiceLang || undefined,
+            gender: voiceGender || undefined,
+            useCase: v.labels?.use_case || undefined,
+            category: v.category || undefined,
+            description: v.description || undefined,
+            previewUrl: v.preview_url || undefined,
+          });
+        }
+      } else {
+        warning = `ElevenLabs /v1/voices HTTP ${accRes.status}`;
+      }
+    } catch (err) {
+      warning = `Nie udało się pobrać głosów z konta ElevenLabs: ${err instanceof Error ? err.message : String(err)}`;
+    }
+
+    // 2. ElevenLabs Shared Voice Library (`GET /v1/shared-voices`)
+    try {
+      const sp = new URLSearchParams();
+      sp.set('page_size', String(limit));
+      if (langFilter) sp.set('language', langFilter);
+      if (genderFilter) sp.set('gender', genderFilter);
+      if (queryFilter) sp.set('search', queryFilter);
+
+      const libRes = await fetchFn(
+        `https://api.elevenlabs.io/v1/shared-voices?${sp.toString()}`,
+        {
+          headers: { 'xi-api-key': apiKey },
+        }
+      );
+      if (libRes.ok) {
+        const libJson = (await libRes.json()) as {
+          voices?: Array<{
+            voice_id?: string;
+            name?: string;
+            language?: string;
+            gender?: string;
+            use_case?: string;
+            category?: string;
+            description?: string;
+            preview_url?: string;
+            free_users_allowed?: boolean;
+          }>;
+        };
+        for (const v of libJson.voices ?? []) {
+          const voiceId = (v.voice_id ?? '').trim();
+          if (!voiceId) continue;
+          shared.push({
+            voiceId,
+            name: v.name ?? voiceId,
+            source: 'shared',
+            language: v.language || langFilter,
+            gender: v.gender || undefined,
+            useCase: v.use_case || undefined,
+            category: v.category || undefined,
+            description: v.description || undefined,
+            previewUrl: v.preview_url || undefined,
+            freeUsersAllowed:
+              typeof v.free_users_allowed === 'boolean'
+                ? v.free_users_allowed
+                : undefined,
+          });
+        }
+      } else {
+        const msg = `ElevenLabs /v1/shared-voices HTTP ${libRes.status}`;
+        warning = warning ? `${warning}; ${msg}` : msg;
+      }
+    } catch (err) {
+      const msg = `Nie udało się pobrać biblioteki ElevenLabs: ${err instanceof Error ? err.message : String(err)}`;
+      warning = warning ? `${warning}; ${msg}` : msg;
+    }
+  }
+
+  const payload: StudioVoicesResponse = {
+    ok: true,
+    configured,
+    lang: langFilter ?? 'all',
+    gender: genderFilter,
+    query: queryFilter,
+    recommended,
+    account,
+    shared,
+    models: ELEVENLABS_TTS_MODELS,
+    ...(warning ? { warning } : {}),
+  };
+
+  if (!deps?.fetchImpl) {
+    STUDIO_VOICES_CACHE.set(cacheKey, {
+      expiresAt: Date.now() + STUDIO_VOICES_CACHE_TTL_MS,
+      payload,
+    });
+  }
+
+  return payload;
 }
 
 function populateManifestScenesStatus(
@@ -365,8 +630,14 @@ function populateManifestScenesStatus(
           fs.readFileSync(jsonPath, 'utf8')
         ) as SceneVoiceoverData;
         provider = voData.provider;
+        const voiceMatches =
+          !scene.voiceId?.trim() || voData.voiceId === scene.voiceId.trim();
+        const modelMatches =
+          !scene.modelId?.trim() || voData.modelId === scene.modelId.trim();
         isHashCurrent =
           Boolean(voData.textHash) &&
+          voiceMatches &&
+          modelMatches &&
           (voData.textHash === expectedLegacyHash ||
             voData.text?.trim() === scene.text.trim());
         wordCount = Array.isArray(voData.words) ? voData.words.length : 0;
@@ -748,12 +1019,18 @@ export function readStudioScenesFromDisk(
                 ? prodManifest.fps
                 : 60;
 
+            const lang =
+              prodManifest.lang === 'pl' || prodManifest.lang === 'en'
+                ? prodManifest.lang
+                : undefined;
+
             groups.push({
               id: entry.name,
               title,
               origin: 'production',
               manifestFile: `productions/${entry.name}/production.json`,
               fps,
+              ...(lang ? { lang } : {}),
               scenes: prodManifest.scenes,
             });
           }
@@ -1026,6 +1303,46 @@ export function saveStudioSceneToDisk(
         body: {
           ok: false,
           error: 'Pole voiceId musi być ciągiem znaków.',
+        },
+      };
+    }
+  }
+
+  if ('modelId' in patch) {
+    if (patch.modelId === undefined || patch.modelId === null) {
+      delete updatedScene.modelId;
+    } else if (typeof patch.modelId === 'string') {
+      if (patch.modelId.trim().length === 0) {
+        delete updatedScene.modelId;
+      } else {
+        updatedScene.modelId = patch.modelId.trim();
+      }
+    } else {
+      return {
+        statusCode: 400,
+        body: {
+          ok: false,
+          error: 'Pole modelId musi być ciągiem znaków.',
+        },
+      };
+    }
+  }
+
+  if ('languageCode' in patch) {
+    if (patch.languageCode === undefined || patch.languageCode === null) {
+      delete updatedScene.languageCode;
+    } else if (typeof patch.languageCode === 'string') {
+      if (patch.languageCode.trim().length === 0) {
+        delete updatedScene.languageCode;
+      } else {
+        updatedScene.languageCode = patch.languageCode.trim().toLowerCase();
+      }
+    } else {
+      return {
+        statusCode: 400,
+        body: {
+          ok: false,
+          error: 'Pole languageCode musi być ciągiem znaków.',
         },
       };
     }
@@ -1356,6 +1673,39 @@ export function makePicturesStudioServerPlugin(
             })
             .catch((err) => {
               res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(
+                JSON.stringify({
+                  ok: false,
+                  error: err instanceof Error ? err.message : String(err),
+                })
+              );
+            });
+          return;
+        }
+
+        // 1a-voices. GET /api/studio/voices
+        if (req.method === 'GET' && url === '/api/studio/voices') {
+          const params = new URLSearchParams(queryStr);
+          const limitRaw = params.get('limit');
+          const parsedLimit = limitRaw ? Number(limitRaw) : undefined;
+          fetchStudioVoicesCatalog(rootDir, studioDir, {
+            lang: params.get('lang') ?? undefined,
+            gender: params.get('gender') ?? undefined,
+            query: params.get('q') ?? undefined,
+            limit:
+              parsedLimit !== undefined && Number.isFinite(parsedLimit)
+                ? parsedLimit
+                : undefined,
+            refresh: params.get('refresh') === '1',
+          })
+            .then((payload) => {
+              res.statusCode = 200;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify(payload));
+            })
+            .catch((err) => {
+              res.statusCode = 500;
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
               res.end(
                 JSON.stringify({

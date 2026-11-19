@@ -1,4 +1,5 @@
 import type {
+  ElevenLabsModelInfo,
   SceneDefinition,
   VoiceAcousticPreset,
   VoiceSettingsConfig,
@@ -35,7 +36,36 @@ export interface StudioCapsuleScenesGroup {
   origin: 'root' | 'production';
   manifestFile: string;
   fps: number;
+  lang?: 'pl' | 'en';
   scenes: SceneDefinition[];
+}
+
+export interface StudioVoiceItem {
+  voiceId: string;
+  name: string;
+  source: 'curated' | 'account' | 'shared';
+  language?: string;
+  gender?: string;
+  role?: string;
+  useCase?: string;
+  category?: string;
+  description?: string;
+  previewUrl?: string;
+  freeUsersAllowed?: boolean;
+  recommendedSettings?: VoiceSettingsConfig;
+}
+
+export interface StudioVoicesResponse {
+  ok: boolean;
+  configured: boolean;
+  lang: string;
+  gender?: string;
+  query?: string;
+  recommended: StudioVoiceItem[];
+  account: StudioVoiceItem[];
+  shared: StudioVoiceItem[];
+  models: ElevenLabsModelInfo[];
+  warning?: string;
 }
 
 export interface StudioScenesResponse {
@@ -50,6 +80,8 @@ export interface StudioScenePatch {
   title?: string;
   speaker?: string;
   voiceId?: string;
+  modelId?: string;
+  languageCode?: string;
   durationInSeconds?: number;
   voiceEffect?: VoiceAcousticPreset;
   voiceSettings?: VoiceSettingsConfig;

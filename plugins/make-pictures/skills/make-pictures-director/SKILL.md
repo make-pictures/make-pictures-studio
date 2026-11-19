@@ -103,12 +103,13 @@ Load `sound-and-music-design` and write `productions/<slug>/production.json` con
   "id": "printing-revolution",
   "title": "Jak prasa drukarska przyspieszyła naukę",
   "fps": 60,
+  "lang": "pl",
   "scenes": [
     {
       "id": "s1-hook",
       "durationInSeconds": 4.5,
       "speaker": "Narrator",
-      "voiceId": "EXAVITQu4vr4xnSDxMaL",
+      "voiceId": "F9eb9uZYeJuHuO7Uvs1R",
       "voiceEffect": "clean",
       "text": "W ciągu zaledwie pięćdziesięciu lat koszt książki spadł o osiemdziesiąt procent."
     }
@@ -149,8 +150,8 @@ Load `sound-and-music-design` and write `productions/<slug>/production.json` con
 
 ### Step 3: Unified Audio Generation, Asset Cutout Hygiene & Mandatory `.mp3` Audition
 
-1. Run `npx make-pictures doctor` (or `npx make-pictures onboard`) if this is the first session.
-2. Generate voiceovers + word timestamps + AI music score + AI SFX (automatically runs `lintManifestVoiceovers` checking Polish **głoskowce** `"api"` vs hyphenated **literowce** `"u-es-be"` and catalog SKUs):
+1. Run `npx make-pictures doctor` (or `npx make-pictures onboard`) if this is the first session, and pick a **language-native voice** via `npx make-pictures voices --lang=pl --json` (or `--lang=en`; never use English premade voices like Liam/Sarah for Polish narration; optionally test 1 short sentence with `--audition="..." --voice=<id>`).
+2. Generate voiceovers + word timestamps + AI music score + AI SFX (automatically runs `lintManifestVoiceovers` checking native PL voice selection, Polish **głoskowce** `"api"` vs hyphenated **literowce** `"u-es-be"`, and catalog SKUs):
    ```bash
    npx make-pictures audio --production=<slug>
    ```

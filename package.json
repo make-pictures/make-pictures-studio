@@ -24,6 +24,7 @@
     "setup": "tsx packages/cli/src/index.ts doctor --setup",
     "new": "tsx packages/cli/src/index.ts new",
     "audio": "tsx packages/cli/src/index.ts audio",
+    "voices": "tsx packages/cli/src/index.ts voices",
     "music": "tsx packages/cli/src/index.ts music",
     "sfx": "tsx packages/cli/src/index.ts sfx",
     "qa": "tsx packages/cli/src/index.ts qa",

@@ -1,17 +1,25 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
+  AlertTriangle,
   Check,
   ChevronDown,
   KeyRound,
   Mic,
+  Play,
   RefreshCw,
   RotateCcw,
   Save,
+  Search,
   SlidersHorizontal,
   Sparkles,
+  Square,
 } from 'lucide-react';
 import {
+  ELEVENLABS_TTS_MODELS,
+  getCuratedVoices,
+  getDefaultVoiceIdForLang,
+  getKnownEnglishVoiceName,
   getSceneVoiceover,
   type SceneDefinition,
   type StudioCompositionEntry,
@@ -25,6 +33,8 @@ import type {
   StudioScenePatch,
   StudioScenesResponse,
   StudioStatusResponse,
+  StudioVoiceItem,
+  StudioVoicesResponse,
 } from '../types';
 
 export interface SceneScriptEditorProps {
@@ -52,6 +62,7 @@ interface SceneDraftState {
   durationInSeconds: number;
   voiceEffect: VoiceAcousticPreset;
   voiceId: string;
+  modelId: string;
   hasVoiceSettings: boolean;
   stability: number;
   similarityBoost: number;
@@ -108,6 +119,7 @@ function sceneToDraft(scene: SceneDefinition): SceneDraftState {
         : 4,
     voiceEffect: scene.voiceEffect ?? 'clean',
     voiceId: scene.voiceId ?? '',
+    modelId: scene.modelId ?? '',
     hasVoiceSettings: hasVs,
     stability: vs?.stability ?? 0.5,
     similarityBoost: vs?.similarityBoost ?? 0.75,
@@ -129,6 +141,7 @@ function isDraftDifferentFromScene(
   }
   if (draft.voiceEffect !== base.voiceEffect) return true;
   if (draft.voiceId.trim() !== base.voiceId.trim()) return true;
+  if (draft.modelId.trim() !== base.modelId.trim()) return true;
   if (draft.hasVoiceSettings !== base.hasVoiceSettings) return true;
   if (draft.hasVoiceSettings) {
     if (Math.abs(draft.stability - base.stability) > 0.001) return true;
@@ -152,6 +165,10 @@ function buildScenePatch(
     voiceId: draft.voiceId.trim(),
     durationInSeconds: roundTwo(draft.durationInSeconds),
   };
+
+  if (draft.modelId.trim() !== '' || scene.modelId !== undefined) {
+    patch.modelId = draft.modelId.trim();
+  }
 
   if (draft.voiceEffect !== 'clean' || scene.voiceEffect !== undefined) {
     patch.voiceEffect = draft.voiceEffect;
@@ -332,9 +349,154 @@ export const SceneScriptEditor: React.FC<SceneScriptEditorProps> = ({
   const [expandedVoiceSettings, setExpandedVoiceSettings] = useState<
     Record<string, boolean>
   >({});
+  const [expandedVoiceBrowser, setExpandedVoiceBrowser] = useState<
+    Record<string, boolean>
+  >({});
   const [feedbackByKey, setFeedbackByKey] = useState<
     Record<string, SceneSaveFeedback | undefined>
   >({});
+
+  const activeGroupLang = useMemo<'pl' | 'en'>(() => {
+    if (composition.origin === 'production' && composition.productionId) {
+      const grp = scenesResponse?.groups.find(
+        (g) => g.id === composition.productionId
+      );
+      if (grp?.lang === 'pl' || grp?.lang === 'en') {
+        return grp.lang;
+      }
+    }
+    const sampleText = resolvedEntries
+      .map((e) => e.scene.text)
+      .join(' ');
+    if (/[ąćęłńśźżĄĆĘŁŃŚŹŻ]/.test(sampleText)) {
+      return 'pl';
+    }
+    return 'en';
+  }, [
+    composition.origin,
+    composition.productionId,
+    resolvedEntries,
+    scenesResponse?.groups,
+  ]);
+
+  const [voiceFilterLang, setVoiceFilterLang] = useState<'pl' | 'en' | 'all'>(
+    activeGroupLang
+  );
+  const [voiceFilterGender, setVoiceFilterGender] = useState<
+    'all' | 'female' | 'male'
+  >('all');
+  const [voiceSearchQuery, setVoiceSearchQuery] = useState('');
+  const [voicesCatalog, setVoicesCatalog] =
+    useState<StudioVoicesResponse | null>(null);
+  const [isLoadingVoices, setIsLoadingVoices] = useState(false);
+  const [playingPreviewId, setPlayingPreviewId] = useState<string | null>(null);
+  const previewAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    setVoiceFilterLang(activeGroupLang);
+  }, [activeGroupLang]);
+
+  const fetchVoices = useCallback(
+    async (opts?: {
+      lang?: string;
+      gender?: string;
+      query?: string;
+      refresh?: boolean;
+    }) => {
+      setIsLoadingVoices(true);
+      try {
+        const sp = new URLSearchParams();
+        const lang = opts?.lang ?? voiceFilterLang;
+        const gender = opts?.gender ?? voiceFilterGender;
+        const q = (opts?.query ?? voiceSearchQuery).trim();
+        if (lang && lang !== 'all') sp.set('lang', lang);
+        if (gender && gender !== 'all') sp.set('gender', gender);
+        if (q) sp.set('q', q);
+        if (opts?.refresh) sp.set('refresh', '1');
+        const res = await fetch(`/api/studio/voices?${sp.toString()}`);
+        if (res.ok) {
+          const data = (await res.json()) as StudioVoicesResponse;
+          if (data && data.ok) {
+            setVoicesCatalog(data);
+          }
+        }
+      } catch {
+        // Keep curated offline fallback
+      } finally {
+        setIsLoadingVoices(false);
+      }
+    },
+    [voiceFilterGender, voiceFilterLang, voiceSearchQuery]
+  );
+
+  useEffect(() => {
+    void fetchVoices({ lang: voiceFilterLang, gender: voiceFilterGender });
+  }, [voiceFilterLang, voiceFilterGender, fetchVoices]);
+
+  useEffect(() => {
+    return () => {
+      if (previewAudioRef.current) {
+        previewAudioRef.current.pause();
+        previewAudioRef.current = null;
+      }
+    };
+  }, []);
+
+  const toggleVoicePreview = useCallback((voice: StudioVoiceItem) => {
+    if (!voice.previewUrl) return;
+    if (playingPreviewId === voice.voiceId) {
+      previewAudioRef.current?.pause();
+      previewAudioRef.current = null;
+      setPlayingPreviewId(null);
+      return;
+    }
+    if (previewAudioRef.current) {
+      previewAudioRef.current.pause();
+    }
+    const audio = new Audio(voice.previewUrl);
+    previewAudioRef.current = audio;
+    setPlayingPreviewId(voice.voiceId);
+    audio.onended = () => {
+      setPlayingPreviewId((cur) => (cur === voice.voiceId ? null : cur));
+    };
+    audio.onerror = () => {
+      setPlayingPreviewId((cur) => (cur === voice.voiceId ? null : cur));
+    };
+    void audio.play().catch(() => {
+      setPlayingPreviewId((cur) => (cur === voice.voiceId ? null : cur));
+    });
+  }, [playingPreviewId]);
+
+  const curatedFallbackVoices = useMemo<StudioVoiceItem[]>(
+    () =>
+      getCuratedVoices({
+        lang: voiceFilterLang === 'all' ? undefined : voiceFilterLang,
+        gender: voiceFilterGender === 'all' ? undefined : voiceFilterGender,
+      }).map((v) => ({
+        voiceId: v.voiceId,
+        name: v.name,
+        source: 'curated',
+        language: v.lang,
+        gender: v.gender,
+        role: v.role,
+        description: v.description,
+        freeUsersAllowed: true,
+        recommendedSettings: v.recommendedSettings,
+      })),
+    [voiceFilterGender, voiceFilterLang]
+  );
+
+  const recommendedVoices = voicesCatalog?.recommended ?? curatedFallbackVoices;
+  const accountVoices = voicesCatalog?.account ?? [];
+  const sharedVoices = voicesCatalog?.shared ?? [];
+  const ttsModels = voicesCatalog?.models ?? ELEVENLABS_TTS_MODELS;
+  const allKnownVoiceIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const v of recommendedVoices) ids.add(v.voiceId);
+    for (const v of accountVoices) ids.add(v.voiceId);
+    for (const v of sharedVoices) ids.add(v.voiceId);
+    return ids;
+  }, [accountVoices, recommendedVoices, sharedVoices]);
 
   // Sync incoming disk scenes into drafts without clobbering active unsaved edits
   useEffect(() => {
@@ -912,20 +1074,85 @@ export const SceneScriptEditor: React.FC<SceneScriptEditorProps> = ({
 
                   <div className="mp-field" style={{ marginBottom: 0 }}>
                     <label htmlFor={voiceIdInput} className="mp-field-label">
-                      ID głosu
+                      Głos ElevenLabs
                     </label>
+                    <select
+                      id={`${voiceIdInput}-select`}
+                      className="mp-input-select"
+                      disabled={item.isReadOnly}
+                      value={
+                        draft.voiceId === ''
+                          ? ''
+                          : allKnownVoiceIds.has(draft.voiceId)
+                            ? draft.voiceId
+                            : '__custom__'
+                      }
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === '__custom__') return;
+                        updateDraft(key, item.scene, (prev) => ({
+                          ...prev,
+                          voiceId: val,
+                        }));
+                      }}
+                    >
+                      <option value="">
+                        Domyślny ({activeGroupLang === 'pl' ? 'Luiza PL / .env' : 'Liam EN / .env'})
+                      </option>
+                      {recommendedVoices.length > 0 && (
+                        <optgroup label="⭐ Natywne rekomendowane">
+                          {recommendedVoices.map((v) => (
+                            <option key={`rec-${v.voiceId}`} value={v.voiceId}>
+                              {v.name} ({(v.language ?? '').toUpperCase()}
+                              {v.gender === 'female'
+                                ? ' ♀'
+                                : v.gender === 'male'
+                                  ? ' ♂'
+                                  : ''}
+                              ) — {v.role ?? v.voiceId}
+                            </option>
+                          ))}
+                        </optgroup>
+                      )}
+                      {accountVoices.length > 0 && (
+                        <optgroup label="👤 Twoje konto ElevenLabs">
+                          {accountVoices.map((v) => (
+                            <option key={`acc-${v.voiceId}`} value={v.voiceId}>
+                              {v.name}
+                              {v.language ? ` (${v.language.toUpperCase()})` : ''}
+                            </option>
+                          ))}
+                        </optgroup>
+                      )}
+                      {sharedVoices.length > 0 && (
+                        <optgroup label="🌐 Biblioteka ElevenLabs">
+                          {sharedVoices.map((v) => (
+                            <option key={`sh-${v.voiceId}`} value={v.voiceId}>
+                              {v.name}
+                              {v.language ? ` (${v.language.toUpperCase()})` : ''}
+                            </option>
+                          ))}
+                        </optgroup>
+                      )}
+                      {draft.voiceId && !allKnownVoiceIds.has(draft.voiceId) && (
+                        <option value="__custom__">
+                          Własne ID ({draft.voiceId})
+                        </option>
+                      )}
+                    </select>
                     <input
                       id={voiceIdInput}
                       type="text"
                       className="mp-input-text"
                       style={{
                         fontFamily: 'var(--mp-font-mono)',
-                        fontSize: 11.5,
+                        fontSize: 11,
+                        marginTop: 4,
                       }}
                       disabled={item.isReadOnly}
                       spellCheck={false}
                       value={draft.voiceId}
-                      placeholder="Domyślny"
+                      placeholder="Lub wklej własne voiceId…"
                       onChange={(e) =>
                         updateDraft(key, item.scene, (prev) => ({
                           ...prev,
@@ -935,6 +1162,350 @@ export const SceneScriptEditor: React.FC<SceneScriptEditorProps> = ({
                     />
                   </div>
                 </div>
+
+                {/* English-voice-in-Polish warning banner */}
+                {(() => {
+                  const isPolishScene =
+                    activeGroupLang === 'pl' ||
+                    /[ąćęłńśźżĄĆĘŁŃŚŹŻ]/.test(draft.text);
+                  const englishVoiceName = isPolishScene
+                    ? getKnownEnglishVoiceName(draft.voiceId)
+                    : null;
+                  if (!englishVoiceName) return null;
+                  const nativePlDefault = getDefaultVoiceIdForLang('pl');
+                  return (
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: 8,
+                        padding: '6px 8px',
+                        borderRadius: 6,
+                        background: 'rgba(245, 158, 11, 0.12)',
+                        border: '0.5px solid rgba(245, 158, 11, 0.45)',
+                        fontSize: 11.5,
+                        color: 'var(--mp-text-primary)',
+                      }}
+                    >
+                      <span
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                        }}
+                      >
+                        <AlertTriangle size={13} color="#F59E0B" />
+                        <span>
+                          <strong>{englishVoiceName}</strong> to głos anglojęzyczny —
+                          po polsku daje obcy akcent na liczbach.
+                        </span>
+                      </span>
+                      {!item.isReadOnly && (
+                        <button
+                          type="button"
+                          className="mp-icon-btn"
+                          style={{
+                            height: 24,
+                            fontSize: 11,
+                            whiteSpace: 'nowrap',
+                          }}
+                          onClick={() =>
+                            updateDraft(key, item.scene, (prev) => ({
+                              ...prev,
+                              voiceId: nativePlDefault,
+                            }))
+                          }
+                        >
+                          Zmień na Luizę (PL)
+                        </button>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* Collapsible ElevenLabs Voice Library Browser (0-credit preview) */}
+                {!item.isReadOnly && (
+                  <div
+                    style={{
+                      borderTop: '0.5px solid var(--mp-border-hairline)',
+                      paddingTop: 6,
+                    }}
+                  >
+                    <button
+                      type="button"
+                      className="mp-section-header-btn"
+                      style={{ padding: '2px 0' }}
+                      aria-expanded={Boolean(expandedVoiceBrowser[key])}
+                      onClick={() =>
+                        setExpandedVoiceBrowser((prev) => ({
+                          ...prev,
+                          [key]: !prev[key],
+                        }))
+                      }
+                    >
+                      <span
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 5,
+                        }}
+                      >
+                        <Search size={12} />
+                        <span>Przeglądaj i odsłuchaj głosy ElevenLabs</span>
+                        {voicesCatalog?.configured && (
+                          <span className="mp-mini-badge is-prod">
+                            {accountVoices.length + sharedVoices.length} live
+                          </span>
+                        )}
+                      </span>
+                      <ChevronDown
+                        size={13}
+                        style={{
+                          transform: expandedVoiceBrowser[key]
+                            ? 'rotate(0deg)'
+                            : 'rotate(-90deg)',
+                          transition: 'transform 0.16s var(--mp-ease-spring)',
+                        }}
+                      />
+                    </button>
+
+                    {expandedVoiceBrowser[key] && (
+                      <div
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 6,
+                          paddingTop: 6,
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: 'grid',
+                            gridTemplateColumns: '76px 92px 1fr auto',
+                            gap: 4,
+                          }}
+                        >
+                          <select
+                            aria-label="Język głosu"
+                            className="mp-input-select"
+                            value={voiceFilterLang}
+                            onChange={(e) =>
+                              setVoiceFilterLang(
+                                e.target.value as 'pl' | 'en' | 'all'
+                              )
+                            }
+                          >
+                            <option value="pl">PL</option>
+                            <option value="en">EN</option>
+                            <option value="all">Wszystkie</option>
+                          </select>
+                          <select
+                            aria-label="Płeć głosu"
+                            className="mp-input-select"
+                            value={voiceFilterGender}
+                            onChange={(e) =>
+                              setVoiceFilterGender(
+                                e.target.value as 'all' | 'female' | 'male'
+                              )
+                            }
+                          >
+                            <option value="all">Każda płeć</option>
+                            <option value="female">Kobiecy</option>
+                            <option value="male">Męski</option>
+                          </select>
+                          <input
+                            type="text"
+                            className="mp-input-text"
+                            placeholder="Szukaj (np. teacher, warm)…"
+                            value={voiceSearchQuery}
+                            onChange={(e) => setVoiceSearchQuery(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                void fetchVoices({
+                                  query: voiceSearchQuery,
+                                  refresh: true,
+                                });
+                              }
+                            }}
+                          />
+                          <button
+                            type="button"
+                            className="mp-icon-btn"
+                            title="Szukaj w ElevenLabs"
+                            disabled={isLoadingVoices}
+                            onClick={() =>
+                              void fetchVoices({
+                                query: voiceSearchQuery,
+                                refresh: true,
+                              })
+                            }
+                          >
+                            <RefreshCw
+                              size={12}
+                              className={isLoadingVoices ? 'mp-spin' : ''}
+                            />
+                          </button>
+                        </div>
+
+                        <div
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 4,
+                            maxHeight: 170,
+                            overflowY: 'auto',
+                            paddingRight: 2,
+                          }}
+                        >
+                          {[
+                            ...recommendedVoices,
+                            ...accountVoices,
+                            ...sharedVoices,
+                          ].map((voice) => {
+                            const isSelected = draft.voiceId === voice.voiceId;
+                            const isPlaying =
+                              playingPreviewId === voice.voiceId;
+                            return (
+                              <div
+                                key={`${voice.source}-${voice.voiceId}`}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  gap: 6,
+                                  padding: '5px 7px',
+                                  borderRadius: 6,
+                                  border: isSelected
+                                    ? '1px solid var(--mp-accent)'
+                                    : '0.5px solid var(--mp-border-hairline)',
+                                  background: isSelected
+                                    ? 'rgba(59, 130, 246, 0.1)'
+                                    : 'rgba(255, 255, 255, 0.02)',
+                                  fontSize: 11.5,
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    minWidth: 0,
+                                    flex: 1,
+                                    overflow: 'hidden',
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      fontWeight: 600,
+                                      whiteSpace: 'nowrap',
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                    }}
+                                  >
+                                    {voice.name}{' '}
+                                    <span
+                                      style={{
+                                        opacity: 0.65,
+                                        fontWeight: 400,
+                                        fontSize: 10.5,
+                                      }}
+                                    >
+                                      [
+                                      {voice.source === 'curated'
+                                        ? 'studio'
+                                        : voice.source === 'account'
+                                          ? 'konto'
+                                          : 'biblioteka'}
+                                      {voice.language
+                                        ? ` · ${voice.language.toUpperCase()}`
+                                        : ''}
+                                      ]
+                                    </span>
+                                  </div>
+                                  {(voice.role || voice.useCase || voice.description) && (
+                                    <div
+                                      style={{
+                                        opacity: 0.72,
+                                        fontSize: 10.5,
+                                        whiteSpace: 'nowrap',
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                      }}
+                                    >
+                                      {voice.role ||
+                                        voice.useCase ||
+                                        voice.description}
+                                    </div>
+                                  )}
+                                </div>
+                                <div
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 4,
+                                    flexShrink: 0,
+                                  }}
+                                >
+                                  {voice.previewUrl && (
+                                    <button
+                                      type="button"
+                                      className="mp-icon-btn"
+                                      style={{ height: 24, padding: '0 6px' }}
+                                      title="Odsłuchaj darmową próbkę (0 kredytów)"
+                                      onClick={() => toggleVoicePreview(voice)}
+                                    >
+                                      {isPlaying ? (
+                                        <Square size={10} />
+                                      ) : (
+                                        <Play size={10} />
+                                      )}
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    className={`mp-icon-btn ${
+                                      isSelected ? 'is-primary' : ''
+                                    }`}
+                                    style={{ height: 24, fontSize: 10.5 }}
+                                    onClick={() =>
+                                      updateDraft(key, item.scene, (prev) => ({
+                                        ...prev,
+                                        voiceId: voice.voiceId,
+                                        ...(voice.recommendedSettings
+                                          ? {
+                                              hasVoiceSettings: true,
+                                              stability:
+                                                voice.recommendedSettings
+                                                  .stability ?? prev.stability,
+                                              similarityBoost:
+                                                voice.recommendedSettings
+                                                  .similarityBoost ??
+                                                prev.similarityBoost,
+                                              style:
+                                                voice.recommendedSettings
+                                                  .style ?? prev.style,
+                                              speed:
+                                                voice.recommendedSettings
+                                                  .speed ?? prev.speed,
+                                              useSpeakerBoost:
+                                                voice.recommendedSettings
+                                                  .useSpeakerBoost ??
+                                                prev.useSpeakerBoost,
+                                            }
+                                          : {}),
+                                      }))
+                                    }
+                                  >
+                                    {isSelected ? 'Wybrany' : 'Wybierz'}
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Collapsible ElevenLabs Voice Settings Disclosure */}
                 {!item.isReadOnly && (
@@ -989,6 +1560,36 @@ export const SceneScriptEditor: React.FC<SceneScriptEditorProps> = ({
                           paddingTop: 8,
                         }}
                       >
+                        {/* TTS Model override */}
+                        <div className="mp-field" style={{ marginBottom: 0 }}>
+                          <label
+                            htmlFor={`${voiceIdInput}-model`}
+                            className="mp-field-label"
+                          >
+                            Model TTS (modelId)
+                          </label>
+                          <select
+                            id={`${voiceIdInput}-model`}
+                            className="mp-input-select"
+                            value={draft.modelId}
+                            onChange={(e) =>
+                              updateDraft(key, item.scene, (prev) => ({
+                                ...prev,
+                                modelId: e.target.value,
+                              }))
+                            }
+                          >
+                            <option value="">
+                              Domyślny (z production.json / .env)
+                            </option>
+                            {ttsModels.map((m) => (
+                              <option key={m.id} value={m.id}>
+                                {m.label} ({m.id})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
                         {/* Stability */}
                         <div className="mp-field" style={{ marginBottom: 0 }}>
                           <div className="mp-field-label-row">

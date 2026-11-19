@@ -37,6 +37,11 @@
       "import": "./dist/audio/index.mjs",
       "require": "./dist/audio/index.cjs"
     },
+    "./audio/voices": {
+      "types": "./dist/audio/voices.d.ts",
+      "import": "./dist/audio/voices.mjs",
+      "require": "./dist/audio/voices.cjs"
+    },
     "./camera": {
       "types": "./dist/camera/index.d.ts",
       "import": "./dist/camera/index.mjs",

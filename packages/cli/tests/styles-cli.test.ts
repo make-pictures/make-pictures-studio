@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   SCENES_KIT_IDS,
-  VOICE_ARCHETYPE_TO_ELEVENLABS_ID,
+  VOICE_ARCHETYPE_TO_ELEVENLABS_ID_BY_LANG,
   runNewProductionCommand,
 } from '../src/commands/new-production';
 import {
@@ -202,7 +202,7 @@ test('make-pictures new defaults to vector-scene-2d + minimal-product and genera
       if (kitId === 'editorial-collage') {
         assert.equal(
           prodJson.scenes[0]?.voiceId,
-          VOICE_ARCHETYPE_TO_ELEVENLABS_ID['documentary-warm']
+          VOICE_ARCHETYPE_TO_ELEVENLABS_ID_BY_LANG.pl['documentary-warm']
         );
         assert.equal(prodJson.score?.moodPreset, 'warm-story');
       }

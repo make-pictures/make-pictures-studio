@@ -70,6 +70,8 @@ export interface SceneDefinition {
   durationInFrames?: number;
   text: string;
   voiceId?: string;
+  modelId?: string;
+  languageCode?: string;
   speaker?: string;
   voiceSettings?: VoiceSettingsConfig;
   voiceEffect?: VoiceAcousticPreset;
@@ -128,6 +130,9 @@ export interface ProductionManifest {
   title: string;
   fps: number;
   lang?: 'pl' | 'en';
+  voiceId?: string;
+  modelId?: string;
+  languageCode?: string;
   scenes: SceneDefinition[];
   sfx?: SfxAssetSpec[];
   score?: MusicScoreSpec;

@@ -1,4 +1,5 @@
 import type { SceneDefinition, VoiceSettingsConfig } from '@make-pictures/core';
+import { getKnownEnglishVoiceName } from '../../../core/src/audio/voices';
 
 /** Głoskowce — akronimy wymawiane po polsku jako jedno spójne słowo (bez literowania!) */
 export const POLISH_WORD_ACRONYMS: Record<string, string> = {
@@ -137,15 +138,44 @@ export function shouldRunPolishPhoneticsLint(params: {
   return POLISH_SIGNAL_RE.test(combined);
 }
 
-export function lintManifestVoiceovers(manifest: {
-  lang?: string;
-  scenes?: ReadonlyArray<SceneDefinition>;
-}): string[] {
+export function lintPolishVoiceSelection(
+  sceneId: string,
+  voiceId?: string
+): string[] {
+  const englishName = getKnownEnglishVoiceName(voiceId);
+  if (!englishName) {
+    return [];
+  }
+  return [
+    `[phonetics-lint] (${sceneId}) Głos "${englishName}" (${voiceId}) to domyślny głos anglojęzyczny — w języku polskim generuje obcy akcent (szczególnie na liczebnikach). Użyj natywnego głosu PL (np. Luiza C8ZVSJxcymeT86xT429O, Asia Bz1e1clEKwgN71Vx7cxj, Arleta F9eb9uZYeJuHuO7Uvs1R, Rafał CLuTGacrAhcIhaJslbXt) lub sprawdź dostępne głosy przez "npx make-pictures voices --lang=pl".`,
+  ];
+}
+
+export function lintManifestVoiceovers(
+  manifest: {
+    lang?: string;
+    voiceId?: string;
+    scenes?: ReadonlyArray<SceneDefinition>;
+  },
+  options?: { defaultVoiceId?: string }
+): string[] {
   if (!shouldRunPolishPhoneticsLint(manifest)) {
     return [];
   }
   const allWarnings: string[] = [];
+  const warnedVoiceIds = new Set<string>();
   for (const scene of manifest.scenes ?? []) {
+    const effectiveVoiceId =
+      scene.voiceId?.trim() ||
+      manifest.voiceId?.trim() ||
+      options?.defaultVoiceId?.trim();
+    if (effectiveVoiceId && !warnedVoiceIds.has(effectiveVoiceId)) {
+      const voiceWarnings = lintPolishVoiceSelection(scene.id, effectiveVoiceId);
+      if (voiceWarnings.length > 0) {
+        warnedVoiceIds.add(effectiveVoiceId);
+        allWarnings.push(...voiceWarnings);
+      }
+    }
     if (!scene.text) continue;
     allWarnings.push(
       ...lintPolishVoiceoverText(scene.id, scene.text, scene.voiceSettings)

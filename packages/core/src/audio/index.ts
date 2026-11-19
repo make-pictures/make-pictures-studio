@@ -36,3 +36,25 @@ export {
   type ResolveVoiceoverDurationParams,
   type VoiceoverTrackProps,
 } from './VoiceoverTrack';
+
+export {
+  CURATED_VOICES,
+  DEFAULT_ELEVENLABS_MODEL_ID,
+  DEFAULT_VOICE_ID_BY_LANG,
+  ELEVENLABS_TTS_MODELS,
+  KNOWN_ENGLISH_PREMADE_VOICES,
+  VOICE_ARCHETYPE_TO_ELEVENLABS_ID_BY_LANG,
+  findCuratedVoiceById,
+  getCuratedVoices,
+  getDefaultVoiceIdForArchetype,
+  getDefaultVoiceIdForLang,
+  getKnownEnglishVoiceName,
+  getRecommendedVoiceSettings,
+  isKnownEnglishPremadeVoice,
+  normalizeVoiceLang,
+  supportsLanguageCodeParam,
+  type CuratedVoiceProfile,
+  type ElevenLabsModelInfo,
+  type VoiceGender,
+  type VoiceLanguage,
+} from './voices';

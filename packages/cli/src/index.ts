@@ -33,6 +33,7 @@ import {
   runStyleNewCommand,
   runStylesListCommand,
 } from './commands/styles';
+import { runVoicesCommand } from './commands/voices';
 
 interface ParsedArgs {
   positionals: string[];
@@ -52,6 +53,7 @@ const BOOLEAN_FLAGS = new Set([
   'no-browser',
   'replace',
   'allow-fast-cuts',
+  'mine',
 ]);
 
 function parseCliArgs(argv: string[]): ParsedArgs {
@@ -158,6 +160,9 @@ Commands:
 
   audio [--production=<slug>] [--mock] [--force] [--dir=<subdir>]
       Generate ElevenLabs TTS voiceovers + word timestamps + AI Music + AI SFX
+
+  voices [--lang=pl|en|all] [--gender=female|male] [--query="..."] [--mine] [--limit=12] [--json] [--audition="Sample text" --voice=<voiceId> [--model=<modelId>] [--out=<file.mp3>]]
+      Discover native ElevenLabs voices (curated, your account, and Voice Library) or audition 1 short sentence
 
   music [--production=<slug>] [--prompt="..."] [--mood=ambient-tech] [--duration=16] [--mock] [--force]
       Generate or refresh background score track
@@ -291,6 +296,25 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
         cwd,
         dir,
         setup: Boolean(flags.setup),
+      });
+      return;
+    }
+
+    case 'voices': {
+      const limit = parseFiniteFlag(flags, 'limit', { min: 1 });
+      await runVoicesCommand({
+        cwd,
+        dir,
+        lang: getStringFlag(flags, 'lang'),
+        gender: getStringFlag(flags, 'gender'),
+        query: getStringFlag(flags, 'query') ?? getStringFlag(flags, 'q'),
+        mine: Boolean(flags.mine),
+        limit: limit !== undefined ? Math.round(limit) : undefined,
+        json: Boolean(flags.json),
+        audition: getStringFlag(flags, 'audition'),
+        voice: getStringFlag(flags, 'voice'),
+        model: getStringFlag(flags, 'model'),
+        out: getStringFlag(flags, 'out'),
       });
       return;
     }
@@ -531,6 +555,7 @@ export * from './commands/qa-contact-sheet';
 export * from './commands/render';
 export * from './commands/studio';
 export * from './commands/styles';
+export * from './commands/voices';
 export * from './commands/workspace-paths';
 export * from './director/audit-direction';
 

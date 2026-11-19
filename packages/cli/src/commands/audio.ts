@@ -19,6 +19,12 @@ import type {
   WordTimestamp,
 } from '@make-pictures/core';
 import {
+  DEFAULT_ELEVENLABS_MODEL_ID,
+  getDefaultVoiceIdForLang,
+  getRecommendedVoiceSettings,
+  supportsLanguageCodeParam,
+} from '../../../core/src/audio/voices';
+import {
   generateMusicScore,
   type GeneratedMusicMetadata,
 } from '../audio/generate-music';
@@ -51,8 +57,8 @@ function getVoiceAcousticFilter(preset?: VoiceAcousticPreset): string {
   return CLI_VOICE_ACOUSTIC_FILTERS[preset];
 }
 
-const DEFAULT_VOICE_ID = 'TX3LPaxmHKxFdv7VOQHJ';
-const DEFAULT_MODEL_ID = 'eleven_multilingual_v2';
+const DEFAULT_VOICE_ID = getDefaultVoiceIdForLang('en');
+const DEFAULT_MODEL_ID = DEFAULT_ELEVENLABS_MODEL_ID;
 
 export interface AudioCommandOptions {
   rootDir?: string;
@@ -86,7 +92,10 @@ export function computeTextHash(text: string): string {
   return crypto.createHash('sha256').update(text.trim(), 'utf8').digest('hex');
 }
 
-export function computeSceneCacheHash(scene: SceneDefinition): string {
+export function computeSceneCacheHash(
+  scene: SceneDefinition,
+  options?: { effectiveLanguageCode?: string }
+): string {
   const baseKey = scene.voiceSettings
     ? `${scene.text}|${JSON.stringify(scene.voiceSettings)}`
     : scene.text;
@@ -100,6 +109,11 @@ export function computeSceneCacheHash(scene: SceneDefinition): string {
   }
   if (scene.nextText) {
     extraParts.push(`next:${scene.nextText}`);
+  }
+  const explicitLang =
+    options?.effectiveLanguageCode?.trim() || scene.languageCode?.trim();
+  if (explicitLang) {
+    extraParts.push(`lang:${explicitLang.toLowerCase()}`);
   }
 
   return computeTextHash(
@@ -274,35 +288,33 @@ function generateSyntheticMp3(outputPath: string, durationInSeconds: number): vo
 async function synthesizeSceneVoiceoverViaSdk(params: {
   voiceId: string;
   modelId: string;
+  languageCode?: string;
   text: string;
   voiceSettings?: VoiceSettingsConfig;
   previousText?: string;
   nextText?: string;
 }): Promise<{ audioBase64: string; alignment?: CharacterAlignment }> {
-  const { voiceId, modelId, text, voiceSettings, previousText, nextText } =
-    params;
+  const {
+    voiceId,
+    modelId,
+    languageCode,
+    text,
+    voiceSettings,
+    previousText,
+    nextText,
+  } = params;
 
-  const isLiam = voiceId === 'TX3LPaxmHKxFdv7VOQHJ';
-  const defaultSettings = isLiam
-    ? {
-        stability: 0.35,
-        similarityBoost: 0.78,
-        style: 0.55,
-        speed: 0.99,
-        useSpeakerBoost: true,
-      }
-    : {
-        stability: 0.58,
-        similarityBoost: 0.8,
-        style: 0.18,
-        speed: 0.99,
-        useSpeakerBoost: true,
-      };
+  const defaultSettings = getRecommendedVoiceSettings(voiceId);
+  const effectiveLanguageCode =
+    languageCode && supportsLanguageCodeParam(modelId)
+      ? languageCode.trim().toLowerCase()
+      : undefined;
 
   const client = getElevenLabsClient();
   const response = await client.textToSpeech.convertWithTimestamps(voiceId, {
     text,
     modelId,
+    ...(effectiveLanguageCode ? { languageCode: effectiveLanguageCode } : {}),
     ...(previousText ? { previousText } : {}),
     ...(nextText ? { nextText } : {}),
     voiceSettings: {
@@ -334,6 +346,7 @@ async function processSceneVoiceover(params: {
   audioFileRelPrefix: string;
   defaultVoiceId: string;
   modelId: string;
+  defaultLanguageCode?: string;
   force: boolean;
   useLiveApi: boolean;
 }): Promise<SceneVoiceoverData> {
@@ -344,13 +357,21 @@ async function processSceneVoiceover(params: {
     audioFileRelPrefix,
     defaultVoiceId,
     modelId,
+    defaultLanguageCode,
     force,
     useLiveApi,
   } = params;
 
   fs.mkdirSync(voiceoversDir, { recursive: true });
 
-  const sceneVoiceId = scene.voiceId || defaultVoiceId;
+  const sceneVoiceId = scene.voiceId?.trim() || defaultVoiceId;
+  const effectiveModelId = scene.modelId?.trim() || modelId;
+  const rawLangCode =
+    scene.languageCode?.trim() || defaultLanguageCode?.trim() || undefined;
+  const effectiveLanguageCode =
+    rawLangCode && supportsLanguageCodeParam(effectiveModelId)
+      ? rawLangCode.toLowerCase()
+      : undefined;
   const fallbackDurationSec =
     typeof scene.durationInSeconds === 'number' &&
     Number.isFinite(scene.durationInSeconds) &&
@@ -365,7 +386,7 @@ async function processSceneVoiceover(params: {
             ).toFixed(2)
           )
         );
-  const textHash = computeSceneCacheHash(scene);
+  const textHash = computeSceneCacheHash(scene, { effectiveLanguageCode });
   const mp3Path = path.join(voiceoversDir, `${scene.id}.mp3`);
   const jsonPath = path.join(voiceoversDir, `${scene.id}.json`);
   const cleanPrefix = audioFileRelPrefix.replace(/^\/+|\/+$/g, '');
@@ -381,6 +402,7 @@ async function processSceneVoiceover(params: {
       if (
         existing.textHash === textHash &&
         existing.voiceId === sceneVoiceId &&
+        existing.modelId === effectiveModelId &&
         (!useLiveApi || existing.provider === 'elevenlabs')
       ) {
         console.log(
@@ -400,11 +422,12 @@ async function processSceneVoiceover(params: {
 
   if (useLiveApi) {
     console.log(
-      `  [ELEVENLABS] Synthesizing voiceover + timestamps for "${scene.id}" (voice: ${sceneVoiceId}, effect: ${scene.voiceEffect ?? 'clean'})…`
+      `  [ELEVENLABS] Synthesizing voiceover + timestamps for "${scene.id}" (voice: ${sceneVoiceId}, model: ${effectiveModelId}${effectiveLanguageCode ? `, lang: ${effectiveLanguageCode}` : ''}, effect: ${scene.voiceEffect ?? 'clean'})…`
     );
     const result = await synthesizeSceneVoiceoverViaSdk({
       voiceId: sceneVoiceId,
-      modelId,
+      modelId: effectiveModelId,
+      languageCode: effectiveLanguageCode,
       text: scene.text,
       voiceSettings: scene.voiceSettings,
       previousText: scene.previousText,
@@ -437,7 +460,7 @@ async function processSceneVoiceover(params: {
       text: scene.text,
       textHash,
       voiceId: sceneVoiceId,
-      modelId,
+      modelId: effectiveModelId,
       provider: 'elevenlabs',
       fps,
       durationInSeconds: Number(
@@ -469,7 +492,7 @@ async function processSceneVoiceover(params: {
     text: scene.text,
     textHash,
     voiceId: sceneVoiceId,
-    modelId,
+    modelId: effectiveModelId,
     provider: 'synthetic-fallback',
     fps,
     durationInSeconds: fallbackDurationSec,
@@ -634,8 +657,19 @@ async function processProductionCapsule(params: {
     fs.readFileSync(manifestPath, 'utf8')
   ) as ProductionManifest & { lang?: string };
   const fps = manifest.fps || 60;
+  const hasExplicitEnvVoice = Boolean(process.env.ELEVENLABS_VOICE_ID?.trim());
+  const capsuleDefaultVoiceId =
+    manifest.voiceId?.trim() ||
+    (hasExplicitEnvVoice
+      ? defaultVoiceId
+      : getDefaultVoiceIdForLang(manifest.lang));
+  const capsuleModelId = manifest.modelId?.trim() || modelId;
+  const capsuleLanguageCode =
+    manifest.languageCode?.trim() || manifest.lang?.trim() || undefined;
 
-  const phoneticsWarnings = lintManifestVoiceovers(manifest);
+  const phoneticsWarnings = lintManifestVoiceovers(manifest, {
+    defaultVoiceId: capsuleDefaultVoiceId,
+  });
   for (const warn of phoneticsWarnings) {
     console.warn(`  ⚠️  ${warn}`);
   }
@@ -654,8 +688,9 @@ async function processProductionCapsule(params: {
       fps,
       voiceoversDir,
       audioFileRelPrefix: `_productions/${slug}/voiceovers`,
-      defaultVoiceId,
-      modelId,
+      defaultVoiceId: capsuleDefaultVoiceId,
+      modelId: capsuleModelId,
+      defaultLanguageCode: capsuleLanguageCode,
       force,
       useLiveApi,
     });

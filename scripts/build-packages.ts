@@ -39,6 +39,12 @@ function mapOtherPackageToPublicSpecifier(
     ) {
       return '@make-pictures/core/style/presets';
     }
+    if (
+      normalizedSub === 'audio/voices' ||
+      normalizedSub.startsWith('audio/voices.')
+    ) {
+      return '@make-pictures/core/audio/voices';
+    }
     return '@make-pictures/core';
   }
   if (otherPkgDirName === 'kits') {
@@ -440,6 +446,11 @@ async function main(): Promise<void> {
         {
           outSubpath: 'audio/index',
           srcRelPath: 'src/audio/index.ts',
+          platform: 'browser',
+        },
+        {
+          outSubpath: 'audio/voices',
+          srcRelPath: 'src/audio/voices.ts',
           platform: 'browser',
         },
         {

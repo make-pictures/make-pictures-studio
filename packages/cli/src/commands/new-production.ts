@@ -9,6 +9,12 @@ import {
   type StylePreset,
   type VoiceArchetype,
 } from '../../../core/src/style/presets';
+import {
+  DEFAULT_ELEVENLABS_MODEL_ID,
+  VOICE_ARCHETYPE_TO_ELEVENLABS_ID_BY_LANG,
+  getDefaultVoiceIdForArchetype,
+  getDefaultVoiceIdForLang,
+} from '../../../core/src/audio/voices';
 import type {
   MusicMoodPreset,
   ProductionManifest,
@@ -39,13 +45,15 @@ export function isValidScaffoldKitId(id: string): id is ScaffoldKitId {
   return (SCENES_KIT_IDS as readonly string[]).includes(id);
 }
 
+/**
+ * Legacy English-default voice archetype map kept for backwards compatibility.
+ * Prefer `getDefaultVoiceIdForArchetype(archetype, lang)` so Polish (`pl`)
+ * productions always receive native Polish voices instead of English premades.
+ */
 export const VOICE_ARCHETYPE_TO_ELEVENLABS_ID: Record<VoiceArchetype, string> =
-  {
-    'crisp-tech': 'TX3LPaxmHKxFdv7VOQHJ',
-    'calm-editorial': 'EXAVITQu4vr4xnSDxMaL',
-    'documentary-warm': 'nPczCjzI2devNBz1zQrb',
-    'storyteller-expressive': 'JBFqnCBsd6RMkjVDRZzb',
-  };
+  VOICE_ARCHETYPE_TO_ELEVENLABS_ID_BY_LANG.en;
+
+export { VOICE_ARCHETYPE_TO_ELEVENLABS_ID_BY_LANG, getDefaultVoiceIdForArchetype };
 
 export function defaultKitAndStyleForSpace(space: DimensionalSpace): {
   kit: ScaffoldKitId;
@@ -164,9 +172,10 @@ export function buildScaffoldProductionManifest(
     : moodForKit(kit);
   const voiceId =
     options?.voiceId?.trim() ||
-    VOICE_ARCHETYPE_TO_ELEVENLABS_ID[
-      resolvedStyle.audioDefaults.voiceArchetype
-    ];
+    getDefaultVoiceIdForArchetype(
+      resolvedStyle.audioDefaults.voiceArchetype,
+      lang
+    );
 
   return {
     id: slug,
@@ -1882,8 +1891,12 @@ export function buildPrepopulatedVoiceovers(
       sceneId: scene.id,
       text: scene.text,
       textHash: computeSceneCacheHash(scene),
-      voiceId: scene.voiceId || 'TX3LPaxmHKxFdv7VOQHJ',
-      modelId: 'eleven_multilingual_v2',
+      voiceId:
+        scene.voiceId ||
+        manifest.voiceId ||
+        getDefaultVoiceIdForLang(manifest.lang),
+      modelId:
+        scene.modelId || manifest.modelId || DEFAULT_ELEVENLABS_MODEL_ID,
       provider: 'synthetic-fallback',
       fps,
       durationInSeconds: dur,

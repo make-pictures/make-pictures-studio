@@ -66,16 +66,24 @@ Inspect all 10 built-in and workspace styles (optionally filtered by dimensional
 | `soft-clay` | `3d` (`['3d']`) | `illustrative` | `Outfit` + `Plus Jakarta Sans` + `JetBrains Mono` | `mesh-aura` / `minimal-clean` (`radiusScale: 1.45`) | `soft-clay` / `0.14` / `warm-softbox` | `warm-story` / `storyteller-expressive` |
 | `glass-studio` | `3d` (`['3d', '2d']`) | `atelier` | `Plus Jakarta Sans` + `Inter` + `JetBrains Mono` | `mesh-aura` / `glass-glow` (`radiusScale: 1.25`) | `frosted-glass` / `0.10` / `clean-atelier` | `upbeat-launch` / `crisp-tech` |
 
-### Voice Archetype Mapping (`VOICE_ARCHETYPE_TO_ELEVENLABS_ID`)
+### Language-Aware Voice Archetype Mapping (`VOICE_ARCHETYPE_TO_ELEVENLABS_ID_BY_LANG`)
 
-When scaffolding `npx make-pictures new <slug> --style=<styleId>`, `production.json` automatically inherits `score.moodPreset = style.audioDefaults.musicMood` and maps `style.audioDefaults.voiceArchetype` to a dedicated multilingual ElevenLabs voice (unless overridden with `--voice=<voiceId>`):
+When scaffolding `npx make-pictures new <slug> --style=<styleId> --lang=pl|en`, `production.json` automatically inherits `score.moodPreset = style.audioDefaults.musicMood` and maps `style.audioDefaults.voiceArchetype` to a **language-native** ElevenLabs voice (unless overridden with `--voice=<voiceId>`). **Never use English premade voices (`Liam`, `Sarah`, `Brian`, `George`) for Polish scripts** — use `npx make-pictures voices --lang=pl` to browse more native voices from the user's account or ElevenLabs Voice Library:
 
 ```ts
-export const VOICE_ARCHETYPE_TO_ELEVENLABS_ID: Record<VoiceArchetype, string> = {
-  'crisp-tech': 'TX3LPaxmHKxFdv7VOQHJ',            // Liam — energetic product & tech narrator
-  'calm-editorial': 'EXAVITQu4vr4xnSDxMaL',        // Sarah / River — measured magazine & science anchor
-  'documentary-warm': 'nPczCjzI2devNBz1zQrb',      // Brian — warm historical & documentary authority
-  'storyteller-expressive': 'JBFqnCBsd6RMkjVDRZzb', // George / Alice — expressive storyteller
+export const VOICE_ARCHETYPE_TO_ELEVENLABS_ID_BY_LANG = {
+  pl: {
+    'crisp-tech': 'Bz1e1clEKwgN71Vx7cxj',             // Asia — native PL female (product & tech)
+    'calm-editorial': 'F9eb9uZYeJuHuO7Uvs1R',         // Arleta — native PL female (calm editorial / instructor)
+    'documentary-warm': 'CLuTGacrAhcIhaJslbXt',       // Rafał — native PL male (analytical / documentary)
+    'storyteller-expressive': 'C8ZVSJxcymeT86xT429O', // Luiza — native PL female (warm teacher & storyteller)
+  },
+  en: {
+    'crisp-tech': 'TX3LPaxmHKxFdv7VOQHJ',             // Liam — native EN male (product & tech)
+    'calm-editorial': 'EXAVITQu4vr4xnSDxMaL',         // Sarah — native EN female (magazine & science)
+    'documentary-warm': 'nPczCjzI2devNBz1zQrb',       // Brian — native EN male (documentary)
+    'storyteller-expressive': 'JBFqnCBsd6RMkjVDRZzb', // George — native EN male (storyteller)
+  },
 };
 ```
 
