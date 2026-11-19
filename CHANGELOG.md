@@ -6,6 +6,22 @@ The project adheres to [Semantic Versioning](https://semver.org/) and is release
 
 ---
 
+## [2.3.2] — 2026-11-19
+
+### Added
+- **Native Language Voice Catalog (`@make-pictures/core/audio/voices`):** Added a React-free voice catalog with verified native Polish (`Luiza`, `Asia`, `Arleta`, `Rafał`) and native English voice archetypes (`VOICE_ARCHETYPE_TO_ELEVENLABS_ID_BY_LANG`), so `--lang=pl` projects scaffold and onboard with native Polish voices instead of English cross-lingual premades.
+- **Voice Discovery & Audition CLI (`@make-pictures/cli`):** Added `npx make-pictures voices [--lang=pl|en|all] [--gender=female|male] [--query="..."] [--mine] [--json] [--audition="..." --voice=<id>]` to browse curated native presets, user account voices, and ElevenLabs Voice Library entries with 0-credit preview URLs and 1-sentence sample auditions.
+- **Studio Web Voice Picker (`@make-pictures/studio`):** Added `GET /api/studio/voices` and an interactive Voice Picker in `SceneScriptEditor` featuring 0-credit preview playback, TTS model override (`modelId`), and a 1-click native Polish fix banner when an English premade voice is detected in a Polish scene.
+- **Per-Scene & Per-Manifest `modelId` / `languageCode` (`@make-pictures/core`, `@make-pictures/cli`):** Added `modelId` and `languageCode` support to `ProductionManifest` and `SceneDefinition` (automatically passing ISO 639-1 `languageCode` only on compatible models such as `eleven_v3`, `eleven_turbo_v2_5`, and `eleven_flash_v2_5`).
+
+### Fixed
+- **Audio Cache Invalidation (`@make-pictures/cli`):** Included `modelId` and `languageCode` in SHA-256 voiceover cache validation so switching TTS models regenerates audio without requiring `--force`.
+- **Polish Voice Selection Linter (`@make-pictures/cli`):** Extended `lintManifestVoiceovers` to warn whenever a Polish production uses a known English-native premade voice (such as Liam, Sarah, Brian, George, or Daniel).
+
+🔗 [GitHub Release `v2.3.2`](https://github.com/make-pictures/make-pictures-studio/releases/tag/v2.3.2)
+
+---
+
 ## [2.3.1] — 2026-11-17
 
 ### Added
