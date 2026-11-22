@@ -4,3 +4,5 @@ export * from './EditorialMediaCard';
 export * from './EditorialPanoramaTrack';
 export * from './HighlightQuoteStage';
 export * from './SplitStoryLayout';
+export * from './PaperRibbonTimeline';
+export * from './FloatingEditorialDisplay';
