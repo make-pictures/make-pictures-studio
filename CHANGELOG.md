@@ -6,6 +6,25 @@ The project adheres to [Semantic Versioning](https://semver.org/) and is release
 
 ---
 
+## [2.4.0] — 2026-11-22
+
+### Added
+- **Disney Kinematics & 3D Collision Guard (`@make-pictures/core/kinematics`):** Added a zero-`three` kinematics and geometry subpath featuring deterministic Disney animation curves (`disneyEase`, `evaluateAnticipation`, `evaluateArc3D`, `evaluateSurfaceImpact`, `evaluateVelocityStretch`, `evaluateSecondaryCascade`) alongside 3D AABB, GPU-deformed sheet bounds (`computeDeformedSheetAabb3D`), 15-axis 3D OBB SAT (`obbClearanceSat3D`, `obbIntersectsSat3D`), and `auditSceneCollisions3D`.
+- **Tactile 3D Kit (`@make-pictures/kits/tactile-3d`):** Added domain-agnostic physical 3D primitives: parametric 3-material rounded `<DeformableSheet3D />` with GPU vertex bending (`attachSheetBendShader`) and true curved shadows (`createBentSheetDepthMaterial`), camera-locked `<ScreenGlassLayer3D />` + `<ScreenGlassSlot />` with analytical 2D SDF contact shadows, synchronous Frame-1 offline HDR `<SyncStudioIbl3D />` (`THREE.PMREMGenerator`), deterministic `usePreloadedTextures3D`, offline procedural PBR map generators (`getProceduralPbrMaps`: `linen-weave`, `wood-grain`, `cotton-paper`, `brushed-metal`), 5 `SHEET_MATERIAL_FINISHES` presets, and `<DaylightArcRig3D />` (`evaluateTimeOfDayLighting`).
+- **Orthonormal 3D Camera Basis, `'macro'` Shot & Screen-Glass Projection (`@make-pictures/core/camera`):** Added `computeCameraBasis3D` with automatic overhead gimbal-singularity protection (`|forward.y| > 0.995`), `'macro'` framing in `DirectorCamera3D`, `evaluateCameraKeyframes3D`, `projectScreenGlassPose`, and `computeGlassLightingBlend`.
+- **Frameless Editorial Overlays (`@make-pictures/kits/editorial-collage`):** Added `<PaperRibbonTimeline />` and `<FloatingEditorialDisplay />` (`>= 19–22 px` typography floor, zero dark box chrome, Clean Frame `0`).
+- **Asset & Scan Hygiene CLI (`@make-pictures/cli`):** Added `npx make-pictures assets clean-scan` (exterior perimeter flood-fill removing dark scanner corner artifacts while protecting interior ink) and `npx make-pictures assets sheet` (checkerboard QA contact sheet with 5×7 bitmap labels, zero dependencies beyond `ffmpeg`).
+- **Domain-Agnostic Showcase (`examples/tactile-3d-showcase`):** Added `Tactile3DShowcase` verified across all 360 frames with an exhaustive 0-collision OBB SAT proof and Director QA.
+
+### Improved
+- **Synchronous Frame-1 HDR in `StudioHdrRig3D` (`@make-pictures/kits/isometric-3d`):** Upgraded `StudioHdrRig3D` to use synchronous `<SyncStudioIbl3D />` (`PMREMGenerator`) so existing 3D kits render rich HDR reflections from Frame 1 under Remotion `frameloop="never"`.
+- **ElevenLabs `eleven_v3` Audio-Tag & Stability Linting (`@make-pictures/cli`):** Updated `phonetics-lint.ts` to strip `[thoughtful]`/`[warmly]` v3 tags before phonetic analysis, warn when v3 tags are used on non-v3 models (preventing literal spoken tags), and validate discrete `eleven_v3` `stability ∈ {0.0, 0.5, 1.0}` across both PL and EN productions.
+- **Canonical Agent Skills & Rules (`plugins/make-pictures/`):** Synced all 9 canonical skills, `AGENTS.md`, and `CLAUDE.md` with tactile 3D, SAT collision tests, `eleven_v3` expressive acting direction, pilot-demo workflows, and mandatory pre-audio fact-checking.
+
+🔗 [GitHub Release `v2.4.0`](https://github.com/make-pictures/make-pictures-studio/releases/tag/v2.4.0)
+
+---
+
 ## [2.3.2] — 2026-11-19
 
 ### Added

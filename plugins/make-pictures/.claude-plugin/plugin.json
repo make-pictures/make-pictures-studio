@@ -1,6 +1,6 @@
 {
   "name": "make-pictures",
-  "version": "2.3.2",
+  "version": "2.4.0",
   "description": "60 FPS Video-as-Code Studio: 2D/2.5D/3D visual kits, 10 built-in Art Direction styles, Soft-Clay 3D IBL, Shot DSL camera, ElevenLabs TTS/Music/SFX auto-ducking, and Contact-Sheet QA.",
   "author": {
     "name": "make.pictures",
