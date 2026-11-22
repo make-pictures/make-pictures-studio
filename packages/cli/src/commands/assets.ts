@@ -67,6 +67,9 @@ export interface AssetsSheetCommandResult {
 const ASSET_SHEET_PAD = 16;
 const ASSET_SHEET_LABEL_HEIGHT = 32;
 const ASSET_SHEET_HEADER_HEIGHT = 44;
+const ASSET_SHEET_MIN_TILE_PX = 64;
+const ASSET_SHEET_MAX_TILE_PX = 2048;
+const ASSET_SHEET_MAX_CANVAS_PIXELS = 64_000_000;
 const SUPPORTED_IMAGE_EXT_RE = /\.(png|jpe?g|webp)$/i;
 
 function execFfmpegChecked(
@@ -111,7 +114,7 @@ function decodeBitmapToRgbaViaFfmpeg(filePath: string): {
       'rgba',
       '-',
     ],
-    { maxBuffer: 128 * 1024 * 1024 }
+    { maxBuffer: 512 * 1024 * 1024 }
   );
 
   const endHdrMarker = Buffer.from('ENDHDR\n', 'ascii');
@@ -127,13 +130,31 @@ function decodeBitmapToRgbaViaFfmpeg(filePath: string): {
   }
   const width = Number(wMatch[1]);
   const height = Number(hMatch[1]);
+  if (
+    !Number.isSafeInteger(width) ||
+    !Number.isSafeInteger(height) ||
+    width <= 0 ||
+    height <= 0
+  ) {
+    throw new Error(
+      `Invalid PAM dimensions (${width}x${height}) while decoding: ${filePath}`
+    );
+  }
   const pixelOffset = hdrEndIdx + endHdrMarker.length;
   const expectedBytes = width * height * 4;
+  if (!Number.isSafeInteger(expectedBytes) || expectedBytes <= 0) {
+    throw new Error(
+      `Decoded image dimensions overflow RGBA buffer (${width}x${height}): ${filePath}`
+    );
+  }
   if (pamBuf.length < pixelOffset + expectedBytes) {
     throw new Error(`Truncated RGBA buffer decoded from: ${filePath}`);
   }
   const rgba = new Uint8ClampedArray(expectedBytes);
   rgba.set(pamBuf.subarray(pixelOffset, pixelOffset + expectedBytes));
+  if (rgba.length < expectedBytes) {
+    throw new Error(`Truncated RGBA buffer allocated for: ${filePath}`);
+  }
   return { rgba, width, height };
 }
 
@@ -159,6 +180,10 @@ function writeRgbaPngViaFfmpeg(
       'pipe:0',
       '-frames:v',
       '1',
+      '-f',
+      'image2',
+      '-c:v',
+      'png',
       outPath,
     ],
     {
@@ -207,7 +232,13 @@ export function sampleBorderPaperColor(
   width: number,
   height: number
 ): [number, number, number] {
-  if (width <= 0 || height <= 0) {
+  if (
+    !Number.isSafeInteger(width) ||
+    !Number.isSafeInteger(height) ||
+    width <= 0 ||
+    height <= 0 ||
+    rgba.length < width * height * 4
+  ) {
     return [248, 244, 236];
   }
 
@@ -285,6 +316,23 @@ export function cleanScanCornerArtifacts(
   height: number,
   options: CleanScanOptions = {}
 ): CleanScanResult {
+  if (
+    !Number.isSafeInteger(width) ||
+    !Number.isSafeInteger(height) ||
+    width <= 0 ||
+    height <= 0
+  ) {
+    throw new Error(
+      `Invalid image dimensions (${String(width)}x${String(height)}). Expected positive finite integers.`
+    );
+  }
+  const requiredBytes = width * height * 4;
+  if (!Number.isSafeInteger(requiredBytes) || rgba.length < requiredBytes) {
+    throw new Error(
+      `RGBA buffer too short (${rgba.length} bytes) for ${width}x${height} image (expected at least ${requiredBytes} bytes).`
+    );
+  }
+
   const bleedPct = options.bleedPct ?? 2.0;
   const cornerRadiusPct = options.cornerRadiusPct ?? 8.0;
   const darkThreshold = options.darkThreshold ?? 75;
@@ -342,12 +390,23 @@ export function cleanScanCornerArtifacts(
     return { rgba: out, width: w, height: h, cleanedPixels: 0, fillRgb };
   }
 
-  const cornerZonePx = Math.max(
-    4,
-    Math.round(Math.min(w, h) * (cornerRadiusPct / 100))
-  );
+  const minDim = Math.min(w, h);
+  const rawCornerZonePx = Math.round(minDim * (cornerRadiusPct / 100));
+  const cornerZonePx =
+    minDim < 16
+      ? Math.min(Math.floor(minDim / 3), Math.max(1, rawCornerZonePx))
+      : Math.max(4, rawCornerZonePx);
+  if (cornerZonePx <= 0) {
+    return { rgba: out, width: w, height: h, cleanedPixels: 0, fillRgb };
+  }
   const cornerZoneSq = cornerZonePx * cornerZonePx;
-  const rimPx = Math.max(2, Math.round(cornerZonePx * 0.25));
+  const rimPx =
+    minDim < 16
+      ? Math.min(
+          Math.floor(minDim / 4),
+          Math.max(1, Math.round(cornerZonePx * 0.25))
+        )
+      : Math.max(2, Math.round(cornerZonePx * 0.25));
 
   const inCornerOrRimZone = (x: number, y: number): boolean => {
     const dx = Math.min(x, w - 1 - x);
@@ -401,13 +460,14 @@ export function cleanScanCornerArtifacts(
     if (y + 1 < h) trySeed(x, y + 1);
   }
 
-  // Replace flooded artifact pixels with sampled/explicit paper fill
+  // Replace flooded artifact pixels with sampled/explicit opaque paper fill
   for (let pos = 0; pos < total; pos++) {
     if (!visited[pos]) continue;
     const idx = pos * 4;
     out[idx] = fillRgb[0];
     out[idx + 1] = fillRgb[1];
     out[idx + 2] = fillRgb[2];
+    out[idx + 3] = 255;
   }
 
   // 1-px soft boundary anti-alias blend (50%) for immediate dark-ish rim neighbors
@@ -446,19 +506,25 @@ export function cleanScanCornerArtifacts(
 export function runAssetsCleanScanCommand(
   options: AssetsCleanScanCommandOptions
 ): AssetsCleanScanCommandResult {
-  const { rootDir } = resolveWorkspaceContext({
+  const { rootDir, studioDir } = resolveWorkspaceContext({
     cwd: options.cwd ?? options.rootDir,
     dir: options.dir,
   });
+  const baseDir = options.dir?.trim() ? studioDir : rootDir;
 
-  const resolvedInput = path.resolve(rootDir, options.inputPath);
+  const resolvedInput = path.resolve(baseDir, options.inputPath);
   if (!fs.existsSync(resolvedInput)) {
     throw new Error(
-      `Scan source file not found: ${path.relative(rootDir, resolvedInput)}`
+      `Scan source file not found: ${path.relative(baseDir, resolvedInput) || options.inputPath}`
+    );
+  }
+  if (!fs.statSync(resolvedInput).isFile()) {
+    throw new Error(
+      `Scan source path is not a file: ${path.relative(baseDir, resolvedInput) || options.inputPath}`
     );
   }
 
-  const resolvedOut = path.resolve(rootDir, options.outPath);
+  const resolvedOut = path.resolve(baseDir, options.outPath);
   const decoded = decodeBitmapToRgbaViaFfmpeg(resolvedInput);
   const cleaned = cleanScanCornerArtifacts(
     decoded.rgba,
@@ -497,13 +563,42 @@ export function computeAssetSheetGrid(
   tileWidth = 420,
   tileHeight = 300
 ): AssetSheetGrid {
-  const safeCount = Math.max(0, Math.floor(itemCount));
-  const requestedCols = Number.isFinite(cols) ? Math.round(cols) : 4;
+  if (!Number.isFinite(itemCount) || itemCount < 0) {
+    throw new Error(
+      `Invalid itemCount "${String(itemCount)}". Expected a non-negative finite number.`
+    );
+  }
+  if (!Number.isFinite(cols) || cols < 1) {
+    throw new Error(
+      `Invalid cols "${String(cols)}". Expected a finite number >= 1.`
+    );
+  }
+  if (
+    !Number.isFinite(tileWidth) ||
+    tileWidth < ASSET_SHEET_MIN_TILE_PX ||
+    tileWidth > ASSET_SHEET_MAX_TILE_PX
+  ) {
+    throw new Error(
+      `Invalid tileWidth "${String(tileWidth)}". Expected a finite number in [${ASSET_SHEET_MIN_TILE_PX}, ${ASSET_SHEET_MAX_TILE_PX}].`
+    );
+  }
+  if (
+    !Number.isFinite(tileHeight) ||
+    tileHeight < ASSET_SHEET_MIN_TILE_PX ||
+    tileHeight > ASSET_SHEET_MAX_TILE_PX
+  ) {
+    throw new Error(
+      `Invalid tileHeight "${String(tileHeight)}". Expected a finite number in [${ASSET_SHEET_MIN_TILE_PX}, ${ASSET_SHEET_MAX_TILE_PX}].`
+    );
+  }
+
+  const safeCount = Math.floor(itemCount);
+  const requestedCols = Math.round(cols);
   const maxCols = Math.min(12, Math.max(1, safeCount));
   const clampedCols = Math.max(1, Math.min(maxCols, requestedCols));
   const rows = safeCount === 0 ? 1 : Math.ceil(safeCount / clampedCols);
-  const safeTileW = Math.max(64, Math.round(tileWidth));
-  const safeTileH = Math.max(64, Math.round(tileHeight));
+  const safeTileW = Math.round(tileWidth);
+  const safeTileH = Math.round(tileHeight);
 
   const pad = ASSET_SHEET_PAD;
   const headerHeight = ASSET_SHEET_HEADER_HEIGHT;
@@ -512,6 +607,16 @@ export function computeAssetSheetGrid(
   const canvasWidth = clampedCols * safeTileW + (clampedCols + 1) * pad;
   const canvasHeight =
     headerHeight + rows * (safeTileH + labelHeight) + (rows + 1) * pad;
+
+  const totalPixels = canvasWidth * canvasHeight;
+  if (
+    !Number.isSafeInteger(totalPixels) ||
+    totalPixels > ASSET_SHEET_MAX_CANVAS_PIXELS
+  ) {
+    throw new Error(
+      `Asset contact sheet canvas (${canvasWidth}x${canvasHeight} = ${totalPixels} px) exceeds maximum allowed ${ASSET_SHEET_MAX_CANVAS_PIXELS} pixels. Reduce --tile-width/--tile-height or split the directory.`
+    );
+  }
 
   return {
     cols: clampedCols,
@@ -567,6 +672,10 @@ const BITMAP_FONT_5X7: Record<string, readonly string[]> = {
   '_': ['.....', '.....', '.....', '.....', '.....', '.....', '#####'],
   '(': ['...#.', '..#..', '.#...', '.#...', '.#...', '..#..', '...#.'],
   ')': ['.#...', '..#..', '...#.', '...#.', '...#.', '..#..', '.#...'],
+  '[': ['.###.', '.#...', '.#...', '.#...', '.#...', '.#...', '.###.'],
+  ']': ['.###.', '...#.', '...#.', '...#.', '...#.', '...#.', '.###.'],
+  '@': ['.###.', '#...#', '#.###', '#.#.#', '#.###', '#....', '.###.'],
+  ',': ['.....', '.....', '.....', '.....', '..##.', '..#..', '.#...'],
   '/': ['....#', '...#.', '...#.', '..#..', '.#...', '.#...', '#....'],
   ':': ['.....', '..#..', '..#..', '.....', '..#..', '..#..', '.....'],
   '|': ['..#..', '..#..', '..#..', '..#..', '..#..', '..#..', '..#..'],
@@ -600,7 +709,15 @@ function fillRectRgba(
   }
 }
 
-function drawBitmapText5x7(
+export function normalizeBitmapLabelText(text: string): string {
+  return text
+    .replace(/[łŁ]/g, 'L')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase();
+}
+
+export function drawBitmapText5x7(
   canvas: Uint8ClampedArray,
   canvasW: number,
   canvasH: number,
@@ -613,7 +730,7 @@ function drawBitmapText5x7(
 ): void {
   const charAdvance = 6 * scale;
   const maxChars = Math.max(1, Math.floor(maxWidthPx / charAdvance));
-  const upper = text.toUpperCase();
+  const upper = normalizeBitmapLabelText(text);
   const display =
     upper.length <= maxChars
       ? upper
@@ -671,7 +788,7 @@ function drawCheckerboardTile(
   }
 }
 
-function compositeLetterboxedImage(
+export function compositeLetterboxedImage(
   canvas: Uint8ClampedArray,
   canvasW: number,
   tileX: number,
@@ -711,29 +828,35 @@ function compositeLetterboxedImage(
       const w01 = (1 - tx) * ty;
       const w11 = tx * ty;
 
-      const r =
-        src[i00]! * w00 + src[i10]! * w10 + src[i01]! * w01 + src[i11]! * w11;
-      const g =
-        src[i00 + 1]! * w00 +
-        src[i10 + 1]! * w10 +
-        src[i01 + 1]! * w01 +
-        src[i11 + 1]! * w11;
-      const b =
-        src[i00 + 2]! * w00 +
-        src[i10 + 2]! * w10 +
-        src[i01 + 2]! * w01 +
-        src[i11 + 2]! * w11;
-      const a =
-        (src[i00 + 3]! * w00 +
-          src[i10 + 3]! * w10 +
-          src[i01 + 3]! * w01 +
-          src[i11 + 3]! * w11) /
-        255;
+      // Premultiplied-alpha bilinear interpolation to prevent dark fringe halos
+      // along transparent cutout edges (e.g. opaque white adjacent to (0,0,0,0)).
+      const wa00 = w00 * (src[i00 + 3]! / 255);
+      const wa10 = w10 * (src[i10 + 3]! / 255);
+      const wa01 = w01 * (src[i01 + 3]! / 255);
+      const wa11 = w11 * (src[i11 + 3]! / 255);
+
+      const a = wa00 + wa10 + wa01 + wa11;
+      const premulR =
+        src[i00]! * wa00 +
+        src[i10]! * wa10 +
+        src[i01]! * wa01 +
+        src[i11]! * wa11;
+      const premulG =
+        src[i00 + 1]! * wa00 +
+        src[i10 + 1]! * wa10 +
+        src[i01 + 1]! * wa01 +
+        src[i11 + 1]! * wa11;
+      const premulB =
+        src[i00 + 2]! * wa00 +
+        src[i10 + 2]! * wa10 +
+        src[i01 + 2]! * wa01 +
+        src[i11 + 2]! * wa11;
 
       const dstIdx = ((offY + dy) * canvasW + (offX + dx)) * 4;
-      canvas[dstIdx] = Math.round(r * a + canvas[dstIdx]! * (1 - a));
-      canvas[dstIdx + 1] = Math.round(g * a + canvas[dstIdx + 1]! * (1 - a));
-      canvas[dstIdx + 2] = Math.round(b * a + canvas[dstIdx + 2]! * (1 - a));
+      const invA = 1 - a;
+      canvas[dstIdx] = Math.round(premulR + canvas[dstIdx]! * invA);
+      canvas[dstIdx + 1] = Math.round(premulG + canvas[dstIdx + 1]! * invA);
+      canvas[dstIdx + 2] = Math.round(premulB + canvas[dstIdx + 2]! * invA);
       canvas[dstIdx + 3] = 255;
     }
   }
@@ -742,20 +865,21 @@ function compositeLetterboxedImage(
 export function runAssetsSheetCommand(
   options: AssetsSheetCommandOptions
 ): AssetsSheetCommandResult {
-  const { rootDir } = resolveWorkspaceContext({
+  const { rootDir, studioDir } = resolveWorkspaceContext({
     cwd: options.cwd ?? options.rootDir,
     dir: options.dir,
   });
+  const baseDir = options.dir?.trim() ? studioDir : rootDir;
 
-  const resolvedDir = path.resolve(rootDir, options.dirPath);
+  const resolvedDir = path.resolve(baseDir, options.dirPath);
   if (!fs.existsSync(resolvedDir) || !fs.statSync(resolvedDir).isDirectory()) {
     throw new Error(
-      `Assets directory not found: ${path.relative(rootDir, resolvedDir)}`
+      `Assets directory not found: ${path.relative(baseDir, resolvedDir) || options.dirPath}`
     );
   }
 
   const resolvedOut = options.outPath
-    ? path.resolve(rootDir, options.outPath)
+    ? path.resolve(baseDir, options.outPath)
     : path.join(resolvedDir, '_qa-assets-contact-sheet.png');
 
   const files = fs
@@ -774,18 +898,20 @@ export function runAssetsSheetCommand(
 
   if (files.length === 0) {
     throw new Error(
-      `No image assets (.png, .jpg, .jpeg, .webp) found in: ${path.relative(rootDir, resolvedDir) || '.'}`
+      `No image assets (.png, .jpg, .jpeg, .webp) found in: ${path.relative(baseDir, resolvedDir) || '.'}`
     );
   }
 
-  const tileWidth = Math.max(64, Math.round(options.tileWidth ?? 420));
-  const tileHeight = Math.max(64, Math.round(options.tileHeight ?? 300));
+  const rawTileWidth = options.tileWidth ?? 420;
+  const rawTileHeight = options.tileHeight ?? 300;
   const grid = computeAssetSheetGrid(
     files.length,
     options.cols ?? 4,
-    tileWidth,
-    tileHeight
+    rawTileWidth,
+    rawTileHeight
   );
+  const tileWidth = Math.round(rawTileWidth);
+  const tileHeight = Math.round(rawTileHeight);
 
   const canvas = new Uint8ClampedArray(grid.canvasWidth * grid.canvasHeight * 4);
   // Dark slate backdrop (#0B1120)
@@ -838,7 +964,13 @@ export function runAssetsSheetCommand(
   for (let i = 0; i < files.length; i++) {
     const fileName = files[i]!;
     const fullPath = path.join(resolvedDir, fileName);
-    const decoded = decodeBitmapToRgbaViaFfmpeg(fullPath);
+    let decoded: { rgba: Uint8ClampedArray; width: number; height: number };
+    try {
+      decoded = decodeBitmapToRgbaViaFfmpeg(fullPath);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new Error(`Failed to decode asset "${fileName}": ${msg}`);
+    }
 
     const col = i % grid.cols;
     const row = Math.floor(i / grid.cols);

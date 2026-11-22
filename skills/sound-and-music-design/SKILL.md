@@ -90,7 +90,7 @@ When a documentary essay, story, or character monologue calls for richer human n
 
 ```bash
 # 1-sentence A/B audition before committing full production credits:
-npx make-pictures voices --voice=C8ZVSJxcymeT86xT429O --lang=pl --audition="[thoughtful] Ten detal zmienia wszystko… [warmly] i zaraz zobaczysz dlaczego."
+npx make-pictures voices --voice=C8ZVSJxcymeT86xT429O --lang=pl --model=eleven_v3 --audition="[thoughtful] Ten detal zmienia wszystko… [warmly] i zaraz zobaczysz dlaczego."
 ```
 
 1. **Inline Audio Tags (Strictly `eleven_v3` / `eleven_v4` Only):**

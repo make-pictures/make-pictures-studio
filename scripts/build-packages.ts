@@ -45,6 +45,12 @@ function mapOtherPackageToPublicSpecifier(
     ) {
       return '@make-pictures/core/audio/voices';
     }
+    if (
+      normalizedSub === 'kinematics' ||
+      normalizedSub.startsWith('kinematics/')
+    ) {
+      return '@make-pictures/core/kinematics';
+    }
     return '@make-pictures/core';
   }
   if (otherPkgDirName === 'kits') {

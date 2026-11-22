@@ -213,7 +213,7 @@ async function defaultSynthesizeAudition(params: {
       text: params.text,
       modelId: params.modelId,
       ...(effectiveLanguageCode ? { languageCode: effectiveLanguageCode } : {}),
-      voiceSettings: getRecommendedVoiceSettings(params.voiceId),
+      voiceSettings: getRecommendedVoiceSettings(params.voiceId, params.modelId),
     }
   );
   return Buffer.from(response.audioBase64, 'base64');

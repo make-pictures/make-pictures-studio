@@ -4,6 +4,11 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import {
+  CURATED_VOICES,
+  getRecommendedVoiceSettings,
+  snapStabilityForElevenLabsModel,
+} from '../../core/src/index';
+import {
   extractElevenLabsV3Tags,
   lintElevenLabsV3Usage,
   lintManifestVoiceovers,
@@ -11,7 +16,10 @@ import {
   shouldRunPolishPhoneticsLint,
   stripElevenLabsV3Tags,
 } from '../src/audio/phonetics-lint';
-import { runAudioCommand } from '../src/commands/audio';
+import {
+  buildSyntheticWordTimestamps,
+  runAudioCommand,
+} from '../src/commands/audio';
 
 test('extractElevenLabsV3Tags extracts bracketed expression tags and ignores non-tag brackets', () => {
   assert.deepEqual(
@@ -26,6 +34,28 @@ test('extractElevenLabsV3Tags extracts bracketed expression tags and ignores non
 
   assert.deepEqual(
     extractElevenLabsV3Tags('Zwykły tekst z przypisem [1] oraz [123] i [a].'),
+    []
+  );
+
+  // Numeric pause/timing tags and longer descriptive tags (up to ~48 chars)
+  assert.deepEqual(
+    extractElevenLabsV3Tags(
+      '[0.5s] Pierwsza pauza [pauses 1.5s] i kolejna [1.5s pause] oraz [500ms] [speaks warmly with a quiet nostalgic smile].'
+    ),
+    [
+      '[0.5s]',
+      '[pauses 1.5s]',
+      '[1.5s pause]',
+      '[500ms]',
+      '[speaks warmly with a quiet nostalgic smile]',
+    ]
+  );
+
+  // Pure numbers, decimal numbers without units, and overly long editorial notes are ignored
+  assert.deepEqual(
+    extractElevenLabsV3Tags(
+      'Przypisy [1] [123] [1.5] [1a] oraz [this bracketed editorial comment is far too long to be a real audio tag].'
+    ),
     []
   );
 });
@@ -281,6 +311,18 @@ test('runAudioCommand passes capsuleModelId as defaultModelId into lintManifestV
       !warnings.some((w) => w.includes('[v3-audio-tags]')),
       `Expected no [v3-audio-tags] warning when ELEVENLABS_MODEL_ID=eleven_v3, got ${JSON.stringify(warnings)}`
     );
+
+    // Mock word timestamps must strip eleven_v3 audio tags so words[] never contain [thoughtful]
+    const voJson = JSON.parse(
+      fs.readFileSync(
+        path.join(prodDir, 'assets', 'voiceovers', 's1.json'),
+        'utf8'
+      )
+    ) as { words: Array<{ word: string }> };
+    assert.deepEqual(
+      voJson.words.map((w) => w.word),
+      ['Testing', 'default', 'model', 'propagation.']
+    );
   } finally {
     console.warn = origWarn;
     if (prevModelId === undefined) {
@@ -290,4 +332,66 @@ test('runAudioCommand passes capsuleModelId as defaultModelId into lintManifestV
     }
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
+});
+
+test('snapStabilityForElevenLabsModel and getRecommendedVoiceSettings enforce discrete {0, 0.5, 1} stability for eleven_v3', () => {
+  // Non-v3 models preserve continuous stability untouched
+  assert.equal(snapStabilityForElevenLabsModel(0.48), 0.48);
+  assert.equal(snapStabilityForElevenLabsModel(0.48, 'eleven_multilingual_v2'), 0.48);
+  assert.equal(snapStabilityForElevenLabsModel(0.35, 'eleven_turbo_v2_5'), 0.35);
+  assert.equal(snapStabilityForElevenLabsModel(0.56, 'eleven_v4'), 0.56);
+
+  // eleven_v3 (case-insensitive prefix) snaps to nearest {0, 0.5, 1}
+  assert.equal(snapStabilityForElevenLabsModel(-0.2, 'eleven_v3'), 0);
+  assert.equal(snapStabilityForElevenLabsModel(0, 'eleven_v3'), 0);
+  assert.equal(snapStabilityForElevenLabsModel(0.24, 'eleven_v3'), 0);
+  assert.equal(snapStabilityForElevenLabsModel(0.25, 'eleven_v3'), 0.5);
+  assert.equal(snapStabilityForElevenLabsModel(0.35, 'eleven_v3'), 0.5);
+  assert.equal(snapStabilityForElevenLabsModel(0.48, 'eleven_v3'), 0.5);
+  assert.equal(snapStabilityForElevenLabsModel(0.58, 'eleven_v3'), 0.5);
+  assert.equal(snapStabilityForElevenLabsModel(0.74, 'ELEVEN_V3_alpha'), 0.5);
+  assert.equal(snapStabilityForElevenLabsModel(0.75, 'eleven_v3'), 1);
+  assert.equal(snapStabilityForElevenLabsModel(0.92, 'eleven_v3'), 1);
+  assert.equal(snapStabilityForElevenLabsModel(1.5, 'eleven_v3'), 1);
+  assert.equal(snapStabilityForElevenLabsModel(Number.NaN, 'eleven_v3'), 0.5);
+
+  // Curated & unknown voices keep continuous defaults on v2, snap to {0, 0.5, 1} on eleven_v3
+  assert.equal(getRecommendedVoiceSettings('C8ZVSJxcymeT86xT429O').stability, 0.48);
+  assert.equal(
+    getRecommendedVoiceSettings('C8ZVSJxcymeT86xT429O', 'eleven_multilingual_v2').stability,
+    0.48
+  );
+  assert.equal(
+    getRecommendedVoiceSettings('C8ZVSJxcymeT86xT429O', 'eleven_v3').stability,
+    0.5
+  );
+  assert.equal(
+    getRecommendedVoiceSettings('unknown-voice-id', 'eleven_v3').stability,
+    0.5
+  );
+
+  for (const voice of CURATED_VOICES) {
+    const v3Settings = getRecommendedVoiceSettings(voice.voiceId, 'eleven_v3');
+    assert.ok(
+      v3Settings.stability === 0 ||
+        v3Settings.stability === 0.5 ||
+        v3Settings.stability === 1,
+      `Expected discrete stability for ${voice.name} on eleven_v3, got ${v3Settings.stability}`
+    );
+  }
+});
+
+test('buildSyntheticWordTimestamps strips eleven_v3 audio and pause tags from words[] and alignment', () => {
+  const res = buildSyntheticWordTimestamps(
+    '[thoughtful] Hello [0.5s] world [1.5s pause] today.',
+    4,
+    60
+  );
+  assert.deepEqual(
+    res.words.map((w) => w.word),
+    ['Hello', 'world', 'today.']
+  );
+  const alignedText = res.alignment.characters.join('');
+  assert.equal(alignedText, 'Hello world today.');
+  assert.doesNotMatch(alignedText, /\[|\]/);
 });

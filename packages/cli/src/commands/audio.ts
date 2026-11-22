@@ -22,6 +22,7 @@ import {
   DEFAULT_ELEVENLABS_MODEL_ID,
   getDefaultVoiceIdForLang,
   getRecommendedVoiceSettings,
+  snapStabilityForElevenLabsModel,
   supportsLanguageCodeParam,
 } from '../../../core/src/audio/voices';
 import {
@@ -33,7 +34,10 @@ import {
   generateSfxAsset,
   type GeneratedSfxMetadata,
 } from '../audio/generate-sfx';
-import { lintManifestVoiceovers } from '../audio/phonetics-lint';
+import {
+  lintManifestVoiceovers,
+  stripElevenLabsV3Tags,
+} from '../audio/phonetics-lint';
 import { resolveWorkspaceContext } from './workspace-paths';
 
 const CLI_VOICE_ACOUSTIC_FILTERS: Record<VoiceAcousticPreset, string> = {
@@ -191,7 +195,8 @@ export function buildSyntheticWordTimestamps(
   durationInSeconds: number,
   fps: number
 ): { words: WordTimestamp[]; alignment: CharacterAlignment } {
-  const rawTokens = text
+  const spokenText = stripElevenLabsV3Tags(text);
+  const rawTokens = spokenText
     .trim()
     .split(/\s+/)
     .filter(Boolean);
@@ -304,7 +309,17 @@ async function synthesizeSceneVoiceoverViaSdk(params: {
     nextText,
   } = params;
 
-  const defaultSettings = getRecommendedVoiceSettings(voiceId);
+  const defaultSettings = getRecommendedVoiceSettings(voiceId, modelId);
+  const effectiveVoiceSettings: VoiceSettingsConfig = {
+    ...defaultSettings,
+    ...voiceSettings,
+  };
+  if (typeof effectiveVoiceSettings.stability === 'number') {
+    effectiveVoiceSettings.stability = snapStabilityForElevenLabsModel(
+      effectiveVoiceSettings.stability,
+      modelId
+    );
+  }
   const effectiveLanguageCode =
     languageCode && supportsLanguageCodeParam(modelId)
       ? languageCode.trim().toLowerCase()
@@ -317,10 +332,7 @@ async function synthesizeSceneVoiceoverViaSdk(params: {
     ...(effectiveLanguageCode ? { languageCode: effectiveLanguageCode } : {}),
     ...(previousText ? { previousText } : {}),
     ...(nextText ? { nextText } : {}),
-    voiceSettings: {
-      ...defaultSettings,
-      ...voiceSettings,
-    },
+    voiceSettings: effectiveVoiceSettings,
   });
 
   const rawAlignment = response.alignment ?? response.normalizedAlignment;

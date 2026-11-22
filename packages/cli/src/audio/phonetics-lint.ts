@@ -52,7 +52,8 @@ const STANDARD_NUMBER_RE =
 const UPPERCASE_ACRONYM_TOKEN_RE =
   /(?<![\p{L}\p{N}])(?:[A-Z]{2,6}|SaaS)(?![\p{L}\p{N}])/gu;
 
-const ELEVENLABS_V3_TAG_RE = /\[([a-zA-Z][a-zA-Z\s-]{1,28})\]/g;
+const ELEVENLABS_V3_TAG_RE =
+  /\[((?:[a-zA-Z][a-zA-Z0-9\s.-]{0,46}[a-zA-Z0-9])|(?:\d+(?:\.\d+)?\s*(?:[mM][sS]|[sS])(?:[\s-][a-zA-Z][a-zA-Z\s-]{0,36}[a-zA-Z])?))\]/g;
 const ELEVENLABS_V3_ALLOWED_STABILITY = [0, 0.5, 1] as const;
 
 export function extractElevenLabsV3Tags(text: string): string[] {

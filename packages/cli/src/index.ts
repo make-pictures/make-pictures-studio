@@ -60,6 +60,8 @@ const BOOLEAN_FLAGS = new Set([
   'mine',
 ]);
 
+const NEGATIVE_NUMBER_TOKEN_RE = /^-?\d+(\.\d+)?$/;
+
 function parseCliArgs(argv: string[]): ParsedArgs {
   const positionals: string[] = [];
   const flags: Record<string, string | boolean> = {};
@@ -78,7 +80,12 @@ function parseCliArgs(argv: string[]): ParsedArgs {
       } else {
         const key = token.slice(2);
         const next = argv[i + 1];
-        if (!BOOLEAN_FLAGS.has(key) && next && !next.startsWith('-')) {
+        if (
+          !BOOLEAN_FLAGS.has(key) &&
+          next !== undefined &&
+          next.length > 0 &&
+          (!next.startsWith('-') || NEGATIVE_NUMBER_TOKEN_RE.test(next))
+        ) {
           flags[key] = next;
           i += 1;
         } else {
@@ -197,15 +204,25 @@ Commands:
 function parseFiniteFlag(
   flags: Record<string, string | boolean>,
   name: string,
-  opts?: { min?: number }
+  opts?: { min?: number; max?: number }
 ): number | undefined {
-  const raw = getStringFlag(flags, name);
-  if (raw === undefined) return undefined;
+  const rawFlag = flags[name];
+  if (rawFlag === undefined) return undefined;
+  if (rawFlag === true) {
+    throw new Error(`Missing value for --${name}`);
+  }
+  if (rawFlag === false) {
+    throw new Error(`Invalid --${name} value: "false"`);
+  }
+  const raw = rawFlag.trim();
+  if (raw === '') {
+    throw new Error(`Missing value for --${name}`);
+  }
   const num = Number(raw);
   if (
-    raw.trim() === '' ||
     !Number.isFinite(num) ||
-    (opts?.min !== undefined && num < opts.min)
+    (opts?.min !== undefined && num < opts.min) ||
+    (opts?.max !== undefined && num > opts.max)
   ) {
     throw new Error(`Invalid --${name} value: "${raw}"`);
   }
@@ -579,8 +596,14 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
           dirPath,
           outPath: getStringFlag(flags, 'out'),
           cols: parseFiniteFlag(flags, 'cols', { min: 1 }),
-          tileWidth: parseFiniteFlag(flags, 'tile-width', { min: 64 }),
-          tileHeight: parseFiniteFlag(flags, 'tile-height', { min: 64 }),
+          tileWidth: parseFiniteFlag(flags, 'tile-width', {
+            min: 64,
+            max: 2048,
+          }),
+          tileHeight: parseFiniteFlag(flags, 'tile-height', {
+            min: 64,
+            max: 2048,
+          }),
         });
         return;
       }

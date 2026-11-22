@@ -6,7 +6,10 @@ import path from 'node:path';
 import test from 'node:test';
 import {
   cleanScanCornerArtifacts,
+  compositeLetterboxedImage,
   computeAssetSheetGrid,
+  drawBitmapText5x7,
+  normalizeBitmapLabelText,
   runAssetsCleanScanCommand,
   runAssetsSheetCommand,
   sampleBorderPaperColor,
@@ -359,6 +362,336 @@ test('e2e: runAssetsCleanScanCommand, runAssetsSheetCommand, and CLI assets disp
     await assert.rejects(
       () => runCli(['assets', 'unknown-sub', `--cwd=${tmpDir}`]),
       /Unknown assets subcommand/
+    );
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('compositeLetterboxedImage uses premultiplied-alpha bilinear interpolation (zero dark fringe on white next to transparent black)', () => {
+  // 2x2 source: left column is opaque white (255,255,255,255), right column is transparent black (0,0,0,0)
+  const src = new Uint8ClampedArray([
+    255, 255, 255, 255,  0, 0, 0, 0,
+    255, 255, 255, 255,  0, 0, 0, 0,
+  ]);
+  const centerIdx = (1 * 3 + 1) * 4;
+
+  // Case 1: composite into 3x3 over pure white backdrop -> center pixel (1,1) samples tx=0.5, ty=0.5
+  // Premultiplied alpha MUST stay pure white (255,255,255), never a dark gray halo (191)!
+  const whiteCanvas = new Uint8ClampedArray(3 * 3 * 4);
+  whiteCanvas.fill(255);
+  compositeLetterboxedImage(whiteCanvas, 3, 0, 0, 3, 3, src, 2, 2);
+  assert.equal(whiteCanvas[centerIdx], 255, `Expected no dark R fringe over white, got ${whiteCanvas[centerIdx]}`);
+  assert.equal(whiteCanvas[centerIdx + 1], 255, `Expected no dark G fringe over white, got ${whiteCanvas[centerIdx + 1]}`);
+  assert.equal(whiteCanvas[centerIdx + 2], 255, `Expected no dark B fringe over white, got ${whiteCanvas[centerIdx + 2]}`);
+  assert.equal(whiteCanvas[centerIdx + 3], 255);
+
+  // Case 2: composite into 3x3 over dark checkerboard tile [30, 41, 59]
+  // Exact 50/50 source-over blend: round(255*0.5 + dst*0.5) = [143, 148, 157] (old buggy straight-alpha gave [79, 84, 93])
+  const darkCanvas = new Uint8ClampedArray(3 * 3 * 4);
+  for (let i = 0; i < 9; i++) {
+    darkCanvas[i * 4] = 30;
+    darkCanvas[i * 4 + 1] = 41;
+    darkCanvas[i * 4 + 2] = 59;
+    darkCanvas[i * 4 + 3] = 255;
+  }
+  compositeLetterboxedImage(darkCanvas, 3, 0, 0, 3, 3, src, 2, 2);
+  assert.equal(darkCanvas[centerIdx], 143, `Expected premultiplied R=143 at tx=0.5, got ${darkCanvas[centerIdx]}`);
+  assert.equal(darkCanvas[centerIdx + 1], 148, `Expected premultiplied G=148 at tx=0.5, got ${darkCanvas[centerIdx + 1]}`);
+  assert.equal(darkCanvas[centerIdx + 2], 157, `Expected premultiplied B=157 at tx=0.5, got ${darkCanvas[centerIdx + 2]}`);
+  assert.equal(darkCanvas[centerIdx + 3], 255);
+});
+
+test('cleanScanCornerArtifacts validates dimensions, buffer length, opaque corner alpha, and caps tiny images (<16px)', () => {
+  // Invalid dimensions & short buffer checks
+  assert.throws(
+    () => cleanScanCornerArtifacts(new Uint8ClampedArray(16), 0, 4),
+    /Invalid image dimensions/
+  );
+  assert.throws(
+    () => cleanScanCornerArtifacts(new Uint8ClampedArray(16), 4, -2),
+    /Invalid image dimensions/
+  );
+  assert.throws(
+    () => cleanScanCornerArtifacts(new Uint8ClampedArray(16), 2.5, 4),
+    /Invalid image dimensions/
+  );
+  assert.throws(
+    () => cleanScanCornerArtifacts(new Uint8ClampedArray(16), Number.NaN, 4),
+    /Invalid image dimensions/
+  );
+  assert.throws(
+    () => cleanScanCornerArtifacts(new Uint8ClampedArray(12), 4, 4),
+    /RGBA buffer too short/
+  );
+
+  // Opaque alpha=255 on replaced semi-transparent dark corner pixels
+  const semiSrc = makeSyntheticScanRgba(40, 40, [244, 236, 220], 6);
+  semiSrc[3] = 180; // semi-transparent dark pixel at (0,0)
+  const cleanedSemi = cleanScanCornerArtifacts(semiSrc, 40, 40, {
+    bleedPct: 0,
+    cornerRadiusPct: 15,
+    darkThreshold: 75,
+  });
+  assert.equal(cleanedSemi.rgba[0], 244);
+  assert.equal(cleanedSemi.rgba[1], 236);
+  assert.equal(cleanedSemi.rgba[2], 220);
+  assert.equal(
+    cleanedSemi.rgba[3],
+    255,
+    'Replaced paper corner pixels must have opaque alpha=255'
+  );
+
+  // Tiny 8x8 image: dark (0,0) corner gets cleaned, center dark ink (4,4) stays untouched
+  const w8 = 8;
+  const h8 = 8;
+  const tiny8 = new Uint8ClampedArray(w8 * h8 * 4);
+  for (let i = 0; i < w8 * h8; i++) {
+    tiny8[i * 4] = 244;
+    tiny8[i * 4 + 1] = 236;
+    tiny8[i * 4 + 2] = 220;
+    tiny8[i * 4 + 3] = 255;
+  }
+  // Dark corner at (0,0)
+  tiny8[0] = 10;
+  tiny8[1] = 10;
+  tiny8[2] = 10;
+  // Dark interior ink at (4,4)
+  const center8Idx = (4 * w8 + 4) * 4;
+  tiny8[center8Idx] = 12;
+  tiny8[center8Idx + 1] = 14;
+  tiny8[center8Idx + 2] = 16;
+
+  const cleaned8 = cleanScanCornerArtifacts(tiny8, w8, h8, {
+    bleedPct: 0,
+    cornerRadiusPct: 12,
+    darkThreshold: 75,
+  });
+  assert.equal(cleaned8.rgba[0], 244, 'Tiny 8x8 dark corner (0,0) should be cleaned');
+  assert.equal(
+    cleaned8.rgba[center8Idx],
+    12,
+    'Tiny 8x8 center ink pixel (4,4) must stay untouched'
+  );
+
+  // Ultra-tiny 2x2 image must not crash or throw
+  const tiny2 = new Uint8ClampedArray(2 * 2 * 4).fill(20);
+  for (let i = 0; i < 4; i++) tiny2[i * 4 + 3] = 255;
+  const cleaned2 = cleanScanCornerArtifacts(tiny2, 2, 2, { bleedPct: 0 });
+  assert.equal(cleaned2.width, 2);
+  assert.equal(cleaned2.height, 2);
+  assert.equal(cleaned2.cleanedPixels, 0);
+});
+
+test('computeAssetSheetGrid validates NaN, Infinity, tile bounds [64..2048], and 64M canvas pixel cap', () => {
+  assert.throws(() => computeAssetSheetGrid(4, 2, Number.NaN, 300), /tileWidth/i);
+  assert.throws(
+    () => computeAssetSheetGrid(4, 2, 420, Number.POSITIVE_INFINITY),
+    /tileHeight/i
+  );
+  assert.throws(() => computeAssetSheetGrid(4, 2, 32, 300), /tileWidth/i);
+  assert.throws(() => computeAssetSheetGrid(4, 2, 4096, 300), /tileWidth/i);
+  assert.throws(() => computeAssetSheetGrid(4, 2, 420, 4096), /tileHeight/i);
+  assert.throws(() => computeAssetSheetGrid(4, Number.NaN, 420, 300), /cols/i);
+  assert.throws(() => computeAssetSheetGrid(4, 0, 420, 300), /cols/i);
+  assert.throws(() => computeAssetSheetGrid(-1, 2, 420, 300), /itemCount/i);
+  assert.throws(
+    () => computeAssetSheetGrid(200, 12, 2048, 2048),
+    /exceeds maximum|pixels/i
+  );
+});
+
+test('5x7 bitmap font normalizes Polish diacritics (including ł/Ł -> L) and renders [, ], @, , glyphs', () => {
+  assert.equal(
+    normalizeBitmapLabelText('Żółć_ąęćłńóśźż_ĄĘĆŁŃÓŚŹŻ@[1,2].png'),
+    'ZOLC_AECLNOSZZ_AECLNOSZZ@[1,2].PNG'
+  );
+
+  const renderLabel = (text: string): Uint8ClampedArray => {
+    const w = 120;
+    const h = 16;
+    const buf = new Uint8ClampedArray(w * h * 4);
+    drawBitmapText5x7(buf, w, h, text, 0, 0, 1, [255, 255, 255], w);
+    return buf;
+  };
+
+  assert.deepEqual(
+    renderLabel('Żółć@[1,2]'),
+    renderLabel('ZOLC@[1,2]'),
+    'Polish diacritics must render identically to ASCII base letters'
+  );
+
+  const qGlyph = renderLabel('?');
+  for (const ch of ['[', ']', '@', ',']) {
+    assert.notDeepEqual(
+      renderLabel(ch),
+      qGlyph,
+      `Expected dedicated 5x7 glyph for "${ch}" (not "?" fallback)`
+    );
+  }
+});
+
+test('CLI negative/valueless flags, directory-as-input, corrupt sheet file wrapping, and --dir resolution', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mp-assets-reg-'));
+  try {
+    const studioSub = path.join(tmpDir, 'videos');
+    const scansDir = path.join(studioSub, 'scans');
+    fs.mkdirSync(scansDir, { recursive: true });
+
+    const scanPath = path.join(scansDir, 'plate.png');
+    writeRawRgbaAsPng(
+      scanPath,
+      makeSyntheticScanRgba(64, 64, [242, 234, 218], 8),
+      64,
+      64
+    );
+
+    // 1. Directory passed as clean-scan input fails cleanly with `.isFile()` validation
+    assert.throws(
+      () =>
+        runAssetsCleanScanCommand({
+          cwd: tmpDir,
+          dir: 'videos',
+          inputPath: 'scans',
+          outPath: 'cleaned/out.png',
+        }),
+      /not a file/i
+    );
+
+    // 2. Relative paths resolve against studioDir when `--dir` is explicitly provided
+    const cleanWithDir = runAssetsCleanScanCommand({
+      cwd: tmpDir,
+      dir: 'videos',
+      inputPath: 'scans/plate.png',
+      outPath: 'cleaned/plate-clean.png',
+      bleedPct: 0,
+    });
+    assert.equal(
+      cleanWithDir.outputPath,
+      path.join(studioSub, 'cleaned', 'plate-clean.png')
+    );
+    assert.ok(fs.existsSync(cleanWithDir.outputPath));
+
+    const sheetWithDir = runAssetsSheetCommand({
+      cwd: tmpDir,
+      dir: 'videos',
+      dirPath: 'scans',
+      outPath: 'out/sheet.png',
+      cols: 1,
+      tileWidth: 120,
+      tileHeight: 120,
+    });
+    assert.equal(sheetWithDir.outputPath, path.join(studioSub, 'out', 'sheet.png'));
+    assert.ok(fs.existsSync(sheetWithDir.outputPath));
+
+    // 3. Space-separated negative numeric flags do NOT leak into positionals
+    await assert.rejects(
+      () =>
+        runCli([
+          'assets',
+          'clean-scan',
+          'scans/plate.png',
+          '--out=cleaned/neg.png',
+          '--bleed-pct',
+          '-2',
+          `--cwd=${tmpDir}`,
+          '--dir=videos',
+        ]),
+      /Invalid --bleed-pct value: "-2"/
+    );
+
+    await assert.rejects(
+      () =>
+        runCli([
+          'assets',
+          'sheet',
+          'scans',
+          '--cols',
+          '-1',
+          `--cwd=${tmpDir}`,
+          '--dir=videos',
+        ]),
+      /Invalid --cols value: "-1"/
+    );
+
+    // 4. Valueless finite flags explicitly reject with "Missing value for --<name>"
+    await assert.rejects(
+      () =>
+        runCli([
+          'assets',
+          'clean-scan',
+          'scans/plate.png',
+          '--bleed-pct',
+          '--out=cleaned/missing.png',
+          `--cwd=${tmpDir}`,
+          '--dir=videos',
+        ]),
+      /Missing value for --bleed-pct/
+    );
+
+    await assert.rejects(
+      () =>
+        runCli([
+          'assets',
+          'sheet',
+          'scans',
+          '--tile-width',
+          `--cwd=${tmpDir}`,
+          '--dir=videos',
+        ]),
+      /Missing value for --tile-width/
+    );
+
+    // 5. NaN & extreme tile sizes rejected via both CLI and direct command
+    await assert.rejects(
+      () =>
+        runCli([
+          'assets',
+          'sheet',
+          'scans',
+          '--tile-width=NaN',
+          `--cwd=${tmpDir}`,
+          '--dir=videos',
+        ]),
+      /Invalid --tile-width/
+    );
+
+    await assert.rejects(
+      () =>
+        runCli([
+          'assets',
+          'sheet',
+          'scans',
+          '--tile-width=4096',
+          `--cwd=${tmpDir}`,
+          '--dir=videos',
+        ]),
+      /Invalid --tile-width/
+    );
+
+    assert.throws(
+      () =>
+        runAssetsSheetCommand({
+          cwd: tmpDir,
+          dir: 'videos',
+          dirPath: 'scans',
+          tileWidth: Number.NaN,
+        }),
+      /tileWidth/i
+    );
+
+    // 6. Corrupt image in `assets sheet` wraps decode error with offending filename
+    const badDir = path.join(studioSub, 'bad-scans');
+    fs.mkdirSync(badDir, { recursive: true });
+    fs.writeFileSync(path.join(badDir, 'broken-plate.png'), 'not-a-real-png');
+    assert.throws(
+      () =>
+        runAssetsSheetCommand({
+          cwd: tmpDir,
+          dir: 'videos',
+          dirPath: 'bad-scans',
+        }),
+      /broken-plate\.png/
     );
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
