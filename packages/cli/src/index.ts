@@ -12,6 +12,10 @@ import {
   type DimensionalSpace,
 } from '../../core/src/style/presets';
 import {
+  runAssetsCleanScanCommand,
+  runAssetsSheetCommand,
+} from './commands/assets';
+import {
   runAudioCommand,
   runMusicShortcutCommand,
   runSfxShortcutCommand,
@@ -181,6 +185,12 @@ Commands:
 
   cutout <source.pdf|photo.png> --out=<file.png> [--page=1] [--tolerance=18] [--soft-ramp=10] [--qa-out=<qa.png>] [--dir=<subdir>]
       Extract lossless PDF /SMask or Exterior Border Flood-Fill cutout + dark checkerboard QA PNG
+
+  assets clean-scan <input> --out=<file.png> [--bleed-pct=2.0] [--corner-radius-pct=8.0] [--dark-threshold=75] [--fill-color=#RRGGBB] [--dir=<subdir>]
+      Remove dark scanner corner/rim artifacts via exterior perimeter flood-fill while preserving interior ink
+
+  assets sheet <dir> [--out=<dir>/_qa-assets-contact-sheet.png] [--cols=4] [--tile-width=420] [--tile-height=300] [--dir=<subdir>]
+      Build dark-checkerboard QA contact-sheet PNG with built-in 5x7 bitmap labels for all images in a directory
 `);
 }
 
@@ -532,6 +542,53 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
       return;
     }
 
+    case 'assets': {
+      const subcommand = positionals[1]?.toLowerCase();
+      if (subcommand === 'clean-scan') {
+        const inputPath = positionals[2] || getStringFlag(flags, 'in');
+        const outPath = getStringFlag(flags, 'out') || positionals[3];
+        if (!inputPath || !outPath) {
+          throw new Error(
+            'Usage: make-pictures assets clean-scan <input> --out=<file.png> [--bleed-pct=2.0] [--corner-radius-pct=8.0] [--dark-threshold=75] [--fill-color=#RRGGBB]'
+          );
+        }
+        runAssetsCleanScanCommand({
+          cwd,
+          dir,
+          inputPath,
+          outPath,
+          bleedPct: parseFiniteFlag(flags, 'bleed-pct', { min: 0 }),
+          cornerRadiusPct: parseFiniteFlag(flags, 'corner-radius-pct', {
+            min: 0,
+          }),
+          darkThreshold: parseFiniteFlag(flags, 'dark-threshold', { min: 0 }),
+          fillColor: getStringFlag(flags, 'fill-color'),
+        });
+        return;
+      }
+      if (subcommand === 'sheet') {
+        const dirPath = positionals[2] || getStringFlag(flags, 'in');
+        if (!dirPath) {
+          throw new Error(
+            'Usage: make-pictures assets sheet <dir> [--out=<dir>/_qa-assets-contact-sheet.png] [--cols=4] [--tile-width=420] [--tile-height=300]'
+          );
+        }
+        runAssetsSheetCommand({
+          cwd,
+          dir,
+          dirPath,
+          outPath: getStringFlag(flags, 'out'),
+          cols: parseFiniteFlag(flags, 'cols', { min: 1 }),
+          tileWidth: parseFiniteFlag(flags, 'tile-width', { min: 64 }),
+          tileHeight: parseFiniteFlag(flags, 'tile-height', { min: 64 }),
+        });
+        return;
+      }
+      throw new Error(
+        `Unknown assets subcommand "${positionals[1] ?? ''}". Usage: make-pictures assets <clean-scan|sheet> ...`
+      );
+    }
+
     default:
       throw new Error(
         `Unknown command "${command}". Run \`make-pictures --help\` to see available commands.`
@@ -544,6 +601,7 @@ export * from './audio/generate-music';
 export * from './audio/generate-sfx';
 export * from './audio/master-loudness';
 export * from './audio/phonetics-lint';
+export * from './commands/assets';
 export * from './commands/audio';
 export * from './commands/cutout';
 export * from './commands/doctor';

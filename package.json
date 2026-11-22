@@ -30,6 +30,7 @@
     "qa": "tsx packages/cli/src/index.ts qa",
     "image": "tsx packages/cli/src/index.ts image",
     "cutout": "tsx packages/cli/src/index.ts cutout",
+    "assets": "tsx packages/cli/src/index.ts assets",
     "voiceover": "tsx packages/cli/src/index.ts audio",
     "studio": "vite --host 127.0.0.1 --port 3000",
     "studio:remotion": "remotion studio src/index.ts",
