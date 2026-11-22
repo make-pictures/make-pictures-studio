@@ -55,7 +55,7 @@ export const DEFAULT_STUDIO_IBL_PANELS: ReadonlyArray<SyncIblPanelSpec> = [
     intensity: 1.0,
     position: [0, -4.5, 0],
     scale: [16.0, 16.0, 1],
-    target: [0, 0, 0],
+    rotation: [-Math.PI / 2, 0, 0],
   },
 ];
 
@@ -149,10 +149,8 @@ export const SyncStudioIbl3D: React.FC<SyncStudioIbl3DProps> = ({
     let renderTarget: THREE.WebGLRenderTarget;
     try {
       renderTarget = pmrem.fromScene(envScene, blurSigma);
-    } catch (err) {
-      pmrem.dispose();
-      throw err;
     } finally {
+      pmrem.dispose();
       dispose();
     }
 
@@ -165,13 +163,21 @@ export const SyncStudioIbl3D: React.FC<SyncStudioIbl3DProps> = ({
         scene.environment = previousEnvironment;
       }
       renderTarget.dispose();
-      pmrem.dispose();
       invalidate();
     };
   }, [gl, scene, invalidate, panelsSignature]);
 
   useLayoutEffect(() => {
-    const targetScene = scene as THREE.Scene & { environmentIntensity?: number };
+    const targetScene = scene as THREE.Scene & { environmentIntensity: number };
+    const previousIntensity = targetScene.environmentIntensity;
+    return () => {
+      targetScene.environmentIntensity = previousIntensity ?? 1;
+      invalidate();
+    };
+  }, [scene, invalidate]);
+
+  useLayoutEffect(() => {
+    const targetScene = scene as THREE.Scene & { environmentIntensity: number };
     targetScene.environmentIntensity = Math.max(0, environmentIntensity);
     invalidate();
   }, [scene, environmentIntensity, invalidate]);

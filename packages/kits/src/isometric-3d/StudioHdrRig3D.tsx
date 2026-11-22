@@ -291,7 +291,9 @@ const MemoizedStudioHdrRigInner = React.memo<StudioHdrRigInnerProps>(
         />
 
         <hemisphereLight
-          args={[spec.hemiSkyColor, spec.hemiGroundColor, spec.hemiIntensity]}
+          color={spec.hemiSkyColor}
+          groundColor={spec.hemiGroundColor}
+          intensity={spec.hemiIntensity}
         />
 
         <directionalLight
@@ -299,7 +301,8 @@ const MemoizedStudioHdrRigInner = React.memo<StudioHdrRigInnerProps>(
           intensity={spec.directionalIntensity}
           color={spec.directionalColor}
           castShadow
-          shadow-mapSize={[1024, 1024]}
+          shadow-mapSize-width={1024}
+          shadow-mapSize-height={1024}
           shadow-bias={-0.0004}
           shadow-normalBias={0.02}
           shadow-camera-near={0.5}

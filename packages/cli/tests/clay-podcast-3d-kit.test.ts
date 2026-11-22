@@ -213,9 +213,12 @@ test('StudioHdrRig3D, ClayCharacter3D, and PodcastStudioSet3D obey offline IBL, 
   assert.doesNotMatch(hdrSrc, /<Lightformer\b/);
   assert.match(hdrSrc, /<ContactShadowDisc3D\b/);
   assert.doesNotMatch(hdrSrc, /<ContactShadows\b/);
-  assert.match(hdrSrc, /shadow-mapSize=\{\[1024,\s*1024\]\}/);
+  assert.match(hdrSrc, /shadow-mapSize-width=\{1024\}/);
+  assert.match(hdrSrc, /shadow-mapSize-height=\{1024\}/);
+  assert.doesNotMatch(hdrSrc, /shadow-mapSize=\{\[/);
   assert.match(hdrSrc, /shadow-bias=\{-0\.0004\}/);
   assert.match(hdrSrc, /<hemisphereLight\b/);
+  assert.doesNotMatch(hdrSrc, /<hemisphereLight[^>]*\bargs=/s);
   assert.doesNotMatch(
     hdrSrc,
     /\b(preset|files)\s*=\s*['"]/,

@@ -650,7 +650,6 @@ interface R3FCameraLike {
   up: { set(x: number, y: number, z: number): void };
   position: { set(x: number, y: number, z: number): void };
   lookAt(x: number, y: number, z: number): void;
-  rotateZ(radians: number): void;
   updateProjectionMatrix(): void;
   isPerspectiveCamera?: boolean;
   fov?: number;

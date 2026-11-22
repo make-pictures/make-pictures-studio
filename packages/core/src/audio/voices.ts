@@ -305,20 +305,59 @@ export function findCuratedVoiceById(
   return CURATED_VOICES.find((v) => v.voiceId === clean);
 }
 
+const ELEVENLABS_V3_DISCRETE_STABILITY = [0, 0.5, 1] as const;
+
+/**
+ * ElevenLabs `eleven_v3` strictly accepts discrete stability values `{0, 0.5, 1}`
+ * (Creative / Natural / Robust). Snaps any continuous stability to the nearest
+ * allowed discrete value when targeting `eleven_v3*`, leaving other models untouched.
+ */
+export function snapStabilityForElevenLabsModel(
+  stability: number,
+  modelId?: string
+): number {
+  const cleanModel = (modelId ?? '').trim();
+  if (!/^eleven_v3/i.test(cleanModel)) {
+    return stability;
+  }
+  if (!Number.isFinite(stability)) {
+    return 0.5;
+  }
+  const clamped = Math.min(1, Math.max(0, stability));
+  const snapped = Math.round(clamped * 2) / 2;
+  return ELEVENLABS_V3_DISCRETE_STABILITY.includes(
+    snapped as (typeof ELEVENLABS_V3_DISCRETE_STABILITY)[number]
+  )
+    ? snapped
+    : 0.5;
+}
+
 export function getRecommendedVoiceSettings(
-  voiceId?: string
+  voiceId?: string,
+  modelId?: string
 ): VoiceSettingsConfig {
   const curated = findCuratedVoiceById(voiceId);
-  if (curated) {
-    return { ...curated.recommendedSettings };
+  const settings: VoiceSettingsConfig = curated
+    ? { ...curated.recommendedSettings }
+    : {
+        stability: 0.56,
+        similarityBoost: 0.8,
+        style: 0.2,
+        speed: 0.99,
+        useSpeakerBoost: true,
+      };
+  if (modelId && /^eleven_v3/i.test(modelId.trim())) {
+    const snapped = snapStabilityForElevenLabsModel(
+      settings.stability ?? 0.5,
+      modelId
+    );
+    settings.stability = ELEVENLABS_V3_DISCRETE_STABILITY.includes(
+      snapped as (typeof ELEVENLABS_V3_DISCRETE_STABILITY)[number]
+    )
+      ? snapped
+      : 0.5;
   }
-  return {
-    stability: 0.56,
-    similarityBoost: 0.8,
-    style: 0.2,
-    speed: 0.99,
-    useSpeakerBoost: true,
-  };
+  return settings;
 }
 
 export function getKnownEnglishVoiceName(voiceId?: string): string | null {

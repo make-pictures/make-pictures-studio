@@ -166,6 +166,99 @@ export function resolveDeformableSheetMaterialConfig(
   };
 }
 
+export interface DeformableSheetMaterialScalars {
+  frontColor: string;
+  backColor: string;
+  edgeColor: string;
+  frontRoughness: number;
+  backRoughness: number;
+  edgeRoughness: number;
+  frontMetalness: number;
+  backMetalness: number;
+  clearcoat: number;
+  clearcoatRoughness: number;
+  bumpScale: number;
+  sheen: number;
+  sheenRoughness: number;
+  sheenColor?: string;
+  emissive?: string;
+  emissiveIntensity: number;
+  opacity: number;
+}
+
+/**
+ * Synchronously mutates scalar PBR properties on `[frontMat, backMat, edgeMat]`
+ * without recreating or disposing Three.js materials per frame.
+ * Sets `mat.needsUpdate = true` ONLY when `mat.transparent` actually toggles.
+ */
+export function syncDeformableSheetMaterials(
+  materials: readonly [
+    THREE.MeshPhysicalMaterial,
+    THREE.MeshPhysicalMaterial,
+    THREE.MeshPhysicalMaterial,
+  ],
+  scalars: DeformableSheetMaterialScalars
+): void {
+  const [frontMat, backMat, edgeMat] = materials;
+  const nextTransparent = scalars.opacity < 0.999;
+
+  const applyTransparency = (mat: THREE.MeshPhysicalMaterial) => {
+    if (mat.transparent !== nextTransparent) {
+      mat.transparent = nextTransparent;
+      mat.needsUpdate = true;
+    }
+    mat.opacity = scalars.opacity;
+  };
+
+  const applyFaceScalars = (
+    mat: THREE.MeshPhysicalMaterial,
+    colorHex: string,
+    roughnessVal: number,
+    metalnessVal: number
+  ) => {
+    mat.color.set(colorHex);
+    mat.roughness = roughnessVal;
+    mat.metalness = metalnessVal;
+    mat.clearcoat = scalars.clearcoat;
+    mat.clearcoatRoughness = scalars.clearcoatRoughness;
+    mat.bumpScale = scalars.bumpScale;
+    mat.sheen = scalars.sheen;
+    mat.sheenRoughness = scalars.sheenRoughness;
+    if (scalars.sheenColor) {
+      mat.sheenColor.set(scalars.sheenColor);
+    } else {
+      mat.sheenColor.set('#000000');
+    }
+    if (scalars.emissive && scalars.emissiveIntensity > 0) {
+      mat.emissive.set(scalars.emissive);
+      mat.emissiveIntensity = scalars.emissiveIntensity;
+    } else {
+      mat.emissive.set('#000000');
+      mat.emissiveIntensity = 0;
+    }
+    applyTransparency(mat);
+  };
+
+  applyFaceScalars(
+    frontMat,
+    scalars.frontColor,
+    scalars.frontRoughness,
+    scalars.frontMetalness
+  );
+  applyFaceScalars(
+    backMat,
+    scalars.backColor,
+    scalars.backRoughness,
+    scalars.backMetalness
+  );
+
+  edgeMat.color.set(scalars.edgeColor);
+  edgeMat.roughness = scalars.edgeRoughness;
+  edgeMat.metalness = 0;
+  edgeMat.clearcoat = 0;
+  applyTransparency(edgeMat);
+}
+
 export const DeformableSheet3D: React.FC<DeformableSheet3DProps> = ({
   name,
   position = [0, 0, 0],
@@ -300,66 +393,24 @@ export const DeformableSheet3D: React.FC<DeformableSheet3DProps> = ({
   );
 
   const materialBundle = useMemo(() => {
-    const transparent = opacity < 0.999;
-
-    const sharedFinishOptions: Partial<THREE.MeshPhysicalMaterialParameters> = {
-      sheen: materialConfig.sheen,
-      sheenRoughness: materialConfig.sheenRoughness,
-      ...(materialConfig.sheenColor
-        ? { sheenColor: materialConfig.sheenColor }
-        : {}),
-      ...(materialConfig.emissive && materialConfig.emissiveIntensity > 0
-        ? {
-            emissive: materialConfig.emissive,
-            emissiveIntensity: materialConfig.emissiveIntensity,
-          }
-        : {}),
-    };
-
     const frontMat = new THREE.MeshPhysicalMaterial({
-      color: resolvedFrontColor,
       map: frontMap ?? null,
       roughnessMap: materialConfig.frontRoughnessMap,
       metalnessMap: frontMetalnessMap ?? null,
       bumpMap: materialConfig.frontBumpMap,
-      bumpScale: materialConfig.bumpScale,
-      roughness: materialConfig.frontRoughness,
-      metalness: frontMetalnessMap
-        ? (metalness ?? 1.0)
-        : materialConfig.metalness,
-      clearcoat: materialConfig.clearcoat,
-      clearcoatRoughness: materialConfig.clearcoatRoughness,
-      transparent,
-      opacity,
-      ...sharedFinishOptions,
     });
 
     const backMat = new THREE.MeshPhysicalMaterial({
-      color: resolvedBackColor,
       map: backMap ?? null,
       roughnessMap: materialConfig.backRoughnessMap,
       metalnessMap: backMetalnessMap ?? null,
       bumpMap: materialConfig.backBumpMap,
-      bumpScale: materialConfig.bumpScale,
-      roughness: materialConfig.backRoughness,
-      metalness: backMetalnessMap
-        ? (metalness ?? 1.0)
-        : materialConfig.metalness,
-      clearcoat: materialConfig.clearcoat,
-      clearcoatRoughness: materialConfig.clearcoatRoughness,
-      transparent,
-      opacity,
-      ...sharedFinishOptions,
     });
 
     const edgeMat = new THREE.MeshPhysicalMaterial({
-      color: resolvedEdgeColor,
       map: edgeMap ?? null,
-      roughness: materialConfig.edgeRoughness,
       metalness: 0,
       clearcoat: 0,
-      transparent,
-      opacity,
     });
 
     attachSheetBendShader(frontMat, uniforms);
@@ -378,9 +429,6 @@ export const DeformableSheet3D: React.FC<DeformableSheet3DProps> = ({
     };
   }, [
     uniforms,
-    resolvedFrontColor,
-    resolvedBackColor,
-    resolvedEdgeColor,
     frontMap,
     backMap,
     materialConfig.frontRoughnessMap,
@@ -390,21 +438,32 @@ export const DeformableSheet3D: React.FC<DeformableSheet3DProps> = ({
     backMetalnessMap,
     materialConfig.backBumpMap,
     edgeMap,
-    materialConfig.frontRoughness,
-    materialConfig.backRoughness,
-    materialConfig.edgeRoughness,
-    metalness,
-    materialConfig.metalness,
-    materialConfig.clearcoat,
-    materialConfig.clearcoatRoughness,
-    materialConfig.bumpScale,
-    materialConfig.sheen,
-    materialConfig.sheenRoughness,
-    materialConfig.sheenColor,
-    materialConfig.emissive,
-    materialConfig.emissiveIntensity,
-    opacity,
   ]);
+
+  // Synchronous per-frame scalar material update without rebuilding/disposing materials
+  syncDeformableSheetMaterials(materialBundle.materials, {
+    frontColor: resolvedFrontColor,
+    backColor: resolvedBackColor,
+    edgeColor: resolvedEdgeColor,
+    frontRoughness: materialConfig.frontRoughness,
+    backRoughness: materialConfig.backRoughness,
+    edgeRoughness: materialConfig.edgeRoughness,
+    frontMetalness: frontMetalnessMap
+      ? (metalness ?? 1.0)
+      : materialConfig.metalness,
+    backMetalness: backMetalnessMap
+      ? (metalness ?? 1.0)
+      : materialConfig.metalness,
+    clearcoat: materialConfig.clearcoat,
+    clearcoatRoughness: materialConfig.clearcoatRoughness,
+    bumpScale: materialConfig.bumpScale,
+    sheen: materialConfig.sheen,
+    sheenRoughness: materialConfig.sheenRoughness,
+    sheenColor: materialConfig.sheenColor,
+    emissive: materialConfig.emissive,
+    emissiveIntensity: materialConfig.emissiveIntensity,
+    opacity,
+  });
 
   useEffect(() => {
     return () => {

@@ -103,13 +103,17 @@ export function evaluateCameraKeyframes3D(
     };
   }
 
+  const sortedKeyframes = [...keyframes].sort(
+    (a, b) => a.fromFrame - b.fromFrame
+  );
+
   let activeIdx = 0;
-  for (let i = 0; i < keyframes.length; i++) {
-    if (frame >= keyframes[i].fromFrame) activeIdx = i;
+  for (let i = 0; i < sortedKeyframes.length; i++) {
+    if (frame >= sortedKeyframes[i].fromFrame) activeIdx = i;
   }
 
-  const curr = keyframes[activeIdx];
-  const prev = activeIdx > 0 ? keyframes[activeIdx - 1] : curr;
+  const curr = sortedKeyframes[activeIdx];
+  const prev = activeIdx > 0 ? sortedKeyframes[activeIdx - 1] : curr;
 
   let position: Vec3 = [...curr.position];
   let target: Vec3 = [...curr.target];
@@ -132,21 +136,28 @@ export function evaluateCameraKeyframes3D(
     roll += Math.sin(frame * 0.029 + phase * 2.1) * handheldIntensity * 0.12;
   }
 
+  const baseBasis = computeCameraBasis3D(position, target, roll);
+  let hasRecoil = false;
+
   for (const imp of impulses) {
     const dt = frame - imp.frame;
     const decayFrames = imp.decayFrames ?? 12;
     const intensity = imp.intensity ?? 0.35;
     if (dt >= 0 && dt < decayFrames) {
+      hasRecoil = true;
       const env = Math.pow(1 - dt / decayFrames, 2.2);
       const osc = Math.cos(dt * 1.45);
-      position[1] -= intensity * env * osc * 0.65;
-      position[2] += intensity * env * 0.85;
+      const upKick = -intensity * env * osc * 0.65;
+      const backKick = intensity * env * 0.85;
+      position[0] += baseBasis.up[0] * upKick - baseBasis.forward[0] * backKick;
+      position[1] += baseBasis.up[1] * upKick - baseBasis.forward[1] * backKick;
+      position[2] += baseBasis.up[2] * upKick - baseBasis.forward[2] * backKick;
       roll += intensity * env * Math.sin(dt * 1.8) * 0.14;
     }
   }
 
   return {
-    ...computeCameraBasis3D(position, target, roll),
+    ...(hasRecoil ? computeCameraBasis3D(position, target, roll) : baseBasis),
     fov,
   };
 }

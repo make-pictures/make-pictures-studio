@@ -35,8 +35,14 @@ export function resolveActivePaperMilestoneId(
   if (explicitActiveId) return explicitActiveId;
 
   let active = milestones[0]!.id;
+  let bestFrame = -Infinity;
   for (const m of milestones) {
-    if (m.fromFrame !== undefined && frame >= m.fromFrame) {
+    if (
+      m.fromFrame !== undefined &&
+      frame >= m.fromFrame &&
+      m.fromFrame >= bestFrame
+    ) {
+      bestFrame = m.fromFrame;
       active = m.id;
     }
   }
@@ -55,7 +61,7 @@ export const PaperRibbonTimeline: React.FC<PaperRibbonTimelineProps> = ({
   style: customStyle,
 }) => {
   const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
+  const { fps, width, height } = useVideoConfig();
   useStudioFontsReady();
   const studioStyle = useStudioStyle();
 
@@ -88,6 +94,21 @@ export const PaperRibbonTimeline: React.FC<PaperRibbonTimelineProps> = ({
     'mono'
   );
 
+  const isVertical = height > width;
+  const scaleX = width / 1080;
+  const scaleY = height / 1920;
+
+  // Strictly inside 9:16 Golden Safe Box: x in [40, 910], y in [220, 1380]
+  const containerLeft = isVertical ? Math.round(40 * scaleX) : 0;
+  const containerRight = isVertical ? Math.round(170 * scaleX) : 0;
+  const verticalEdge = isVertical
+    ? position === 'bottom'
+      ? { bottom: Math.round(540 * scaleY) }
+      : { top: Math.round(220 * scaleY) }
+    : position === 'bottom'
+      ? { bottom: 34 }
+      : { top: 34 };
+
   const slideOffset = (1 - enter) * (position === 'bottom' ? 18 : -18);
 
   return (
@@ -96,29 +117,32 @@ export const PaperRibbonTimeline: React.FC<PaperRibbonTimelineProps> = ({
       data-active-id={resolvedActiveId ?? undefined}
       style={{
         position: 'absolute',
-        left: 0,
-        right: 0,
-        ...(position === 'bottom' ? { bottom: 34 } : { top: 34 }),
+        left: containerLeft,
+        right: containerRight,
+        ...verticalEdge,
         display: 'flex',
         justifyContent: 'center',
         pointerEvents: 'none',
         opacity: finalOpacity,
         transform: `translateY(${slideOffset.toFixed(2)}px)`,
         boxSizing: 'border-box',
-        paddingLeft: 48,
-        paddingRight: 48,
+        paddingLeft: isVertical ? 0 : 48,
+        paddingRight: isVertical ? 0 : 48,
         ...customStyle,
       }}
     >
       <div
         style={{
           display: 'inline-flex',
+          flexWrap: 'wrap',
+          justifyContent: 'center',
           alignItems: 'center',
-          gap: 28,
-          padding: '14px 32px',
+          maxWidth: '100%',
+          gap: isVertical ? '10px 18px' : '12px 28px',
+          padding: isVertical ? '12px 22px' : '14px 32px',
           backgroundColor: studioStyle.palette.bgSurface,
           border: `1px solid ${studioStyle.palette.inkBorder}`,
-          borderRadius: 999,
+          borderRadius: isVertical ? 28 : 999,
           boxShadow: '0 8px 24px rgba(15, 23, 42, 0.09)',
           boxSizing: 'border-box',
         }}

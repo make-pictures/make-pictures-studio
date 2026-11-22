@@ -101,6 +101,8 @@ test('evaluateVelocityStretch and evaluateSecondaryCascade obey thresholds and d
   assert.deepEqual(deepBeforeTrigger, { offsetY: 0, rotZ: 0, bendY: 0 });
   assert.ok(Math.abs(topPeak.bendY) > Math.abs(deepPeak.bendY));
   assert.ok(Math.abs(deepPeak.bendY / topPeak.bendY - Math.pow(0.58, 2)) < 1e-12);
+  assert.deepEqual(evaluateSecondaryCascade(10, 4, 4), { offsetY: 0, rotZ: 0, bendY: 0 });
+  assert.ok(Math.abs(evaluateSecondaryCascade(10, 3, 4).bendY) > 0);
   assert.deepEqual(evaluateSecondaryCascade(4, 5, 4), { offsetY: 0, rotZ: 0, bendY: 0 });
   assert.deepEqual(evaluateSecondaryCascade(40, 0, 4), { offsetY: 0, rotZ: 0, bendY: 0 });
 });
@@ -186,6 +188,30 @@ test('evaluateCameraKeyframes3D interpolates glides, honors cuts, and decays rec
   const baseAt25 = evaluateCameraKeyframes3D(25, keyframes, [], 0);
   assert.notDeepEqual(duringRecoil.position, [0, 2, 6]);
   assert.deepEqual(afterRecoil.position, baseAt25.position);
+
+  // Unsorted keyframes must be sorted on a shallow copy without mutating the caller's array
+  const unsorted = [keyframes[2], keyframes[0], keyframes[1]];
+  const originalOrder = unsorted.map((k) => k.fromFrame);
+  const midUnsorted = evaluateCameraKeyframes3D(80, unsorted, [], 0);
+  assert.deepEqual(
+    unsorted.map((k) => k.fromFrame),
+    originalOrder,
+    'evaluateCameraKeyframes3D must not mutate caller keyframes array'
+  );
+  assert.ok(Math.abs(midUnsorted.position[0] - mid.position[0]) < 1e-6);
+  assert.ok(Math.abs(midUnsorted.fov - mid.fov) < 1e-6);
+
+  // Impulse recoil must apply along camera up and -forward (not world +Z)
+  const sideCam = [{ fromFrame: 0, position: [-6, 0, 0] as [number, number, number], target: [0, 0, 0] as [number, number, number], fov: 40 }];
+  const sideRecoil = evaluateCameraKeyframes3D(10, sideCam, [{ frame: 10, intensity: 0.5, decayFrames: 12 }], 0);
+  assert.ok(sideRecoil.position[0] < -6.3, `Expected recoil pullback along -forward (-X), got x=${sideRecoil.position[0]}`);
+  assert.ok(sideRecoil.position[1] < -0.2, `Expected recoil kick along camera up (-Y at dt=0), got y=${sideRecoil.position[1]}`);
+  assert.ok(Math.abs(sideRecoil.position[2]) < 1e-6, `Expected zero world +Z drift for +X-facing camera, got z=${sideRecoil.position[2]}`);
+
+  const overheadCam = [{ fromFrame: 0, position: [0, 6, 0] as [number, number, number], target: [0, 0, 0] as [number, number, number], fov: 40 }];
+  const overheadRecoil = evaluateCameraKeyframes3D(10, overheadCam, [{ frame: 10, intensity: 0.5, decayFrames: 12 }], 0);
+  assert.ok(overheadRecoil.position[1] > 6.3, `Expected overhead recoil pullback along -forward (+Y), got y=${overheadRecoil.position[1]}`);
+  assert.ok(overheadRecoil.position[2] > 0.2, `Expected overhead recoil kick along camera up ([0,0,-1] * negative), got z=${overheadRecoil.position[2]}`);
 });
 
 test('evaluateDirectorCamera3D supports macro shot and returns orthonormal forward/right/up basis', () => {
@@ -236,6 +262,15 @@ test('core kinematics and camera modules remain deterministic with zero three ru
       `Forbidden runtime three/r3f import in ${filePath}`
     );
   }
+  const directorCameraSrc = fs.readFileSync(
+    path.resolve(__dirname, '../../core/src/camera/DirectorCamera3D.tsx'),
+    'utf8'
+  );
+  assert.doesNotMatch(
+    directorCameraSrc,
+    /rotateZ\s*\(/,
+    'Dead rotateZ method must be removed from R3FCameraLike in DirectorCamera3D.tsx'
+  );
 });
 
 test('aabbClearance3D, aabbIntersects3D, and computeSurfaceClearanceY compute exact separation', () => {
@@ -291,6 +326,20 @@ test('computeDeformedSheetAabb3D detects tabletop penetration caused by GPU bend
   assert.ok(Math.abs(stretchedBounds.max[1] - 2.0 * 1.21) < 1e-6);
   assert.ok(Math.abs(stretchedBounds.max[0] - 1.0 / Math.sqrt(1.21)) < 1e-6);
   assert.ok(stretchedBounds.max[2] > 0.01);
+
+  // Verify 9x9 sampling catches interior parabolic peak at ny=0.75 missed by 5x5 grid
+  // At nx=1, bendY=-1.0, twist=1.27, hw=hh=1: zBend(0.5)=0.45675, zBend(0.75)=0.49125, zBend(1)=0.457
+  const finePeakBounds = computeDeformedSheetAabb3D({
+    position: [0, 0, 0],
+    width: 2.0,
+    height: 2.0,
+    thickness: 0,
+    deform: { bendY: -1.0, twist: 1.27 },
+  });
+  assert.ok(
+    finePeakBounds.max[2] > 0.49,
+    `Expected 9x9 sample grid to capture ny=0.75 extremum (~0.49125), got ${finePeakBounds.max[2]}`
+  );
 });
 
 test('15-axis obbClearanceSat3D distinguishes diagonal non-intersection where AABBs overlap', () => {

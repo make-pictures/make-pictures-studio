@@ -30,7 +30,7 @@ function cubicBezier1D(t: number, p1: number, p2: number): number {
 /**
  * Asymmetric Disney timing curves:
  * - 'launch': snappy initial burst off a resting surface, soft deceleration
- * - 'hang': slow-in, graceful apex hang-time, soft exit
+ * - 'hang': fast-in, lingering apex hang-time, fast-out
  * - 'slap': controlled windup accelerating sharply into surface impact
  * - 'settle': smooth critically damped ease-out
  */
@@ -174,7 +174,7 @@ export function evaluateSecondaryCascade(
   maxAffected = 4
 ): { offsetY: number; rotZ: number; bendY: number } {
   const localT = framesSinceTrigger - depthIndex * 1.5;
-  if (localT <= 0 || localT >= 28 || depthIndex < 0 || depthIndex > maxAffected) {
+  if (localT <= 0 || localT >= 28 || depthIndex < 0 || depthIndex >= maxAffected) {
     return { offsetY: 0, rotZ: 0, bendY: 0 };
   }
   const depthAtten = Math.pow(0.58, depthIndex);

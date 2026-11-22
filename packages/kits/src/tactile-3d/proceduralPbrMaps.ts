@@ -75,10 +75,14 @@ function generateBuffers(
   const rng = createSeededRandom(`${kind}::${seed}`);
 
   if (kind === 'linen-weave') {
+    const warpHarmonic = Math.max(1, Math.round(width / 3.2));
+    const weftHarmonic = Math.max(1, Math.round(height / 3.2));
     for (let y = 0; y < height; y++) {
+      const ny = (y / height) * Math.PI * 2;
       for (let x = 0; x < width; x++) {
-        const warp = Math.sin((x / 3.2) * Math.PI * 2);
-        const weft = Math.cos((y / 3.2) * Math.PI * 2);
+        const nx = (x / width) * Math.PI * 2;
+        const warp = Math.sin(nx * warpHarmonic);
+        const weft = Math.cos(ny * weftHarmonic);
         const basket = ((x >> 2) + (y >> 2)) & 1 ? 1 : -1;
         const slub = (rng() - 0.5) * 18;
         const cross = warp * 0.5 + weft * 0.5 + basket * 0.38;
@@ -110,7 +114,7 @@ function generateBuffers(
         const wave =
           Math.sin(ny * 7 + Math.sin(nx * 2) * 1.25) * 0.52 +
           Math.sin(ny * 17 + Math.cos(nx * 3) * 0.72) * 0.3 +
-          Math.sin(ny * 35 + nx * 1.2) * 0.18;
+          Math.sin(ny * 35 + nx * 1) * 0.18;
         const pore = rng() > 0.96 ? -36 : (rng() - 0.5) * 9;
         const lum = clampByte(220 + wave * 30 + pore, 145, 255);
         const bump = clampByte(128 + wave * 42 + pore * 1.1, 0, 255);
@@ -133,16 +137,20 @@ function generateBuffers(
   }
 
   if (kind === 'brushed-metal') {
+    const rowWaveHarmonic = Math.max(1, Math.round((height * 0.7) / (Math.PI * 2)));
+    const fineYHarmonic = Math.max(1, Math.round((height * 0.15) / (Math.PI * 2)));
     const rowBias = new Float32Array(height);
     for (let y = 0; y < height; y++) {
-      rowBias[y] = (rng() - 0.5) * 34 + Math.sin(y * 0.7) * 10;
+      const ny = (y / height) * Math.PI * 2;
+      rowBias[y] = (rng() - 0.5) * 34 + Math.sin(ny * rowWaveHarmonic) * 10;
     }
     for (let y = 0; y < height; y++) {
+      const ny = (y / height) * Math.PI * 2;
       const streak = rowBias[y]!;
       for (let x = 0; x < width; x++) {
+        const nx = (x / width) * Math.PI * 2;
         const fine =
-          Math.sin((x / width) * Math.PI * 4 + y * 0.15) * 6 +
-          (rng() - 0.5) * 8;
+          Math.sin(nx * 2 + ny * fineYHarmonic) * 6 + (rng() - 0.5) * 8;
         const lum = clampByte(226 + streak * 0.6 + fine, 180, 255);
         const bump = clampByte(128 + streak * 1.4 + fine, 0, 255);
         const rough = clampByte(88 - streak * 0.7 + fine * 0.6, 44, 162);
@@ -163,11 +171,12 @@ function generateBuffers(
 
   // 'cotton-paper'
   for (let y = 0; y < height; y++) {
+    const ny = (y / height) * Math.PI * 2;
     for (let x = 0; x < width; x++) {
+      const nx = (x / width) * Math.PI * 2;
       const grain = (rng() - 0.5) * 26;
       const pulp =
-        Math.sin(x * 0.19 + y * 0.11) * 7 +
-        Math.cos(x * 0.08 - y * 0.23) * 7;
+        Math.sin(nx * 8 + ny * 5) * 7 + Math.cos(nx * 3 - ny * 9) * 7;
       const lum = clampByte(242 + grain * 0.45 + pulp * 0.45, 212, 255);
       const bump = clampByte(128 + grain * 1.3 + pulp * 1.4, 0, 255);
       const rough = clampByte(224 - pulp * 0.8 + grain * 0.5, 194, 252);

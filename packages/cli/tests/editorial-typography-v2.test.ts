@@ -218,4 +218,98 @@ test('PaperRibbonTimeline and FloatingEditorialDisplay enforce Clean Frame 0 at 
   assert.match(htmlF100, /font-size:19px/); // eyebrow=19px
   assert.match(htmlF100, /tabular-nums/);
   assert.match(htmlF100, /Disney Arc/);
+  // High-contrast light accent fallback when tone='light-on-dark' is used on light style ('tactile-craft')
+  assert.match(htmlF100, /#F3C98B/i);
+});
+
+test('resolveActivePaperMilestoneId is order-independent for unsorted milestones', () => {
+  const unsorted: ReadonlyArray<PaperTimelineMilestone> = [
+    { id: 'settle', era: '04', label: 'Settle', fromFrame: 271 },
+    { id: 'arc', era: '02', label: 'Disney Arc', fromFrame: 91 },
+    { id: 'glass', era: '03', label: 'Screen Glass', fromFrame: 156 },
+    { id: 'stack', era: '01', label: 'Macro Stack', fromFrame: 2 },
+  ];
+
+  for (const frame of [2, 50, 90, 91, 120, 155, 156, 200, 270, 271, 350]) {
+    assert.equal(
+      resolveActivePaperMilestoneId(unsorted, frame),
+      resolveActivePaperMilestoneId(SAMPLE_MILESTONES, frame),
+      `Unsorted milestone resolution mismatch at frame=${frame}`
+    );
+  }
+});
+
+test('PaperRibbonTimeline and FloatingEditorialDisplay adapt to 9:16 Golden Safe Box [40, 910] x [220, 1380] and wrap cleanly', () => {
+  const VerticalSceneComp: React.FC<{
+    displayPosition?: 'top' | 'center' | 'bottom';
+    ribbonPosition?: 'top' | 'bottom';
+  }> = ({ displayPosition = 'top', ribbonPosition = 'bottom' }) =>
+    React.createElement(
+      StyleProvider,
+      { style: 'tactile-craft' },
+      React.createElement(FloatingEditorialDisplay, {
+        eyebrow: 'VERTICAL SAFE BOX',
+        headline: 'Editorial Title',
+        subline: 'Positioned strictly inside 9:16 Golden Safe Box',
+        position: displayPosition,
+        tone: 'light-on-dark',
+      }),
+      React.createElement(PaperRibbonTimeline, {
+        milestones: SAMPLE_MILESTONES,
+        position: ribbonPosition,
+      })
+    );
+
+  // Top display + bottom ribbon at 1080x1920
+  const htmlTopBottom = renderToStaticMarkup(
+    React.createElement(Thumbnail, {
+      component: VerticalSceneComp,
+      inputProps: { displayPosition: 'top', ribbonPosition: 'bottom' },
+      compositionWidth: 1080,
+      compositionHeight: 1920,
+      frameToDisplay: 100,
+      durationInFrames: 360,
+      fps: 60,
+    })
+  );
+  // x in [40, 910] => left:40px, right:170px (1080 - 910 = 170)
+  assert.match(htmlTopBottom, /left:40px/);
+  assert.match(htmlTopBottom, /right:170px/);
+  // y >= 220 for top, y <= 1380 => bottom:540px (1920 - 1380 = 540)
+  assert.match(htmlTopBottom, /top:220px/);
+  assert.match(htmlTopBottom, /bottom:540px/);
+  // PaperRibbonTimeline wrap & center safeguards
+  assert.match(htmlTopBottom, /flex-wrap:wrap/);
+  assert.match(htmlTopBottom, /max-width:100%/);
+  assert.match(htmlTopBottom, /justify-content:center/);
+
+  // Center display + top ribbon at 1080x1920
+  const htmlCenterTop = renderToStaticMarkup(
+    React.createElement(Thumbnail, {
+      component: VerticalSceneComp,
+      inputProps: { displayPosition: 'center', ribbonPosition: 'top' },
+      compositionWidth: 1080,
+      compositionHeight: 1920,
+      frameToDisplay: 100,
+      durationInFrames: 360,
+      fps: 60,
+    })
+  );
+  // Center midpoint of [220, 1380] is y=800
+  assert.match(htmlCenterTop, /top:800px/);
+  assert.match(htmlCenterTop, /top:220px/);
+
+  // Bottom display at 1080x1920
+  const htmlBottom = renderToStaticMarkup(
+    React.createElement(Thumbnail, {
+      component: VerticalSceneComp,
+      inputProps: { displayPosition: 'bottom', ribbonPosition: 'top' },
+      compositionWidth: 1080,
+      compositionHeight: 1920,
+      frameToDisplay: 100,
+      durationInFrames: 360,
+      fps: 60,
+    })
+  );
+  assert.match(htmlBottom, /bottom:540px/);
 });

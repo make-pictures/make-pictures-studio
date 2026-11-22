@@ -5,6 +5,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as THREE from 'three';
 import { evaluateCameraKeyframes3D } from '../../core/src/camera';
+import {
+  computeOrientedBoxAabb3D,
+  obbClearanceSat3D,
+  type EulerOrder3D,
+} from '../../core/src/kinematics';
 import * as tactile3d from '../../kits/src/tactile-3d';
 import * as kitsRoot from '../../kits/src';
 import {
@@ -19,12 +24,15 @@ import {
 } from '../../kits/src/tactile-3d/sheetBendShader';
 import {
   getCachedTexture3D,
+  loadCachedTexture3D,
+  makeTextureCacheKey3D,
   pruneTextureCache3D,
   scheduleCoalescedThreeAdvance,
 } from '../../kits/src/tactile-3d/textureLoader3D';
 import {
   DeformableSheet3D,
   resolveDeformableSheetMaterialConfig,
+  syncDeformableSheetMaterials,
 } from '../../kits/src/tactile-3d/DeformableSheet3D';
 import {
   disposeProceduralPbrMaps,
@@ -656,4 +664,444 @@ test('DaylightArcRig3D and new tactile-3d exports obey Clean Frame 0, SyncStudio
   assert.match(rigSrc, /cleanFrameZero\s*&&\s*frame\s*<=\s*0/);
   assert.doesNotMatch(rigSrc, /Math\.random\s*\(/);
   assert.doesNotMatch(rigSrc, /https?:\/\/|\.hdr\b|\.exr\b/i);
+});
+
+test('collision3d Euler basis matches THREE.Euler exact parity across XYZ, YXZ, and ZYX orders', () => {
+  const orders: EulerOrder3D[] = ['XYZ', 'YXZ', 'ZYX'];
+  const angles: Array<[number, number, number]> = [
+    [0.42, -0.73, 1.15],
+    [-1.1, 0.55, -0.31],
+    [0.88, 1.24, -0.92],
+  ];
+
+  for (const order of orders) {
+    for (const rot of angles) {
+      const q = new THREE.Quaternion().setFromEuler(
+        new THREE.Euler(rot[0], rot[1], rot[2], order)
+      );
+      const qTuple: [number, number, number, number] = [q.x, q.y, q.z, q.w];
+
+      const aabbEuler = computeOrientedBoxAabb3D({
+        position: [0.3, -0.2, 0.5],
+        size: [1.2, 1.7, 0.25],
+        rotation: rot,
+        eulerOrder: order,
+      });
+      const aabbQuat = computeOrientedBoxAabb3D({
+        position: [0.3, -0.2, 0.5],
+        size: [1.2, 1.7, 0.25],
+        quaternion: qTuple,
+      });
+
+      for (let i = 0; i < 3; i++) {
+        assert.ok(
+          Math.abs(aabbEuler.min[i]! - aabbQuat.min[i]!) < 1e-9,
+          `AABB min[${i}] mismatch for ${order} ${rot}`
+        );
+        assert.ok(
+          Math.abs(aabbEuler.max[i]! - aabbQuat.max[i]!) < 1e-9,
+          `AABB max[${i}] mismatch for ${order} ${rot}`
+        );
+      }
+
+      const qB = new THREE.Quaternion().setFromEuler(
+        new THREE.Euler(-0.35, 0.62, 0.28, order)
+      );
+      const satEuler = obbClearanceSat3D(
+        {
+          position: [0, 0, 0],
+          size: [1.0, 1.4, 0.12],
+          rotation: rot,
+          eulerOrder: order,
+        },
+        {
+          position: [1.35, 0.4, -0.2],
+          size: [0.9, 1.1, 0.18],
+          rotation: [-0.35, 0.62, 0.28],
+          eulerOrder: order,
+        }
+      );
+      const satQuat = obbClearanceSat3D(
+        {
+          position: [0, 0, 0],
+          size: [1.0, 1.4, 0.12],
+          quaternion: qTuple,
+        },
+        {
+          position: [1.35, 0.4, -0.2],
+          size: [0.9, 1.1, 0.18],
+          quaternion: [qB.x, qB.y, qB.z, qB.w],
+        }
+      );
+      assert.ok(
+        Math.abs(satEuler - satQuat) < 1e-9,
+        `OBB SAT clearance mismatch for ${order}: euler=${satEuler} vs quat=${satQuat}`
+      );
+    }
+  }
+});
+
+test('3D light rigs, ScreenGlassLayer3D, and SyncStudioIbl3D enforce zero per-frame light/geometry churn and clean GPU disposal', () => {
+  const daylightSrc = fs.readFileSync(
+    path.resolve(__dirname, '../../kits/src/tactile-3d/DaylightArcRig3D.tsx'),
+    'utf8'
+  );
+  const studioHdrSrc = fs.readFileSync(
+    path.resolve(__dirname, '../../kits/src/isometric-3d/StudioHdrRig3D.tsx'),
+    'utf8'
+  );
+  const glassSrc = fs.readFileSync(
+    path.resolve(__dirname, '../../kits/src/tactile-3d/ScreenGlassLayer3D.tsx'),
+    'utf8'
+  );
+  const iblSrc = fs.readFileSync(
+    path.resolve(__dirname, '../../kits/src/tactile-3d/SyncStudioIbl3D.tsx'),
+    'utf8'
+  );
+
+  // 1. No dynamic args on hemisphereLight and scalar shadow-mapSize on both rigs
+  for (const [label, src] of [
+    ['DaylightArcRig3D.tsx', daylightSrc],
+    ['StudioHdrRig3D.tsx', studioHdrSrc],
+  ] as const) {
+    assert.doesNotMatch(
+      src,
+      /<hemisphereLight[^>]*\bargs=/s,
+      `${label} must not pass args={} to <hemisphereLight>`
+    );
+    assert.match(src, /<hemisphereLight[\s\S]*?color=\{/);
+    assert.match(src, /<hemisphereLight[\s\S]*?groundColor=\{/);
+    assert.match(src, /<hemisphereLight[\s\S]*?intensity=\{/);
+    assert.doesNotMatch(
+      src,
+      /shadow-mapSize=\{\[/,
+      `${label} must use scalar shadow-mapSize-width/height`
+    );
+    assert.match(src, /shadow-mapSize-width=\{/);
+    assert.match(src, /shadow-mapSize-height=\{/);
+  }
+
+  // DaylightArcRig3D applies gl.toneMappingExposure in useLayoutEffect gated by applyExposure
+  assert.match(daylightSrc, /applyExposure\s*=\s*true/);
+  assert.match(daylightSrc, /gl\.toneMappingExposure\s*=\s*exposure/);
+  assert.match(daylightSrc, /gl\.toneMappingExposure\s*=\s*previousExposure/);
+
+  // 2. ScreenGlassLayer3D: static unit planeGeometry args={[1, 1]}, scale={[w * sx, h * sy, 1]}, permanent pointLight
+  assert.doesNotMatch(glassSrc, /screen-glass-plane/);
+  const planeGeoMatches = [...glassSrc.matchAll(/<planeGeometry\b([^>]*)\/>/gs)];
+  assert.ok(planeGeoMatches.length >= 1, 'Expected at least one <planeGeometry>');
+  for (const m of planeGeoMatches) {
+    assert.match(
+      m[1]!,
+      /args=\{\[\s*1\s*,\s*1\s*\]\}/,
+      `Every <planeGeometry> in ScreenGlassLayer3D must use static unit args={[1, 1]}, got: ${m[0]}`
+    );
+  }
+  assert.match(glassSrc, /scale=\{\[w\s*\*\s*sx,\s*h\s*\*\s*sy,\s*1\]\}/);
+  assert.doesNotMatch(
+    glassSrc,
+    /showLensFillLight\s*&&\s*lensFillIntensity\s*>/,
+    '<pointLight> must stay mounted whenever showLensFillLight is true'
+  );
+  assert.match(
+    glassSrc,
+    /<pointLight[\s\S]*?visible=\{lensFillIntensity\s*>\s*0\.004\}/
+  );
+
+  // 3. SyncStudioIbl3D: pmrem.dispose() inside finally, environmentIntensity restore, bounce-floor rotation
+  assert.match(iblSrc, /finally\s*\{[\s\S]*?pmrem\.dispose\(\)[\s\S]*?dispose\(\)/);
+  assert.match(iblSrc, /previousIntensity/);
+  assert.match(
+    iblSrc,
+    /id:\s*'bounce-floor'[\s\S]*?rotation:\s*\[-Math\.PI\s*\/\s*2,\s*0,\s*0\]/
+  );
+  assert.doesNotMatch(
+    iblSrc,
+    /id:\s*'bounce-floor'[\s\S]*?target:/
+  );
+});
+
+test('textureLoader3D recovers from synchronous loader.load throws without poisoning IN_FLIGHT_LOADS, keys cache by anisotropy, and exposes texturesByKey', async () => {
+  pruneTextureCache3D(0);
+  const origLoad = THREE.TextureLoader.prototype.load;
+  const origWarn = console.warn;
+  console.warn = () => {};
+
+  let callCount = 0;
+  const fakeTextureA = new THREE.DataTexture(new Uint8Array(16), 2, 2, THREE.RGBAFormat);
+  const fakeTextureB = new THREE.DataTexture(new Uint8Array(16), 2, 2, THREE.RGBAFormat);
+
+  try {
+    // First call throws synchronously; second call succeeds for anisotropy=4; third succeeds for anisotropy=16
+    THREE.TextureLoader.prototype.load = function patchedLoad(
+      _url: string,
+      onLoad?: (tex: THREE.Texture) => void
+    ) {
+      callCount += 1;
+      if (callCount === 1) {
+        throw new Error('Simulated synchronous TextureLoader failure');
+      }
+      const tex = callCount === 2 ? fakeTextureA : fakeTextureB;
+      queueMicrotask(() => onLoad?.(tex));
+      return tex;
+    } as unknown as typeof THREE.TextureLoader.prototype.load;
+
+    const failed = await loadCachedTexture3D({
+      src: 'sync-throw-test.png',
+      colorSpace: THREE.SRGBColorSpace,
+      anisotropy: 4,
+    });
+    assert.equal(failed, null, 'Synchronous throw must resolve to null cleanly');
+
+    // Retry must NOT hit a poisoned IN_FLIGHT_LOADS entry
+    const recovered = await loadCachedTexture3D({
+      src: 'sync-throw-test.png',
+      colorSpace: THREE.SRGBColorSpace,
+      anisotropy: 4,
+    });
+    assert.equal(recovered, fakeTextureA, 'Retry after sync throw must succeed');
+    assert.equal(
+      getCachedTexture3D('sync-throw-test.png', THREE.SRGBColorSpace, 4),
+      fakeTextureA
+    );
+    // Different anisotropy must NOT collide in cache
+    assert.equal(
+      getCachedTexture3D('sync-throw-test.png', THREE.SRGBColorSpace, 16),
+      null
+    );
+
+    const aniso16 = await loadCachedTexture3D({
+      src: 'sync-throw-test.png',
+      colorSpace: THREE.SRGBColorSpace,
+      anisotropy: 16,
+    });
+    assert.equal(aniso16, fakeTextureB);
+    assert.notEqual(
+      makeTextureCacheKey3D('a.png', THREE.SRGBColorSpace, 4),
+      makeTextureCacheKey3D('a.png', THREE.SRGBColorSpace, 16)
+    );
+    assert.notEqual(
+      makeTextureCacheKey3D('a.png', THREE.SRGBColorSpace, 16),
+      makeTextureCacheKey3D('a.png', THREE.NoColorSpace, 16)
+    );
+  } finally {
+    THREE.TextureLoader.prototype.load = origLoad;
+    console.warn = origWarn;
+    pruneTextureCache3D(0);
+  }
+
+  // Source-level invariants: idempotent release in finally & cleanup, .catch(), advanceRef, texturesByKey
+  const loaderSrc = fs.readFileSync(
+    path.resolve(__dirname, '../../kits/src/tactile-3d/textureLoader3D.ts'),
+    'utf8'
+  );
+  assert.match(loaderSrc, /let\s+released\s*=\s*false/);
+  assert.match(loaderSrc, /\.catch\s*\(/);
+  assert.match(loaderSrc, /advanceRef/);
+  assert.match(loaderSrc, /texturesByKey/);
+});
+
+test('proceduralPbrMaps uses exact periodic integer harmonics across all materials for seamless RepeatWrapping', () => {
+  const pbrSrc = fs.readFileSync(
+    path.resolve(__dirname, '../../kits/src/tactile-3d/proceduralPbrMaps.ts'),
+    'utf8'
+  );
+  // None of the legacy non-periodic magic frequencies remain
+  assert.doesNotMatch(pbrSrc, /nx\s*\*\s*1\.2/);
+  assert.doesNotMatch(pbrSrc, /y\s*\*\s*0\.7/);
+  assert.doesNotMatch(pbrSrc, /y\s*\*\s*0\.15/);
+  assert.doesNotMatch(pbrSrc, /x\s*\*\s*0\.19/);
+  assert.doesNotMatch(pbrSrc, /y\s*\*\s*0\.11/);
+  assert.doesNotMatch(pbrSrc, /x\s*\*\s*0\.08/);
+  assert.doesNotMatch(pbrSrc, /y\s*\*\s*0\.23/);
+
+  disposeProceduralPbrMaps();
+  const kinds: ProceduralPbrMaterialKind[] = [
+    'linen-weave',
+    'wood-grain',
+    'cotton-paper',
+    'brushed-metal',
+  ];
+
+  for (const kind of kinds) {
+    const maps = getProceduralPbrMaps(kind, { size: 128 });
+    const img = maps.bumpMap.image as {
+      data: Uint8Array;
+      width: number;
+      height: number;
+    };
+    const { data, width, height } = img;
+
+    // Measure wrap seam diff vs distribution of interior neighbor diffs on X and Y
+    let seamX = 0;
+    for (let y = 0; y < height; y++) {
+      const i0 = (y * width + 0) * 4;
+      const iLast = (y * width + (width - 1)) * 4;
+      seamX += Math.abs(data[i0]! - data[iLast]!);
+    }
+    seamX /= height;
+
+    let maxInteriorX = 0;
+    for (let x = 0; x < width - 1; x++) {
+      let colDiff = 0;
+      for (let y = 0; y < height; y++) {
+        const iA = (y * width + x) * 4;
+        const iB = (y * width + x + 1) * 4;
+        colDiff += Math.abs(data[iA]! - data[iB]!);
+      }
+      colDiff /= height;
+      if (colDiff > maxInteriorX) maxInteriorX = colDiff;
+    }
+
+    let seamY = 0;
+    for (let x = 0; x < width; x++) {
+      const i0 = (0 * width + x) * 4;
+      const iLast = ((height - 1) * width + x) * 4;
+      seamY += Math.abs(data[i0]! - data[iLast]!);
+    }
+    seamY /= width;
+
+    let maxInteriorY = 0;
+    for (let y = 0; y < height - 1; y++) {
+      let rowDiff = 0;
+      for (let x = 0; x < width; x++) {
+        const iA = (y * width + x) * 4;
+        const iB = ((y + 1) * width + x) * 4;
+        rowDiff += Math.abs(data[iA]! - data[iB]!);
+      }
+      rowDiff /= width;
+      if (rowDiff > maxInteriorY) maxInteriorY = rowDiff;
+    }
+
+    assert.ok(
+      seamX <= maxInteriorX * 1.15 + 2,
+      `${kind} X wrap seam exceeds interior neighbor ceiling: seamX=${seamX.toFixed(2)}, maxInteriorX=${maxInteriorX.toFixed(2)}`
+    );
+    assert.ok(
+      seamY <= maxInteriorY * 1.15 + 2,
+      `${kind} Y wrap seam exceeds interior neighbor ceiling: seamY=${seamY.toFixed(2)}, maxInteriorY=${maxInteriorY.toFixed(2)}`
+    );
+  }
+  disposeProceduralPbrMaps();
+});
+
+test('DeformableSheet3D mutates scalar material props in place without rebuilding materials and only sets needsUpdate when transparent toggles', () => {
+  const frontMat = new THREE.MeshPhysicalMaterial();
+  const backMat = new THREE.MeshPhysicalMaterial();
+  const edgeMat = new THREE.MeshPhysicalMaterial();
+  const tuple: [
+    THREE.MeshPhysicalMaterial,
+    THREE.MeshPhysicalMaterial,
+    THREE.MeshPhysicalMaterial,
+  ] = [frontMat, backMat, edgeMat];
+
+  const baseScalars = {
+    frontColor: '#FAF3E3',
+    backColor: '#E5DCC8',
+    edgeColor: '#D8CEB8',
+    frontRoughness: 0.62,
+    backRoughness: 0.7,
+    edgeRoughness: 0.87,
+    frontMetalness: 0.1,
+    backMetalness: 0.05,
+    clearcoat: 0.2,
+    clearcoatRoughness: 0.35,
+    bumpScale: 0.008,
+    sheen: 0.15,
+    sheenRoughness: 0.8,
+    sheenColor: '#FFFDF7',
+    emissive: '#3D78C9',
+    emissiveIntensity: 0.25,
+    opacity: 1,
+  };
+
+  syncDeformableSheetMaterials(tuple, baseScalars);
+  const vFrontAfterInit = frontMat.version;
+  const vBackAfterInit = backMat.version;
+  const vEdgeAfterInit = edgeMat.version;
+
+  assert.equal(frontMat.transparent, false);
+  assert.equal(frontMat.roughness, 0.62);
+  assert.equal(frontMat.clearcoat, 0.2);
+  assert.equal(frontMat.emissiveIntensity, 0.25);
+
+  // Mutating scalars while staying opaque MUST NOT increment material.version (needsUpdate)
+  syncDeformableSheetMaterials(tuple, {
+    ...baseScalars,
+    frontColor: '#112233',
+    frontRoughness: 0.35,
+    clearcoat: 0.8,
+    emissiveIntensity: 0,
+    opacity: 1,
+  });
+  assert.equal(frontMat.version, vFrontAfterInit);
+  assert.equal(backMat.version, vBackAfterInit);
+  assert.equal(edgeMat.version, vEdgeAfterInit);
+  assert.equal(frontMat.roughness, 0.35);
+  assert.equal(frontMat.clearcoat, 0.8);
+  assert.equal(frontMat.emissiveIntensity, 0);
+  assert.equal(frontMat.color.getHexString(), '112233');
+
+  // Toggling opaque -> translucent MUST flip transparent and set needsUpdate once
+  syncDeformableSheetMaterials(tuple, { ...baseScalars, opacity: 0.5 });
+  assert.equal(frontMat.transparent, true);
+  assert.equal(frontMat.opacity, 0.5);
+  assert.equal(frontMat.version, vFrontAfterInit + 1);
+  assert.equal(backMat.version, vBackAfterInit + 1);
+  assert.equal(edgeMat.version, vEdgeAfterInit + 1);
+
+  // Continuing to animate opacity while translucent MUST NOT trigger needsUpdate again
+  syncDeformableSheetMaterials(tuple, { ...baseScalars, opacity: 0.75 });
+  assert.equal(frontMat.transparent, true);
+  assert.equal(frontMat.opacity, 0.75);
+  assert.equal(frontMat.version, vFrontAfterInit + 1);
+
+  // Toggling translucent -> opaque MUST set needsUpdate once more
+  syncDeformableSheetMaterials(tuple, { ...baseScalars, opacity: 1 });
+  assert.equal(frontMat.transparent, false);
+  assert.equal(frontMat.version, vFrontAfterInit + 2);
+
+  frontMat.dispose();
+  backMat.dispose();
+  edgeMat.dispose();
+
+  // Verify materialBundle useMemo dependency list excludes per-frame scalar props
+  const sheetSrc = fs.readFileSync(
+    path.resolve(__dirname, '../../kits/src/tactile-3d/DeformableSheet3D.tsx'),
+    'utf8'
+  );
+  const memoBlock = sheetSrc.match(
+    /const materialBundle = useMemo\([\s\S]*?\},\s*\[([\s\S]*?)\]\);/
+  );
+  assert.ok(memoBlock, 'Expected materialBundle useMemo block');
+  const depTokens = new Set(
+    memoBlock[1]!
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+  );
+  for (const scalarDep of [
+    'opacity',
+    'resolvedFrontColor',
+    'resolvedBackColor',
+    'resolvedEdgeColor',
+    'materialConfig.frontRoughness',
+    'materialConfig.backRoughness',
+    'materialConfig.edgeRoughness',
+    'metalness',
+    'materialConfig.metalness',
+    'materialConfig.clearcoat',
+    'materialConfig.clearcoatRoughness',
+    'materialConfig.bumpScale',
+    'materialConfig.sheen',
+    'materialConfig.sheenRoughness',
+    'materialConfig.sheenColor',
+    'materialConfig.emissive',
+    'materialConfig.emissiveIntensity',
+  ]) {
+    assert.ok(
+      !depTokens.has(scalarDep),
+      `materialBundle useMemo deps must NOT include scalar "${scalarDep}"`
+    );
+  }
 });

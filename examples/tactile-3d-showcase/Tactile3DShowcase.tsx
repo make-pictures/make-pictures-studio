@@ -76,7 +76,7 @@ const TIMELINE_MILESTONES: ReadonlyArray<PaperTimelineMilestone> = [
 export interface TactileShowcaseSheetState {
   id: string;
   position: Vec3;
-  rotation: Vec3;
+  rotation?: Vec3;
   quaternion?: [number, number, number, number];
   scale: Vec3;
   width: number;
@@ -105,10 +105,17 @@ export interface TactileShowcaseFrameState {
   glassDistance: number;
   glassProgress: number;
   contactShadowOpacity: number;
+  impactRotZ: number;
   hero: TactileShowcaseSheetState;
   restingSheets: [TactileShowcaseSheetState, TactileShowcaseSheetState];
   collisionBodies: OrientedBox3D[];
 }
+
+const Y_AXIS_3D = new THREE.Vector3(0, 1, 0);
+const Z_AXIS_3D = new THREE.Vector3(0, 0, 1);
+const HERO_REST_QUAT = new THREE.Quaternion().setFromEuler(
+  new THREE.Euler(-Math.PI / 2, 0, 0, 'XYZ')
+);
 
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
@@ -121,7 +128,7 @@ function lerpVec3(a: Vec3, b: Vec3, t: number): Vec3 {
 function buildSheetState(params: {
   id: string;
   position: Vec3;
-  rotation: Vec3;
+  rotation?: Vec3;
   quaternion?: [number, number, number, number];
   scale: Vec3;
   width: number;
@@ -204,7 +211,7 @@ export function evaluateTactileShowcaseFrame(
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
-  const antic = evaluateAnticipation(anticProg, 0.55);
+  const antic = evaluateAnticipation(anticProg, 0.44);
 
   const flightRaw = interpolate(frame, [91, IMPACT_FRAME], [0, 1], {
     extrapolateLeft: 'clamp',
@@ -232,25 +239,34 @@ export function evaluateTactileShowcaseFrame(
     glassDistance,
     width / height
   );
+  const glassQuatObj = new THREE.Quaternion(
+    glassTransform.quaternion[0],
+    glassTransform.quaternion[1],
+    glassTransform.quaternion[2],
+    glassTransform.quaternion[3]
+  );
 
   // Hero rests cleanly above the two resting sheets (y = 0.022 and y = 0.056)
-  // while keeping strict tabletop & inter-sheet clearance even at peak anticipation dip.
+  // while keeping strict tabletop & GPU-deformed inter-sheet clearance (>= 0.005)
+  // across peak anticipation dip and secondary cascade.
   const restPos: Vec3 = [0, 0.135, 0];
   let heroPos: Vec3 = [
     restPos[0],
     restPos[1] + antic.offsetY,
     restPos[2] + antic.offsetZ,
   ];
-  let heroRot: Vec3 = [-Math.PI / 2 + antic.tiltX * 0.42, 0, 0];
-  let heroQuat: [number, number, number, number] | undefined;
+  const heroQuatObj = new THREE.Quaternion().setFromEuler(
+    new THREE.Euler(-Math.PI / 2 + antic.tiltX * 0.3, 0, 0, 'XYZ')
+  );
   let heroScale: Vec3 = [1, 1, 1];
   let bendX = 0;
-  let bendY = antic.bendY * 0.85;
+  let bendY = antic.bendY * 0.6;
   let twist = 0;
   let cornerWhip = 0;
   let velocityStretch = 0;
   let glassProgress = 0;
   let contactShadowOpacity = 0;
+  let impactRotZ = 0;
 
   if (frame >= 91 && frame < IMPACT_FRAME) {
     const arc = evaluateArc3D(
@@ -262,12 +278,26 @@ export function evaluateTactileShowcaseFrame(
     );
     const bankEnv = Math.sin(flightT * Math.PI);
     heroPos = arc.position;
-    heroRot = [
-      lerp(-Math.PI / 2, 0, flightT),
-      lerp(0, Math.PI * 2, flightT),
-      arc.bankRoll * bankEnv,
-    ];
-    heroScale = lerpVec3([1, 1, 1], [glassSheetScale, glassSheetScale, 1], flightT);
+    // Continuous quaternion slerp from tabletop rest into camera-aligned glass pose
+    // with aerodynamic bank roll and subtle mid-flight yaw flourish that vanish at endpoints.
+    const qYawFlourish = new THREE.Quaternion().setFromAxisAngle(
+      Y_AXIS_3D,
+      bankEnv * 0.24
+    );
+    const qBank = new THREE.Quaternion().setFromAxisAngle(
+      Z_AXIS_3D,
+      arc.bankRoll * bankEnv
+    );
+    heroQuatObj
+      .copy(HERO_REST_QUAT)
+      .slerp(glassQuatObj, flightT)
+      .multiply(qYawFlourish)
+      .multiply(qBank);
+    heroScale = lerpVec3(
+      [1, 1, 1],
+      [glassSheetScale, glassSheetScale, glassSheetScale],
+      flightT
+    );
     bendY = Math.sin(flightT * Math.PI) * 0.42;
     twist = Math.sin(flightT * Math.PI) * 0.24;
     velocityStretch = evaluateVelocityStretch(arc.velocity, 1.2, 0.085);
@@ -279,15 +309,34 @@ export function evaluateTactileShowcaseFrame(
     const impact = evaluateSurfaceImpact(frame - IMPACT_FRAME, 1.0);
     glassProgress = 1;
     contactShadowOpacity = impact.contactShadowOpacity;
+    impactRotZ = impact.rotZ;
     heroPos = glassPose.position;
-    heroQuat = glassTransform.quaternion;
+    const qImpactZ = new THREE.Quaternion().setFromAxisAngle(
+      Z_AXIS_3D,
+      impact.rotZ
+    );
+    heroQuatObj.copy(glassQuatObj).multiply(qImpactZ);
     heroScale = [
       impact.scaleX * glassSheetScale,
       impact.scaleY * glassSheetScale,
-      1,
+      glassSheetScale,
     ];
     cornerWhip = impact.cornerWhip;
-    bendX = Math.sin((frame - IMPACT_FRAME) * 0.045) * 0.05;
+    const bendHoldFadeIn = interpolate(
+      frame,
+      [IMPACT_FRAME, IMPACT_FRAME + 12],
+      [0, 1],
+      { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
+    );
+    const bendHoldFadeOut = interpolate(frame, [246, 270], [1, 0], {
+      extrapolateLeft: 'clamp',
+      extrapolateRight: 'clamp',
+    });
+    bendX =
+      Math.sin((frame - IMPACT_FRAME) * 0.045) *
+      0.05 *
+      bendHoldFadeIn *
+      bendHoldFadeOut;
   } else if (frame >= 271) {
     const arcBack = evaluateArc3D(
       glassPose.position,
@@ -297,17 +346,31 @@ export function evaluateTactileShowcaseFrame(
       returnT
     );
     const bankEnv = Math.sin(returnT * Math.PI);
-    const rotT = Math.pow(returnT, 0.78);
     heroPos = arcBack.position;
-    heroRot = [
-      lerp(0, -Math.PI / 2, rotT),
-      0,
-      arcBack.bankRoll * 0.5 * bankEnv,
-    ];
-    heroScale = lerpVec3([glassSheetScale, glassSheetScale, 1], [1, 1, 1], returnT);
+    const qBank = new THREE.Quaternion().setFromAxisAngle(
+      Z_AXIS_3D,
+      arcBack.bankRoll * 0.5 * bankEnv
+    );
+    heroQuatObj
+      .copy(glassQuatObj)
+      .slerp(HERO_REST_QUAT, returnT)
+      .multiply(qBank);
+    heroScale = lerpVec3(
+      [glassSheetScale, glassSheetScale, glassSheetScale],
+      [1, 1, 1],
+      returnT
+    );
     bendY = Math.sin(returnT * Math.PI) * 0.22;
     glassProgress = 1 - Math.min(1, returnT * 3);
+    contactShadowOpacity = 0.36 * glassProgress;
   }
+
+  const heroQuat: [number, number, number, number] = [
+    heroQuatObj.x,
+    heroQuatObj.y,
+    heroQuatObj.z,
+    heroQuatObj.w,
+  ];
 
   const lighting = computeGlassLightingBlend(glassProgress, 0.18);
   const daylightState = evaluateTimeOfDayLighting(timeOfDay, {
@@ -355,7 +418,6 @@ export function evaluateTactileShowcaseFrame(
   const hero = buildSheetState({
     id: 'hero-sheet',
     position: heroPos,
-    rotation: heroRot,
     quaternion: heroQuat,
     scale: heroScale,
     width: 1.0,
@@ -380,6 +442,7 @@ export function evaluateTactileShowcaseFrame(
     glassDistance,
     glassProgress,
     contactShadowOpacity,
+    impactRotZ,
     hero,
     restingSheets: [restingUpper, restingLower],
     collisionBodies: [restingLower.obb, restingUpper.obb, hero.obb],
@@ -661,11 +724,10 @@ const Tactile3DShowcaseScene: React.FC<Tactile3DShowcaseProps> = ({
         />
       ))}
 
-      {/* Hero deformable sheet with satin linen-glaze PBR finish */}
+      {/* Hero deformable sheet with satin linen-glaze PBR finish (quaternion-only orientation) */}
       <DeformableSheet3D
         name={state.hero.id}
         position={state.hero.position}
-        rotation={state.hero.rotation}
         quaternion={state.hero.quaternion}
         scale={state.hero.scale}
         width={state.hero.width}
@@ -696,6 +758,7 @@ const Tactile3DShowcaseScene: React.FC<Tactile3DShowcaseProps> = ({
             width: 0.3,
             height: 0.42,
             scale: [state.hero.scale[0] / 0.3, state.hero.scale[1] / 0.3],
+            rotZ: state.impactRotZ,
           },
         ]}
       />

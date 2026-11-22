@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { continueRender, delayRender } from 'remotion';
 
@@ -12,15 +12,28 @@ const MAX_DEFAULT_CACHE_ENTRIES = 128;
 const TEXTURE_CACHE = new Map<string, THREE.Texture>();
 const IN_FLIGHT_LOADS = new Map<string, Promise<THREE.Texture | null>>();
 
-function makeCacheKey(src: string, colorSpace: THREE.ColorSpace): string {
-  return `${colorSpace}::${src}`;
+export function makeTextureCacheKey3D(
+  src: string,
+  colorSpace: THREE.ColorSpace = THREE.SRGBColorSpace,
+  anisotropy = 16
+): string {
+  return `${colorSpace}::${anisotropy}::${src}`;
+}
+
+function makeCacheKey(
+  src: string,
+  colorSpace: THREE.ColorSpace,
+  anisotropy = 16
+): string {
+  return makeTextureCacheKey3D(src, colorSpace, anisotropy);
 }
 
 export function getCachedTexture3D(
   src: string,
-  colorSpace: THREE.ColorSpace = THREE.SRGBColorSpace
+  colorSpace: THREE.ColorSpace = THREE.SRGBColorSpace,
+  anisotropy = 16
 ): THREE.Texture | null {
-  const key = makeCacheKey(src, colorSpace);
+  const key = makeCacheKey(src, colorSpace, anisotropy);
   const hit = TEXTURE_CACHE.get(key) ?? null;
   if (hit) {
     // Refresh LRU order
@@ -48,14 +61,15 @@ export function pruneTextureCache3D(
 
 /**
  * Loads a Three.js texture into the module-level LRU cache.
- * On load error, logs a warning and resolves to `null` (never hangs Remotion `delayRender`).
+ * On load error or synchronous throw, logs a warning and resolves to `null` (never hangs Remotion `delayRender`).
  */
 export function loadCachedTexture3D(
   spec: TexturePreloadSpec
 ): Promise<THREE.Texture | null> {
   const colorSpace = spec.colorSpace ?? THREE.SRGBColorSpace;
-  const key = makeCacheKey(spec.src, colorSpace);
-  const cached = getCachedTexture3D(spec.src, colorSpace);
+  const anisotropy = spec.anisotropy ?? 16;
+  const key = makeCacheKey(spec.src, colorSpace, anisotropy);
+  const cached = getCachedTexture3D(spec.src, colorSpace, anisotropy);
   if (cached) {
     return Promise.resolve(cached);
   }
@@ -64,36 +78,52 @@ export function loadCachedTexture3D(
     return existing;
   }
 
+  let settled = false;
   const promise = new Promise<THREE.Texture | null>((resolve) => {
-    const loader = new THREE.TextureLoader();
-    loader.load(
-      spec.src,
-      (texture) => {
-        texture.colorSpace = colorSpace;
-        texture.anisotropy = spec.anisotropy ?? 16;
-        texture.minFilter = THREE.LinearMipmapLinearFilter;
-        texture.magFilter = THREE.LinearFilter;
-        texture.generateMipmaps = true;
-        texture.needsUpdate = true;
+    const finish = (value: THREE.Texture | null) => {
+      if (settled) return;
+      settled = true;
+      IN_FLIGHT_LOADS.delete(key);
+      resolve(value);
+    };
 
-        TEXTURE_CACHE.set(key, texture);
-        pruneTextureCache3D(MAX_DEFAULT_CACHE_ENTRIES);
-        IN_FLIGHT_LOADS.delete(key);
-        resolve(texture);
-      },
-      undefined,
-      (err) => {
-        console.warn(
-          `[make-pictures/tactile-3d] Failed to load texture "${spec.src}":`,
-          err
-        );
-        IN_FLIGHT_LOADS.delete(key);
-        resolve(null);
-      }
-    );
+    try {
+      const loader = new THREE.TextureLoader();
+      loader.load(
+        spec.src,
+        (texture) => {
+          texture.colorSpace = colorSpace;
+          texture.anisotropy = anisotropy;
+          texture.minFilter = THREE.LinearMipmapLinearFilter;
+          texture.magFilter = THREE.LinearFilter;
+          texture.generateMipmaps = true;
+          texture.needsUpdate = true;
+
+          TEXTURE_CACHE.set(key, texture);
+          pruneTextureCache3D(MAX_DEFAULT_CACHE_ENTRIES);
+          finish(texture);
+        },
+        undefined,
+        (err) => {
+          console.warn(
+            `[make-pictures/tactile-3d] Failed to load texture "${spec.src}":`,
+            err
+          );
+          finish(null);
+        }
+      );
+    } catch (err) {
+      console.warn(
+        `[make-pictures/tactile-3d] Synchronous error loading texture "${spec.src}":`,
+        err
+      );
+      finish(null);
+    }
   });
 
-  IN_FLIGHT_LOADS.set(key, promise);
+  if (!settled) {
+    IN_FLIGHT_LOADS.set(key, promise);
+  }
   return promise;
 }
 
@@ -131,7 +161,26 @@ export function scheduleCoalescedThreeAdvance(fn: () => void): void {
 
 export interface PreloadedTextures3DResult {
   textures: Record<string, THREE.Texture | null>;
+  texturesByKey: Record<string, THREE.Texture | null>;
   ready: boolean;
+}
+
+function buildCacheSnapshot(
+  specs: ReadonlyArray<TexturePreloadSpec>
+): PreloadedTextures3DResult {
+  const textures: Record<string, THREE.Texture | null> = {};
+  const texturesByKey: Record<string, THREE.Texture | null> = {};
+  let allReady = true;
+  for (const spec of specs) {
+    const colorSpace = spec.colorSpace ?? THREE.SRGBColorSpace;
+    const anisotropy = spec.anisotropy ?? 16;
+    const key = makeCacheKey(spec.src, colorSpace, anisotropy);
+    const hit = getCachedTexture3D(spec.src, colorSpace, anisotropy);
+    textures[spec.src] = hit;
+    texturesByKey[key] = hit;
+    if (!hit) allReady = false;
+  }
+  return { textures, texturesByKey, ready: allReady };
 }
 
 /**
@@ -143,70 +192,111 @@ export function usePreloadedTextures3D(
   specs: ReadonlyArray<TexturePreloadSpec>,
   options?: { advance?: () => void }
 ): PreloadedTextures3DResult {
+  const advanceRef = useRef<(() => void) | undefined>(options?.advance);
+  advanceRef.current = options?.advance;
+
   const specSignature = useMemo(
     () =>
       specs
-        .map((s) => `${s.src}|${s.colorSpace ?? THREE.SRGBColorSpace}|${s.anisotropy ?? 16}`)
+        .map(
+          (s) =>
+            `${s.src}|${s.colorSpace ?? THREE.SRGBColorSpace}|${s.anisotropy ?? 16}`
+        )
         .join(';;'),
     [specs]
   );
 
-  const [state, setState] = useState<PreloadedTextures3DResult>(() => {
-    const initial: Record<string, THREE.Texture | null> = {};
-    let allReady = true;
-    for (const spec of specs) {
-      const hit = getCachedTexture3D(
-        spec.src,
-        spec.colorSpace ?? THREE.SRGBColorSpace
-      );
-      initial[spec.src] = hit;
-      if (!hit) allReady = false;
-    }
-    return { textures: initial, ready: allReady };
-  });
+  const [state, setState] = useState<
+    PreloadedTextures3DResult & { signature: string }
+  >(() => ({
+    ...buildCacheSnapshot(specs),
+    signature: specSignature,
+  }));
 
   useEffect(() => {
     let cancelled = false;
+    const snapshot = buildCacheSnapshot(specs);
     const missing = specs.filter(
-      (s) => !getCachedTexture3D(s.src, s.colorSpace ?? THREE.SRGBColorSpace)
+      (s) =>
+        !getCachedTexture3D(
+          s.src,
+          s.colorSpace ?? THREE.SRGBColorSpace,
+          s.anisotropy ?? 16
+        )
     );
 
     if (missing.length === 0) {
-      const resolved: Record<string, THREE.Texture | null> = {};
-      for (const spec of specs) {
-        resolved[spec.src] = getCachedTexture3D(
-          spec.src,
-          spec.colorSpace ?? THREE.SRGBColorSpace
-        );
-      }
-      setState({ textures: resolved, ready: true });
+      setState({ ...snapshot, ready: true, signature: specSignature });
       return;
     }
 
+    // Reset ready synchronously when specs introduces uncached entries
+    setState({ ...snapshot, ready: false, signature: specSignature });
+
+    let released = false;
     const handle = delayRender(
       `tactile-3d-preload-textures (${missing.length})`
     );
+    const release = () => {
+      if (released) return;
+      released = true;
+      continueRender(handle);
+    };
 
     Promise.all(specs.map((spec) => loadCachedTexture3D(spec)))
       .then((loaded) => {
         if (cancelled) return;
-        const map: Record<string, THREE.Texture | null> = {};
+        const textures: Record<string, THREE.Texture | null> = {};
+        const texturesByKey: Record<string, THREE.Texture | null> = {};
         for (let i = 0; i < specs.length; i++) {
-          map[specs[i].src] = loaded[i];
+          const spec = specs[i]!;
+          const colorSpace = spec.colorSpace ?? THREE.SRGBColorSpace;
+          const anisotropy = spec.anisotropy ?? 16;
+          const key = makeCacheKey(spec.src, colorSpace, anisotropy);
+          const tex = loaded[i] ?? null;
+          textures[spec.src] = tex;
+          texturesByKey[key] = tex;
         }
-        setState({ textures: map, ready: true });
-        if (options?.advance) {
-          scheduleCoalescedThreeAdvance(options.advance);
+        setState({
+          textures,
+          texturesByKey,
+          ready: true,
+          signature: specSignature,
+        });
+        if (advanceRef.current) {
+          scheduleCoalescedThreeAdvance(advanceRef.current);
+        }
+      })
+      .catch((err) => {
+        console.warn(
+          '[make-pictures/tactile-3d] Unexpected error preloading textures:',
+          err
+        );
+        if (!cancelled) {
+          setState({
+            ...buildCacheSnapshot(specs),
+            ready: true,
+            signature: specSignature,
+          });
         }
       })
       .finally(() => {
-        continueRender(handle);
+        release();
       });
 
     return () => {
       cancelled = true;
+      release();
     };
   }, [specSignature]);
 
-  return state;
+  if (state.signature !== specSignature) {
+    return buildCacheSnapshot(specs);
+  }
+
+  return {
+    textures: state.textures,
+    texturesByKey: state.texturesByKey,
+    ready: state.ready,
+  };
 }

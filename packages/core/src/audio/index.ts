@@ -52,6 +52,7 @@ export {
   getRecommendedVoiceSettings,
   isKnownEnglishPremadeVoice,
   normalizeVoiceLang,
+  snapStabilityForElevenLabsModel,
   supportsLanguageCodeParam,
   type CuratedVoiceProfile,
   type ElevenLabsModelInfo,

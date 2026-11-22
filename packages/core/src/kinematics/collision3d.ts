@@ -207,7 +207,7 @@ export function computeSurfaceClearanceY(
 }
 
 /**
- * Computes the world-space AABB of a GPU-deformed 3D sheet by sampling a `5 × 5`
+ * Computes the world-space AABB of a GPU-deformed 3D sheet by sampling a `9 × 9`
  * grid across both `±thickness/2` faces with the exact `applySheetDeform` formula.
  */
 export function computeDeformedSheetAabb3D(
@@ -242,7 +242,7 @@ export function computeDeformedSheetAabb3D(
   let maxY = -Infinity;
   let maxZ = -Infinity;
 
-  const samples = [-1, -0.5, 0, 0.5, 1];
+  const samples = [-1, -0.75, -0.5, -0.25, 0, 0.25, 0.5, 0.75, 1];
   const zFaces = [-ht, ht];
 
   for (const ny of samples) {

@@ -248,13 +248,6 @@ export const ScreenGlassLayer3D: React.FC<ScreenGlassLayer3DProps> = ({
         position={glassTransform.position}
         quaternion={glassTransform.quaternion}
       >
-        <mesh name="screen-glass-plane" position={[0, 0, 0]} visible={false}>
-          <planeGeometry
-            args={[glassTransform.visibleWidth, glassTransform.visibleHeight]}
-          />
-          <meshBasicMaterial transparent opacity={0} depthWrite={false} />
-        </mesh>
-
         {items.map((item) => {
           const g = clamp(item.glassProgress, 0, 1);
           const rawOpacity = item.contactShadowOpacity ?? g * 0.42;
@@ -274,10 +267,10 @@ export const ScreenGlassLayer3D: React.FC<ScreenGlassLayer3DProps> = ({
               name={`glass-contact-shadow-${item.id}`}
               position={[x, y, SCREEN_GLASS_SHADOW_OFFSET_Z]}
               rotation={[0, 0, item.rotZ ?? 0]}
-              scale={[sx, sy, 1]}
+              scale={[w * sx, h * sy, 1]}
               renderOrder={1}
             >
-              <planeGeometry args={[w, h]} />
+              <planeGeometry args={[1, 1]} />
               <meshBasicMaterial
                 map={shadowTexture}
                 transparent
@@ -290,9 +283,10 @@ export const ScreenGlassLayer3D: React.FC<ScreenGlassLayer3DProps> = ({
 
         {children}
 
-        {showLensFillLight && lensFillIntensity > 0.004 && (
+        {showLensFillLight && (
           <pointLight
             name="screen-glass-lens-fill"
+            visible={lensFillIntensity > 0.004}
             position={[1.35, 1.05, 2.25]}
             intensity={lensFillIntensity * 0.72}
             distance={7.5}

@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useLayoutEffect } from 'react';
+import { useThree } from '@react-three/fiber';
 import { useCurrentFrame } from 'remotion';
 import {
   DEFAULT_STUDIO_IBL_PANELS,
@@ -37,6 +38,8 @@ export interface DaylightArcRig3DProps {
   shadowBounds?: number;
   panels?: ReadonlyArray<SyncIblPanelSpec>;
   backgroundColor?: string;
+  /** Apply `state.toneMappingExposure` to `gl.toneMappingExposure` in `useLayoutEffect` (default `true`). */
+  applyExposure?: boolean;
   cleanFrameZero?: boolean;
 }
 
@@ -144,6 +147,26 @@ export function evaluateTimeOfDayLighting(
   };
 }
 
+const DaylightExposureSync: React.FC<{ exposure: number }> = ({ exposure }) => {
+  const gl = useThree((s) => s.gl);
+  const invalidate = useThree((s) => s.invalidate);
+
+  useLayoutEffect(() => {
+    const previousExposure = gl.toneMappingExposure;
+    return () => {
+      gl.toneMappingExposure = previousExposure;
+      invalidate();
+    };
+  }, [gl, invalidate]);
+
+  useLayoutEffect(() => {
+    gl.toneMappingExposure = exposure;
+    invalidate();
+  }, [gl, exposure, invalidate]);
+
+  return null;
+};
+
 export const DaylightArcRig3D: React.FC<DaylightArcRig3DProps> = ({
   timeOfDay = 0.15,
   sceneLampMultiplier = 1,
@@ -152,6 +175,7 @@ export const DaylightArcRig3D: React.FC<DaylightArcRig3DProps> = ({
   shadowBounds = 6.5,
   panels = DEFAULT_STUDIO_IBL_PANELS,
   backgroundColor = '#B8AE9D',
+  applyExposure = true,
   cleanFrameZero = true,
 }) => {
   const frame = useCurrentFrame();
@@ -172,8 +196,14 @@ export const DaylightArcRig3D: React.FC<DaylightArcRig3DProps> = ({
         environmentIntensity={state.environmentIntensity}
       />
 
+      {applyExposure && (
+        <DaylightExposureSync exposure={state.toneMappingExposure} />
+      )}
+
       <hemisphereLight
-        args={[state.hemiSkyColor, state.hemiGroundColor, state.hemiIntensity]}
+        color={state.hemiSkyColor}
+        groundColor={state.hemiGroundColor}
+        intensity={state.hemiIntensity}
       />
 
       <directionalLight
@@ -181,7 +211,8 @@ export const DaylightArcRig3D: React.FC<DaylightArcRig3DProps> = ({
         intensity={state.keyIntensity}
         color={state.keyColor}
         castShadow
-        shadow-mapSize={[shadowMapSize, shadowMapSize]}
+        shadow-mapSize-width={shadowMapSize}
+        shadow-mapSize-height={shadowMapSize}
         shadow-bias={-0.0004}
         shadow-normalBias={0.02}
         shadow-camera-near={0.5}
