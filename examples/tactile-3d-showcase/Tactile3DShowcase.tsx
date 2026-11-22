@@ -22,17 +22,26 @@ import {
   projectScreenGlassPose,
   useStudioStyle,
   type CameraImpulse,
+  type DeformedSheetBoundsInput,
+  type OrientedBox3D,
+  type SheetDeformParams,
   type ShotSpec3D,
   type StageAnchor3D,
   type Vec3,
 } from '@make-pictures/core';
 import {
-  DEFAULT_STUDIO_IBL_PANELS,
+  DaylightArcRig3D,
   DeformableSheet3D,
   ScreenGlassLayer3D,
-  SyncStudioIbl3D,
   computeScreenGlassTransform,
+  evaluateTimeOfDayLighting,
+  getProceduralPbrMaps,
 } from '@make-pictures/kits/tactile-3d';
+import {
+  FloatingEditorialDisplay,
+  PaperRibbonTimeline,
+  type PaperTimelineMilestone,
+} from '@make-pictures/kits/editorial-collage';
 
 export const tactile3dShowcaseSchema = z.object({
   styleId: z.string().describe('Kolory & Styl :: Styl bazowy (Style ID)'),
@@ -43,13 +52,13 @@ export const tactile3dShowcaseSchema = z.object({
 export type Tactile3DShowcaseProps = z.infer<typeof tactile3dShowcaseSchema>;
 
 const ANCHORS: Record<string, StageAnchor3D> = {
-  stack: { position: [0, 0.15, 0], height: 0.7, radius: 0.65 },
+  stack: { position: [0, -0.02, 0.22], height: 0.72, radius: 0.72 },
 };
 
 const SHOTS: ShotSpec3D[] = [
-  { fromFrame: 0, shot: 'medium', target: 'stack', angleDeg: 14, fov: 34, label: 'Tabletop Establish' },
-  { fromFrame: 32, shot: 'macro', target: 'stack', angleDeg: 8, fov: 26, transition: 'glide', label: 'Macro Stack' },
-  { fromFrame: 152, shot: 'close-up', target: 'stack', angleDeg: 4, fov: 30, transition: 'glide', label: 'Glass Impact' },
+  { fromFrame: 0, shot: 'medium', target: 'stack', angleDeg: 14, fov: 35, label: 'Tabletop Establish' },
+  { fromFrame: 32, shot: 'macro', target: 'stack', angleDeg: 8, fov: 28, transition: 'glide', label: 'Macro Stack' },
+  { fromFrame: 152, shot: 'close-up', target: 'stack', angleDeg: 4, fov: 31, transition: 'glide', label: 'Glass Impact' },
 ];
 
 const IMPACT_FRAME = 156;
@@ -57,12 +66,324 @@ const IMPULSES: CameraImpulse[] = [
   { frame: IMPACT_FRAME, intensity: 0.14, decayFrames: 14 },
 ];
 
+const TIMELINE_MILESTONES: ReadonlyArray<PaperTimelineMilestone> = [
+  { id: 'stack', era: '01', label: 'Macro Stack', fromFrame: 2 },
+  { id: 'arc', era: '02', label: 'Disney Arc', fromFrame: 91 },
+  { id: 'glass', era: '03', label: 'Screen Glass', fromFrame: 156 },
+  { id: 'settle', era: '04', label: 'Settle', fromFrame: 271 },
+];
+
+export interface TactileShowcaseSheetState {
+  id: string;
+  position: Vec3;
+  rotation: Vec3;
+  quaternion?: [number, number, number, number];
+  scale: Vec3;
+  width: number;
+  height: number;
+  thickness: number;
+  deform: SheetDeformParams;
+  obb: OrientedBox3D;
+  deformedBounds: DeformedSheetBoundsInput;
+}
+
+export interface TactileShowcaseFrameState {
+  frame: number;
+  cameraPose: ReturnType<typeof evaluateDirectorCamera3D>;
+  cameraBasis: {
+    position: Vec3;
+    target: Vec3;
+    roll: number;
+    forward: Vec3;
+    right: Vec3;
+    up: Vec3;
+    fov: number;
+  };
+  timeOfDay: number;
+  daylightState: ReturnType<typeof evaluateTimeOfDayLighting>;
+  lighting: ReturnType<typeof computeGlassLightingBlend>;
+  glassDistance: number;
+  glassProgress: number;
+  contactShadowOpacity: number;
+  hero: TactileShowcaseSheetState;
+  restingSheets: [TactileShowcaseSheetState, TactileShowcaseSheetState];
+  collisionBodies: OrientedBox3D[];
+}
+
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
 }
 
 function lerpVec3(a: Vec3, b: Vec3, t: number): Vec3 {
   return [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
+}
+
+function buildSheetState(params: {
+  id: string;
+  position: Vec3;
+  rotation: Vec3;
+  quaternion?: [number, number, number, number];
+  scale: Vec3;
+  width: number;
+  height: number;
+  thickness: number;
+  deform: SheetDeformParams;
+}): TactileShowcaseSheetState {
+  const obb: OrientedBox3D = {
+    id: params.id,
+    position: params.position,
+    size: [params.width, params.height, params.thickness],
+    rotation: params.quaternion ? undefined : params.rotation,
+    quaternion: params.quaternion,
+    scale: params.scale,
+  };
+  const deformedBounds: DeformedSheetBoundsInput = {
+    position: params.position,
+    width: params.width,
+    height: params.height,
+    thickness: params.thickness,
+    rotation: params.quaternion ? undefined : params.rotation,
+    quaternion: params.quaternion,
+    scale: params.scale,
+    deform: params.deform,
+  };
+  return {
+    ...params,
+    obb,
+    deformedBounds,
+  };
+}
+
+/**
+ * Pure deterministic per-frame solver for `Tactile3DShowcase`.
+ * Exported for exhaustive 360-frame OBB SAT & deformed tabletop clearance tests.
+ */
+export function evaluateTactileShowcaseFrame(
+  frame: number,
+  fps = 60,
+  width = 1920,
+  height = 1080,
+  durationInFrames = 360
+): TactileShowcaseFrameState {
+  const cameraPose = evaluateDirectorCamera3D({
+    frame,
+    fps,
+    width,
+    height,
+    durationInFrames,
+    anchors: ANCHORS,
+    shots: SHOTS,
+    handheldIntensity: 0.01,
+    impulses: IMPULSES,
+    seed: 7,
+  });
+
+  const cameraBasis = {
+    position: cameraPose.position,
+    target: cameraPose.lookAt,
+    roll: (cameraPose.rollDeg * Math.PI) / 180,
+    forward: cameraPose.forward,
+    right: cameraPose.right,
+    up: cameraPose.up,
+    fov: cameraPose.fov,
+  };
+
+  // Daylight arc progression: crisp morning (0.05) -> warm golden afternoon (0.55)
+  const timeOfDay = interpolate(
+    frame,
+    [0, Math.max(1, durationInFrames - 1)],
+    [0.05, 0.55],
+    {
+      extrapolateLeft: 'clamp',
+      extrapolateRight: 'clamp',
+    }
+  );
+
+  // Phase timings: Anticipation [56..90], Flight [91..155], Glass Hold [156..270], Return [271..345]
+  const anticProg = interpolate(frame, [56, 90], [0, 1], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+  const antic = evaluateAnticipation(anticProg, 0.55);
+
+  const flightRaw = interpolate(frame, [91, IMPACT_FRAME], [0, 1], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+  const flightT = disneyEase(flightRaw, 'slap');
+
+  const returnRaw = interpolate(frame, [271, 345], [0, 1], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+  const returnT = disneyEase(returnRaw, 'settle');
+
+  const glassDistance = 1.35;
+  const glassSheetScale = 0.3;
+  const glassPose = projectScreenGlassPose(
+    cameraBasis,
+    0.08,
+    0.07,
+    glassDistance,
+    width / height
+  );
+  const glassTransform = computeScreenGlassTransform(
+    cameraBasis,
+    glassDistance,
+    width / height
+  );
+
+  // Hero rests cleanly above the two resting sheets (y = 0.022 and y = 0.056)
+  // while keeping strict tabletop & inter-sheet clearance even at peak anticipation dip.
+  const restPos: Vec3 = [0, 0.135, 0];
+  let heroPos: Vec3 = [
+    restPos[0],
+    restPos[1] + antic.offsetY,
+    restPos[2] + antic.offsetZ,
+  ];
+  let heroRot: Vec3 = [-Math.PI / 2 + antic.tiltX * 0.42, 0, 0];
+  let heroQuat: [number, number, number, number] | undefined;
+  let heroScale: Vec3 = [1, 1, 1];
+  let bendX = 0;
+  let bendY = antic.bendY * 0.85;
+  let twist = 0;
+  let cornerWhip = 0;
+  let velocityStretch = 0;
+  let glassProgress = 0;
+  let contactShadowOpacity = 0;
+
+  if (frame >= 91 && frame < IMPACT_FRAME) {
+    const arc = evaluateArc3D(
+      restPos,
+      [-0.55, 1.45, 0.55],
+      [0.35, 1.45, 1.35],
+      glassPose.position,
+      flightT
+    );
+    const bankEnv = Math.sin(flightT * Math.PI);
+    heroPos = arc.position;
+    heroRot = [
+      lerp(-Math.PI / 2, 0, flightT),
+      lerp(0, Math.PI * 2, flightT),
+      arc.bankRoll * bankEnv,
+    ];
+    heroScale = lerpVec3([1, 1, 1], [glassSheetScale, glassSheetScale, 1], flightT);
+    bendY = Math.sin(flightT * Math.PI) * 0.42;
+    twist = Math.sin(flightT * Math.PI) * 0.24;
+    velocityStretch = evaluateVelocityStretch(arc.velocity, 1.2, 0.085);
+    glassProgress = interpolate(flightT, [0.75, 1], [0, 1], {
+      extrapolateLeft: 'clamp',
+      extrapolateRight: 'clamp',
+    });
+  } else if (frame >= IMPACT_FRAME && frame < 271) {
+    const impact = evaluateSurfaceImpact(frame - IMPACT_FRAME, 1.0);
+    glassProgress = 1;
+    contactShadowOpacity = impact.contactShadowOpacity;
+    heroPos = glassPose.position;
+    heroQuat = glassTransform.quaternion;
+    heroScale = [
+      impact.scaleX * glassSheetScale,
+      impact.scaleY * glassSheetScale,
+      1,
+    ];
+    cornerWhip = impact.cornerWhip;
+    bendX = Math.sin((frame - IMPACT_FRAME) * 0.045) * 0.05;
+  } else if (frame >= 271) {
+    const arcBack = evaluateArc3D(
+      glassPose.position,
+      [0.4, 1.35, 1.15],
+      [-0.3, 1.15, 0.42],
+      restPos,
+      returnT
+    );
+    const bankEnv = Math.sin(returnT * Math.PI);
+    const rotT = Math.pow(returnT, 0.78);
+    heroPos = arcBack.position;
+    heroRot = [
+      lerp(0, -Math.PI / 2, rotT),
+      0,
+      arcBack.bankRoll * 0.5 * bankEnv,
+    ];
+    heroScale = lerpVec3([glassSheetScale, glassSheetScale, 1], [1, 1, 1], returnT);
+    bendY = Math.sin(returnT * Math.PI) * 0.22;
+    glassProgress = 1 - Math.min(1, returnT * 3);
+  }
+
+  const lighting = computeGlassLightingBlend(glassProgress, 0.18);
+  const daylightState = evaluateTimeOfDayLighting(timeOfDay, {
+    sceneLampMultiplier: lighting.sceneLampMultiplier,
+  });
+
+  // Two underlying resting sheets demonstrating secondary cascade with clean inter-sheet clearance.
+  const cascadeUpper = evaluateSecondaryCascade(frame - 91, 0, 3);
+  const cascadeLower = evaluateSecondaryCascade(frame - 91, 1, 3);
+
+  const restingUpper = buildSheetState({
+    id: 'resting-sheet-upper',
+    position: [0.04, 0.056 + cascadeUpper.offsetY, 0.03],
+    rotation: [-Math.PI / 2, 0, 0.05 + cascadeUpper.rotZ],
+    scale: [1, 1, 1],
+    width: 1.0,
+    height: 1.4,
+    thickness: 0.014,
+    deform: {
+      bendX: 0,
+      bendY: cascadeUpper.bendY,
+      twist: 0,
+      cornerWhip: 0,
+      velocityStretch: 0,
+    },
+  });
+
+  const restingLower = buildSheetState({
+    id: 'resting-sheet-lower',
+    position: [0.08, 0.022 + cascadeLower.offsetY, 0.06],
+    rotation: [-Math.PI / 2, 0, 0.1 + cascadeLower.rotZ],
+    scale: [1, 1, 1],
+    width: 1.0,
+    height: 1.4,
+    thickness: 0.014,
+    deform: {
+      bendX: 0,
+      bendY: cascadeLower.bendY,
+      twist: 0,
+      cornerWhip: 0,
+      velocityStretch: 0,
+    },
+  });
+
+  const hero = buildSheetState({
+    id: 'hero-sheet',
+    position: heroPos,
+    rotation: heroRot,
+    quaternion: heroQuat,
+    scale: heroScale,
+    width: 1.0,
+    height: 1.4,
+    thickness: 0.016,
+    deform: {
+      bendX,
+      bendY,
+      twist,
+      cornerWhip,
+      velocityStretch,
+    },
+  });
+
+  return {
+    frame,
+    cameraPose,
+    cameraBasis,
+    timeOfDay,
+    daylightState,
+    lighting,
+    glassDistance,
+    glassProgress,
+    contactShadowOpacity,
+    hero,
+    restingSheets: [restingUpper, restingLower],
+    collisionBodies: [restingLower.obb, restingUpper.obb, hero.obb],
+  };
 }
 
 function createSheetGraphicTexture(
@@ -137,7 +458,39 @@ const Tactile3DShowcaseScene: React.FC<Tactile3DShowcaseProps> = ({
         title,
         subtitle
       ),
-    [style.palette.bgSurface, style.palette.accentPrimary, style.palette.textPrimary, title, subtitle]
+    [
+      style.palette.bgSurface,
+      style.palette.accentPrimary,
+      style.palette.textPrimary,
+      title,
+      subtitle,
+    ]
+  );
+
+  // Shared cached procedural PBR textures — never disposed by individual scenes.
+  const linenMaps = useMemo(
+    () =>
+      getProceduralPbrMaps('linen-weave', {
+        seed: 'tactile-showcase-mat',
+        repeat: [8, 6],
+      }),
+    []
+  );
+  const woodMapsHorizontal = useMemo(
+    () =>
+      getProceduralPbrMaps('wood-grain', {
+        seed: 'tactile-showcase-frame-h',
+        repeat: [2.4, 1],
+      }),
+    []
+  );
+  const woodMapsVertical = useMemo(
+    () =>
+      getProceduralPbrMaps('wood-grain', {
+        seed: 'tactile-showcase-frame-v',
+        repeat: [1, 2.2],
+      }),
+    []
   );
 
   React.useEffect(() => {
@@ -150,111 +503,20 @@ const Tactile3DShowcaseScene: React.FC<Tactile3DShowcaseProps> = ({
     return null;
   }
 
-  const cameraPose = evaluateDirectorCamera3D({
+  const state = evaluateTactileShowcaseFrame(
     frame,
     fps,
     width,
     height,
-    durationInFrames,
-    anchors: ANCHORS,
-    shots: SHOTS,
-    handheldIntensity: 0.01,
-    impulses: IMPULSES,
-    seed: 7,
-  });
+    durationInFrames
+  );
 
-  const cameraBasis = {
-    position: cameraPose.position,
-    target: cameraPose.lookAt,
-    roll: (cameraPose.rollDeg * Math.PI) / 180,
-    forward: cameraPose.forward,
-    right: cameraPose.right,
-    up: cameraPose.up,
-    fov: cameraPose.fov,
-  };
-
-  // Phase timings: Anticipation [56..90], Flight [91..156], Glass Hold [156..270], Return [271..345]
-  const anticProg = interpolate(frame, [56, 90], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-  const antic = evaluateAnticipation(anticProg, 1.0);
-
-  const flightRaw = interpolate(frame, [91, IMPACT_FRAME], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-  const flightT = disneyEase(flightRaw, 'slap');
-
-  const returnRaw = interpolate(frame, [271, 345], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-  const returnT = disneyEase(returnRaw, 'settle');
-
-  const glassDistance = 2.35;
-  const glassPose = projectScreenGlassPose(cameraBasis, 0, 0.02, glassDistance, width / height);
-  const glassTransform = computeScreenGlassTransform(cameraBasis, glassDistance, width / height);
-
-  const restPos: Vec3 = [0, 0.06, 0];
-  let heroPos: Vec3 = [restPos[0], restPos[1] + antic.offsetY, restPos[2] + antic.offsetZ];
-  let heroRot: Vec3 = [-Math.PI / 2 + antic.tiltX, 0, 0];
-  let heroQuat: [number, number, number, number] | undefined;
-  let heroScale: Vec3 = [1, 1, 1];
-  let bendX = 0;
-  let bendY = antic.bendY;
-  let twist = 0;
-  let cornerWhip = 0;
-  let velocityStretch = 0;
-  let glassProgress = 0;
-  let contactShadowOpacity = 0;
-
-  if (frame >= 91 && frame < IMPACT_FRAME) {
-    const arc = evaluateArc3D(
-      restPos,
-      [-0.7, 1.45, 0.6],
-      [0.45, 1.85, 1.9],
-      glassPose.position,
-      flightT
-    );
-    heroPos = arc.position;
-    heroRot = [
-      lerp(-Math.PI / 2, 0, flightT),
-      lerp(0, Math.PI * 2, flightT),
-      arc.bankRoll,
-    ];
-    bendY = Math.sin(flightT * Math.PI) * 0.42;
-    twist = Math.sin(flightT * Math.PI) * 0.24;
-    velocityStretch = evaluateVelocityStretch(arc.velocity, 1.2, 0.085);
-    glassProgress = interpolate(flightT, [0.75, 1], [0, 1], {
-      extrapolateLeft: 'clamp',
-      extrapolateRight: 'clamp',
-    });
-  } else if (frame >= IMPACT_FRAME && frame < 271) {
-    const impact = evaluateSurfaceImpact(frame - IMPACT_FRAME, 1.0);
-    glassProgress = 1;
-    contactShadowOpacity = impact.contactShadowOpacity;
-    heroPos = glassPose.position;
-    heroQuat = glassTransform.quaternion;
-    heroScale = [impact.scaleX * 0.62, impact.scaleY * 0.62, 1];
-    cornerWhip = impact.cornerWhip;
-    bendX = Math.sin((frame - IMPACT_FRAME) * 0.045) * 0.05;
-  } else if (frame >= 271) {
-    const arcBack = evaluateArc3D(
-      glassPose.position,
-      [0.5, 1.5, 1.6],
-      [-0.35, 1.1, 0.45],
-      restPos,
-      returnT
-    );
-    heroPos = arcBack.position;
-    heroRot = [lerp(0, -Math.PI / 2, returnT), 0, arcBack.bankRoll * 0.5];
-    heroScale = lerpVec3([0.62, 0.62, 1], [1, 1, 1], returnT);
-    bendY = Math.sin(returnT * Math.PI) * 0.22;
-    glassProgress = 1 - Math.min(1, returnT * 3);
-  }
-
-  const lighting = computeGlassLightingBlend(glassProgress, 0.18);
+  // Outer beveled wood frame spans x in ±4.2, z in ±2.8 (well outside sheet collision zone).
+  const matHalfW = 4.2;
+  const matHalfD = 2.8;
+  const railThickness = 1.8;
+  const railHeight = 0.085;
+  const woodTint = '#A47B56';
 
   return (
     <>
@@ -265,86 +527,175 @@ const Tactile3DShowcaseScene: React.FC<Tactile3DShowcaseProps> = ({
         impulses={IMPULSES}
         seed={7}
       />
-      <SyncStudioIbl3D
-        panels={DEFAULT_STUDIO_IBL_PANELS}
-        environmentIntensity={0.95}
+
+      <DaylightArcRig3D
+        timeOfDay={state.timeOfDay}
+        sceneLampMultiplier={state.lighting.sceneLampMultiplier}
       />
 
-      <hemisphereLight args={['#FFFDF8', '#C8B99D', 0.55 * lighting.sceneLampMultiplier]} />
-      <directionalLight
-        position={[-3.2, 5.2, 3.6]}
-        intensity={1.35 * lighting.sceneLampMultiplier}
-        color="#FFF6E5"
-        castShadow
-        shadow-mapSize={[1024, 1024]}
-        shadow-bias={-0.0004}
-        shadow-normalBias={0.02}
-      />
-
-      {/* Matte studio tabletop receiving curved GPU shadows */}
+      {/* Recessed woven PBR linen-weave studio mat at exact y = 0 */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
-        <planeGeometry args={[14, 10]} />
-        <meshStandardMaterial color={style.palette.bgElevated} roughness={0.86} />
+        <planeGeometry args={[matHalfW * 2, matHalfD * 2]} />
+        <meshStandardMaterial
+          color={style.palette.bgElevated}
+          map={linenMaps.map}
+          bumpMap={linenMaps.bumpMap}
+          bumpScale={0.011}
+          roughnessMap={linenMaps.roughnessMap}
+          roughness={0.92}
+          metalness={0.02}
+        />
       </mesh>
 
-      {/* Two underlying resting sheets demonstrating secondary cascade */}
-      {[1, 2].map((depthIdx) => {
-        const cascade = evaluateSecondaryCascade(frame - 91, depthIdx - 1, 3);
-        return (
-          <DeformableSheet3D
-            key={`base-sheet-${depthIdx}`}
-            position={[
-              depthIdx * 0.04,
-              0.018 * (3 - depthIdx) + cascade.offsetY,
-              depthIdx * 0.03,
-            ]}
-            rotation={[-Math.PI / 2, 0, depthIdx * 0.05 + cascade.rotZ]}
-            width={1.0}
-            height={1.4}
-            thickness={0.014}
-            cornerRadius={0.06}
-            deform={{ bendY: cascade.bendY }}
-            frontColor={style.palette.bgSurface}
-            backColor={style.palette.bgElevated}
-            edgeColor={style.palette.accentSecondary}
-          />
-        );
-      })}
+      {/* Outer beveled wood-grain tabletop frame (outside sheet collision zone) */}
+      <group name="pbr-wood-tabletop-frame">
+        {/* Back & front long rails (z = ±(matHalfD + railThickness/2)) */}
+        {[-1, 1].map((side) => (
+          <group key={`rail-z-${side}`}>
+            <mesh
+              position={[0, railHeight * 0.5 - 0.02, side * (matHalfD + railThickness * 0.5)]}
+              receiveShadow
+              castShadow
+            >
+              <boxGeometry
+                args={[matHalfW * 2 + railThickness * 2, railHeight, railThickness]}
+              />
+              <meshStandardMaterial
+                color={woodTint}
+                map={woodMapsHorizontal.map}
+                bumpMap={woodMapsHorizontal.bumpMap}
+                bumpScale={0.014}
+                roughnessMap={woodMapsHorizontal.roughnessMap}
+                roughness={0.68}
+                metalness={0.04}
+              />
+            </mesh>
+            {/* Subtle chamfered inner bevel lip */}
+            <mesh
+              position={[0, 0.024, side * (matHalfD + 0.035)]}
+              rotation={[side * 0.42, 0, 0]}
+              receiveShadow
+            >
+              <boxGeometry args={[matHalfW * 2 + 0.09, 0.04, 0.09]} />
+              <meshStandardMaterial
+                color="#8A6443"
+                map={woodMapsHorizontal.map}
+                bumpMap={woodMapsHorizontal.bumpMap}
+                bumpScale={0.01}
+                roughnessMap={woodMapsHorizontal.roughnessMap}
+                roughness={0.62}
+                metalness={0.05}
+              />
+            </mesh>
+          </group>
+        ))}
 
-      {/* Hero deformable sheet */}
+        {/* Left & right side rails (x = ±(matHalfW + railThickness/2)) */}
+        {[-1, 1].map((side) => (
+          <group key={`rail-x-${side}`}>
+            <mesh
+              position={[side * (matHalfW + railThickness * 0.5), railHeight * 0.5 - 0.02, 0]}
+              receiveShadow
+              castShadow
+            >
+              <boxGeometry args={[railThickness, railHeight, matHalfD * 2]} />
+              <meshStandardMaterial
+                color={woodTint}
+                map={woodMapsVertical.map}
+                bumpMap={woodMapsVertical.bumpMap}
+                bumpScale={0.014}
+                roughnessMap={woodMapsVertical.roughnessMap}
+                roughness={0.68}
+                metalness={0.04}
+              />
+            </mesh>
+            <mesh
+              position={[side * (matHalfW + 0.035), 0.024, 0]}
+              rotation={[0, 0, -side * 0.42]}
+              receiveShadow
+            >
+              <boxGeometry args={[0.09, 0.04, matHalfD * 2 + 0.09]} />
+              <meshStandardMaterial
+                color="#8A6443"
+                map={woodMapsVertical.map}
+                bumpMap={woodMapsVertical.bumpMap}
+                bumpScale={0.01}
+                roughnessMap={woodMapsVertical.roughnessMap}
+                roughness={0.62}
+                metalness={0.05}
+              />
+            </mesh>
+          </group>
+        ))}
+
+        {/* Extended studio floor apron beneath the framed desk */}
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.025, 0]} receiveShadow>
+          <planeGeometry args={[28, 20]} />
+          <meshStandardMaterial
+            color="#9B7553"
+            map={woodMapsHorizontal.map}
+            roughnessMap={woodMapsHorizontal.roughnessMap}
+            roughness={0.78}
+            metalness={0.03}
+          />
+        </mesh>
+      </group>
+
+      {/* Two underlying resting sheets with matte parchment PBR finish */}
+      {state.restingSheets.map((sheet) => (
+        <DeformableSheet3D
+          key={sheet.id}
+          name={sheet.id}
+          position={sheet.position}
+          rotation={sheet.rotation}
+          scale={sheet.scale}
+          width={sheet.width}
+          height={sheet.height}
+          thickness={sheet.thickness}
+          cornerRadius={0.06}
+          finish="parchment-matte"
+          deform={sheet.deform}
+          frontColor={style.palette.bgSurface}
+          backColor={style.palette.bgElevated}
+          edgeColor={style.palette.accentSecondary}
+        />
+      ))}
+
+      {/* Hero deformable sheet with satin linen-glaze PBR finish */}
       <DeformableSheet3D
-        name="hero-sheet"
-        position={heroPos}
-        rotation={heroRot}
-        quaternion={heroQuat}
-        scale={heroScale}
-        width={1.0}
-        height={1.4}
-        thickness={0.016}
+        name={state.hero.id}
+        position={state.hero.position}
+        rotation={state.hero.rotation}
+        quaternion={state.hero.quaternion}
+        scale={state.hero.scale}
+        width={state.hero.width}
+        height={state.hero.height}
+        thickness={state.hero.thickness}
         cornerRadius={0.06}
+        finish="linen-glaze"
         frontMap={frontTexture}
         backColor={style.palette.accentSecondary}
         edgeColor={style.palette.bgSurface}
-        deform={{ bendX, bendY, twist, cornerWhip, velocityStretch }}
-        castShadow={lighting.castSceneShadow}
+        deform={state.hero.deform}
+        castShadow={state.lighting.castSceneShadow}
         receiveShadow
-        renderOrder={glassProgress > 0.5 ? 2 : 0}
+        renderOrder={state.glassProgress > 0.5 ? 2 : 0}
       />
 
       <ScreenGlassLayer3D
-        camera={cameraBasis}
-        glassDistance={glassDistance}
+        camera={state.cameraBasis}
+        glassDistance={state.glassDistance}
         aspect={width / height}
         items={[
           {
-            id: 'hero-sheet',
-            ndcX: 0,
-            ndcY: 0.02,
-            glassProgress,
-            contactShadowOpacity,
-            width: 0.62,
-            height: 0.87,
-            scale: [heroScale[0] / 0.62, heroScale[1] / 0.62],
+            id: state.hero.id,
+            ndcX: 0.08,
+            ndcY: 0.07,
+            glassProgress: state.glassProgress,
+            contactShadowOpacity: state.contactShadowOpacity,
+            width: 0.3,
+            height: 0.42,
+            scale: [state.hero.scale[0] / 0.3, state.hero.scale[1] / 0.3],
           },
         ]}
       />
@@ -370,11 +721,30 @@ const Tactile3DShowcaseInner: React.FC<Tactile3DShowcaseProps> = (props) => {
         gl={{
           antialias: true,
           toneMapping: THREE.ACESFilmicToneMapping,
-          toneMappingExposure: 0.96,
+          toneMappingExposure: 0.95,
         }}
       >
         <Tactile3DShowcaseScene {...props} />
       </ThreeCanvas>
+
+      {/* Frameless editorial display (top-left) — zero dark box chrome */}
+      <FloatingEditorialDisplay
+        eyebrow="TACTILE 3D ENGINE"
+        headline={props.title}
+        subline={props.subtitle}
+        position="top"
+        align="left"
+        headlinePx={52}
+        sublinePx={21}
+        monoSubline
+        style={{ top: 108, maxWidth: 620 }}
+      />
+
+      {/* Frameless light paper ribbon timeline (bottom) */}
+      <PaperRibbonTimeline
+        position="bottom"
+        milestones={TIMELINE_MILESTONES}
+      />
     </AbsoluteFill>
   );
 };
