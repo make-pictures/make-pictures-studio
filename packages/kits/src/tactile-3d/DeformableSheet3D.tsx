@@ -17,6 +17,16 @@ import {
   createSheetBendUniforms,
   updateSheetBendUniforms,
 } from './sheetBendShader';
+import {
+  getProceduralPbrMaps,
+  type ProceduralPbrMaps,
+  type ProceduralPbrMaterialKind,
+} from './proceduralPbrMaps';
+import {
+  resolveSheetFinishProfile,
+  type SheetFinishProfile,
+  type SheetMaterialFinish,
+} from './materialFinishes';
 
 export interface DeformableSheet3DProps {
   name?: string;
@@ -38,6 +48,8 @@ export interface DeformableSheet3DProps {
   uvCropX?: [number, number];
   uvCropY?: [number, number];
   deform?: Partial<SheetDeformParams>;
+  finish?: SheetMaterialFinish;
+  proceduralTexture?: ProceduralPbrMaterialKind | 'none';
   frontMap?: THREE.Texture | null;
   backMap?: THREE.Texture | null;
   frontRoughnessMap?: THREE.Texture | null;
@@ -61,6 +73,99 @@ export interface DeformableSheet3DProps {
   cleanFrameZero?: boolean;
 }
 
+export interface ResolvedDeformableSheetMaterialConfig {
+  profile: SheetFinishProfile | null;
+  proceduralKind: ProceduralPbrMaterialKind | undefined;
+  frontBumpMap: THREE.Texture | null;
+  frontRoughnessMap: THREE.Texture | null;
+  backBumpMap: THREE.Texture | null;
+  backRoughnessMap: THREE.Texture | null;
+  frontRoughness: number;
+  backRoughness: number;
+  edgeRoughness: number;
+  metalness: number;
+  clearcoat: number;
+  clearcoatRoughness: number;
+  bumpScale: number;
+  sheen: number;
+  sheenRoughness: number;
+  sheenColor: string | undefined;
+  emissive: string | undefined;
+  emissiveIntensity: number;
+}
+
+export function resolveDeformableSheetMaterialConfig(
+  props: Pick<
+    DeformableSheet3DProps,
+    | 'finish'
+    | 'proceduralTexture'
+    | 'frontBumpMap'
+    | 'frontRoughnessMap'
+    | 'backBumpMap'
+    | 'backRoughnessMap'
+    | 'roughness'
+    | 'metalness'
+    | 'clearcoat'
+    | 'clearcoatRoughness'
+    | 'bumpScale'
+  >,
+  preloadedProcMaps?: ProceduralPbrMaps | null
+): ResolvedDeformableSheetMaterialConfig {
+  const profile = props.finish ? resolveSheetFinishProfile(props.finish) : null;
+  const proceduralKind =
+    props.proceduralTexture === 'none'
+      ? undefined
+      : (props.proceduralTexture ?? profile?.proceduralTexture);
+  const procMaps =
+    preloadedProcMaps !== undefined
+      ? preloadedProcMaps
+      : proceduralKind
+        ? getProceduralPbrMaps(proceduralKind, { repeat: [2, 2.8] })
+        : null;
+
+  const frontBumpMap = props.frontBumpMap ?? procMaps?.bumpMap ?? null;
+  const frontRoughnessMap =
+    props.frontRoughnessMap ?? procMaps?.roughnessMap ?? null;
+  const backBumpMap = props.backBumpMap ?? procMaps?.bumpMap ?? null;
+  const backRoughnessMap =
+    props.backRoughnessMap ?? procMaps?.roughnessMap ?? null;
+
+  const frontRoughness =
+    props.roughness ??
+    (frontRoughnessMap
+      ? (profile?.mappedRoughness ?? (props.frontRoughnessMap ? 1.0 : 0.92))
+      : (profile?.roughness ?? 0.56));
+  const backRoughness =
+    props.roughness ??
+    (backRoughnessMap
+      ? (profile?.mappedRoughness ?? (props.backRoughnessMap ? 1.0 : 0.92))
+      : (profile?.roughness ?? 0.56));
+  const baseRoughnessForEdge = props.roughness ?? profile?.roughness ?? 0.56;
+
+  return {
+    profile,
+    proceduralKind,
+    frontBumpMap,
+    frontRoughnessMap,
+    backBumpMap,
+    backRoughnessMap,
+    frontRoughness,
+    backRoughness,
+    edgeRoughness: Math.min(1, baseRoughnessForEdge + 0.25),
+    metalness: props.metalness ?? profile?.metalness ?? 0.0,
+    clearcoat: props.clearcoat ?? profile?.clearcoat ?? 0.14,
+    clearcoatRoughness:
+      props.clearcoatRoughness ?? profile?.clearcoatRoughness ?? 0.32,
+    bumpScale: props.bumpScale ?? profile?.bumpScale ?? 0.006,
+    sheen: profile?.sheen ?? 0,
+    sheenRoughness: profile?.sheenRoughness ?? 1.0,
+    sheenColor: profile?.sheenColor,
+    emissive:
+      profile && profile.emissiveIntensity > 0 ? profile.emissive : undefined,
+    emissiveIntensity: profile?.emissiveIntensity ?? 0,
+  };
+}
+
 export const DeformableSheet3D: React.FC<DeformableSheet3DProps> = ({
   name,
   position = [0, 0, 0],
@@ -81,6 +186,8 @@ export const DeformableSheet3D: React.FC<DeformableSheet3DProps> = ({
   uvCropX,
   uvCropY,
   deform = ZERO_SHEET_DEFORM,
+  finish,
+  proceduralTexture,
   frontMap = null,
   backMap = null,
   frontRoughnessMap = null,
@@ -93,11 +200,11 @@ export const DeformableSheet3D: React.FC<DeformableSheet3DProps> = ({
   frontColor,
   backColor,
   edgeColor,
-  roughness = 0.56,
-  metalness = 0.0,
-  clearcoat = 0.14,
-  clearcoatRoughness = 0.32,
-  bumpScale = 0.006,
+  roughness,
+  metalness,
+  clearcoat,
+  clearcoatRoughness,
+  bumpScale,
   opacity = 1,
   castShadow = true,
   receiveShadow = true,
@@ -106,10 +213,46 @@ export const DeformableSheet3D: React.FC<DeformableSheet3DProps> = ({
   const frame = useCurrentFrame();
   const style = useStudioStyle();
 
+  const finishProfile = finish ? resolveSheetFinishProfile(finish) : null;
+  const effectiveProcKind =
+    proceduralTexture === 'none'
+      ? undefined
+      : (proceduralTexture ?? finishProfile?.proceduralTexture);
+  const procMaps = useMemo(
+    () =>
+      effectiveProcKind
+        ? getProceduralPbrMaps(effectiveProcKind, { repeat: [2, 2.8] })
+        : null,
+    [effectiveProcKind]
+  );
+
+  const materialConfig = resolveDeformableSheetMaterialConfig(
+    {
+      finish,
+      proceduralTexture,
+      frontBumpMap,
+      frontRoughnessMap,
+      backBumpMap,
+      backRoughnessMap,
+      roughness,
+      metalness,
+      clearcoat,
+      clearcoatRoughness,
+      bumpScale,
+    },
+    procMaps
+  );
+
   const resolvedFrontColor =
-    frontColor ?? (frontMap ? '#FFFFFF' : style.palette.bgSurface);
+    frontColor ??
+    (frontMap
+      ? '#FFFFFF'
+      : (finishProfile?.baseColor ?? style.palette.bgSurface));
   const resolvedBackColor =
-    backColor ?? (backMap ? '#FFFFFF' : style.palette.bgElevated);
+    backColor ??
+    (backMap
+      ? '#FFFFFF'
+      : (finishProfile?.baseColor ?? style.palette.bgElevated));
   const resolvedEdgeColor = edgeColor ?? style.palette.bgElevated;
 
   const uniforms = useMemo(
@@ -159,40 +302,60 @@ export const DeformableSheet3D: React.FC<DeformableSheet3DProps> = ({
   const materialBundle = useMemo(() => {
     const transparent = opacity < 0.999;
 
+    const sharedFinishOptions: Partial<THREE.MeshPhysicalMaterialParameters> = {
+      sheen: materialConfig.sheen,
+      sheenRoughness: materialConfig.sheenRoughness,
+      ...(materialConfig.sheenColor
+        ? { sheenColor: materialConfig.sheenColor }
+        : {}),
+      ...(materialConfig.emissive && materialConfig.emissiveIntensity > 0
+        ? {
+            emissive: materialConfig.emissive,
+            emissiveIntensity: materialConfig.emissiveIntensity,
+          }
+        : {}),
+    };
+
     const frontMat = new THREE.MeshPhysicalMaterial({
       color: resolvedFrontColor,
       map: frontMap ?? null,
-      roughnessMap: frontRoughnessMap ?? null,
+      roughnessMap: materialConfig.frontRoughnessMap,
       metalnessMap: frontMetalnessMap ?? null,
-      bumpMap: frontBumpMap ?? null,
-      bumpScale,
-      roughness: frontRoughnessMap ? 1.0 : roughness,
-      metalness: frontMetalnessMap ? 1.0 : metalness,
-      clearcoat,
-      clearcoatRoughness,
+      bumpMap: materialConfig.frontBumpMap,
+      bumpScale: materialConfig.bumpScale,
+      roughness: materialConfig.frontRoughness,
+      metalness: frontMetalnessMap
+        ? (metalness ?? 1.0)
+        : materialConfig.metalness,
+      clearcoat: materialConfig.clearcoat,
+      clearcoatRoughness: materialConfig.clearcoatRoughness,
       transparent,
       opacity,
+      ...sharedFinishOptions,
     });
 
     const backMat = new THREE.MeshPhysicalMaterial({
       color: resolvedBackColor,
       map: backMap ?? null,
-      roughnessMap: backRoughnessMap ?? null,
+      roughnessMap: materialConfig.backRoughnessMap,
       metalnessMap: backMetalnessMap ?? null,
-      bumpMap: backBumpMap ?? null,
-      bumpScale,
-      roughness: backRoughnessMap ? 1.0 : roughness,
-      metalness: backMetalnessMap ? 1.0 : metalness,
-      clearcoat,
-      clearcoatRoughness,
+      bumpMap: materialConfig.backBumpMap,
+      bumpScale: materialConfig.bumpScale,
+      roughness: materialConfig.backRoughness,
+      metalness: backMetalnessMap
+        ? (metalness ?? 1.0)
+        : materialConfig.metalness,
+      clearcoat: materialConfig.clearcoat,
+      clearcoatRoughness: materialConfig.clearcoatRoughness,
       transparent,
       opacity,
+      ...sharedFinishOptions,
     });
 
     const edgeMat = new THREE.MeshPhysicalMaterial({
       color: resolvedEdgeColor,
       map: edgeMap ?? null,
-      roughness: Math.min(1, roughness + 0.25),
+      roughness: materialConfig.edgeRoughness,
       metalness: 0,
       clearcoat: 0,
       transparent,
@@ -220,18 +383,26 @@ export const DeformableSheet3D: React.FC<DeformableSheet3DProps> = ({
     resolvedEdgeColor,
     frontMap,
     backMap,
-    frontRoughnessMap,
+    materialConfig.frontRoughnessMap,
     frontMetalnessMap,
-    frontBumpMap,
-    backRoughnessMap,
+    materialConfig.frontBumpMap,
+    materialConfig.backRoughnessMap,
     backMetalnessMap,
-    backBumpMap,
+    materialConfig.backBumpMap,
     edgeMap,
-    roughness,
+    materialConfig.frontRoughness,
+    materialConfig.backRoughness,
+    materialConfig.edgeRoughness,
     metalness,
-    clearcoat,
-    clearcoatRoughness,
-    bumpScale,
+    materialConfig.metalness,
+    materialConfig.clearcoat,
+    materialConfig.clearcoatRoughness,
+    materialConfig.bumpScale,
+    materialConfig.sheen,
+    materialConfig.sheenRoughness,
+    materialConfig.sheenColor,
+    materialConfig.emissive,
+    materialConfig.emissiveIntensity,
     opacity,
   ]);
 
