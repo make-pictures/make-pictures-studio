@@ -14,6 +14,7 @@ import {
   useVideoConfig,
 } from 'remotion';
 import { SPRING_PRESETS } from '../theme/tokens';
+import { computeCameraBasis3D } from './cameraBasis3D';
 import { evaluateHandheldNoise, evaluateImpactShake } from './cameraNoise';
 import {
   type CameraImpulse,
@@ -30,6 +31,9 @@ import {
 export interface ResolvedCameraPose3D {
   position: [number, number, number];
   lookAt: [number, number, number];
+  forward: [number, number, number];
+  right: [number, number, number];
+  up: [number, number, number];
   fov: number;
   rollDeg: number;
   telemetry: DirectorCameraTelemetry;
@@ -288,6 +292,13 @@ function resolveSingleShotPose(
         camY = primary.position[1] + h * 0.84;
         lookY = primary.position[1] + h * 0.8;
         break;
+      case 'macro':
+        defaultAngle = 8;
+        baseFov = shot.fov ?? 24;
+        dist = Math.max(1.55, r * 2.25 + 0.55);
+        camY = primary.position[1] + h * 0.72 + 0.25;
+        lookY = primary.position[1] + h * 0.55;
+        break;
       case 'over-the-shoulder':
         defaultAngle = 22;
         baseFov = shot.fov ?? 33;
@@ -421,9 +432,15 @@ export function evaluateDirectorCamera3D(
     const fallbackDist = isVertical9x16 && safeBox9x16Compensation ? 11.8 : 9.0;
     const fallbackFov = (isVertical9x16 && safeBox9x16Compensation ? 41 : 34) + fovOffset;
     const fallbackLookY = isVertical9x16 && safeBox9x16Compensation ? 0.55 : 1.1;
+    const fallbackPos: [number, number, number] = [0, 3.4, fallbackDist * distanceScale];
+    const fallbackLookAt: [number, number, number] = [0, fallbackLookY, 0];
+    const fallbackBasis = computeCameraBasis3D(fallbackPos, fallbackLookAt, 0);
     return {
-      position: [0, 3.4, fallbackDist * distanceScale],
-      lookAt: [0, fallbackLookY, 0],
+      position: fallbackPos,
+      lookAt: fallbackLookAt,
+      forward: fallbackBasis.forward,
+      right: fallbackBasis.right,
+      up: fallbackBasis.up,
       fov: fallbackFov,
       rollDeg: 0,
       telemetry: {
@@ -584,9 +601,18 @@ export function evaluateDirectorCamera3D(
         : activeSpec?.shot),
   };
 
+  const basis = computeCameraBasis3D(
+    finalPos,
+    finalLookAt,
+    (finalRollDeg * Math.PI) / 180
+  );
+
   return {
     position: finalPos,
     lookAt: finalLookAt,
+    forward: basis.forward,
+    right: basis.right,
+    up: basis.up,
     fov,
     rollDeg: finalRollDeg,
     telemetry,
@@ -724,27 +750,25 @@ export const DirectorCamera3D: React.FC<DirectorCamera3DProps> = ({
 
   const [px, py, pz] = solved.position;
   const [lx, ly, lz] = solved.lookAt;
-  const { fov, rollDeg, telemetry } = solved;
+  const [ux, uy, uz] = solved.up;
+  const { fov, telemetry } = solved;
 
   useLayoutEffect(() => {
     const r3fState = resolveR3FRootState(rigGroupRef.current);
     const camera = r3fState?.camera;
     if (camera) {
-      camera.up.set(0, 1, 0);
+      camera.up.set(ux, uy, uz);
       camera.position.set(px, py, pz);
       if (camera.isPerspectiveCamera && typeof camera.fov === 'number') {
         camera.fov = fov;
       }
       camera.lookAt(lx, ly, lz);
-      if (Math.abs(rollDeg) > 1e-4) {
-        camera.rotateZ((rollDeg * Math.PI) / 180);
-      }
       camera.updateProjectionMatrix();
       r3fState?.invalidate?.();
     }
 
     publishFrameCameraTelemetry(frame, telemetry);
-  }, [px, py, pz, lx, ly, lz, fov, rollDeg, frame, telemetry]);
+  }, [px, py, pz, lx, ly, lz, ux, uy, uz, fov, frame, telemetry]);
 
   if (!children) {
     return React.createElement('group', { ref: rigGroupRef });

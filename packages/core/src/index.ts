@@ -7,4 +7,5 @@ export * from './camera';
 export * from './style';
 export * from './optics';
 export * from './director';
+export * from './kinematics';
 export type { VoiceAcousticPreset } from './types';

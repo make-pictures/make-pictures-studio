@@ -52,6 +52,11 @@
       "import": "./dist/director/index.mjs",
       "require": "./dist/director/index.cjs"
     },
+    "./kinematics": {
+      "types": "./dist/kinematics/index.d.ts",
+      "import": "./dist/kinematics/index.mjs",
+      "require": "./dist/kinematics/index.cjs"
+    },
     "./optics": {
       "types": "./dist/optics/index.d.ts",
       "import": "./dist/optics/index.mjs",

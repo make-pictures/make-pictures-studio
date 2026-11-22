@@ -1,4 +1,5 @@
 import React from 'react';
+import type { Vec3 } from '../kinematics/disney';
 import type { ProductionCameraCut } from '../types/scene';
 
 export interface StageAnchor3D {
@@ -13,10 +14,50 @@ export type ShotType3D =
   | 'medium'
   | 'medium-two-shot'
   | 'close-up'
+  | 'macro'
   | 'over-the-shoulder'
   | 'low-angle-hero'
   | 'high-crane'
   | 'custom';
+
+export interface CameraBasis3D {
+  position: Vec3;
+  target: Vec3;
+  roll: number;
+  forward: Vec3;
+  right: Vec3;
+  up: Vec3;
+}
+
+export interface EvaluatedCameraBasis3D extends CameraBasis3D {
+  fov: number;
+}
+
+export interface CameraKeyframe3D {
+  fromFrame: number;
+  position: Vec3;
+  target: Vec3;
+  fov: number;
+  roll?: number;
+  transition?: 'cut' | 'glide';
+  transitionFrames?: number;
+  label?: string;
+}
+
+export interface ScreenGlassPose3D {
+  position: Vec3;
+  basisForward: Vec3;
+  basisRight: Vec3;
+  basisUp: Vec3;
+  visibleHeight: number;
+  visibleWidth: number;
+}
+
+export interface GlassLightingBlend {
+  sceneLampMultiplier: number;
+  lensFillIntensity: number;
+  castSceneShadow: boolean;
+}
 
 export type CameraTransitionMode = 'cut' | 'glide' | 'whip' | 'orbit';
 
