@@ -3,6 +3,7 @@ import starterStoryProduction from './starter-story';
 import paperDioramaProduction from './paper-diorama';
 import isometricDialogueProduction from './isometric-dialogue';
 import aetherPromoProduction from './aether-promo';
+import tactile3dShowcaseProduction from './tactile-3d-showcase';
 
 export const BUILTIN_EXAMPLE_PRODUCTIONS = [
   starterStoryProduction,
@@ -10,6 +11,7 @@ export const BUILTIN_EXAMPLE_PRODUCTIONS = [
   paperDioramaProduction,
   isometricDialogueProduction,
   aetherPromoProduction,
+  tactile3dShowcaseProduction,
 ];
 
 export {
@@ -18,4 +20,5 @@ export {
   paperDioramaProduction,
   isometricDialogueProduction,
   aetherPromoProduction,
+  tactile3dShowcaseProduction,
 };

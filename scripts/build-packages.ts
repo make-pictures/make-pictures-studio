@@ -58,6 +58,7 @@ function mapOtherPackageToPublicSpecifier(
       'product-frames',
       'editorial-collage',
       'vector-scene-2d',
+      'tactile-3d',
     ];
     for (const sub of knownKitSubpaths) {
       if (normalizedSub === sub || normalizedSub.startsWith(`${sub}/`)) {
@@ -464,6 +465,11 @@ async function main(): Promise<void> {
           platform: 'browser',
         },
         {
+          outSubpath: 'kinematics/index',
+          srcRelPath: 'src/kinematics/index.ts',
+          platform: 'browser',
+        },
+        {
           outSubpath: 'optics/index',
           srcRelPath: 'src/optics/index.ts',
           platform: 'browser',
@@ -543,6 +549,11 @@ async function main(): Promise<void> {
         {
           outSubpath: 'vector-scene-2d/index',
           srcRelPath: 'src/vector-scene-2d/index.ts',
+          platform: 'browser',
+        },
+        {
+          outSubpath: 'tactile-3d/index',
+          srcRelPath: 'src/tactile-3d/index.ts',
           platform: 'browser',
         },
       ],
