@@ -69,8 +69,9 @@ import {
 When scaffolding `--space=3d` (default style `soft-clay`, or `glass-studio`, `retro-pc`, `cyber-telemetry`, or any custom `styles/*.style.json`), prefer the v5 `<StudioHdrRig3D />` + `<PodcastStudioSet3D />` + `<ClayCharacter3D />` stack:
 
 - **`<StudioHdrRig3D preset="warm-softbox" | "clean-atelier" | "neon-grid" />`** (`contactShadowY?: number`, `contactShadowScale?: number`, `contactShadowOpacity?: number`, `intensity?: number`, `resolveStudioHdrRigSpec(preset, intensity)`):
-  - **100% Offline GPU `<Lightformer>` IBL (HARD RULE):** Builds an analytic `<Environment resolution={256} frames={1}>` rig exclusively from GPU `<Lightformer>` softbox/ring panels, paired with a shadow-casting `directionalLight`, fill + hemisphere lights, and deterministic `<ContactShadowDisc3D />` grounding. **NEVER mount `<Environment preset="..." />` or `<Environment files="..." />`** from `@react-three/drei` (which fetches remote `.hdr` assets from GitHub CDNs and breaks offline/sandboxed renders!).
+  - **100% Offline Synchronous PMREM IBL (`<SyncStudioIbl3D />` — HARD RULE):** Internally mounts `<SyncStudioIbl3D />` (`@make-pictures/kits/tactile-3d`), which builds an analytic virtual softbox scene and runs `THREE.PMREMGenerator.fromScene(...)` **synchronously inside `useLayoutEffect`** so crisp HDR specular reflections are ready on **Frame 1** even under Remotion's `frameloop="never"` (without relying on async `@react-three/drei` `<Environment>` frames or remote CDN `.hdr` files, which are strictly banned!). Pairs IBL with a shadow-casting `directionalLight`, fill + hemisphere lights, and deterministic `<ContactShadowDisc3D />` grounding.
   - Defaults `preset` automatically from `resolveStyleMaterial3D(style).studioHdr` (`'warm-softbox'` for `soft-clay` / `tactile-craft` / `editorial-press` / `archival-chronicle` / `sketch-notebook`, `'clean-atelier'` for `glass-studio` / `minimal-product` / `brutalist-poster`, `'neon-grid'` for `retro-pc` / `cyber-telemetry`) and returns `null` on `frame <= 0` for Clean Frame `0`.
+  - For custom tabletop/archival 3D sets outside `PodcastStudioSet3D`, mount `<SyncStudioIbl3D panels={DEFAULT_STUDIO_IBL_PANELS} />` directly or compose it via `<DaylightArcRig3D />`.
 - **`<PodcastStudioSet3D compactVertical={isVertical} onAirActive />` & `computePodcastStudioLayout({ width, depth, wallHeight, compactVertical })`:**
   - Sculpted 3D cutaway broadcast room with beveled acoustic slat panels, oak studio desk (`tableZ = 0.18`), broadcast boom microphones, ceramic mugs, potted plants, recessed bookshelf, and a glowing sculpted 3D **`ON AIR`** sign (`onAirActive`).
   - Pass `compactVertical={isVertical}` (`height > width`) so `computePodcastStudioLayout({ compactVertical: isVertical })` narrows the room (`4.6 m` vs `6.2 m`), tightens host seating (`leftHostPosition: [-0.92, 0, 0.14]`, `rightHostPosition: [0.92, 0, 0.14]` vs `±1.30 m` in `16:9`), and keeps both hosts cleanly inside the **`9:16` Golden Safe Box (`x ∈ [40, 910]`, `y ∈ [220, 1380]`)**.
@@ -92,6 +93,37 @@ When scaffolding `--space=3d` (default style `soft-clay`, or `glass-studio`, `re
 | `editorial-press` | `editorial-gallery` | `matte-ceramic` | `0.06` | `warm-softbox` | `ceramic-maquette` |
 | `archival-chronicle` | `editorial-gallery` | `matte-ceramic` | `0.06` | `warm-softbox` | `ceramic-maquette` |
 | `brutalist-poster` | `editorial-gallery` | `matte-ceramic` | `0.02` | `clean-atelier` | `ink-figurine` |
+
+---
+
+## 1B. Procedural Offline PBR Maps (`getProceduralPbrMaps`) & Time-of-Day Lighting Arc (`<DaylightArcRig3D />`)
+
+Exported from `@make-pictures/kits/tactile-3d` (and re-exported from `@make-pictures/kits`) for zero-network, deterministic tactile surfaces and narrative lighting progression:
+
+```tsx
+import {
+  SyncStudioIbl3D,
+  DEFAULT_STUDIO_IBL_PANELS,
+  getProceduralPbrMaps,
+  disposeProceduralPbrMaps,
+  DaylightArcRig3D,
+  evaluateTimeOfDayLighting,
+} from '@make-pictures/kits/tactile-3d';
+```
+
+- **Procedural Offline PBR Maps (`getProceduralPbrMaps(kind, { seed?, repeat?, size? })`):**
+  - Generates cached, seeded (`createSeededRandom`, zero `Math.random()`) tileable PBR triplets `{ map, bumpMap, roughnessMap }` with proper color spaces (`map: THREE.SRGBColorSpace`; `bumpMap` & `roughnessMap: THREE.NoColorSpace`) across **4 universal studio materials**:
+    - `'linen-weave'` — fine warp/weft tabletop cloth or bookbinding linen,
+    - `'wood-grain'` — warm oak/walnut atelier desk grain,
+    - `'cotton-paper'` — deckle-feel archival rag paper fibers,
+    - `'brushed-metal'` — fine directional satin aluminum/brass micro-grain.
+  - Works identically in browser (`THREE.CanvasTexture`) and Node tests (`THREE.DataTexture` fallback). Never dispose shared cached maps from individual prop unmounts — call `disposeProceduralPbrMaps()` only when tearing down an entire test/session.
+- **Time-of-Day Studio Lighting Arc (`<DaylightArcRig3D timeOfDay={0..1} />` & `evaluateTimeOfDayLighting`):**
+  - Composes `<SyncStudioIbl3D />` with a deterministic 3-stop directional key/fill/hemisphere rig driven by `timeOfDay ∈ [0, 1]`:
+    - `0.0` — crisp sunlit morning,
+    - `0.5` — warm golden afternoon,
+    - `1.0` — focused evening desk lamp.
+  - Supports `sceneLampMultiplier` (directly wired from `computeGlassLightingBlend().sceneLampMultiplier` when foreground props sit on `<ScreenGlassLayer3D />`), `atmosphereBlend` (`0..1` toward dark/dramatic lighting), `shadowMapSize`, `shadowBounds`, and `cleanFrameZero` (`frame <= 0 => null`).
 
 ---
 

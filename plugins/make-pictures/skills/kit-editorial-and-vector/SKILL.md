@@ -36,6 +36,9 @@ import {
   HighlightQuoteStage,
   SplitStoryLayout,
   SplitStorySlotContext,
+  PaperRibbonTimeline,
+  FloatingEditorialDisplay,
+  resolveActivePaperMilestoneId,
   computeSplitStoryVerticalBounds,
   resolveHighlightStartFrame,
   type EditorialDeskStageProps,
@@ -46,6 +49,9 @@ import {
   type EditorialMountType,
   type HighlightQuoteStageProps,
   type SplitStoryLayoutProps,
+  type PaperTimelineMilestone,
+  type PaperRibbonTimelineProps,
+  type FloatingEditorialDisplayProps,
 } from '@make-pictures/kits/editorial-collage';
 
 import {
@@ -110,6 +116,11 @@ Physical baryta print, passe-partout frame, or darkroom slide mount with `<Clipp
 - `SplitStoryLayout`: Dual-elevation responsive composition (`1.08fr 0.92fr` in `16:9`; vertical stack strictly inside `9:16` Golden Safe Box `x ∈ [40, 910], y ∈ [220, 1380]`) with optional `focusShiftFrame` optical rack focus.
 - **`EditorialPanoramaTrack` (`items: EditorialPanoramaItem[]`, `durationInFrames`):** **Mandatory replacement for robotic `3×2` blinking tile grids.** Lays out `3–6` large `EditorialMediaCard` plates (`660×480 px`, `cy ± 20 px` vertical rhythm) along a panoramic `<DirectorCamera2D />` ribbon (`transition: 'glide'`) with subtle Ken Burns (`1.02 → 1.08`) and `<ScenicBackdropLayers />` parallax (automatically adapting to vertical cascade inside the `9:16` Golden Safe Box).
 - **AI Illustration Style Anchor & Safe Cutouts:** Generate raster artwork via `npx make-pictures image "<subject>" --style=<styleId> --out=...` (which enforces a shared `Base Style Anchor` and strictly **no text/letters/numbers** inside the raster), always render images with Remotion `<Img>` (never raw `<img>`), and extract bright objects on white backgrounds with `npx make-pictures cutout` (never global white thresholding `rgb > 245 => alpha = 0`).
+
+### Frameless Editorial Overlays over 3D/2.5D (`<FloatingEditorialDisplay />` & `<PaperRibbonTimeline />`)
+Never float heavy opaque black web boxes (`rgba(0,0,0,0.8)`) or `10–14 px` HUD badges on top of sunlit 3D/2.5D stages. Use these frameless editorial overlays (strict `>= 19–22 px` typography floor, Clean Frame `0`, `boxSizing: 'border-box'`):
+- **`<FloatingEditorialDisplay />`:** Transparent (`background: 'transparent'`) display typography (`headline`, optional `subline` and `eyebrow`, `headlinePx = 64`, `sublinePx = 23`, `align: 'left' | 'center' | 'right'`, `tone: 'auto' | 'light-on-dark' | 'dark-on-light'`, `position: 'top' | 'center' | 'bottom'`, `accentRule = true`, `enterFrame = 2`) with soft optical contrast text-shadow so type floats directly over 3D worlds without boxing out the scene.
+- **`<PaperRibbonTimeline />` (`resolveActivePaperMilestoneId`):** Light archival paper-ribbon chronology strip (`milestones: PaperTimelineMilestone[]`, optional `activeId`, `position: 'top' | 'bottom'`, `enterFrame = 2`) at `>= 20 px` typography with zero dark web boxes — automatically highlights the active milestone by `fromFrame` (or explicit `activeId`).
 
 ---
 

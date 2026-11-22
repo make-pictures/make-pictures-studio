@@ -63,20 +63,38 @@ Replaces manual `<Sequence>` stitching and abrupt `<SceneTransition>` wipes:
 
 ---
 
-## 1. 3D Shot DSL (`<DirectorCamera3D />`)
+## 1. 3D Shot DSL (`<DirectorCamera3D />`), Active Macro Framing & One-Shot Basis Math
 
 ```tsx
 import {
   DirectorCamera3D,
+  computeCameraBasis3D,
+  evaluateCameraKeyframes3D,
+  projectScreenGlassPose,
+  computeGlassLightingBlend,
   shotsToCameraTimeline,
+  type CameraKeyframe3D,
   type StageAnchor3D,
   type ShotSpec3D,
 } from '@make-pictures/core';
+import {
+  disneyEase,
+  evaluateAnticipation,
+  evaluateArc3D,
+  evaluateSurfaceImpact,
+  evaluateVelocityStretch,
+  evaluateSecondaryCascade,
+} from '@make-pictures/core/kinematics';
+import {
+  ScreenGlassLayer3D,
+  ScreenGlassSlot,
+} from '@make-pictures/kits/tactile-3d';
 ```
 
-### Stage Anchors & Shot Vocabulary
+### Stage Anchors, Shot Vocabulary & Active Closer Camera
 Define named subjects once (`Record<string, StageAnchor3D>`: `{ position: [x, y, z], height?, radius?, lookOffset? }`), then cut or glide between film shots (`ShotSpec3D[]`):
-- **`ShotType3D`:** `'establishing-wide' | 'medium' | 'medium-two-shot' | 'close-up' | 'over-the-shoulder' | 'low-angle-hero' | 'high-crane' | 'custom'`
+- **`ShotType3D`:** `'establishing-wide' | 'medium' | 'medium-two-shot' | 'close-up' | 'macro' | 'over-the-shoulder' | 'low-angle-hero' | 'high-crane' | 'custom'`
+- **Active Closer Camera Rule (No Static 20-Second Openings):** Never lock an opening 3D shot in a distant static wide frame for `15–20 s` where hero props occupy `< 35%` of screen height. Move closer with `'close-up'` or `'macro'` (`fov: 28–36`, tighter framing so hero materials, print texture, and embossing fill the viewport) and keep purposeful camera evolution every `4.5–8 s`.
 - **`CameraTransitionMode`:**
   - `'cut'` — instant editorial cut (zero spring travel between distant angles),
   - `'glide'` — smooth damped spring (`SPRING_PRESETS.calmCamera`, `damping: 200`),
@@ -85,6 +103,21 @@ Define named subjects once (`Record<string, StageAnchor3D>`: `{ position: [x, y,
 - **Vertigo / Dolly-Zoom (`dollyZoomDeltaFov`):** Counter-scales camera distance inversely to $\tan(\text{fov}/2)$ so the target subject stays locked in size while background depth dramatically expands or compresses.
 - **Pre-Roll Alignment Inside `<ContinuousSceneFlow />` (`frameOffsetInSequence`):** When a 3D scene (`usesThree: true`) follows a 2D scene (`!usesThree`) inside `<ContinuousSceneFlow crossDissolveFrames={54}>`, `computeContinuousSceneWindows` mounts the incoming `<Sequence>` early by `const frameOffsetInSequence = win.nominalStart - win.mountFrom` (`Math.floor(crossDissolveFrames / 2)`, e.g., `27` frames; `0` on `3D → 3D` luminous-veil seams). Because `useCurrentFrame()` inside that `<Sequence>` starts at `0` at `win.mountFrom`, keep the opening shot at `fromFrame: 0` (so `<ThreeCanvas>` is already framed during the dissolve-in) and offset subsequent scene-local `ShotSpec3D.fromFrame` cuts and speech/pose cues by `+ frameOffsetInSequence` so every move aligns with `win.nominalStart`!
 - **Timeline Export:** Pass `shotsToCameraTimeline(SHOTS, durationInFrames)` into `StudioCompositionEntry.cameraTimeline` so **Studio Web** renders every camera cut in the Multi-Track Director Timeline.
+
+### Overhead Gimbal Guard (`computeCameraBasis3D`), One-Shot Keyframes & `<ScreenGlassLayer3D />`
+- **`computeCameraBasis3D(position, target, rollRad?)`:** Pure zero-Three.js orthonormal basis solver (`forward`, `right`, `up`) with an automatic overhead singularity guard — whenever `|forward.y| > 0.995` (vertical top-down / flat-lay overhead shots), it switches `worldUp` to `[0, 0, -1]` so the camera never flips or collapses to `NaN`.
+- **`evaluateCameraKeyframes3D(frame, keyframes, impulses?, handheldIntensity?, seed?)`:** Evaluates a continuous one-shot 3D `CameraKeyframe3D[]` timeline with cubic smoothstep glides, calm breathing sway (`handheldIntensity <= 0.015`), and decaying micro-recoil impulses (`CameraImpulse[]`).
+- **Camera-Locked Foreground Glass Plane (`<ScreenGlassLayer3D />` & `<ScreenGlassSlot />`):**
+  - Mount tactile 3D props (documents, postcards, sheets, badges) directly on an invisible glass plane `glassDistance` units in front of the moving 3D camera using `projectScreenGlassPose(camera, ndcX, ndcY, glassDistance, aspect)` so foreground heroes track every camera orbit and glide with zero jitter.
+  - Pair `<ScreenGlassLayer3D camera={cam} items={...} showLensFillLight />` with `<ScreenGlassSlot ndcX={...} ndcY={...} zOffset={...}>` and `computeGlassLightingBlend(maxGlassProgress)` to dim background stage lamps while smoothly bringing up a subtle lens fill light and soft SDF contact shadow (`SCREEN_GLASS_SHADOW_OFFSET_Z`).
+
+### Disney 12-Principles Kinematics (`@make-pictures/core/kinematics`)
+Replace linear or generic easing on flying/settling 3D props with pure, zero-Three.js physical choreography curves:
+- **`disneyEase(t, 'launch' | 'hang' | 'slap' | 'settle')`:** Asymmetric timing curves (snappy lift-off, graceful apex hang-time, accelerating impact slap, critically damped settle).
+- **`evaluateAnticipation(progress, intensity?)`:** Subtle counter-motion dip (`offsetY`, `offsetZ`, `bendY`, `tiltX`) before launch.
+- **`evaluateArc3D(p0, p1, p2, p3, t, bankFactor?, maxBankRad?)`:** 3D cubic Bézier trajectory returning `{ position, velocity, bankRoll }` with aerodynamic lateral banking.
+- **`evaluateSurfaceImpact(framesSinceImpact, strength?)`:** Area-preserving squash & stretch (`scaleX * scaleY === 1`), decaying `cornerWhip`, subtle `rotZ` settle, and `contactShadowOpacity` (settling cleanly to `0` after `36f`).
+- **`evaluateVelocityStretch(velocity, threshold?, maxStretch?)` & `evaluateSecondaryCascade(framesSinceTrigger, depthIndex, maxAffected?)`:** Motion-aligned stretch at peak speed and subtle decaying rustle across stacked neighboring sheets beneath a launched prop.
 
 ### Deterministic Handheld Sway & Trauma Shake
 - `handheldIntensity` (`0..1`): Uses `evaluateHandheldNoise(frame, fps, seed, intensity)` locked to calm human breathing frequencies (`0.03..0.055` rad/frame) so the camera feels alive without jittering.

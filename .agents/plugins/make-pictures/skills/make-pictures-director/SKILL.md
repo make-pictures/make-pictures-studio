@@ -148,22 +148,31 @@ Load `sound-and-music-design` and write `productions/<slug>/production.json` con
 
 ---
 
-### Step 3: Unified Audio Generation, Asset Cutout Hygiene & Mandatory `.mp3` Audition
+### Step 3: Unified Audio Generation, Fact-Check, Asset Hygiene & Mandatory `.mp3` Audition
 
-1. Run `npx make-pictures doctor` (or `npx make-pictures onboard`) if this is the first session, and pick a **language-native voice** via `npx make-pictures voices --lang=pl --json` (or `--lang=en`; never use English premade voices like Liam/Sarah for Polish narration; optionally test 1 short sentence with `--audition="..." --voice=<id>`).
-2. Generate voiceovers + word timestamps + AI music score + AI SFX (automatically runs `lintManifestVoiceovers` checking native PL voice selection, Polish **głoskowce** `"api"` vs hyphenated **literowce** `"u-es-be"`, and catalog SKUs):
+1. **Pilot Demo First (2–3 Key Shots) & Mandatory Fact-Check Gate:**
+   - **Pilot Demo (`2–3` key shots):** For multi-act 3D, archival, or custom-rig productions, build and render a short **Pilot Demo** (`10–15 s`, `2–3` signature shots covering hero materials, camera distance, and overlay readability) before synthesizing the entire narration or animating all scenes. Lock visual direction early so you never burn audio credits or render hours on a misaligned look.
+   - **Mandatory Fact-Check before paid audio:** Before running paid ElevenLabs synthesis or final MP4 render on any documentary, historical, technical, or product script, verify every date, proper noun, measurement, and quotation against primary sources and resolve uncertainties first — re-recording voiceovers after a late factual fix wastes credits and shifts every downstream cue.
+2. Run `npx make-pictures doctor` (or `npx make-pictures onboard`) if this is the first session, and pick a **language-native voice** via `npx make-pictures voices --lang=pl --json` (or `--lang=en`; never use English premade voices like Liam/Sarah for Polish narration; optionally test 1 short sentence with `--audition="..." --voice=<id>`).
+3. Generate voiceovers + word timestamps + AI music score + AI SFX (automatically runs `lintManifestVoiceovers` checking native PL voice selection, Polish **głoskowce** `"api"` vs hyphenated **literowce** `"u-es-be"`, catalog SKUs, and `eleven_v3` audio-tag/discrete `stability` safety):
    ```bash
    npx make-pictures audio --production=<slug>
    ```
    *(Add `--mock` for offline/zero-credit procedural synthesis, `--force` to bypass SHA-256 cache, or `--dir=<subdir>` in embedded SaaS repos.)*
-3. **MANDATORY `.mp3` LISTEN GATE & TIMING RECALCULATION:** Inspect every newly generated `.mp3` inside `productions/<slug>/assets/` via `read_file` to verify pronunciation and unclipped word endings, then compute exact scene frame spans via `computeSceneTimingFromVoiceover`.
-4. **Style-Anchored AI Illustrations & Safe Cutout Protocol (`image --style` & `cutout`):**
+4. **MANDATORY `.mp3` LISTEN GATE & TIMING RECALCULATION:** Inspect every newly generated `.mp3` inside `productions/<slug>/assets/` via `read_file` to verify pronunciation and unclipped word endings, then compute exact scene frame spans via `computeSceneTimingFromVoiceover`.
+5. **Style-Anchored AI Illustrations, Safe Cutouts & Archival Scan Hygiene (`image --style`, `cutout`, `assets clean-scan`, `assets sheet`, `SOURCES.md`):**
    - Generate cohesive raster illustrations via `npx make-pictures image "<subject>" --style=<styleId> --out=productions/<slug>/assets/hero.png` (automatically prepends the style's `Base Style Anchor` and appends a strict no-text guard clause).
    - When extracting bright objects or hardware from PDFs or white-background photos, **NEVER** apply global white thresholding (`rgb > 245 => alpha = 0` or `colorkey=white`), which punches transparent holes inside silver/white enclosures! Always run:
      ```bash
      npx make-pictures cutout <source.pdf|photo.png> --out=productions/<slug>/assets/device.png
      ```
      which extracts native PDF `/SMask` RGBA streams or runs **Exterior Border Flood-Fill**, checks `detectInteriorAlphaHoles`, and emits a `#0F172A`/`#1E293B` Dark Checkerboard QA PNG that you MUST inspect with `read_file`.
+   - **Archival Scans, Contact Sheets & Attribution (`SOURCES.md`):** When ingesting scanned documents, engravings, postcards, or book plates with dark scanner borders or corners, clean them non-destructively via Exterior Perimeter Flood-Fill (protecting interior ink 100%) and verify the whole asset folder on a dark checkerboard contact sheet before mounting in scenes:
+     ```bash
+     npx make-pictures assets clean-scan raw/plate.png --out=productions/<slug>/assets/plate-clean.png
+     npx make-pictures assets sheet productions/<slug>/assets --out=productions/<slug>/assets/_qa-assets-contact-sheet.png
+     ```
+     Inspect `_qa-assets-contact-sheet.png` via `read_file` and record every external archival/public-domain source URL, author, and license in `productions/<slug>/SOURCES.md`.
 
 ---
 
@@ -176,7 +185,9 @@ Load `sound-and-music-design` and write `productions/<slug>/production.json` con
 
 ---
 
-### Step 5: Hard Director QA Gate & Auto-Grid Contact-Sheet Visual QA (`qa`)
+### Step 5: 3D Zero-Collision Test Gate, Hard Director QA Gate & Auto-Grid Contact-Sheet Visual QA (`qa`)
+
+- **3D Zero-Collision Unit Gate (`auditSceneCollisions3D` + `computeDeformedSheetAabb3D`):** Whenever a 3D or 2.5D film animates physical sheets, props, or stacked objects across a surface, write a fast deterministic unit test sampling scene choreography frames via `auditSceneCollisions3D(bodies, { surfaceY, minClearance })` and `computeDeformedSheetAabb3D(...)` from `@make-pictures/core/kinematics` (15-axis OBB SAT + surface clearance proof) **before** rendering QA grids.
 
 Before running a full MP4 render, run the automated Director QA Gate + Auto-Grid Contact-Sheet PNG (`--grid=auto` by default, guaranteeing **100% scene and `subViews` coverage** even on 8–12 scene narratives):
 

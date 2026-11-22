@@ -84,6 +84,25 @@ Keep `voiceSettings.speed` in the natural **`0.98–1.00`** range (`0.99` CLI de
    - `N2lVS1w4EtoT3dr4eOWO` (*Callum* — assistant / analyst)
    - `pqHfZKP75CvOlQylNhV4` (*Bill* — elderly mentor)
 
+### Expressive Acting Direction with `eleven_v3` (Audio Tags, Discrete `stability` & Micro-Segments)
+
+When a documentary essay, story, or character monologue calls for richer human nuance than `eleven_multilingual_v2`, switch the manifest or individual scenes to `modelId: "eleven_v3"` (always audition 1 representative sentence first to A/B compare tone and Polish/English diction against `eleven_multilingual_v2`):
+
+```bash
+# 1-sentence A/B audition before committing full production credits:
+npx make-pictures voices --voice=C8ZVSJxcymeT86xT429O --lang=pl --audition="[thoughtful] Ten detal zmienia wszystko… [warmly] i zaraz zobaczysz dlaczego."
+```
+
+1. **Inline Audio Tags (Strictly `eleven_v3` / `eleven_v4` Only):**
+   - Direct micro-shifts in delivery with concise bracketed cues right inside `scene.text`: `[thoughtful]`, `[warmly]`, `[playful]`, `[amazed]`, `[whispers]`, `[sighs]`, `[curious]`, `[excited]`.
+   - Combine tags with natural **"thinking out loud" phrasing and gentle self-corrections** (e.g., *„…a właściwie jeszcze wcześniej, bo już w piętnastym wieku…”*) so the narration breathes like a real storyteller rather than a teleprompter.
+   - **Cross-Model Safety (`[v3-audio-tags]`):** Never leave `[thoughtful]` or other bracketed tags in a scene using `eleven_multilingual_v2` — v2 will literally read the English tag aloud! `lintManifestVoiceovers` (`phonetics-lint.ts`) strips v3 tags before Polish acronym checks and emits `[v3-audio-tags]` across both `pl` and `en` whenever tags appear on a non-v3/v4 model.
+2. **Discrete `stability` Constraint (`[v3-stability]`):**
+   - `eleven_v3` accepts **strictly discrete `voiceSettings.stability` values: `0.0` (Creative), `0.5` (Natural — recommended default), or `1.0` (Robust)**. Intermediate values like `0.35` or `0.48` fail or degrade unpredictably — `lintManifestVoiceovers` automatically flags them with `[v3-stability]`.
+3. **Micro-Segment Splitting (`a/b/c`) for Physical Pauses & Credit Efficiency:**
+   - Instead of one 25-second wall-of-text scene, split key narrative beats into short **micro-segments** (`s02a-setup`, `s02b-twist`, `s02c-resolve`) in `production.json` and space them on the visual timeline with explicit physical/SFX pauses (`0.6–1.4 s` for a sheet flip, reveal, or camera macro push).
+   - Because `npx make-pictures audio` caches each segment by SHA-256 hash, editing one sentence re-synthesizes **only that 3-second micro-segment** instead of paying to regenerate an entire 25-second monologue.
+
 ### Declarative Voice Acoustic Filters (`voiceEffect`)
 Never hardcode scene IDs in audio scripts. Set `voiceEffect?: VoiceAcousticPreset` directly on any scene in `production.json`:
 - `'clean'` (default — preserves `250 ms` `apad` silent tail so final consonants never clip)

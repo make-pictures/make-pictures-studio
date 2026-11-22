@@ -103,6 +103,40 @@ Never place overlapping cutouts at identical or near-identical `z` coordinates:
 
 ---
 
+## Tactile 3D Deformable Sheets (`@make-pictures/kits/tactile-3d`) & 15-Axis SAT Collision Proofs
+
+When a scene calls for true physical paper, parchment, documents, postcards, or archival plates bending in 3D space (not flat extruded silhouettes), pair `paper-diorama-3d` with `@make-pictures/kits/tactile-3d` and `@make-pictures/core/kinematics`:
+
+```tsx
+import {
+  DeformableSheet3D,
+  computeGridAtlasUvRect,
+  usePreloadedTextures3D,
+  SHEET_MATERIAL_FINISHES,
+} from '@make-pictures/kits/tactile-3d';
+import {
+  obbClearanceSat3D,
+  obbIntersectsSat3D,
+  computeDeformedSheetAabb3D,
+  computeSurfaceClearanceY,
+  auditSceneCollisions3D,
+} from '@make-pictures/core/kinematics';
+```
+
+- **`<DeformableSheet3D />` (Rounded 3D Sheet + GPU Bend Shader + Curved `customDepthMaterial`):**
+  - Renders a multi-segment rounded-corner physical sheet (`width`, `height`, `thickness`, `cornerRadius`, `segX`, `segY`) with separate front, back, and paper-edge material groups.
+  - Drives real-time GPU vertex bending via `deform={{ bendX, bendY, twist, cornerWhip, velocityStretch }}` (`SheetDeformParams`) with a synchronized **`customDepthMaterial`** so PCF cast shadows bend accurately alongside the sheet mesh (zero flat-shadow detachment).
+  - **Material Finishes (`finish?: SheetMaterialFinish`):** Choose from `SHEET_MATERIAL_FINISHES`: `'parchment-matte'`, `'woodblock-cotton'`, `'linen-glaze'`, `'cyanotype-blueprint'`, or `'xray-neon'` (automatically binds cached offline PBR bump/roughness maps while letting explicit `roughness` / `bumpScale` / `clearcoat` props override).
+  - **Scan Bleed Trim & Texture Atlases:** Pass `bleedInsetUv={0.015}` to crop scanner borders cleanly in UV space without re-encoding bitmaps, or slice multi-item contact sheets with `uvRect={computeGridAtlasUvRect({ slot, cols, rows, bleedInsetUv })}` (`uvCropX` / `uvCropY` also supported).
+  - **Concurrency-Safe Texture Preloading (`usePreloadedTextures3D`):** Preload all sheet textures through `usePreloadedTextures3D(specs)` (module-level LRU cache wrapped in Remotion `delayRender` / `continueRender` with sRGB/linear color-space control and graceful error fallback — never stalls `--concurrency=100%` renders).
+- **15-Axis OBB SAT Collision & Surface-Clearance Proofs (`@make-pictures/core/kinematics`):**
+  - Prove zero interpenetration and zero tabletop clipping in pure Node unit tests (zero Three.js runtime imports):
+    - `obbClearanceSat3D(boxA, boxB)` / `obbIntersectsSat3D(boxA, boxB)` — exact 15-axis Separating Axis Theorem clearance for arbitrarily rotated/quaternion-oriented 3D boxes (`eulerOrder: 'XYZ' | 'YXZ' | 'ZYX'`).
+    - `computeDeformedSheetAabb3D({ position, width, height, thickness, rotation, deform })` + `computeSurfaceClearanceY(aabb, surfaceY)` — computes world-space AABB including active bend/twist/whip deflection to prove bent corners never pierce the desk surface.
+    - `auditSceneCollisions3D(bodies, { minClearance, ignoredPairs, surfaceY, minSurfaceClearance })` — audits every pair and tabletop clearance across sampled animation frames in one report (`{ ok, checkedPairs, minClearance, violations, surfaceViolations }`).
+
+---
+
 ## Reference Pattern: Apollo 11 Multi-Plane 2.5D Diorama (`Δz >= 0.45`)
 
 ```tsx
