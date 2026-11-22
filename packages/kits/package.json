@@ -76,6 +76,11 @@
       "types": "./dist/vector-scene-2d/index.d.ts",
       "import": "./dist/vector-scene-2d/index.mjs",
       "require": "./dist/vector-scene-2d/index.cjs"
+    },
+    "./tactile-3d": {
+      "types": "./dist/tactile-3d/index.d.ts",
+      "import": "./dist/tactile-3d/index.mjs",
+      "require": "./dist/tactile-3d/index.cjs"
     }
   },
   "peerDependencies": {

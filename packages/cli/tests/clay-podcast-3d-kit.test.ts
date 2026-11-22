@@ -208,10 +208,9 @@ test('StudioHdrRig3D, ClayCharacter3D, and PodcastStudioSet3D obey offline IBL, 
   }
 
   // Offline hermetic IBL invariants on StudioHdrRig3D
-  assert.match(hdrSrc, /<Environment\b/);
-  assert.match(hdrSrc, /resolution=\{256\}/);
-  assert.match(hdrSrc, /frames=\{1\}/);
-  assert.match(hdrSrc, /<Lightformer\b/);
+  assert.match(hdrSrc, /<SyncStudioIbl3D\b/);
+  assert.doesNotMatch(hdrSrc, /<Environment\b/);
+  assert.doesNotMatch(hdrSrc, /<Lightformer\b/);
   assert.match(hdrSrc, /<ContactShadowDisc3D\b/);
   assert.doesNotMatch(hdrSrc, /<ContactShadows\b/);
   assert.match(hdrSrc, /shadow-mapSize=\{\[1024,\s*1024\]\}/);
@@ -219,8 +218,8 @@ test('StudioHdrRig3D, ClayCharacter3D, and PodcastStudioSet3D obey offline IBL, 
   assert.match(hdrSrc, /<hemisphereLight\b/);
   assert.doesNotMatch(
     hdrSrc,
-    /<Environment[^>]*\b(preset|files)\s*=/,
-    'StudioHdrRig3D must NEVER pass preset= or files= to <Environment>'
+    /\b(preset|files)\s*=\s*['"]/,
+    'StudioHdrRig3D must NEVER pass string preset= or files= HDR loaders'
   );
   assert.doesNotMatch(
     hdrSrc,

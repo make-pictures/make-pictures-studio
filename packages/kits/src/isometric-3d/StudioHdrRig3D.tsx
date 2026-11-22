@@ -1,11 +1,11 @@
 import React, { useMemo } from 'react';
 import { useCurrentFrame } from 'remotion';
-import { Environment, Lightformer } from '@react-three/drei';
 import {
   resolveStyleMaterial3D,
   useStudioStyle,
   type StyleStudioHdrPreset,
 } from '@make-pictures/core';
+import { SyncStudioIbl3D } from '../tactile-3d/SyncStudioIbl3D';
 import { ContactShadowDisc3D } from '../vfx/StagePostProcessing3D';
 
 export interface StudioLightformerPanelSpec {
@@ -283,32 +283,12 @@ const MemoizedStudioHdrRigInner = React.memo<StudioHdrRigInnerProps>(
       [resolvedPreset, intensity]
     );
 
-    const lightformerNodes = useMemo(
-      () =>
-        spec.lightformers.map((panel) => (
-          <Lightformer
-            key={panel.id}
-            form={panel.form}
-            color={panel.color}
-            intensity={panel.intensity}
-            position={panel.position}
-            rotation={panel.rotation}
-            target={panel.target}
-            scale={panel.scale}
-          />
-        )),
-      [spec]
-    );
-
     return (
       <group name={`studio-hdr-rig-3d-${resolvedPreset}`}>
-        <Environment
-          resolution={256}
-          frames={1}
+        <SyncStudioIbl3D
+          panels={spec.lightformers}
           environmentIntensity={spec.environmentIntensity}
-        >
-          {lightformerNodes}
-        </Environment>
+        />
 
         <hemisphereLight
           args={[spec.hemiSkyColor, spec.hemiGroundColor, spec.hemiIntensity]}
@@ -349,8 +329,8 @@ const MemoizedStudioHdrRigInner = React.memo<StudioHdrRigInnerProps>(
 );
 
 /**
- * Hermetic 100% offline GPU image-based lighting rig (`Environment` + `Lightformer`
- * + key shadow-casting directional light + deterministic zero-FBO `ContactShadowDisc3D`).
+ * Hermetic 100% offline GPU image-based lighting rig (synchronous `SyncStudioIbl3D`
+ * via `THREE.PMREMGenerator` + key shadow-casting directional light + deterministic zero-FBO `ContactShadowDisc3D`).
  */
 export const StudioHdrRig3D: React.FC<StudioHdrRig3DProps> = ({
   preset,

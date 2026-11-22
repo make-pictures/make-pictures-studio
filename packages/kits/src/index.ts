@@ -7,3 +7,4 @@ export * from './data-storytelling';
 export * from './product-frames';
 export * from './editorial-collage';
 export * from './vector-scene-2d';
+export * from './tactile-3d';
