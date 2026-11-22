@@ -52,21 +52,70 @@ const STANDARD_NUMBER_RE =
 const UPPERCASE_ACRONYM_TOKEN_RE =
   /(?<![\p{L}\p{N}])(?:[A-Z]{2,6}|SaaS)(?![\p{L}\p{N}])/gu;
 
+const ELEVENLABS_V3_TAG_RE = /\[([a-zA-Z][a-zA-Z\s-]{1,28})\]/g;
+const ELEVENLABS_V3_ALLOWED_STABILITY = [0, 0.5, 1] as const;
+
+export function extractElevenLabsV3Tags(text: string): string[] {
+  return Array.from(text.matchAll(ELEVENLABS_V3_TAG_RE), (match) => match[0]);
+}
+
+export function stripElevenLabsV3Tags(text: string): string {
+  return text.replace(ELEVENLABS_V3_TAG_RE, ' ').replace(/\s+/g, ' ').trim();
+}
+
+export function lintElevenLabsV3Usage(
+  sceneId: string,
+  text: string,
+  modelId = 'eleven_multilingual_v2',
+  voiceSettings?: VoiceSettingsConfig
+): string[] {
+  const warnings: string[] = [];
+  const effectiveModelId = modelId.trim() || 'eleven_multilingual_v2';
+  const isV3OrNewer = /^(?:eleven_v3|eleven_v4)/i.test(effectiveModelId);
+
+  const tags = extractElevenLabsV3Tags(text);
+  if (tags.length > 0 && !isV3OrNewer) {
+    warnings.push(
+      `[v3-audio-tags] (${sceneId}) Wykryto tagi ekspresji ElevenLabs v3 (${tags.join(', ')}) przy modelu "${effectiveModelId}" — model starszy niż eleven_v3 przeczyta je na głos! Przełącz scenę lub manifest na "eleven_v3" albo usuń nawiasy kwadratowe.`
+    );
+  }
+
+  if (
+    /^eleven_v3/i.test(effectiveModelId) &&
+    voiceSettings &&
+    typeof voiceSettings.stability === 'number'
+  ) {
+    const isDiscrete =
+      Number.isFinite(voiceSettings.stability) &&
+      ELEVENLABS_V3_ALLOWED_STABILITY.some(
+        (allowed) => Math.abs(voiceSettings.stability! - allowed) <= 1e-6
+      );
+    if (!isDiscrete) {
+      warnings.push(
+        `[v3-stability] (${sceneId}) Model "eleven_v3" wymaga dyskretnej wartości voiceSettings.stability ∈ {0, 0.5, 1} (Creative / Natural / Robust), a podano ${voiceSettings.stability}.`
+      );
+    }
+  }
+
+  return warnings;
+}
+
 export function lintPolishVoiceoverText(
   sceneId: string,
   text: string,
   voiceSettings?: VoiceSettingsConfig
 ): string[] {
   const warnings: string[] = [];
+  const cleaned = stripElevenLabsV3Tags(text);
 
-  for (const match of text.matchAll(FORBIDDEN_API_LETTERING_RE)) {
+  for (const match of cleaned.matchAll(FORBIDDEN_API_LETTERING_RE)) {
     warnings.push(
       `[phonetics-lint] (${sceneId}) Wykryto antywzorzec "${match[0]}" — skrótowiec API to po polsku głoskowiec; zapisz go jako "api" (nigdy "a-pe-i", "a pe i" ani "ej-pi-aj").`
     );
   }
 
   for (const rule of SPACED_LETTERING_MAP) {
-    for (const match of text.matchAll(rule.re)) {
+    for (const match of cleaned.matchAll(rule.re)) {
       warnings.push(
         `[phonetics-lint] (${sceneId}) Zastąp rozdzielony spacjami literowiec "${match[0]}" zapisem z dywizami ("${rule.canonical}").`
       );
@@ -74,7 +123,7 @@ export function lintPolishVoiceoverText(
   }
 
   const skuSpans: Array<[number, number]> = [];
-  for (const match of text.matchAll(SKU_CODE_RE)) {
+  for (const match of cleaned.matchAll(SKU_CODE_RE)) {
     const start = match.index ?? 0;
     skuSpans.push([start, start + match[0].length]);
     warnings.push(
@@ -83,7 +132,7 @@ export function lintPolishVoiceoverText(
   }
 
   const stdSpans: Array<[number, number]> = [];
-  for (const match of text.matchAll(STANDARD_NUMBER_RE)) {
+  for (const match of cleaned.matchAll(STANDARD_NUMBER_RE)) {
     const start = match.index ?? 0;
     stdSpans.push([start, start + match[0].length]);
     warnings.push(
@@ -91,7 +140,7 @@ export function lintPolishVoiceoverText(
     );
   }
 
-  for (const match of text.matchAll(UPPERCASE_ACRONYM_TOKEN_RE)) {
+  for (const match of cleaned.matchAll(UPPERCASE_ACRONYM_TOKEN_RE)) {
     const start = match.index ?? 0;
     const end = start + match[0].length;
     const insideSku = skuSpans.some(([s, e]) => start >= s && end <= e);
@@ -134,7 +183,9 @@ export function shouldRunPolishPhoneticsLint(params: {
 }): boolean {
   if (params.lang === 'en') return false;
   if (params.lang === 'pl') return true;
-  const combined = (params.scenes ?? []).map((s) => s.text ?? '').join(' ');
+  const combined = (params.scenes ?? [])
+    .map((s) => stripElevenLabsV3Tags(s.text ?? ''))
+    .join(' ');
   return POLISH_SIGNAL_RE.test(combined);
 }
 
@@ -155,16 +206,33 @@ export function lintManifestVoiceovers(
   manifest: {
     lang?: string;
     voiceId?: string;
+    modelId?: string;
     scenes?: ReadonlyArray<SceneDefinition>;
   },
-  options?: { defaultVoiceId?: string }
+  options?: { defaultVoiceId?: string; defaultModelId?: string }
 ): string[] {
-  if (!shouldRunPolishPhoneticsLint(manifest)) {
-    return [];
-  }
   const allWarnings: string[] = [];
+  const runPolishChecks = shouldRunPolishPhoneticsLint(manifest);
   const warnedVoiceIds = new Set<string>();
+
   for (const scene of manifest.scenes ?? []) {
+    const effectiveModelId =
+      scene.modelId?.trim() ||
+      manifest.modelId?.trim() ||
+      options?.defaultModelId?.trim() ||
+      'eleven_multilingual_v2';
+
+    allWarnings.push(
+      ...lintElevenLabsV3Usage(
+        scene.id,
+        scene.text ?? '',
+        effectiveModelId,
+        scene.voiceSettings
+      )
+    );
+
+    if (!runPolishChecks) continue;
+
     const effectiveVoiceId =
       scene.voiceId?.trim() ||
       manifest.voiceId?.trim() ||

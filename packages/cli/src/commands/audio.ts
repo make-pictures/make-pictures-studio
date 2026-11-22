@@ -669,6 +669,7 @@ async function processProductionCapsule(params: {
 
   const phoneticsWarnings = lintManifestVoiceovers(manifest, {
     defaultVoiceId: capsuleDefaultVoiceId,
+    defaultModelId: capsuleModelId,
   });
   for (const warn of phoneticsWarnings) {
     console.warn(`  ⚠️  ${warn}`);
