@@ -6,6 +6,19 @@ The project adheres to [Semantic Versioning](https://semver.org/) and is release
 
 ---
 
+## [2.4.1] — 2026-11-22
+
+### Fixed
+- **R3F Per-Frame Stability & Offline PBR Seams (`@make-pictures/kits`):** Eliminated per-frame light, geometry, and shader-material churn in `<DaylightArcRig3D />`, `<StudioHdrRig3D />`, `<ScreenGlassLayer3D />`, and `<DeformableSheet3D />`; wired `DaylightArcRig3D` tone-mapping exposure sync with clean unmount restore; ensured immediate `PMREMGenerator` disposal and `environmentIntensity` restore in `<SyncStudioIbl3D />`; hardened `usePreloadedTextures3D` against synchronous loader exceptions, duplicate `continueRender` calls, and anisotropy cache collisions; and fixed procedural PBR texture generators (`linen-weave`, `wood-grain`, `brushed-metal`, `cotton-paper`) to tile seamlessly with exact integer harmonics.
+- **9:16 Safe Box & Contrast in Editorial Overlays (`@make-pictures/kits/editorial-collage`):** Adapted `<PaperRibbonTimeline />` and `<FloatingEditorialDisplay />` for vertical `9:16` Golden Safe Box bounds, made `resolveActivePaperMilestoneId` order-independent, and added high-contrast accent fallbacks for `light-on-dark` overlays on light styles.
+- **3D Kinematics, Camera Recoil & Showcase Collision Proof (`@make-pictures/core`, `examples/tactile-3d-showcase`):** Upgraded `computeDeformedSheetAabb3D` to a `9×9` deformed surface grid, sorted keyframes and applied impulse recoil along camera `up`/`-forward` in `evaluateCameraKeyframes3D`, fixed `evaluateSecondaryCascade` index bounds, and hardened `Tactile3DShowcase` with 0 deformed-sheet pairwise penetration across all 360 frames and smooth continuous quaternion orientation.
+- **ElevenLabs `eleven_v3` Stability Snapping & Audio Tag Linting (`@make-pictures/core`, `@make-pictures/cli`):** Added `snapStabilityForElevenLabsModel` (snapping `eleven_v3` stability to discrete `{0.0, 0.5, 1.0}`) across `voices.ts`, `commands/audio.ts`, and `commands/voices.ts`; broadened `ELEVENLABS_V3_TAG_RE` for timing/descriptive tags while ignoring numeric footnotes; and stripped v3 tags in synthetic mock word timestamps.
+- **Assets CLI Premultiplied Alpha, Flag Validation & Subpath Packaging (`@make-pictures/cli`, `create-make-pictures`, `scripts/build-packages.ts`):** Switched `assets sheet` resampling to premultiplied-alpha bilinear interpolation (eliminating dark fringe halos on transparent cutouts), added dimension/tile/canvas-pixel bounds, tiny-image corner caps, Polish diacritic normalization + `[ ] @ ,` 5×7 glyphs, negative/valueless numeric CLI flag validation, `--dir`-relative asset path resolution, clean `@make-pictures/core/kinematics` subpath mapping in built kits, and synced v2.4.1 fallback rules + `voices`/`assets` package scripts.
+
+🔗 [GitHub Release `v2.4.1`](https://github.com/make-pictures/make-pictures-studio/releases/tag/v2.4.1)
+
+---
+
 ## [2.4.0] — 2026-11-22
 
 ### Added
