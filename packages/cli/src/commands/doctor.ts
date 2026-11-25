@@ -3,8 +3,17 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { ElevenLabsClient } from '@elevenlabs/elevenlabs-js';
 import dotenv from 'dotenv';
+import {
+  DEFAULT_ELEVENLABS_MODEL_ID,
+  getDefaultVoiceIdForLang,
+} from '@make-pictures/remotion/audio/voices';
 import { auditStudioAudioLifetimes } from '../audio/audit-audio-tags';
-import { resolveWorkspaceContext } from './workspace-paths';
+import { discoverAudioManifests } from './audio';
+import {
+  findInstalledPackageJson,
+  loadMakePicturesConfig,
+  resolveWorkspaceContext,
+} from './workspace-paths';
 
 export interface DoctorCommandOptions {
   cwd?: string;
@@ -24,27 +33,9 @@ function formatIcon(status: CheckResult['status']): string {
   return '❌';
 }
 
-function discoverProductionManifests(studioDir: string): string[] {
-  const productionsDir = path.join(studioDir, 'productions');
-  if (!fs.existsSync(productionsDir)) return [];
-  const found: string[] = [];
-  for (const entry of fs.readdirSync(productionsDir, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue;
-    const manifestPath = path.join(
-      productionsDir,
-      entry.name,
-      'production.json'
-    );
-    if (fs.existsSync(manifestPath)) {
-      found.push(manifestPath);
-    }
-  }
-  return found.sort();
-}
-
 /**
  * Runs environment health checks for Node.js, FFmpeg, `.env.local` / ElevenLabs API,
- * production capsules (or monorepo `scenes.json`), Remotion renderer, and Studio Web.
+ * `audio.json` manifests, Remotion Studio/Renderer, and AI skills.
  */
 export async function runDoctorCommand(
   options: DoctorCommandOptions = {}
@@ -53,13 +44,13 @@ export async function runDoctorCommand(
     cwd: options.cwd,
     dir: options.dir,
   });
+  const config = loadMakePicturesConfig(studioDir);
 
   const envLocalPath = path.join(rootDir, '.env.local');
   const envExamplePath = path.join(rootDir, '.env.example');
-  const scenesPath = path.join(rootDir, 'scenes.json');
 
   console.log('==============================================================');
-  console.log(' 🎬 make.pictures — Video-as-Code Studio Environment Doctor');
+  console.log(' 🎬 make.pictures — Remotion Toolkit Environment Doctor');
   console.log('    https://make.pictures');
   console.log('==============================================================\n');
 
@@ -99,7 +90,7 @@ export async function runDoctorCommand(
       name: 'FFmpeg Audio/Video Engine',
       status: 'warn',
       detail:
-        'ffmpeg not found in PATH (recommended for procedural SFX, QA contact sheets & -14 LUFS mastering: `brew install ffmpeg`)',
+        'ffmpeg not found in PATH — install via `brew install ffmpeg` (macOS), `sudo apt install ffmpeg` (Linux), or `winget install Gyan.FFmpeg` (Windows)',
     });
   }
 
@@ -108,9 +99,10 @@ export async function runDoctorCommand(
     if (fs.existsSync(envExamplePath)) {
       fs.copyFileSync(envExamplePath, envLocalPath);
     } else {
+      const defaultVoice = getDefaultVoiceIdForLang(config.lang);
       fs.writeFileSync(
         envLocalPath,
-        'ELEVENLABS_API_KEY=your_elevenlabs_api_key_here\nELEVENLABS_VOICE_ID=TX3LPaxmHKxFdv7VOQHJ\nELEVENLABS_MODEL_ID=eleven_v4\n',
+        `ELEVENLABS_API_KEY=your_elevenlabs_api_key_here\nELEVENLABS_VOICE_ID=${defaultVoice}\nELEVENLABS_MODEL_ID=${DEFAULT_ELEVENLABS_MODEL_ID}\n`,
         { mode: 0o600 }
       );
     }
@@ -132,14 +124,14 @@ export async function runDoctorCommand(
       name: 'Environment File (.env.local)',
       status: 'warn',
       detail:
-        'Missing `.env.local`. Run `npx make-pictures onboard` (or `npx make-pictures doctor --setup` for offline mode).',
+        'Missing `.env.local`. Run `npx make-pictures onboard` (or use `audio --mock` for offline mode).',
     });
   } else if (isPlaceholder) {
     results.push({
       name: 'ElevenLabs API Key',
       status: 'warn',
       detail:
-        '`ELEVENLABS_API_KEY` in `.env.local` is set to placeholder. Audio will use deterministic offline fallback (`--mock`) until connected.',
+        '`ELEVENLABS_API_KEY` in `.env.local` is set to placeholder. Use `--mock` until connected.',
     });
   } else {
     try {
@@ -171,27 +163,27 @@ export async function runDoctorCommand(
           detail: `API key present, but live check could not complete (${msg.slice(
             0,
             90
-          )}). Offline fallback remains available.`,
+          )}). Offline \`--mock\` remains available.`,
         });
       }
     }
   }
 
-  // 4. Productions & Manifests check (`productions/*/production.json` and/or `scenes.json`)
-  const capsuleManifests = discoverProductionManifests(studioDir);
-  if (capsuleManifests.length > 0) {
+  // 4. Audio manifests (`<videosDir>/*/audio.json`) & Audio Tag Pool Safety
+  const audioManifests = discoverAudioManifests(studioDir, config.videosDir);
+  if (audioManifests.length > 0) {
     try {
       let totalScenes = 0;
-      for (const mp of capsuleManifests) {
-        const parsed = JSON.parse(fs.readFileSync(mp, 'utf8')) as {
+      for (const m of audioManifests) {
+        const parsed = JSON.parse(fs.readFileSync(m.manifestPath, 'utf8')) as {
           scenes?: unknown[];
         };
         totalScenes += Array.isArray(parsed.scenes) ? parsed.scenes.length : 0;
       }
       results.push({
-        name: 'Production Capsules',
+        name: 'Audio Manifests (audio.json)',
         status: 'ok',
-        detail: `${capsuleManifests.length} capsule(s) in ${path.relative(rootDir, path.join(studioDir, 'productions')) || 'productions'} (${totalScenes} scenes @ 60 FPS)`,
+        detail: `${audioManifests.length} video(s) in ${config.videosDir} (${totalScenes} scenes @ ${config.fps} FPS)`,
       });
 
       const audioWarnings = auditStudioAudioLifetimes(studioDir);
@@ -200,7 +192,7 @@ export async function runDoctorCommand(
           name: 'Audio Tag Pool Safety',
           status: 'ok',
           detail:
-            'All capsule <Audio /> sequences specify finite lifetimes (no <Html5Audio /> tag leaks)',
+            'All <Audio /> sequences specify finite lifetimes (no <Html5Audio /> tag leaks)',
         });
       } else {
         const first = audioWarnings[0];
@@ -213,132 +205,75 @@ export async function runDoctorCommand(
       }
     } catch (err) {
       results.push({
-        name: 'Production Capsules',
+        name: 'Audio Manifests (audio.json)',
         status: 'fail',
-        detail: `Invalid JSON in production manifest: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
-      });
-    }
-  } else if (fs.existsSync(scenesPath)) {
-    try {
-      const manifest = JSON.parse(fs.readFileSync(scenesPath, 'utf8')) as {
-        scenes?: unknown[];
-        project?: { fps?: number };
-      };
-      const count = Array.isArray(manifest.scenes) ? manifest.scenes.length : 0;
-      results.push({
-        name: 'Scenes Manifest (scenes.json)',
-        status: 'ok',
-        detail: `Valid JSON (${count} scenes configured @ ${manifest.project?.fps ?? 60} FPS)`,
-      });
-    } catch (err) {
-      results.push({
-        name: 'Scenes Manifest (scenes.json)',
-        status: 'fail',
-        detail: `Invalid JSON in scenes.json: ${
+        detail: `Invalid JSON in audio.json: ${
           err instanceof Error ? err.message : String(err)
         }`,
       });
     }
   } else {
     results.push({
-      name: 'Production Capsules',
+      name: 'Audio Manifests (audio.json)',
       status: 'warn',
-      detail: `No capsules yet. Run \`npx make-pictures new hello-studio${dirRel !== '.' ? ` --dir=${dirRel}` : ''}\` to scaffold one.`,
+      detail: `No audio.json found yet in ${config.videosDir}. Run \`npx make-pictures new hello-studio${dirRel !== '.' ? ` --dir=${dirRel}` : ''}\` to scaffold one.`,
     });
   }
 
   // 5. Remotion CLI & Entrypoint check
-  try {
-    const remotionPkgPath = path.join(
-      rootDir,
-      'node_modules',
-      'remotion',
-      'package.json'
-    );
-    const cliPkgPath = path.join(
-      rootDir,
-      'node_modules',
-      '@remotion',
-      'cli',
-      'package.json'
-    );
-    if (!fs.existsSync(remotionPkgPath) || !fs.existsSync(cliPkgPath)) {
-      throw new Error('Missing remotion packages in node_modules');
-    }
+  const remotionPkgPath = findInstalledPackageJson(rootDir, 'remotion');
+  const cliPkgPath = findInstalledPackageJson(rootDir, '@remotion/cli');
+  if (remotionPkgPath && cliPkgPath) {
     const remotionPkg = JSON.parse(
       fs.readFileSync(remotionPkgPath, 'utf8')
     ) as { version?: string };
     const remotionVer = remotionPkg.version ?? '4.x';
+    const configuredEntry = path.resolve(studioDir, config.entryPoint);
+    const foundEntry = fs.existsSync(configuredEntry)
+      ? configuredEntry
+      : [
+          path.join(studioDir, 'src', 'index.ts'),
+          path.join(studioDir, 'src', 'index.tsx'),
+          path.join(rootDir, 'src', 'index.ts'),
+        ].find((p) => fs.existsSync(p));
 
-    const entryCandidates = [
-      path.join(studioDir, 'src', 'index.ts'),
-      path.join(studioDir, 'index.ts'),
-      path.join(rootDir, 'src', 'index.ts'),
-      path.join(rootDir, 'videos', 'index.ts'),
-    ];
-    const foundEntry = entryCandidates.find((p) => fs.existsSync(p));
     results.push({
-      name: 'Remotion 60 FPS Renderer',
+      name: 'Remotion Studio & Renderer',
       status: foundEntry ? 'ok' : 'warn',
       detail: foundEntry
-        ? `Remotion v${remotionVer} ready (entrypoint: ${path.relative(rootDir, foundEntry)})`
-        : `Remotion v${remotionVer} installed (entrypoint will auto-scaffold on qa/render)`,
+        ? `Remotion v${remotionVer} ready (entry: ${path.relative(rootDir, foundEntry)})`
+        : `Remotion v${remotionVer} installed (no entry found at ${config.entryPoint}; run \`npx make-pictures init\`)`,
     });
-  } catch {
+  } else {
     results.push({
-      name: 'Remotion 60 FPS Renderer',
+      name: 'Remotion Studio & Renderer',
       status: 'fail',
-      detail: 'Remotion CLI not available. Run `npm install` first.',
+      detail: 'Missing `remotion` or `@remotion/cli`. Run `npm install remotion @remotion/cli`.',
     });
   }
 
-  // 6. Local Studio Web check
-  try {
-    const vitePkgPath = path.join(
-      rootDir,
-      'node_modules',
-      'vite',
-      'package.json'
-    );
-    const playerPkgPath = path.join(
-      rootDir,
-      'node_modules',
-      '@remotion',
-      'player',
-      'package.json'
-    );
-    if (!fs.existsSync(vitePkgPath) || !fs.existsSync(playerPkgPath)) {
-      throw new Error('Missing Vite or @remotion/player in node_modules');
-    }
-    const vitePkg = JSON.parse(fs.readFileSync(vitePkgPath, 'utf8')) as {
-      version?: string;
-    };
-    const hasStudioPkg =
-      fs.existsSync(
-        path.join(
-          rootDir,
-          'node_modules',
-          '@make-pictures',
-          'studio',
-          'package.json'
-        )
-      ) ||
-      fs.existsSync(path.join(rootDir, 'src', 'compositions', 'registry.ts'));
-
+  // 6. @make-pictures/remotion & AI Skills check
+  const mpRemotionPkg = findInstalledPackageJson(
+    rootDir,
+    '@make-pictures/remotion'
+  );
+  const isMonorepo = fs.existsSync(
+    path.join(rootDir, 'packages', 'remotion', 'src', 'index.ts')
+  );
+  if (mpRemotionPkg || isMonorepo) {
     results.push({
-      name: 'Studio Web Workstation',
-      status: hasStudioPkg ? 'ok' : 'warn',
-      detail: hasStudioPkg
-        ? `Vite v${vitePkg.version ?? '6.x'} + @remotion/player + Props Inspector ready (http://127.0.0.1:3000)`
-        : 'Install `@make-pictures/studio` to launch `npx make-pictures studio`',
+      name: '@make-pictures/remotion',
+      status: 'ok',
+      detail: isMonorepo
+        ? 'Monorepo source (packages/remotion/src)'
+        : 'Installed in node_modules/@make-pictures/remotion',
     });
-  } catch {
+  } else {
     results.push({
-      name: 'Studio Web Workstation',
-      status: 'fail',
-      detail: 'Studio Web packages missing. Run `npm install` first.',
+      name: '@make-pictures/remotion',
+      status: 'warn',
+      detail:
+        'Not installed yet. Run `npm install @make-pictures/remotion` to use visual kits & StyleLab.',
     });
   }
 
@@ -349,14 +284,12 @@ export async function runDoctorCommand(
   const hasFailures = results.some((r) => r.status === 'fail');
   console.log('\n--------------------------------------------------------------');
   if (hasFailures) {
-    throw new Error('Some required studio environment checks failed.');
+    throw new Error('Some required environment checks failed.');
   }
 
   const dirFlag = dirRel !== '.' ? ` --dir=${dirRel}` : '';
-  console.log('✨ Studio environment is ready! Next steps:');
-  console.log('   1. Connect ElevenLabs API key: npx make-pictures onboard');
-  console.log(`   2. Launch Studio Web (60 FPS): npx make-pictures studio${dirFlag}`);
-  console.log(
-    `   3. Build audio & timestamps:   npx make-pictures audio${dirFlag}`
-  );
+  console.log('✨ Remotion toolkit environment is ready! Next steps:');
+  console.log('   1. Launch Remotion Studio:     npx remotion studio');
+  console.log('   2. Connect ElevenLabs API key: npx make-pictures onboard');
+  console.log(`   3. Build audio & timestamps:   npx make-pictures audio${dirFlag}`);
 }

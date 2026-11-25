@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { assertFfmpegInstalled } from '../commands/workspace-paths';
 
 export interface MasterLoudnessOptions {
   /** Target integrated loudness in LUFS (default: `-14` for YouTube / Shorts / Reels) */
@@ -53,6 +54,7 @@ export function masterMp4Loudness(
   if (!fs.existsSync(resolvedPath)) {
     throw new Error(`Cannot master loudness: file not found at ${resolvedPath}`);
   }
+  assertFfmpegInstalled('-14 LUFS loudness mastering');
 
   const targetI = options?.targetI ?? -14;
   const truePeak = options?.truePeak ?? -1.5;

@@ -1,7 +1,7 @@
 {
   "name": "@make-pictures/cli",
-  "version": "2.5.0",
-  "description": "Unified 60 FPS Video-as-Code CLI for make.pictures — Studio Web launcher, capsule scaffolding, ElevenLabs TTS/Music/SFX pipeline, 12-frame Contact-Sheet QA, and -14 LUFS mastering.",
+  "version": "3.0.0",
+  "description": "Production & Audio/QA Toolkit CLI for Remotion + AI Agents — onboarding, ElevenLabs TTS/Dialogue/Music/SFX, asset cutouts, native Contact-Sheet QA, -14 LUFS mastering, and Remotion Elements.",
   "homepage": "https://make.pictures",
   "repository": {
     "type": "git",
@@ -37,8 +37,8 @@
     "LICENSE"
   ],
   "dependencies": {
-    "@make-pictures/core": "^2.5.0",
-    "@make-pictures/studio": "^2.5.0",
+    "@make-pictures/remotion": "^3.0.0",
+    "@remotion/studio-protocol": "^4.0.545",
     "@elevenlabs/elevenlabs-js": "^2.76.0",
     "dotenv": "^16.4.7",
     "zod": "^3.24.2"
@@ -47,9 +47,7 @@
     "remotion": "^4.0.0",
     "@remotion/cli": "^4.0.0",
     "@remotion/bundler": "^4.0.0",
-    "@remotion/renderer": "^4.0.0",
-    "vite": "^5.0.0 || ^6.0.0",
-    "@vitejs/plugin-react": "^4.0.0"
+    "@remotion/renderer": "^4.0.0"
   },
   "engines": {
     "node": ">=18.0.0"

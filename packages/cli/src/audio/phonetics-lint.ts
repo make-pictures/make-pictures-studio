@@ -1,5 +1,5 @@
-import type { SceneDefinition, VoiceSettingsConfig } from '@make-pictures/core';
-import { getKnownEnglishVoiceName } from '../../../core/src/audio/voices';
+import type { AudioSceneSpec, VoiceSettingsConfig } from '@make-pictures/remotion/types';
+import { getKnownEnglishVoiceName } from '@make-pictures/remotion/audio/voices';
 
 /** Głoskowce — akronimy wymawiane po polsku jako jedno spójne słowo (bez literowania!) */
 export const POLISH_WORD_ACRONYMS: Record<string, string> = {
@@ -180,7 +180,7 @@ const POLISH_SIGNAL_RE =
 
 export function shouldRunPolishPhoneticsLint(params: {
   lang?: string;
-  scenes?: ReadonlyArray<Pick<SceneDefinition, 'text' | 'dialogueInputs'>>;
+  scenes?: ReadonlyArray<Pick<AudioSceneSpec, 'text' | 'dialogueInputs'>>;
 }): boolean {
   if (params.lang === 'en') return false;
   if (params.lang === 'pl') return true;
@@ -217,7 +217,7 @@ export function lintManifestVoiceovers(
     lang?: string;
     voiceId?: string;
     modelId?: string;
-    scenes?: ReadonlyArray<SceneDefinition>;
+    scenes?: ReadonlyArray<AudioSceneSpec>;
   },
   options?: { defaultVoiceId?: string; defaultModelId?: string }
 ): string[] {

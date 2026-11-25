@@ -9,7 +9,6 @@ import {
   runNewProductionCommand,
 } from '../src/commands/new-production';
 import { auditCompositionDirection } from '../src/director/audit-direction';
-import { createMakePicturesApp } from '../../create-make-pictures/src/index';
 
 function countWords(text: string): number {
   return text
@@ -61,7 +60,7 @@ test('buildScaffoldProductionManifest produces calm PL and EN copy (<= 2.2 words
   }
 });
 
-test('all 7 new-production kit scaffolds (PL & EN) generate 720-frame ContinuousSceneFlow capsules and pass auditCompositionDirection with 0 violations', async () => {
+test('all 7 new-production kit scaffolds (PL & EN) generate 720-frame ContinuousSceneFlow videos in src/videos/<slug>/ and pass auditCompositionDirection with 0 violations', async () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mp-new-prod-audit-'));
   try {
     for (const lang of ['pl', 'en'] as const) {
@@ -74,25 +73,27 @@ test('all 7 new-production kit scaffolds (PL & EN) generate 720-frame Continuous
               ? 'tactile-craft'
               : 'minimal-product';
 
-        const { productionDir, compositionId } = await runNewProductionCommand({
-          cwd: tmpDir,
-          slug,
-          kit,
-          style,
-          lang,
-          prepopulateTimestamps: true,
-        });
+        const { productionDir, compositionId, rootTsxPath } =
+          await runNewProductionCommand({
+            cwd: tmpDir,
+            slug,
+            kit,
+            style,
+            lang,
+            prepopulateTimestamps: true,
+          });
 
         const indexFile = path.join(productionDir, 'index.ts');
-        const tsxFile = path.join(
-          productionDir,
-          'compositions',
-          `${compositionId}.tsx`
-        );
+        const tsxFile = path.join(productionDir, `${compositionId}.tsx`);
+        const audioFile = path.join(productionDir, 'audio.json');
+        assert.equal(fs.existsSync(audioFile), true);
+        assert.equal(fs.existsSync(rootTsxPath), true);
+
         const indexSrc = fs.readFileSync(indexFile, 'utf8');
         const tsxSrc = fs.readFileSync(tsxFile, 'utf8');
 
         assert.match(indexSrc, /durationInFrames:\s*720\b/);
+        assert.doesNotMatch(indexSrc, /defineProduction/);
         assert.match(tsxSrc, /<ContinuousSceneFlow\b/);
         assert.match(tsxSrc, /crossDissolveFrames=\{48\}/);
         assert.doesNotMatch(tsxSrc, /<SceneTransition\b/);
@@ -145,8 +146,7 @@ test('all 7 new-production kit scaffolds (PL & EN) generate 720-frame Continuous
           rootDir: tmpDir,
           compositionId,
           origin: 'production',
-          productionId: slug,
-          propsFile: `productions/${slug}/compositions/${compositionId}.props.json`,
+          capsuleDir: productionDir,
           durationInFrames: 720,
           fps: 60,
           sceneTimeline: [
@@ -176,72 +176,6 @@ test('all 7 new-production kit scaffolds (PL & EN) generate 720-frame Continuous
   }
 });
 
-test('all 7 create-make-pictures starter kits generate 720-frame HelloStudio capsules passing auditCompositionDirection with 0 violations', async () => {
-  const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'mp-cmp-7kits-audit-'));
-  try {
-    for (const kit of SCENES_KIT_IDS) {
-      const appDir = path.join(tmpRoot, `app-${kit}`);
-      await createMakePicturesApp({
-        targetDir: appDir,
-        kit,
-        lang: 'pl',
-        install: false,
-      });
-
-      const indexFile = path.join(
-        appDir,
-        'productions',
-        'hello-studio',
-        'index.ts'
-      );
-      const tsxFile = path.join(
-        appDir,
-        'productions',
-        'hello-studio',
-        'compositions',
-        'HelloStudio.tsx'
-      );
-      const indexSrc = fs.readFileSync(indexFile, 'utf8');
-      const tsxSrc = fs.readFileSync(tsxFile, 'utf8');
-
-      assert.match(indexSrc, /durationInFrames:\s*720\b/);
-      assert.match(tsxSrc, /<ContinuousSceneFlow\b/);
-
-      const auditRes = auditCompositionDirection({
-        studioDir: appDir,
-        rootDir: appDir,
-        compositionId: 'HelloStudio',
-        origin: 'production',
-        productionId: 'hello-studio',
-        propsFile: 'productions/hello-studio/compositions/HelloStudio.props.json',
-        durationInFrames: 720,
-        fps: 60,
-        sceneTimeline: [
-          {
-            sceneId: 'hello-studio-intro',
-            fromFrame: 42,
-            durationInFrames: 180,
-          },
-          {
-            sceneId: 'hello-studio-payoff',
-            fromFrame: 402,
-            durationInFrames: 180,
-          },
-        ],
-      });
-
-      assert.equal(
-        auditRes.ok,
-        true,
-        `Expected create-make-pictures (${kit}) HelloStudio to pass auditCompositionDirection cleanly, got: ${JSON.stringify(auditRes.violations)}`
-      );
-      assert.equal(auditRes.violations.length, 0);
-    }
-  } finally {
-    fs.rmSync(tmpRoot, { recursive: true, force: true });
-  }
-});
-
 test('--space=2d/2.5d/3d scaffolds (including --style=retro-pc, paper-diorama-3d, and soft-clay) pass auditCompositionDirection with allowFastCuts: false', async () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mp-space-scaffolds-'));
   try {
@@ -251,18 +185,21 @@ test('--space=2d/2.5d/3d scaffolds (including --style=retro-pc, paper-diorama-3d
         space: '2d' as const,
         style: 'retro-pc',
         expectedPattern: /<RetroPcWindowStage2D\b/,
+        expectedStyleId: 'retro-pc',
       },
       {
         slug: 'diorama-space-25d',
         space: '2.5d' as const,
         style: undefined,
         expectedPattern: /<DioramaStage3D\b/,
+        expectedStyleId: 'tactile-craft',
       },
       {
         slug: 'clay-space-3d',
         space: '3d' as const,
         style: undefined,
         expectedPattern: /<PodcastStudioSet3D\b/,
+        expectedStyleId: 'soft-clay',
       },
     ] as const;
 
@@ -279,34 +216,19 @@ test('--space=2d/2.5d/3d scaffolds (including --style=retro-pc, paper-diorama-3d
         });
 
         const tsxSrc = fs.readFileSync(
-          path.join(productionDir, 'compositions', `${compositionId}.tsx`),
+          path.join(productionDir, `${compositionId}.tsx`),
           'utf8'
         );
         assert.match(tsxSrc, tc.expectedPattern);
         assert.doesNotMatch(tsxSrc, /Math\.random\s*\(/);
-
-        const propsJson = JSON.parse(
-          fs.readFileSync(
-            path.join(
-              productionDir,
-              'compositions',
-              `${compositionId}.props.json`
-            ),
-            'utf8'
-          )
-        ) as { styleId: string };
-
-        if (tc.space === '2d') assert.equal(propsJson.styleId, 'retro-pc');
-        if (tc.space === '2.5d') assert.equal(propsJson.styleId, 'tactile-craft');
-        if (tc.space === '3d') assert.equal(propsJson.styleId, 'soft-clay');
+        assert.match(tsxSrc, new RegExp(`"styleId": "${tc.expectedStyleId}"`));
 
         const auditRes = auditCompositionDirection({
           studioDir: tmpDir,
           rootDir: tmpDir,
           compositionId,
           origin: 'production',
-          productionId: slug,
-          propsFile: `productions/${slug}/compositions/${compositionId}.props.json`,
+          capsuleDir: productionDir,
           durationInFrames: 720,
           fps: 60,
           allowFastCuts: false,

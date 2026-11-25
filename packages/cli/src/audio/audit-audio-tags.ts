@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { loadMakePicturesConfig } from '../commands/workspace-paths';
 import {
   blankCommentsPreservingNewlines,
   lineNumberAtOffset,
@@ -86,7 +87,7 @@ export function scanTsxForUnboundedAudioSequences(
             filePath,
             line: innermost.line,
             snippet: innermost.snippet,
-            message: `Unbounded <Sequence> wrapping <Audio /> without \`durationInFrames\` keeps its <Html5Audio /> tag mounted until the end of the film. Pass \`durationInFrames={...}\` or use \`<VoiceoverTrack />\` / \`<SoundCue />\` from \`@make-pictures/core\`.`,
+            message: `Unbounded <Sequence> wrapping <Audio /> without \`durationInFrames\` keeps its <Html5Audio /> tag mounted until the end of the film. Pass \`durationInFrames={...}\` or use \`<VoiceoverTrack />\` / \`<SoundCue />\` from \`@make-pictures/remotion/audio\`.`,
           });
         }
       }
@@ -96,35 +97,47 @@ export function scanTsxForUnboundedAudioSequences(
   return warnings;
 }
 
+function collectTsxFiles(dirPath: string): string[] {
+  if (!fs.existsSync(dirPath)) return [];
+  const results: string[] = [];
+  const entries = fs
+    .readdirSync(dirPath, { withFileTypes: true })
+    .sort((a, b) => a.name.localeCompare(b.name));
+  for (const entry of entries) {
+    if (entry.name.startsWith('.') || entry.name === 'node_modules' || entry.name === 'generated' || entry.name === 'assets') {
+      continue;
+    }
+    const fullPath = path.join(dirPath, entry.name);
+    if (entry.isDirectory()) {
+      results.push(...collectTsxFiles(fullPath));
+    } else if (entry.isFile() && entry.name.endsWith('.tsx')) {
+      results.push(fullPath);
+    }
+  }
+  return results;
+}
+
 /**
- * Audits all `productions/<slug>/compositions/*.tsx` files inside `studioDir`
- * for unbounded `<Sequence><Audio /></Sequence>` blocks.
+ * Audits all video composition `.tsx` files inside `studioDir` (under `videosDir`
+ * from `make-pictures.json` and `productions/` if present) for unbounded
+ * `<Sequence><Audio /></Sequence>` blocks.
  */
 export function auditStudioAudioLifetimes(
   studioDir: string
 ): AudioLifetimeWarning[] {
-  const productionsDir = path.join(studioDir, 'productions');
-  if (!fs.existsSync(productionsDir)) {
-    return [];
-  }
+  const config = loadMakePicturesConfig(studioDir);
+  const candidateDirs = [
+    path.resolve(studioDir, config.videosDir),
+    path.join(studioDir, 'productions'),
+  ];
 
   const warnings: AudioLifetimeWarning[] = [];
-  const capsuleEntries = fs
-    .readdirSync(productionsDir, { withFileTypes: true })
-    .filter((e) => e.isDirectory() && !e.name.startsWith('.'))
-    .sort((a, b) => a.name.localeCompare(b.name));
+  const seenFiles = new Set<string>();
 
-  for (const capsule of capsuleEntries) {
-    const compDir = path.join(productionsDir, capsule.name, 'compositions');
-    if (!fs.existsSync(compDir)) continue;
-
-    const files = fs
-      .readdirSync(compDir, { withFileTypes: true })
-      .filter((f) => f.isFile() && f.name.endsWith('.tsx'))
-      .sort((a, b) => a.name.localeCompare(b.name));
-
-    for (const file of files) {
-      const fullPath = path.join(compDir, file.name);
+  for (const baseDir of candidateDirs) {
+    for (const fullPath of collectTsxFiles(baseDir)) {
+      if (seenFiles.has(fullPath)) continue;
+      seenFiles.add(fullPath);
       const source = fs.readFileSync(fullPath, 'utf8');
       warnings.push(...scanTsxForUnboundedAudioSequences(source, fullPath));
     }

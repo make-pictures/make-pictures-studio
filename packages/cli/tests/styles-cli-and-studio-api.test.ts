@@ -3,36 +3,17 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import React from 'react';
-import { renderToStaticMarkup } from 'react-dom/server';
-import { Thumbnail } from '@remotion/player';
 import {
-  BUILT_IN_STYLE_IDS,
   BUILT_IN_STYLES,
   StylePresetSchema,
   type StylePreset,
-} from '../../core/src/index';
+} from '@make-pictures/remotion/style/presets';
 import {
   defaultKitAndStyleForSpace,
   runNewProductionCommand,
 } from '../src/commands/new-production';
 import { runStylesListCommand } from '../src/commands/styles';
 import { runCli } from '../src/index';
-import {
-  ProjectPickerPopover,
-  STYLE_LAB_DURATION_IN_FRAMES,
-  STYLE_LAB_FPS,
-  StyleLabPreviewComposition,
-  StyleLabShowcase,
-} from '../../studio/src/client/index';
-import {
-  defaultPreviewKitForSpace,
-  resolveKitDimensionalSpace,
-} from '../../studio/src/client/components/StyleLabShowcase';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const REPO_ROOT = path.resolve(__dirname, '../../..');
 
 async function captureConsoleOutput(fn: () => Promise<void>): Promise<string> {
   const lines: string[] = [];
@@ -151,7 +132,7 @@ test('runStylesListCommand lists 10 built-in styles, prints [spaces] tags, and f
   }
 });
 
-test('defaultKitAndStyleForSpace, runNewProductionCommand, and runCli wire --space=2d|2.5d|3d on new/init and validate invalid --space', async () => {
+test('defaultKitAndStyleForSpace, runNewProductionCommand, and runCli wire --space=2d|2.5d|3d on new and validate invalid --space', async () => {
   assert.deepEqual(defaultKitAndStyleForSpace('2d'), {
     kit: 'motion-diagrams-2d',
     styleId: 'minimal-product',
@@ -179,13 +160,11 @@ test('defaultKitAndStyleForSpace, runNewProductionCommand, and runCli wire --spa
       'utf8'
     );
     assert.match(clayIndex, /kit: 'isometric-3d'/);
-    const clayProps = JSON.parse(
-      fs.readFileSync(
-        path.join(clayProd.productionDir, 'compositions', 'ClayDemo.props.json'),
-        'utf8'
-      )
-    ) as { styleId: string };
-    assert.equal(clayProps.styleId, 'soft-clay');
+    const clayTsx = fs.readFileSync(
+      path.join(clayProd.productionDir, 'ClayDemo.tsx'),
+      'utf8'
+    );
+    assert.match(clayTsx, /"styleId": "soft-clay"/);
 
     // 2. --space=2.5d defaults to paper-diorama-3d + tactile-craft
     const cutoutProd = await runNewProductionCommand({
@@ -199,17 +178,11 @@ test('defaultKitAndStyleForSpace, runNewProductionCommand, and runCli wire --spa
       'utf8'
     );
     assert.match(cutoutIndex, /kit: 'paper-diorama-3d'/);
-    const cutoutProps = JSON.parse(
-      fs.readFileSync(
-        path.join(
-          cutoutProd.productionDir,
-          'compositions',
-          'ApolloCutout.props.json'
-        ),
-        'utf8'
-      )
-    ) as { styleId: string };
-    assert.equal(cutoutProps.styleId, 'tactile-craft');
+    const cutoutTsx = fs.readFileSync(
+      path.join(cutoutProd.productionDir, 'ApolloCutout.tsx'),
+      'utf8'
+    );
+    assert.match(cutoutTsx, /"styleId": "tactile-craft"/);
 
     // 3. --space=2d defaults to motion-diagrams-2d + minimal-product, while explicit --style overrides style
     await runCli([
@@ -221,55 +194,17 @@ test('defaultKitAndStyleForSpace, runNewProductionCommand, and runCli wire --spa
       `--cwd=${tmpDir}`,
     ]);
     const retroIndex = fs.readFileSync(
-      path.join(tmpDir, 'productions', 'retro-net', 'index.ts'),
+      path.join(tmpDir, 'src', 'videos', 'retro-net', 'index.ts'),
       'utf8'
     );
     assert.match(retroIndex, /kit: 'motion-diagrams-2d'/);
-    const retroProps = JSON.parse(
-      fs.readFileSync(
-        path.join(
-          tmpDir,
-          'productions',
-          'retro-net',
-          'compositions',
-          'RetroNet.props.json'
-        ),
-        'utf8'
-      )
-    ) as { styleId: string };
-    assert.equal(retroProps.styleId, 'retro-pc');
-
-    // 4. init --space=3d --dir=videos scaffolds hello-studio with isometric-3d + soft-clay
-    const saasDir = path.join(tmpDir, 'saas-app');
-    fs.mkdirSync(saasDir, { recursive: true });
-    await runCli([
-      'init',
-      '--space=3d',
-      '--dir=videos',
-      '--lang=pl',
-      `--cwd=${saasDir}`,
-    ]);
-    const initHelloIndex = fs.readFileSync(
-      path.join(saasDir, 'videos', 'productions', 'hello-studio', 'index.ts'),
+    const retroTsx = fs.readFileSync(
+      path.join(tmpDir, 'src', 'videos', 'retro-net', 'RetroNet.tsx'),
       'utf8'
     );
-    assert.match(initHelloIndex, /kit: 'isometric-3d'/);
-    const initHelloProps = JSON.parse(
-      fs.readFileSync(
-        path.join(
-          saasDir,
-          'videos',
-          'productions',
-          'hello-studio',
-          'compositions',
-          'HelloStudio.props.json'
-        ),
-        'utf8'
-      )
-    ) as { styleId: string };
-    assert.equal(initHelloProps.styleId, 'soft-clay');
+    assert.match(retroTsx, /"styleId": "retro-pc"/);
 
-    // 5. Invalid --space values fail fast with a helpful validation message
+    // 4. Invalid --space values fail fast with a helpful validation message
     for (const badArgs of [
       ['styles', '--space=4d', `--cwd=${tmpDir}`],
       ['new', 'bad-film', '--space=invalid', `--cwd=${tmpDir}`],
@@ -281,213 +216,15 @@ test('defaultKitAndStyleForSpace, runNewProductionCommand, and runCli wire --spa
       );
     }
 
-    // 6. --help documents 10 built-in Art Direction styles and --space=2d|2.5d|3d
+    // 5. --help documents v3.0 commands, 10 built-in Art Direction styles, --space=2d|2.5d|3d, and elements build
     const helpOut = await captureConsoleOutput(async () => {
       await runCli(['--help']);
     });
     assert.match(helpOut, /10 built-in Art Direction styles/);
     assert.match(helpOut, /--space=2d\|2\.5d\|3d/);
+    assert.match(helpOut, /elements build/);
+    assert.doesNotMatch(helpOut, /Studio Web|\.props\.json/);
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
-});
-
-test('ProjectPickerPopover renders [ Wszystkie ] [ 2D ] [ 2.5D ] [ 3D ] filter bar, space badges, and preserves custom style section', () => {
-  const builtIns = BUILT_IN_STYLE_IDS.map((id) => BUILT_IN_STYLES[id]);
-  const custom2D: StylePreset = {
-    ...BUILT_IN_STYLES['editorial-press'],
-    id: 'kronika-2d',
-    name: 'Kronika 2D',
-    preferredSpace: '2d',
-    spaces: ['2d'],
-  };
-  const custom3D: StylePreset = {
-    ...BUILT_IN_STYLES['soft-clay'],
-    id: 'studio-glina',
-    name: 'Studio Glina',
-    preferredSpace: '3d',
-    spaces: ['3d'],
-  };
-
-  const allMarkup = renderToStaticMarkup(
-    React.createElement(ProjectPickerPopover, {
-      isOpen: true,
-      onClose: () => {},
-      viewMode: 'styles',
-      builtInStyles: builtIns,
-      customStyles: [custom2D, custom3D],
-      activeStyleId: 'soft-clay',
-      onSelectStyle: () => {},
-      onDuplicateStyle: () => {},
-    })
-  );
-
-  assert.match(allMarkup, /data-space-filter="all"/);
-  assert.match(allMarkup, /data-space-filter="2d"/);
-  assert.match(allMarkup, /data-space-filter="2\.5d"/);
-  assert.match(allMarkup, /data-space-filter="3d"/);
-  assert.match(allMarkup, /Wszystkie/);
-  assert.match(allMarkup, /Style wbudowane \(10\)/);
-  assert.match(allMarkup, /data-style-space="2d"[^>]*>2D</);
-  assert.match(allMarkup, /data-style-space="2\.5d"[^>]*>2\.5D</);
-  assert.match(allMarkup, /data-style-space="3d"[^>]*>3D</);
-  assert.match(allMarkup, /Twoje style \(styles\/\*\.style\.json\)/);
-  assert.match(allMarkup, /\+ Duplikuj jako własny styl/);
-
-  // Filtered to 3D: shows only 3D-compatible built-in & custom styles, while keeping custom styles section + duplicate CTA visible!
-  const filtered3DMarkup = renderToStaticMarkup(
-    React.createElement(ProjectPickerPopover, {
-      isOpen: true,
-      onClose: () => {},
-      viewMode: 'styles',
-      spaceFilter: '3d',
-      builtInStyles: builtIns,
-      customStyles: [custom2D],
-      activeStyleId: 'soft-clay',
-      onSelectStyle: () => {},
-      onDuplicateStyle: () => {},
-    })
-  );
-
-  assert.match(filtered3DMarkup, /Soft-Clay 3D/);
-  assert.match(filtered3DMarkup, /Glass Studio/);
-  assert.match(filtered3DMarkup, /Retro-PC/);
-  assert.doesNotMatch(filtered3DMarkup, /Brutalist Poster/);
-  assert.doesNotMatch(filtered3DMarkup, /Kronika 2D/);
-  assert.match(filtered3DMarkup, /Twoje style \(styles\/\*\.style\.json\)/);
-  assert.match(filtered3DMarkup, /\+ Duplikuj jako własny styl/);
-});
-
-test('StyleLabShowcase renders [ 2D ] [ 2.5D ] [ 3D ] space switcher and Isometric 3D soft-clay podcast studio preview with Clean Frame 0 and zero three imports', () => {
-  assert.equal(resolveKitDimensionalSpace('isometric-3d'), '3d');
-  assert.equal(resolveKitDimensionalSpace('paper-diorama-3d'), '2.5d');
-  assert.equal(resolveKitDimensionalSpace('motion-diagrams-2d'), '2d');
-  assert.equal(resolveKitDimensionalSpace('editorial-collage'), '2d');
-  assert.equal(resolveKitDimensionalSpace('vector-scene-2d'), '2d');
-  assert.equal(resolveKitDimensionalSpace('kinetic-typography'), '2d');
-  assert.equal(resolveKitDimensionalSpace('data-storytelling'), '2d');
-
-  assert.equal(defaultPreviewKitForSpace('2d'), 'motion-diagrams-2d');
-  assert.equal(defaultPreviewKitForSpace('2.5d'), 'paper-diorama-3d');
-  assert.equal(defaultPreviewKitForSpace('3d'), 'isometric-3d');
-
-  const showcaseMarkup = renderToStaticMarkup(
-    React.createElement(StyleLabShowcase, {
-      activeStyle: BUILT_IN_STYLES['soft-clay'],
-      activeKit: 'isometric-3d',
-      onSelectKit: () => {},
-      aspectRatio: '16:9',
-      onChangeAspectRatio: () => {},
-      overlays: {
-        goldenSafeBox: false,
-        ruleOfThirds: false,
-        safeMargins: false,
-      },
-      onToggleOverlay: () => {},
-    })
-  );
-
-  const spaceSwitcherIdx = showcaseMarkup.indexOf('mp-stylelab-space-switcher');
-  const kitStripIdx = showcaseMarkup.indexOf('mp-stylelab-kit-strip');
-  assert.ok(spaceSwitcherIdx > 0, 'Expected .mp-stylelab-space-switcher in top bar');
-  assert.ok(
-    spaceSwitcherIdx < kitStripIdx,
-    'Expected [ 2D ] [ 2.5D ] [ 3D ] switcher right before .mp-stylelab-kit-strip'
-  );
-  assert.match(
-    showcaseMarkup,
-    /data-space-pill="3d"[^>]*aria-pressed="true"/
-  );
-
-  for (const styleId of ['soft-clay', 'glass-studio', 'retro-pc'] as const) {
-    const preset = BUILT_IN_STYLES[styleId];
-    const BoundPreview: React.FC = () =>
-      React.createElement(StyleLabPreviewComposition, {
-        style: preset,
-        kit: 'isometric-3d',
-      });
-
-    // Clean Frame 0 check
-    const frame0 = renderToStaticMarkup(
-      React.createElement(Thumbnail, {
-        component: BoundPreview,
-        compositionWidth: 1920,
-        compositionHeight: 1080,
-        durationInFrames: STYLE_LAB_DURATION_IN_FRAMES,
-        fps: STYLE_LAB_FPS,
-        frameToDisplay: 0,
-      })
-    );
-    assert.doesNotMatch(frame0, /ON AIR/);
-    assert.doesNotMatch(frame0, /data-clay-avatar="true"/);
-    assert.doesNotMatch(frame0, /data-lighting-rig=/);
-
-    // Active frame 64 in 16:9 and 9:16
-    for (const [w, h] of [
-      [1920, 1080],
-      [1080, 1920],
-    ] as const) {
-      const frame64 = renderToStaticMarkup(
-        React.createElement(Thumbnail, {
-          component: BoundPreview,
-          compositionWidth: w,
-          compositionHeight: h,
-          durationInFrames: STYLE_LAB_DURATION_IN_FRAMES,
-          fps: STYLE_LAB_FPS,
-          frameToDisplay: 64,
-        })
-      );
-      assert.match(frame64, /ON AIR/);
-      assert.match(frame64, /data-on-air-badge="true"/);
-      assert.match(frame64, /data-clay-avatar="true"/);
-      assert.match(frame64, /data-clay-headphones="true"/);
-      assert.match(frame64, /data-podcast-mics="true"/);
-    }
-  }
-
-  // Strictly zero three / r3f imports in packages/studio
-  for (const rel of [
-    'packages/studio/src/client/components/StyleLabShowcase.tsx',
-    'packages/studio/src/client/components/ProjectPickerPopover.tsx',
-  ]) {
-    const src = fs.readFileSync(path.join(REPO_ROOT, rel), 'utf8');
-    assert.doesNotMatch(src, /from\s+['"]three['"]|@react-three\/fiber/);
-    assert.doesNotMatch(src, /Math\.random\s*\(/);
-  }
-});
-
-test('canonical skills document 2-axis DimensionalSpace × 10 styles, --space CLI flag, and natural mejk pikczers / retro pi si phonetics', () => {
-  const styleSkill = fs.readFileSync(
-    path.join(
-      REPO_ROOT,
-      'plugins/make-pictures/skills/style-and-art-direction/SKILL.md'
-    ),
-    'utf8'
-  );
-  assert.match(styleSkill, /DimensionalSpace/);
-  assert.match(styleSkill, /retro-pc/);
-  assert.match(styleSkill, /soft-clay/);
-  assert.match(styleSkill, /glass-studio/);
-  assert.match(styleSkill, /material3d/);
-
-  const directorSkill = fs.readFileSync(
-    path.join(
-      REPO_ROOT,
-      'plugins/make-pictures/skills/make-pictures-director/SKILL.md'
-    ),
-    'utf8'
-  );
-  assert.match(directorSkill, /--space=2d\|2\.5d\|3d/);
-
-  const soundSkill = fs.readFileSync(
-    path.join(
-      REPO_ROOT,
-      'plugins/make-pictures/skills/sound-and-music-design/SKILL.md'
-    ),
-    'utf8'
-  );
-  assert.match(soundSkill, /mejk pikczers/);
-  assert.match(soundSkill, /make pictures/);
-  assert.match(soundSkill, /retro pi si/);
-  assert.match(soundSkill, /retro pee see/);
 });

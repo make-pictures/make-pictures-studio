@@ -13,21 +13,14 @@ import {
   getKnownEnglishVoiceName,
   isKnownEnglishPremadeVoice,
   supportsLanguageCodeParam,
-} from '../../core/src/audio/voices';
-import { BUILT_IN_STYLES } from '../../core/src/style/presets';
-import {
-  fetchStudioVoicesCatalog,
-  readStudioScenesFromDisk,
-  saveStudioSceneToDisk,
-} from '../../studio/src/server/index';
-import { createMakePicturesApp } from '../../create-make-pictures/src/index';
+} from '@make-pictures/remotion/audio/voices';
+import { BUILT_IN_STYLES } from '@make-pictures/remotion/style/presets';
 import {
   lintManifestVoiceovers,
   lintPolishVoiceSelection,
 } from '../src/audio/phonetics-lint';
 import { computeSceneCacheHash, runAudioCommand } from '../src/commands/audio';
 import { buildScaffoldProductionManifest } from '../src/commands/new-production';
-import { runOnboardCommand } from '../src/commands/onboard';
 import { runVoicesCommand } from '../src/commands/voices';
 
 test('voice catalog provides native PL voices for all archetypes and distinguishes languageCode model support', () => {
@@ -74,7 +67,7 @@ test('voice catalog provides native PL voices for all archetypes and distinguish
   assert.equal(supportsLanguageCodeParam('eleven_flash_v2_5'), true);
 });
 
-test('buildScaffoldProductionManifest and createMakePicturesApp assign native PL voices for --lang=pl', async () => {
+test('buildScaffoldProductionManifest assigns native PL voices for --lang=pl across all built-in styles', () => {
   for (const style of Object.values(BUILT_IN_STYLES)) {
     const plManifest = buildScaffoldProductionManifest(
       `pl-${style.id}`,
@@ -105,77 +98,6 @@ test('buildScaffoldProductionManifest and createMakePicturesApp assign native PL
         `EN scaffold for style ${style.id} expected native EN voice, got ${scene.voiceId}`
       );
     }
-  }
-
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mp-cmp-pl-voice-'));
-  try {
-    await createMakePicturesApp({
-      targetDir: tmpDir,
-      lang: 'pl',
-      install: false,
-    });
-    const envExample = fs.readFileSync(
-      path.join(tmpDir, '.env.example'),
-      'utf8'
-    );
-    assert.match(envExample, /ELEVENLABS_VOICE_ID=C8ZVSJxcymeT86xT429O/);
-
-    const prodManifest = JSON.parse(
-      fs.readFileSync(
-        path.join(tmpDir, 'productions', 'hello-studio', 'production.json'),
-        'utf8'
-      )
-    ) as { lang?: string; scenes: Array<{ voiceId?: string }> };
-    assert.equal(prodManifest.lang, 'pl');
-    for (const scene of prodManifest.scenes) {
-      assert.equal(isKnownEnglishPremadeVoice(scene.voiceId), false);
-    }
-  } finally {
-    fs.rmSync(tmpDir, { recursive: true, force: true });
-  }
-});
-
-test('onboard --lang=pl writes native Polish default ELEVENLABS_VOICE_ID into .env.local', async () => {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mp-onboard-pl-voice-'));
-  try {
-    fs.writeFileSync(
-      path.join(tmpDir, 'package.json'),
-      JSON.stringify({ name: 'pl-studio', scripts: { studio: 'vite' } }),
-      'utf8'
-    );
-    fs.mkdirSync(path.join(tmpDir, 'node_modules'), { recursive: true });
-    fs.mkdirSync(path.join(tmpDir, 'productions'), { recursive: true });
-    fs.writeFileSync(
-      path.join(tmpDir, '.env.local'),
-      'ELEVENLABS_API_KEY=sk_live_test_1234\n',
-      { mode: 0o600 }
-    );
-
-    const chunks: string[] = [];
-    await runOnboardCommand({
-      cwd: tmpDir,
-      lang: 'pl',
-      json: true,
-      step: 'check',
-      deps: {
-        stdout: {
-          isTTY: false,
-          write: (s: string) => {
-            chunks.push(s);
-            return true;
-          },
-        },
-        env: {},
-        checkFfmpeg: () => true,
-        elevenLabsRunner: () => ({ next: 'done', say: 'OK' }),
-      },
-    });
-
-    const envLocal = fs.readFileSync(path.join(tmpDir, '.env.local'), 'utf8');
-    assert.match(envLocal, /ELEVENLABS_VOICE_ID=C8ZVSJxcymeT86xT429O/);
-    assert.match(envLocal, /ELEVENLABS_MODEL_ID=eleven_v4/);
-  } finally {
-    fs.rmSync(tmpDir, { recursive: true, force: true });
   }
 });
 
@@ -263,9 +185,9 @@ test('audio cache invalidates when scene.modelId or languageCode changes (withou
 
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mp-audio-model-cache-'));
   try {
-    const prodDir = path.join(tmpDir, 'productions', 'model-check');
+    const prodDir = path.join(tmpDir, 'src', 'videos', 'model-check');
     fs.mkdirSync(prodDir, { recursive: true });
-    const manifestPath = path.join(prodDir, 'production.json');
+    const manifestPath = path.join(prodDir, 'audio.json');
     const writeManifest = (modelId: string) => {
       fs.writeFileSync(
         manifestPath,
@@ -298,7 +220,14 @@ test('audio cache invalidates when scene.modelId or languageCode changes (withou
       productionSlug: 'model-check',
       mock: true,
     });
-    const voJsonPath = path.join(prodDir, 'assets', 'voiceovers', 's1.json');
+    const voJsonPath = path.join(
+      tmpDir,
+      'public',
+      'audio',
+      'model-check',
+      'voiceovers',
+      's1.json'
+    );
     const first = JSON.parse(fs.readFileSync(voJsonPath, 'utf8')) as {
       modelId: string;
       voiceId: string;
@@ -418,151 +347,6 @@ test('runVoicesCommand discovers curated/account/shared native voices, filters E
       fs.existsSync(path.join(tmpDir, auditionRes.audition!.outFile)),
       true
     );
-  } finally {
-    fs.rmSync(tmpDir, { recursive: true, force: true });
-  }
-});
-
-test('Studio Web fetchStudioVoicesCatalog and saveStudioSceneToDisk support voice discovery, modelId/languageCode patching, and staleness detection', async () => {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mp-studio-voices-'));
-  try {
-    // 1. Offline Studio voices catalog
-    const offline = await fetchStudioVoicesCatalog(
-      tmpDir,
-      tmpDir,
-      { lang: 'pl' },
-      { apiKeyOverride: null }
-    );
-    assert.equal(offline.ok, true);
-    assert.equal(offline.configured, false);
-    assert.ok(offline.recommended.length >= 4);
-    assert.ok(offline.models.some((m) => m.id === 'eleven_v3'));
-
-    // 2. Online Studio voices catalog via mocked fetch
-    const mockFetch: typeof fetch = (async (input: string | URL | Request) => {
-      const url = String(input);
-      if (url.includes('/v1/voices')) {
-        return new Response(
-          JSON.stringify({
-            voices: [
-              {
-                voice_id: 'TX3LPaxmHKxFdv7VOQHJ',
-                name: 'Liam',
-                labels: { language: 'en', gender: 'male' },
-              },
-              {
-                voice_id: 'CLuTGacrAhcIhaJslbXt',
-                name: 'Rafał',
-                labels: { language: 'pl', gender: 'male' },
-                preview_url: 'https://example.com/rafal.mp3',
-              },
-            ],
-          }),
-          { status: 200, headers: { 'Content-Type': 'application/json' } }
-        );
-      }
-      return new Response(
-        JSON.stringify({
-          voices: [
-            {
-              voice_id: 'C8ZVSJxcymeT86xT429O',
-              name: 'Luiza',
-              language: 'pl',
-              gender: 'female',
-              preview_url: 'https://example.com/luiza.mp3',
-              free_users_allowed: true,
-            },
-          ],
-        }),
-        { status: 200, headers: { 'Content-Type': 'application/json' } }
-      );
-    }) as typeof fetch;
-
-    const online = await fetchStudioVoicesCatalog(
-      tmpDir,
-      tmpDir,
-      { lang: 'pl' },
-      { apiKeyOverride: 'sk_test_fake', fetchImpl: mockFetch }
-    );
-    assert.equal(online.configured, true);
-    assert.equal(online.account.length, 1);
-    assert.equal(online.account[0].voiceId, 'CLuTGacrAhcIhaJslbXt');
-    assert.equal(online.shared.length, 1);
-    assert.equal(online.shared[0].voiceId, 'C8ZVSJxcymeT86xT429O');
-
-    // 3. saveStudioSceneToDisk persists modelId/languageCode & readStudioScenesFromDisk flags staleness
-    const prodDir = path.join(tmpDir, 'productions', 'demo-pl');
-    const voDir = path.join(prodDir, 'assets', 'voiceovers');
-    fs.mkdirSync(voDir, { recursive: true });
-    fs.writeFileSync(
-      path.join(prodDir, 'production.json'),
-      JSON.stringify(
-        {
-          id: 'demo-pl',
-          title: 'Demo PL',
-          fps: 60,
-          lang: 'pl',
-          scenes: [
-            {
-              id: 's1',
-              durationInSeconds: 4,
-              voiceId: 'C8ZVSJxcymeT86xT429O',
-              modelId: 'eleven_multilingual_v2',
-              text: 'Testowa kwestia po polsku.',
-            },
-          ],
-        },
-        null,
-        2
-      ),
-      'utf8'
-    );
-    fs.writeFileSync(path.join(voDir, 's1.mp3'), Buffer.from('mp3'));
-    fs.writeFileSync(
-      path.join(voDir, 's1.json'),
-      JSON.stringify({
-        sceneId: 's1',
-        text: 'Testowa kwestia po polsku.',
-        textHash: 'abc',
-        voiceId: 'C8ZVSJxcymeT86xT429O',
-        modelId: 'eleven_multilingual_v2',
-        provider: 'elevenlabs',
-        fps: 60,
-        durationInSeconds: 4,
-        audioFile: '_productions/demo-pl/voiceovers/s1.mp3',
-        generatedAt: new Date().toISOString(),
-        words: [],
-      })
-    );
-
-    const before = readStudioScenesFromDisk(tmpDir, tmpDir);
-    assert.equal(before.groups[0].lang, 'pl');
-    assert.equal(before.audioStatus.s1.isHashCurrent, true);
-
-    const saveRes = saveStudioSceneToDisk(tmpDir, tmpDir, {
-      targetId: 'demo-pl',
-      sceneId: 's1',
-      patch: { modelId: 'eleven_v3', languageCode: 'PL' },
-    });
-    assert.equal(saveRes.statusCode, 200);
-    const savedScene = saveRes.body.scene as {
-      modelId?: string;
-      languageCode?: string;
-    };
-    assert.equal(savedScene.modelId, 'eleven_v3');
-    assert.equal(savedScene.languageCode, 'pl');
-
-    // After switching modelId, Studio audioStatus marks scene stale!
-    const after = readStudioScenesFromDisk(tmpDir, tmpDir);
-    assert.equal(after.audioStatus.s1.isHashCurrent, false);
-
-    // Invalid modelId type returns 400
-    const badRes = saveStudioSceneToDisk(tmpDir, tmpDir, {
-      targetId: 'demo-pl',
-      sceneId: 's1',
-      patch: { modelId: 123 },
-    });
-    assert.equal(badRes.statusCode, 400);
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }

@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import type { SceneDefinition, SceneVoiceoverData } from '../../core/src/index';
+import type { AudioSceneSpec, SceneVoiceoverData } from '@make-pictures/remotion/types';
 import { lintManifestVoiceovers } from '../src/audio/phonetics-lint';
 import {
   buildSyntheticDialogueTimestamps,
@@ -17,7 +17,7 @@ import {
 } from '../src/commands/audio';
 
 test('computeSceneCacheHash includes dialogueInputs and invalidates on turn text, voiceId, or speaker changes', () => {
-  const baseScene: SceneDefinition = {
+  const baseScene: AudioSceneSpec = {
     id: 's4-pl',
     durationInSeconds: 6.4,
     text: 'Luiza + Rafał',
@@ -268,9 +268,9 @@ test('synthesizeSceneDialogueViaSdk sends snapped stability, inputs, languageCod
 test('runAudioCommand (--mock) persists voiceSegments in cache JSON + audio-manifest.ts and caches cleanly', async () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mp-dialogue-mock-'));
   try {
-    const prodDir = path.join(tmpDir, 'productions', 'dialogue-demo');
+    const prodDir = path.join(tmpDir, 'src', 'videos', 'dialogue-demo');
     fs.mkdirSync(prodDir, { recursive: true });
-    const manifestPath = path.join(prodDir, 'production.json');
+    const manifestPath = path.join(prodDir, 'audio.json');
     const manifest = {
       id: 'dialogue-demo',
       title: 'Dialogue Demo',
@@ -307,8 +307,22 @@ test('runAudioCommand (--mock) persists voiceSegments in cache JSON + audio-mani
       mock: true,
     });
 
-    const jsonPath = path.join(prodDir, 'assets', 'voiceovers', 's4-pl.json');
-    const mp3Path = path.join(prodDir, 'assets', 'voiceovers', 's4-pl.mp3');
+    const jsonPath = path.join(
+      tmpDir,
+      'public',
+      'audio',
+      'dialogue-demo',
+      'voiceovers',
+      's4-pl.json'
+    );
+    const mp3Path = path.join(
+      tmpDir,
+      'public',
+      'audio',
+      'dialogue-demo',
+      'voiceovers',
+      's4-pl.mp3'
+    );
     const generatedManifestPath = path.join(
       prodDir,
       'generated',

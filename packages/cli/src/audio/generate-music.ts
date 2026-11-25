@@ -6,7 +6,7 @@ import { ElevenLabsClient, type Music } from '@elevenlabs/elevenlabs-js';
 import type {
   MusicMoodPreset,
   MusicScoreSpec,
-} from '@make-pictures/core';
+} from '@make-pictures/remotion/types';
 
 export interface GeneratedMusicMetadata {
   id: string;

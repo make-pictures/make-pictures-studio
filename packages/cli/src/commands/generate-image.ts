@@ -5,7 +5,7 @@ import {
   BUILT_IN_STYLES,
   isBuiltInStyleId,
   type StylePreset,
-} from '../../../core/src/style/presets';
+} from '@make-pictures/remotion/style/presets';
 import { loadWorkspaceCustomStyles } from './styles';
 import { resolveWorkspaceContext } from './workspace-paths';
 
