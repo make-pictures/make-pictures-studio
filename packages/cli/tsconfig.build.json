@@ -14,8 +14,8 @@
     "outDir": "./dist",
     "baseUrl": ".",
     "paths": {
-      "@make-pictures/core": ["../core/dist/index.d.ts", "../core/src/index.ts"],
-      "@make-pictures/core/*": ["../core/dist/*", "../core/src/*"]
+      "@make-pictures/remotion": ["../remotion/dist/index.d.ts", "../remotion/src/index.ts"],
+      "@make-pictures/remotion/*": ["../remotion/dist/*", "../remotion/src/*"]
     }
   },
   "include": ["src/**/*"],

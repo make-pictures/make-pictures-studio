@@ -9,7 +9,7 @@ const ROOT_DIR = path.resolve(__dirname, '..');
 const PACKAGES_DIR = path.join(ROOT_DIR, 'packages');
 
 interface EntrySpec {
-  /** Output subpath without extension relative to `dist/`, e.g. `index` or `client/index` */
+  /** Output subpath without extension relative to `dist/`, e.g. `index` or `kits/editorial-collage/index` */
   outSubpath: string;
   /** Input source file relative to package dir, e.g. `src/index.ts` */
   srcRelPath: string;
@@ -25,74 +25,98 @@ interface PackageBuildSpec {
   copyAssets?: (pkgDir: string) => void;
 }
 
+const KNOWN_KIT_SUBPATHS = [
+  'editorial-collage',
+  'vector-scene-2d',
+  'motion-diagrams-2d',
+  'kinetic-typography',
+  'data-storytelling',
+  'product-frames',
+  'vfx',
+  'paper-diorama-3d',
+  'isometric-3d',
+  'tactile-3d',
+] as const;
+
 function mapOtherPackageToPublicSpecifier(
   otherPkgDirName: string,
   subpathInsideSrc: string
 ): string {
   const normalizedSub = subpathInsideSrc.replace(/\\/g, '/').replace(/^\/+/, '');
-  if (otherPkgDirName === 'core') {
+  if (otherPkgDirName === 'remotion') {
     if (
       normalizedSub === 'style/presets' ||
       normalizedSub.startsWith('style/presets.') ||
       normalizedSub === 'style/schema' ||
       normalizedSub.startsWith('style/schema.')
     ) {
-      return '@make-pictures/core/style/presets';
+      return '@make-pictures/remotion/style/presets';
+    }
+    if (normalizedSub === 'style' || normalizedSub.startsWith('style/')) {
+      return '@make-pictures/remotion/style';
     }
     if (
       normalizedSub === 'audio/voices' ||
       normalizedSub.startsWith('audio/voices.')
     ) {
-      return '@make-pictures/core/audio/voices';
+      return '@make-pictures/remotion/audio/voices';
+    }
+    if (normalizedSub === 'audio' || normalizedSub.startsWith('audio/')) {
+      return '@make-pictures/remotion/audio';
+    }
+    if (normalizedSub === 'camera' || normalizedSub.startsWith('camera/')) {
+      return '@make-pictures/remotion/camera';
     }
     if (
       normalizedSub === 'kinematics' ||
       normalizedSub.startsWith('kinematics/')
     ) {
-      return '@make-pictures/core/kinematics';
+      return '@make-pictures/remotion/kinematics';
     }
-    return '@make-pictures/core';
-  }
-  if (otherPkgDirName === 'kits') {
-    const knownKitSubpaths = [
-      'paper-diorama-3d',
-      'isometric-3d',
-      'motion-diagrams-2d',
-      'vfx',
-      'kinetic-typography',
-      'data-storytelling',
-      'product-frames',
-      'editorial-collage',
-      'vector-scene-2d',
-      'tactile-3d',
-    ];
-    for (const sub of knownKitSubpaths) {
-      if (normalizedSub === sub || normalizedSub.startsWith(`${sub}/`)) {
-        return `@make-pictures/kits/${sub}`;
+    if (normalizedSub === 'director' || normalizedSub.startsWith('director/')) {
+      return '@make-pictures/remotion/director';
+    }
+    if (normalizedSub === 'optics' || normalizedSub.startsWith('optics/')) {
+      return '@make-pictures/remotion/optics';
+    }
+    if (normalizedSub === 'types' || normalizedSub.startsWith('types/')) {
+      return '@make-pictures/remotion/types';
+    }
+    if (normalizedSub === 'utils' || normalizedSub.startsWith('utils/')) {
+      return '@make-pictures/remotion/utils';
+    }
+    if (
+      normalizedSub === 'style-lab' ||
+      normalizedSub.startsWith('style-lab/')
+    ) {
+      return '@make-pictures/remotion/style-lab';
+    }
+    if (normalizedSub === 'elements' || normalizedSub.startsWith('elements/')) {
+      return '@make-pictures/remotion/elements';
+    }
+    for (const kit of KNOWN_KIT_SUBPATHS) {
+      if (
+        normalizedSub === `kits/${kit}` ||
+        normalizedSub.startsWith(`kits/${kit}/`)
+      ) {
+        return `@make-pictures/remotion/kits/${kit}`;
       }
     }
-    return '@make-pictures/kits';
-  }
-  if (otherPkgDirName === 'studio') {
-    if (normalizedSub === 'server' || normalizedSub.startsWith('server/')) {
-      return '@make-pictures/studio/server';
-    }
-    if (normalizedSub === 'client' || normalizedSub.startsWith('client/')) {
-      return '@make-pictures/studio/client';
-    }
-    return '@make-pictures/studio';
+    return '@make-pictures/remotion';
   }
   if (otherPkgDirName === 'cli') {
     return '@make-pictures/cli';
+  }
+  if (otherPkgDirName === 'create-make-pictures') {
+    return 'create-make-pictures';
   }
   return `@make-pictures/${otherPkgDirName}`;
 }
 
 /**
- * Externalizes cross-package relative imports (such as `../../../core/src/camera`
- * inside `packages/kits/src/vfx/*` or `../../core/src/types/scene` inside `packages/cli/src/*`)
- * and rewrites them to public `@make-pictures/*` package specifiers so React contexts
- * and runtime registries remain singletons across published packages.
+ * Externalizes cross-package relative imports (such as `../../remotion/src/types/scene`
+ * inside `packages/cli/src/*`) and rewrites them to public `@make-pictures/*` package specifiers
+ * so React contexts and runtime registries remain singletons across published packages.
  */
 function createCrossPackageExternalPlugin(
   currentPkgDirName: string
@@ -155,9 +179,7 @@ function rewriteDtsCrossPackageSpecifiers(
       if (
         maybeOtherPkg &&
         maybeOtherPkg !== currentPkgDirName &&
-        ['core', 'kits', 'studio', 'cli', 'create-make-pictures'].includes(
-          maybeOtherPkg
-        )
+        ['remotion', 'cli', 'create-make-pictures'].includes(maybeOtherPkg)
       ) {
         const sub =
           parts[1] === 'src' ? parts.slice(2).join('/') : parts.slice(1).join('/');
@@ -167,7 +189,7 @@ function rewriteDtsCrossPackageSpecifiers(
 
     const posixSpec = rawSpec.replace(/\\/g, '/');
     const crossMatch = posixSpec.match(
-      /^(?:\.\.\/)+(?:packages\/)?(core|kits|studio|cli)\/src(?:\/(.*))?$/
+      /^(?:\.\.\/)+(?:packages\/)?(remotion|cli|create-make-pictures)\/src(?:\/(.*))?$/
     );
     if (crossMatch && crossMatch[1] !== currentPkgDirName) {
       return mapOtherPackageToPublicSpecifier(
@@ -310,10 +332,7 @@ async function buildPackage(spec: PackageBuildSpec): Promise<void> {
   const pkgDir = path.join(PACKAGES_DIR, spec.dirName);
   const pkgJsonPath = path.join(pkgDir, 'package.json');
   if (!fs.existsSync(pkgJsonPath)) {
-    console.log(
-      `[build:packages] Skipping packages/${spec.dirName} (package.json not present yet)`
-    );
-    return;
+    throw new Error(`Missing package.json in packages/${spec.dirName}`);
   }
 
   const distDir = path.join(pkgDir, 'dist');
@@ -325,6 +344,14 @@ async function buildPackage(spec: PackageBuildSpec): Promise<void> {
   );
   if (existingEntries.length === 0) {
     throw new Error(`No source entry points found in packages/${spec.dirName}`);
+  }
+  if (existingEntries.length !== spec.entries.length) {
+    const missing = spec.entries
+      .filter((e) => !fs.existsSync(path.join(pkgDir, e.srcRelPath)))
+      .map((e) => e.srcRelPath);
+    throw new Error(
+      `Missing declared source entry points in packages/${spec.dirName}: ${missing.join(', ')}`
+    );
   }
 
   const crossPkgPlugin = createCrossPackageExternalPlugin(spec.dirName);
@@ -446,10 +473,20 @@ function discoverCreateMakePicturesEntries(createPkgDir: string): EntrySpec[] {
 async function main(): Promise<void> {
   const specs: PackageBuildSpec[] = [
     {
-      dirName: 'core',
-      npmName: '@make-pictures/core',
+      dirName: 'remotion',
+      npmName: '@make-pictures/remotion',
       entries: [
         { outSubpath: 'index', srcRelPath: 'src/index.ts', platform: 'browser' },
+        {
+          outSubpath: 'style/index',
+          srcRelPath: 'src/style/index.ts',
+          platform: 'browser',
+        },
+        {
+          outSubpath: 'style/presets',
+          srcRelPath: 'src/style/presets.ts',
+          platform: 'browser',
+        },
         {
           outSubpath: 'audio/index',
           srcRelPath: 'src/audio/index.ts',
@@ -466,33 +503,18 @@ async function main(): Promise<void> {
           platform: 'browser',
         },
         {
-          outSubpath: 'director/index',
-          srcRelPath: 'src/director/index.ts',
-          platform: 'browser',
-        },
-        {
           outSubpath: 'kinematics/index',
           srcRelPath: 'src/kinematics/index.ts',
           platform: 'browser',
         },
         {
+          outSubpath: 'director/index',
+          srcRelPath: 'src/director/index.ts',
+          platform: 'browser',
+        },
+        {
           outSubpath: 'optics/index',
           srcRelPath: 'src/optics/index.ts',
-          platform: 'browser',
-        },
-        {
-          outSubpath: 'style/index',
-          srcRelPath: 'src/style/index.ts',
-          platform: 'browser',
-        },
-        {
-          outSubpath: 'style/presets',
-          srcRelPath: 'src/style/presets.ts',
-          platform: 'browser',
-        },
-        {
-          outSubpath: 'theme/index',
-          srcRelPath: 'src/theme/index.ts',
           platform: 'browser',
         },
         {
@@ -505,98 +527,81 @@ async function main(): Promise<void> {
           srcRelPath: 'src/utils/index.ts',
           platform: 'browser',
         },
-      ],
-    },
-    {
-      dirName: 'kits',
-      npmName: '@make-pictures/kits',
-      entries: [
-        { outSubpath: 'index', srcRelPath: 'src/index.ts', platform: 'browser' },
         {
-          outSubpath: 'paper-diorama-3d/index',
-          srcRelPath: 'src/paper-diorama-3d/index.ts',
+          outSubpath: 'style-lab/index',
+          srcRelPath: 'src/style-lab/index.ts',
           platform: 'browser',
         },
         {
-          outSubpath: 'isometric-3d/index',
-          srcRelPath: 'src/isometric-3d/index.ts',
+          outSubpath: 'elements/index',
+          srcRelPath: 'src/elements/index.ts',
           platform: 'browser',
         },
         {
-          outSubpath: 'motion-diagrams-2d/index',
-          srcRelPath: 'src/motion-diagrams-2d/index.ts',
+          outSubpath: 'kits/editorial-collage/index',
+          srcRelPath: 'src/kits/editorial-collage/index.ts',
           platform: 'browser',
         },
         {
-          outSubpath: 'vfx/index',
-          srcRelPath: 'src/vfx/index.ts',
+          outSubpath: 'kits/vector-scene-2d/index',
+          srcRelPath: 'src/kits/vector-scene-2d/index.ts',
           platform: 'browser',
         },
         {
-          outSubpath: 'kinetic-typography/index',
-          srcRelPath: 'src/kinetic-typography/index.ts',
+          outSubpath: 'kits/motion-diagrams-2d/index',
+          srcRelPath: 'src/kits/motion-diagrams-2d/index.ts',
           platform: 'browser',
         },
         {
-          outSubpath: 'data-storytelling/index',
-          srcRelPath: 'src/data-storytelling/index.ts',
+          outSubpath: 'kits/kinetic-typography/index',
+          srcRelPath: 'src/kits/kinetic-typography/index.ts',
           platform: 'browser',
         },
         {
-          outSubpath: 'product-frames/index',
-          srcRelPath: 'src/product-frames/index.ts',
+          outSubpath: 'kits/data-storytelling/index',
+          srcRelPath: 'src/kits/data-storytelling/index.ts',
           platform: 'browser',
         },
         {
-          outSubpath: 'editorial-collage/index',
-          srcRelPath: 'src/editorial-collage/index.ts',
+          outSubpath: 'kits/product-frames/index',
+          srcRelPath: 'src/kits/product-frames/index.ts',
           platform: 'browser',
         },
         {
-          outSubpath: 'vector-scene-2d/index',
-          srcRelPath: 'src/vector-scene-2d/index.ts',
+          outSubpath: 'kits/vfx/index',
+          srcRelPath: 'src/kits/vfx/index.ts',
           platform: 'browser',
         },
         {
-          outSubpath: 'tactile-3d/index',
-          srcRelPath: 'src/tactile-3d/index.ts',
-          platform: 'browser',
-        },
-      ],
-    },
-    {
-      dirName: 'studio',
-      npmName: '@make-pictures/studio',
-      entries: [
-        { outSubpath: 'index', srcRelPath: 'src/index.ts', platform: 'browser' },
-        {
-          outSubpath: 'client/index',
-          srcRelPath: 'src/client/index.ts',
+          outSubpath: 'kits/paper-diorama-3d/index',
+          srcRelPath: 'src/kits/paper-diorama-3d/index.ts',
           platform: 'browser',
         },
         {
-          outSubpath: 'server/index',
-          srcRelPath: 'src/server/index.ts',
-          platform: 'node',
+          outSubpath: 'kits/isometric-3d/index',
+          srcRelPath: 'src/kits/isometric-3d/index.ts',
+          platform: 'browser',
+        },
+        {
+          outSubpath: 'kits/tactile-3d/index',
+          srcRelPath: 'src/kits/tactile-3d/index.ts',
+          platform: 'browser',
         },
       ],
-      copyAssets(pkgDir) {
-        const srcCss = path.join(pkgDir, 'src', 'client', 'styles.css');
-        const destCss = path.join(pkgDir, 'dist', 'styles.css');
-        fs.copyFileSync(srcCss, destCss);
-      },
     },
     {
       dirName: 'cli',
       npmName: '@make-pictures/cli',
       entries: discoverCliEntries(path.join(PACKAGES_DIR, 'cli')),
       copyAssets(pkgDir) {
-        const pluginSrc = path.join(ROOT_DIR, 'plugins', 'make-pictures');
-        const pluginDest = path.join(pkgDir, 'assets', 'plugin');
-        fs.rmSync(pluginDest, { recursive: true, force: true });
-        if (fs.existsSync(pluginSrc)) {
-          copyDirRecursive(pluginSrc, pluginDest);
+        const skillsSrc = path.join(ROOT_DIR, 'skills');
+        const assetsRoot = path.join(pkgDir, 'assets');
+        const skillsDest = path.join(assetsRoot, 'skills');
+        fs.rmSync(assetsRoot, { recursive: true, force: true });
+        if (!fs.existsSync(skillsSrc)) {
+          throw new Error(`Missing canonical root skills directory: ${skillsSrc}`);
         }
+        copyDirRecursive(skillsSrc, skillsDest);
       },
     },
     {
@@ -605,22 +610,14 @@ async function main(): Promise<void> {
       entries: discoverCreateMakePicturesEntries(
         path.join(PACKAGES_DIR, 'create-make-pictures')
       ),
-      copyAssets(pkgDir) {
-        const pluginSrc = path.join(ROOT_DIR, 'plugins', 'make-pictures');
-        const pluginDest = path.join(pkgDir, 'assets', 'plugin');
-        fs.rmSync(pluginDest, { recursive: true, force: true });
-        if (fs.existsSync(pluginSrc)) {
-          copyDirRecursive(pluginSrc, pluginDest);
-        }
-      },
     },
   ];
 
-  console.log('[build:packages] Building @make-pictures/* npm workspaces…');
+  console.log('[build:packages] Building 3 make.pictures v3.0 packages…');
   for (const spec of specs) {
     await buildPackage(spec);
   }
-  console.log('[build:packages] All present workspace packages built cleanly.');
+  console.log('[build:packages] All 3 workspace packages built cleanly.');
 }
 
 main().catch((err) => {

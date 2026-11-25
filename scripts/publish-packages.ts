@@ -13,9 +13,7 @@ interface PackageReleaseTarget {
 }
 
 const RELEASE_PACKAGES_TOPOLOGICAL: PackageReleaseTarget[] = [
-  { dir: 'packages/core', expectedName: '@make-pictures/core' },
-  { dir: 'packages/kits', expectedName: '@make-pictures/kits' },
-  { dir: 'packages/studio', expectedName: '@make-pictures/studio' },
+  { dir: 'packages/remotion', expectedName: '@make-pictures/remotion' },
   { dir: 'packages/cli', expectedName: '@make-pictures/cli' },
   { dir: 'packages/create-make-pictures', expectedName: 'create-make-pictures' },
 ];
@@ -79,7 +77,7 @@ async function main(): Promise<void> {
   const isCi = process.env.GITHUB_ACTIONS === 'true';
 
   console.log('==============================================================');
-  console.log(' 🚀 make.pictures — Topological npm Package Publisher');
+  console.log(' 🚀 make.pictures — Topological npm Package Publisher (v3.0)');
   console.log('    https://make.pictures');
   console.log('==============================================================');
   console.log(`  • Mode:        ${dryRun ? 'DRY RUN (no registry mutation)' : 'LIVE PUBLISH'}`);
@@ -89,20 +87,20 @@ async function main(): Promise<void> {
   }
   console.log('');
 
-  // 1. Build all workspace packages first unless explicitly skipped
+  // 1. Build all 3 workspace packages first unless explicitly skipped
   if (!skipBuild) {
-    console.log('📦 Step 1/2: Building all 5 packages (npm run build:packages)…');
+    console.log('📦 Step 1/2: Building all 3 packages (npm run build:packages)…');
     execSync('npm run build:packages', {
       stdio: 'inherit',
       cwd: ROOT_DIR,
     });
-    console.log('✓ All packages built cleanly.\n');
+    console.log('✓ All 3 packages built cleanly.\n');
   } else {
     console.log('⏭️  Step 1/2: Build skipped (--skip-build).\n');
   }
 
   // 2. Iterate in strict topological order
-  console.log('🚀 Step 2/2: Publishing packages in strict topological order…\n');
+  console.log('🚀 Step 2/2: Publishing 3 packages in strict topological order…\n');
 
   const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 
@@ -162,8 +160,8 @@ async function main(): Promise<void> {
   console.log('==============================================================');
   console.log(
     dryRun
-      ? '✨ Dry-run publish completed cleanly for all 5 packages!'
-      : '🎉 All 5 make.pictures packages published to npm successfully!'
+      ? '✨ Dry-run publish completed cleanly for all 3 packages!'
+      : '🎉 All 3 make.pictures packages published to npm successfully!'
   );
   console.log('==============================================================');
 }

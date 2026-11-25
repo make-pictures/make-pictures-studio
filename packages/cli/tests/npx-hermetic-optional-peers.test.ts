@@ -10,8 +10,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MONOREPO_ROOT = path.resolve(__dirname, '..', '..', '..');
 
 const REQUIRED_DIST_FILES = [
-  path.join(MONOREPO_ROOT, 'packages', 'core', 'dist', 'index.mjs'),
-  path.join(MONOREPO_ROOT, 'packages', 'studio', 'dist', 'server', 'index.mjs'),
+  path.join(MONOREPO_ROOT, 'packages', 'remotion', 'dist', 'index.mjs'),
+  path.join(MONOREPO_ROOT, 'packages', 'remotion', 'dist', 'style-lab', 'index.mjs'),
+  path.join(MONOREPO_ROOT, 'packages', 'remotion', 'dist', 'elements', 'index.mjs'),
   path.join(MONOREPO_ROOT, 'packages', 'cli', 'dist', 'bin.mjs'),
 ] as const;
 
@@ -61,7 +62,7 @@ function symlinkThirdPartyPkg(name: string, destNodeModules: string): void {
   fs.symlinkSync(src, dest, process.platform === 'win32' ? 'junction' : 'dir');
 }
 
-test('built @make-pictures/cli runs `onboard --lang=pl --json` in a minimal npx cache without @react-three/fiber, three, react, or remotion', () => {
+test('built @make-pictures/cli runs `onboard --lang=pl --json` and `styles --json` in a minimal npx cache without @react-three/fiber, three, react, or remotion', () => {
   const tmpRoot = fs.mkdtempSync(
     path.join(os.tmpdir(), 'mp-npx-minimal-cache-')
   );
@@ -72,16 +73,20 @@ test('built @make-pictures/cli runs `onboard --lang=pl --json` in a minimal npx 
     fs.mkdirSync(npxNodeModules, { recursive: true });
     fs.mkdirSync(emptyUserDir, { recursive: true });
 
-    copyBuiltPackageIntoNodeModules('core', '@make-pictures/core', npxNodeModules);
     copyBuiltPackageIntoNodeModules(
-      'studio',
-      '@make-pictures/studio',
+      'remotion',
+      '@make-pictures/remotion',
       npxNodeModules
     );
     copyBuiltPackageIntoNodeModules('cli', '@make-pictures/cli', npxNodeModules);
 
     // Only direct runtime dependencies (no @react-three/fiber, no three, no react, no remotion)
-    for (const dep of ['dotenv', '@elevenlabs/elevenlabs-js', 'zod']) {
+    for (const dep of [
+      'dotenv',
+      '@elevenlabs/elevenlabs-js',
+      'zod',
+      '@remotion/studio-protocol',
+    ]) {
       symlinkThirdPartyPkg(dep, npxNodeModules);
     }
 
@@ -136,9 +141,9 @@ test('built @make-pictures/cli runs `onboard --lang=pl --json` in a minimal npx 
   }
 });
 
-test('built @make-pictures/core and @make-pictures/core/camera load in ESM without optional @react-three/fiber or three installed', () => {
+test('built @make-pictures/remotion root, camera, kinematics, style-lab, and elements load in ESM without optional @react-three/fiber or three installed', () => {
   const tmpRoot = fs.mkdtempSync(
-    path.join(os.tmpdir(), 'mp-core-2d-only-')
+    path.join(os.tmpdir(), 'mp-remotion-2d-only-')
   );
   try {
     const consumerNodeModules = path.join(tmpRoot, 'node_modules');
@@ -150,8 +155,8 @@ test('built @make-pictures/core and @make-pictures/core/camera load in ESM witho
     );
 
     copyBuiltPackageIntoNodeModules(
-      'core',
-      '@make-pictures/core',
+      'remotion',
+      '@make-pictures/remotion',
       consumerNodeModules
     );
 
@@ -163,6 +168,7 @@ test('built @make-pictures/core and @make-pictures/core/camera load in ESM witho
       'remotion',
       '@remotion/media-utils',
       '@remotion/google-fonts',
+      '@remotion/zod-types',
       'zod',
     ]) {
       symlinkThirdPartyPkg(peer, consumerNodeModules);
@@ -174,19 +180,25 @@ test('built @make-pictures/core and @make-pictures/core/camera load in ESM witho
         '--input-type=module',
         '-e',
         `
-          import * as core from '@make-pictures/core';
-          import * as cam from '@make-pictures/core/camera';
-          if (typeof core.StyleProvider !== 'function') throw new Error('Missing StyleProvider');
-          if (typeof core.DirectorCamera2D !== 'function') throw new Error('Missing DirectorCamera2D');
+          import * as mp from '@make-pictures/remotion';
+          import * as cam from '@make-pictures/remotion/camera';
+          import * as kin from '@make-pictures/remotion/kinematics';
+          import * as lab from '@make-pictures/remotion/style-lab';
+          import * as el from '@make-pictures/remotion/elements';
+          if (typeof mp.StyleProvider !== 'function') throw new Error('Missing StyleProvider');
+          if (typeof mp.DirectorCamera2D !== 'function') throw new Error('Missing DirectorCamera2D');
           if (typeof cam.DirectorCamera3D !== 'function') throw new Error('Missing DirectorCamera3D');
           if (typeof cam.evaluateDirectorCamera3D !== 'function') throw new Error('Missing evaluateDirectorCamera3D');
-          console.log('OK_2D_CORE');
+          if (typeof kin.obbClearanceSat3D !== 'function') throw new Error('Missing obbClearanceSat3D');
+          if (typeof lab.StyleLabComposition !== 'function') throw new Error('Missing StyleLabComposition');
+          if (!Array.isArray(el.REMOTION_ELEMENTS_CATALOG) || el.REMOTION_ELEMENTS_CATALOG.length !== 7) throw new Error('Missing REMOTION_ELEMENTS_CATALOG');
+          console.log('OK_2D_REMOTION');
         `,
       ],
       { cwd: tmpRoot, encoding: 'utf8' }
     );
 
-    assert.match(probeOut, /OK_2D_CORE/);
+    assert.match(probeOut, /OK_2D_REMOTION/);
   } finally {
     fs.rmSync(tmpRoot, { recursive: true, force: true });
   }

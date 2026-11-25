@@ -1,10 +1,9 @@
-import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
-import http from 'node:http';
-import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import ts from 'typescript';
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const MONOREPO_ROOT = path.resolve(SCRIPT_DIR, '..');
@@ -17,19 +16,9 @@ interface PackageSpec {
 
 const PACKAGES: PackageSpec[] = [
   {
-    dir: 'packages/core',
-    name: '@make-pictures/core',
-    scopedInstallPath: '@make-pictures/core',
-  },
-  {
-    dir: 'packages/kits',
-    name: '@make-pictures/kits',
-    scopedInstallPath: '@make-pictures/kits',
-  },
-  {
-    dir: 'packages/studio',
-    name: '@make-pictures/studio',
-    scopedInstallPath: '@make-pictures/studio',
+    dir: 'packages/remotion',
+    name: '@make-pictures/remotion',
+    scopedInstallPath: '@make-pictures/remotion',
   },
   {
     dir: 'packages/cli',
@@ -43,16 +32,28 @@ const PACKAGES: PackageSpec[] = [
 ];
 
 const EXPECTED_SKILLS = [
+  'art-direction-and-styles',
+  'kits-2d',
+  'kits-3d-and-kinematics',
   'make-pictures-director',
-  'style-and-art-direction',
-  'kit-editorial-and-vector',
-  'kit-paper-diorama-3d',
-  'kit-motion-diagrams-2d',
-  'kit-isometric-3d',
-  'kit-kinetic-and-data',
   'sound-and-music-design',
-  'cinematography-and-vfx',
-];
+] as const;
+
+const ZERO_THREE_SUBPATHS = [
+  'index',
+  'style/index',
+  'style/presets',
+  'audio/index',
+  'audio/voices',
+  'camera/index',
+  'kinematics/index',
+  'director/index',
+  'optics/index',
+  'types/index',
+  'utils/index',
+  'style-lab/index',
+  'elements/index',
+] as const;
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
@@ -104,6 +105,51 @@ function collectExportTargets(exportsField: unknown, out: Set<string>): void {
   }
 }
 
+function traceBuiltEsmImports(
+  distDir: string,
+  relEntry: string,
+  seen = new Set<string>()
+): Set<string> {
+  const abs = path.resolve(distDir, relEntry);
+  if (seen.has(abs) || !fs.existsSync(abs)) return seen;
+  seen.add(abs);
+  const code = fs.readFileSync(abs, 'utf8');
+  const sf = ts.createSourceFile(abs, code, ts.ScriptTarget.ES2022, false);
+  const specs: string[] = [];
+
+  const visit = (node: ts.Node) => {
+    if (
+      (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
+      node.moduleSpecifier &&
+      ts.isStringLiteral(node.moduleSpecifier)
+    ) {
+      specs.push(node.moduleSpecifier.text);
+    } else if (
+      ts.isCallExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      node.expression.text === 'require' &&
+      node.arguments.length === 1 &&
+      ts.isStringLiteral(node.arguments[0]!)
+    ) {
+      specs.push(node.arguments[0]!.text);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+
+  for (const spec of specs) {
+    if (spec.startsWith('.')) {
+      const nextAbs = path.resolve(path.dirname(abs), spec);
+      if (fs.existsSync(nextAbs)) {
+        traceBuiltEsmImports(distDir, path.relative(distDir, nextAbs), seen);
+      }
+    } else {
+      seen.add(`PKG:${spec}`);
+    }
+  }
+  return seen;
+}
+
 function inspectTarball(
   pkg: PackageSpec,
   pkgDir: string,
@@ -132,7 +178,7 @@ function inspectTarball(
 
   const entrySet = new Set(rawEntries);
 
-  // 1. Secret leak check: ZERO .env or .env.local files allowed in any tarball
+  // 1. Secret leak check
   for (const entry of entrySet) {
     const base = path.posix.basename(entry);
     assert(
@@ -141,7 +187,7 @@ function inspectTarball(
     );
   }
 
-  // 2. Verify every declared export target (.mjs, .cjs, .d.ts, .css) exists in tarball
+  // 2. Verify every declared export target (.mjs, .cjs, .d.ts) exists in tarball
   if (pkgJson.exports) {
     for (const [subpathKey, subpathVal] of Object.entries(pkgJson.exports)) {
       const targets = new Set<string>();
@@ -151,7 +197,6 @@ function inspectTarball(
         `${pkg.name} exports["${subpathKey}"] declared no target paths`
       );
 
-      // For JS module entries (not .css / .json), require .mjs, .cjs, and .d.ts
       if (!subpathKey.endsWith('.css') && !subpathKey.endsWith('.json')) {
         const targetArr = Array.from(targets);
         assert(
@@ -194,73 +239,33 @@ function inspectTarball(
     }
   }
 
-  // 4. Package-specific asset assertions
-  if (pkg.name === '@make-pictures/core') {
-    for (const ext of ['mjs', 'cjs', 'd.ts']) {
-      const styleEntry = `package/dist/style/index.${ext}`;
-      assert(
-        entrySet.has(styleEntry),
-        `@make-pictures/core tarball must contain ${styleEntry}`
-      );
-      const presetsEntry = `package/dist/style/presets.${ext}`;
-      assert(
-        entrySet.has(presetsEntry),
-        `@make-pictures/core tarball must contain ${presetsEntry}`
-      );
-    }
-    // Verify zero static @react-three/fiber or three runtime imports in @make-pictures/core dist
-    const coreDistDir = path.join(pkgDir, 'dist');
-    for (const f of fs.readdirSync(coreDistDir, { recursive: true })) {
-      const rel = String(f);
-      if (!rel.endsWith('.mjs') && !rel.endsWith('.cjs')) continue;
-      const code = fs.readFileSync(path.join(coreDistDir, rel), 'utf8');
-      assert(
-        !code.includes('@react-three/fiber') &&
-          !/from\s+['"]three['"]|require\(\s*['"]three['"]\s*\)/.test(code),
-        `@make-pictures/core/dist/${rel} must not contain runtime imports of optional 3D peerDependencies (@react-three/fiber / three)`
-      );
-    }
-  }
-
-  if (pkg.name === '@make-pictures/kits') {
-    for (const subpath of [
-      'product-frames',
-      'editorial-collage',
-      'vector-scene-2d',
-    ]) {
-      for (const ext of ['mjs', 'cjs', 'd.ts']) {
-        const kitEntry = `package/dist/${subpath}/index.${ext}`;
+  // 4. Package-specific invariants
+  if (pkg.name === '@make-pictures/remotion') {
+    const distDir = path.join(pkgDir, 'dist');
+    for (const sub of ZERO_THREE_SUBPATHS) {
+      for (const ext of ['mjs', 'cjs'] as const) {
+        const deps = [...traceBuiltEsmImports(distDir, `${sub}.${ext}`)];
+        const forbidden = deps.filter((d) =>
+          /^PKG:(three|@react-three\/|@remotion\/three)/.test(d)
+        );
         assert(
-          entrySet.has(kitEntry),
-          `@make-pictures/kits tarball must contain ${kitEntry}`
+          forbidden.length === 0,
+          `@make-pictures/remotion/dist/${sub}.${ext} must not import optional 3D peers, found: ${forbidden.join(', ')}`
         );
       }
     }
   }
 
-  if (pkg.name === '@make-pictures/studio') {
+  if (pkg.name === '@make-pictures/cli') {
     assert(
-      entrySet.has('package/dist/styles.css'),
-      '@make-pictures/studio tarball must contain package/dist/styles.css'
-    );
-  }
-
-  if (pkg.name === '@make-pictures/cli' || pkg.name === 'create-make-pictures') {
-    if (pkg.name === '@make-pictures/cli') {
-      assert(
-        entrySet.has('package/dist/bin.mjs'),
-        '@make-pictures/cli tarball must contain package/dist/bin.mjs'
-      );
-    }
-    assert(
-      entrySet.has('package/assets/plugin/plugin.json'),
-      `${pkg.name} tarball must contain package/assets/plugin/plugin.json`
+      entrySet.has('package/dist/bin.mjs'),
+      '@make-pictures/cli tarball must contain package/dist/bin.mjs'
     );
     for (const skill of EXPECTED_SKILLS) {
-      const skillEntry = `package/assets/plugin/skills/${skill}/SKILL.md`;
+      const skillEntry = `package/assets/skills/${skill}/SKILL.md`;
       assert(
         entrySet.has(skillEntry),
-        `${pkg.name} tarball missing bundled skill "${skillEntry}"`
+        `@make-pictures/cli tarball missing bundled skill "${skillEntry}"`
       );
     }
   }
@@ -272,10 +277,9 @@ function inspectTarball(
 
 /**
  * Populates `<consumerDir>/node_modules` hermetically and 100% offline:
- * - Symlinks third-party dependencies from `<monorepo>/node_modules` (strictly skipping
- *   `@make-pictures`, `create-make-pictures`, `.bin`, and `.cache`).
- * - Extracts the packed `.tgz` tarballs directly into `node_modules/@make-pictures/*`.
- * - Verifies via `realpathSync` that `@make-pictures/*` resolves inside `tmpRoot`, never monorepo source.
+ * - Symlinks third-party dependencies from `<monorepo>/node_modules` (skipping `@make-pictures` & `create-make-pictures`).
+ * - Extracts packed `.tgz` tarballs into `node_modules/@make-pictures/*`.
+ * - Verifies via `realpathSync` that `@make-pictures/*` resolves inside `tmpRoot`.
  */
 function populateHermeticConsumerNodeModules(params: {
   consumerDir: string;
@@ -287,8 +291,7 @@ function populateHermeticConsumerNodeModules(params: {
   const consumerNodeModules = path.join(consumerDir, 'node_modules');
   fs.mkdirSync(consumerNodeModules, { recursive: true });
 
-  const entries = fs.readdirSync(monorepoNodeModules, { withFileTypes: true });
-  for (const entry of entries) {
+  for (const entry of fs.readdirSync(monorepoNodeModules, { withFileTypes: true })) {
     if (
       entry.name === '@make-pictures' ||
       entry.name === 'create-make-pictures' ||
@@ -308,7 +311,6 @@ function populateHermeticConsumerNodeModules(params: {
     );
   }
 
-  // Extract actual packed @make-pictures/* tarballs
   const realTmpRoot = fs.realpathSync(tmpRoot);
   for (const pkg of PACKAGES) {
     if (!pkg.scopedInstallPath) continue;
@@ -337,7 +339,6 @@ function populateHermeticConsumerNodeModules(params: {
     );
   }
 
-  // Populate node_modules/.bin
   const consumerBinDir = path.join(consumerNodeModules, '.bin');
   fs.mkdirSync(consumerBinDir, { recursive: true });
 
@@ -369,288 +370,29 @@ function populateHermeticConsumerNodeModules(params: {
   assert(fs.existsSync(cliBinFile), `Missing unpacked CLI bin: ${cliBinFile}`);
   fs.chmodSync(cliBinFile, 0o755);
 
-  const makePicturesBinLink = path.join(consumerBinDir, 'make-pictures');
   fs.symlinkSync(
     path.relative(consumerBinDir, cliBinFile),
-    makePicturesBinLink
+    path.join(consumerBinDir, 'make-pictures')
   );
 }
 
-function assertAgentAndClaudeSkillsDiscovery(
-  projectDir: string,
-  label: string
-): void {
-  const agentsMdPath = path.join(projectDir, 'AGENTS.md');
-  assert(fs.existsSync(agentsMdPath), `${label} missing AGENTS.md`);
-  assert(
-    fs.readFileSync(agentsMdPath, 'utf8').trim().length > 0,
-    `${label} AGENTS.md is empty`
-  );
-
-  const claudeMdPath = path.join(projectDir, 'CLAUDE.md');
-  assert(fs.existsSync(claudeMdPath), `${label} missing CLAUDE.md`);
-  assert(
-    fs.readFileSync(claudeMdPath, 'utf8').trim().length > 0,
-    `${label} CLAUDE.md is empty`
-  );
-
-  const pluginJsonPath = path.join(
-    projectDir,
-    '.agents',
-    'plugins',
-    'make-pictures',
-    'plugin.json'
-  );
-  assert(
-    fs.existsSync(pluginJsonPath),
-    `${label} missing .agents/plugins/make-pictures/plugin.json`
-  );
-
-  for (const skill of EXPECTED_SKILLS) {
-    const agentSkillFile = path.join(
-      projectDir,
-      '.agents',
-      'plugins',
-      'make-pictures',
-      'skills',
-      skill,
-      'SKILL.md'
-    );
-    assert(
-      fs.existsSync(agentSkillFile),
-      `${label} missing .agents/plugins/make-pictures/skills/${skill}/SKILL.md`
-    );
-
-    const claudeSkillFile = path.join(
-      projectDir,
-      '.claude',
-      'skills',
-      skill,
-      'SKILL.md'
-    );
-    assert(
-      fs.existsSync(claudeSkillFile),
-      `${label} missing .claude/skills/${skill}/SKILL.md`
-    );
-    const resolvedClaudeSkill = fs.realpathSync(claudeSkillFile);
-    assert(
-      fs.readFileSync(resolvedClaudeSkill, 'utf8').trim().length > 0,
-      `${label} .claude/skills/${skill}/SKILL.md resolved to empty file (${resolvedClaudeSkill})`
-    );
-  }
-}
-
-function assertGitignoreAllowsProductions(gitignorePath: string): void {
-  assert(fs.existsSync(gitignorePath), `Missing .gitignore at ${gitignorePath}`);
-  const lines = fs
-    .readFileSync(gitignorePath, 'utf8')
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter((l) => l.length > 0 && !l.startsWith('#'));
-
-  for (const line of lines) {
-    assert(
-      line !== 'productions' &&
-        line !== 'productions/' &&
-        line !== 'productions/*' &&
-        line !== '/productions' &&
-        line !== '/productions/',
-      `Standalone consumer .gitignore MUST NOT ignore productions/, found "${line}"`
-    );
-  }
-}
-
-function findFreeLocalPort(): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const srv = net.createServer();
-    srv.unref();
-    srv.on('error', reject);
-    srv.listen(0, '127.0.0.1', () => {
-      const addr = srv.address();
-      if (!addr || typeof addr === 'string') {
-        srv.close(() => reject(new Error('Could not allocate free TCP port')));
-        return;
-      }
-      const port = addr.port;
-      srv.close((err) => (err ? reject(err) : resolve(port)));
-    });
-  });
-}
-
-function httpGetLocal(
-  port: number,
-  reqPath: string
-): Promise<{ statusCode: number; body: string; contentType: string }> {
-  return new Promise((resolve, reject) => {
-    const req = http.get(
-      {
-        hostname: '127.0.0.1',
-        port,
-        path: reqPath,
-        headers: { Connection: 'close' },
-        timeout: 4000,
-      },
-      (res) => {
-        const chunks: Buffer[] = [];
-        res.on('data', (chunk: Buffer) => chunks.push(chunk));
-        res.on('end', () => {
-          resolve({
-            statusCode: res.statusCode ?? 0,
-            body: Buffer.concat(chunks).toString('utf8'),
-            contentType: String(res.headers['content-type'] ?? ''),
-          });
-        });
-      }
-    );
-    req.on('timeout', () => {
-      req.destroy(new Error(`Timeout GET ${reqPath}`));
-    });
-    req.on('error', reject);
-  });
-}
-
-async function verifyStandaloneStudioServer(standaloneDir: string): Promise<void> {
-  const port = await findFreeLocalPort();
-  const makePicturesBin = path.join(
-    standaloneDir,
-    'node_modules',
-    '.bin',
-    'make-pictures'
-  );
-
-  console.log(
-    `  $ node ./node_modules/.bin/make-pictures studio --port=${port} --host=127.0.0.1`
-  );
-
-  const child: ChildProcess = spawn(
-    process.execPath,
-    [makePicturesBin, 'studio', `--port=${port}`, '--host=127.0.0.1'],
-    {
-      cwd: standaloneDir,
-      env: { ...process.env, CI: '1' },
-      stdio: ['ignore', 'pipe', 'pipe'],
-    }
-  );
-
-  let serverLogs = '';
-  child.stdout?.on('data', (buf: Buffer) => {
-    serverLogs += buf.toString('utf8');
-  });
-  child.stderr?.on('data', (buf: Buffer) => {
-    serverLogs += buf.toString('utf8');
-  });
-
-  const killServer = async (): Promise<void> => {
-    if (child.exitCode !== null) return;
-    await new Promise<void>((resolve) => {
-      const killTimer = setTimeout(() => {
-        if (child.exitCode === null) {
-          child.kill('SIGKILL');
-        }
-      }, 2500);
-      child.once('exit', () => {
-        clearTimeout(killTimer);
-        resolve();
-      });
-      child.kill('SIGTERM');
-    });
-  };
-
-  try {
-    const deadline = Date.now() + 20_000;
-    let statusReady = false;
-    let lastErr = '';
-
-    while (Date.now() < deadline) {
-      if (child.exitCode !== null) {
-        throw new Error(
-          `make-pictures studio exited prematurely (code ${child.exitCode}):\n${serverLogs}`
-        );
-      }
-      try {
-        const statusRes = await httpGetLocal(port, '/api/studio/status');
-        if (statusRes.statusCode === 200) {
-          const parsed = JSON.parse(statusRes.body) as {
-            scenes?: Record<string, unknown>;
-          };
-          assert(
-            parsed && typeof parsed === 'object' && parsed.scenes,
-            `/api/studio/status returned unexpected JSON: ${statusRes.body.slice(0, 200)}`
-          );
-          statusReady = true;
-          break;
-        }
-        lastErr = `HTTP ${statusRes.statusCode}`;
-      } catch (err) {
-        lastErr = err instanceof Error ? err.message : String(err);
-      }
-      await new Promise((r) => setTimeout(r, 250));
-    }
-
-    assert(
-      statusReady,
-      `Timed out waiting for Studio server /api/studio/status (${lastErr}):\n${serverLogs}`
-    );
-
-    const stylesRes = await httpGetLocal(port, '/api/studio/styles');
-    assert(
-      stylesRes.statusCode === 200,
-      `Expected GET /api/studio/styles -> 200 OK, got ${stylesRes.statusCode}: ${stylesRes.body.slice(0, 200)}`
-    );
-    const parsedStyles = JSON.parse(stylesRes.body) as {
-      ok?: boolean;
-      styles?: Array<{ id?: string }>;
-    };
-    assert(
-      parsedStyles &&
-        parsedStyles.ok === true &&
-        Array.isArray(parsedStyles.styles),
-      `/api/studio/styles returned unexpected JSON: ${stylesRes.body.slice(0, 200)}`
-    );
-    assert(
-      parsedStyles.styles.some((s) => s.id === 'bespoke-editorial'),
-      `Expected /api/studio/styles to include custom style "bespoke-editorial", got: ${stylesRes.body.slice(0, 200)}`
-    );
-
-    const htmlRes = await httpGetLocal(port, '/');
-    assert(
-      htmlRes.statusCode === 200,
-      `Expected GET / -> 200 OK, got ${htmlRes.statusCode}`
-    );
-    assert(
-      htmlRes.body.toLowerCase().includes('<html') &&
-        htmlRes.body.includes('<script'),
-      `Expected GET / to return Studio HTML shell, got:\n${htmlRes.body.slice(0, 300)}`
-    );
-
-    // Also verify Vite transforms the virtual entry script without module resolution errors
-    const scriptMatch = htmlRes.body.match(
-      /<script[^>]+type=["']module["'][^>]+src=["']([^"']+)["']/i
-    );
-    if (scriptMatch?.[1]) {
-      const modRes = await httpGetLocal(port, scriptMatch[1]);
+function assertSyncedSkills(projectDir: string, label: string): void {
+  for (const base of ['.agents/skills', '.claude/skills']) {
+    for (const skill of EXPECTED_SKILLS) {
+      const skillFile = path.join(projectDir, base, skill, 'SKILL.md');
       assert(
-        modRes.statusCode === 200,
-        `Expected virtual entry ${scriptMatch[1]} -> 200 OK, got ${modRes.statusCode}:\n${modRes.body.slice(0, 400)}`
+        fs.existsSync(skillFile),
+        `${label} missing ${base}/${skill}/SKILL.md`
+      );
+      assert(
+        fs.readFileSync(skillFile, 'utf8').trim().length > 0,
+        `${label} ${base}/${skill}/SKILL.md is empty`
       );
     }
-
-    console.log(
-      `  ✓ Studio Web server verified at http://127.0.0.1:${port} (GET /api/studio/status 200 + GET /api/studio/styles 200 + GET / 200 HTML)`
-    );
-  } finally {
-    await killServer();
   }
 }
 
 async function main(): Promise<void> {
-  const keepQaArg = process.argv
-    .slice(2)
-    .find((a) => a.startsWith('--keep-qa-copy='));
-  const keepQaCopyPath = keepQaArg
-    ? path.resolve(process.cwd(), keepQaArg.slice('--keep-qa-copy='.length))
-    : null;
-
   const tmpRoot = fs.mkdtempSync(
     path.join(os.tmpdir(), 'make-pictures-pack-verify-')
   );
@@ -660,13 +402,13 @@ async function main(): Promise<void> {
   console.log(`🧪 Hermetic workspace: ${tmpRoot}`);
 
   try {
-    // 1. Build all 5 workspace packages
-    logStep('1/5 • Building all 5 packages (npm run build:packages)');
+    // 1. Build all 3 workspace packages
+    logStep('1/5 • Building all 3 packages (npm run build:packages)');
     const npmBin = process.platform === 'win32' ? 'npm.cmd' : 'npm';
     runCmd(npmBin, ['run', 'build:packages'], { cwd: MONOREPO_ROOT });
 
-    // 2 & 3. Pack all 5 tarballs into tmpRoot/tarballs & inspect contents
-    logStep('2/5 • Packing .tgz tarballs & auditing exports / assets / secrets');
+    // 2. Pack all 3 tarballs & inspect contents
+    logStep('2/5 • Packing .tgz tarballs & auditing exports / skills / zero-three / secrets');
     const tarballsByPkgName = new Map<string, string>();
 
     for (const pkg of PACKAGES) {
@@ -696,7 +438,6 @@ async function main(): Promise<void> {
       tarballsByPkgName.set(pkg.name, tgzPath);
     }
 
-    // Verify zero .tgz files leaked into monorepo root or packages/*
     const rootTgzLeaks = fs
       .readdirSync(MONOREPO_ROOT)
       .filter((f) => f.endsWith('.tgz'));
@@ -705,8 +446,8 @@ async function main(): Promise<void> {
       `Tarball leaked into monorepo root: ${rootTgzLeaks.join(', ')}`
     );
 
-    // 4. Consumer Mode A — Standalone `create-make-pictures` outside monorepo
-    logStep('3/5 • Consumer Mode A: Standalone create-make-pictures app');
+    // 3. Path A — Fresh project via `create-make-pictures`
+    logStep('3/5 • Path A: Fresh project via create-make-pictures');
     const createTarball = tarballsByPkgName.get('create-make-pictures');
     assert(createTarball, 'Missing create-make-pictures tarball');
 
@@ -734,26 +475,6 @@ async function main(): Promise<void> {
       }
     );
 
-    assertGitignoreAllowsProductions(path.join(standaloneDir, '.gitignore'));
-    assertAgentAndClaudeSkillsDiscovery(MONOREPO_ROOT, 'Engine monorepo root');
-    assertAgentAndClaudeSkillsDiscovery(standaloneDir, 'Standalone app');
-    assert(
-      fs.existsSync(path.join(standaloneDir, 'styles', 'README.md')),
-      'Standalone app missing styles/README.md'
-    );
-    assert(
-      fs.existsSync(
-        path.join(
-          standaloneDir,
-          'productions',
-          'hello-studio',
-          'assets',
-          'videos'
-        )
-      ),
-      'Standalone hello-studio capsule missing assets/videos/'
-    );
-
     populateHermeticConsumerNodeModules({
       consumerDir: standaloneDir,
       tmpRoot,
@@ -767,446 +488,239 @@ async function main(): Promise<void> {
       '.bin',
       'make-pictures'
     );
+    const remotionBin = path.join(
+      standaloneDir,
+      'node_modules',
+      '.bin',
+      'remotion'
+    );
 
-    // 4a. Typecheck initial standalone app (default vector-scene-2d + StyleProvider) against published .d.ts
+    // A1: Typecheck fresh scaffold
     runCmd(tscBin, ['--noEmit'], {
       cwd: standaloneDir,
-      label: '(standalone-app) ./node_modules/.bin/tsc --noEmit [initial]',
+      label: '(Path A) tsc --noEmit [initial]',
     });
 
-    // 4a-bis. Create custom style & inspect styles --json via unpacked CLI binary
-    runCmd(
-      process.execPath,
-      [
-        mpBin,
-        'style',
-        'new',
-        'bespoke-editorial',
-        '--from=editorial-press',
-      ],
-      {
-        cwd: standaloneDir,
-        label:
-          '(standalone-app) node ./node_modules/.bin/make-pictures style new bespoke-editorial --from=editorial-press',
-      }
-    );
+    // A2: Scaffold new 2D video + generate mock audio + typecheck
+    runCmd(process.execPath, [mpBin, 'new', 'demo', '--space=2d'], {
+      cwd: standaloneDir,
+      label: '(Path A) make-pictures new demo --space=2d',
+    });
+    runCmd(process.execPath, [mpBin, 'audio', 'demo', '--mock'], {
+      cwd: standaloneDir,
+      label: '(Path A) make-pictures audio demo --mock',
+    });
     assert(
       fs.existsSync(
-        path.join(standaloneDir, 'styles', 'bespoke-editorial.style.json')
+        path.join(standaloneDir, 'src', 'videos', 'demo', 'generated', 'audio-manifest.ts')
       ),
-      'Expected styles/bespoke-editorial.style.json to be created in standalone-app'
+      'Path A missing generated/audio-manifest.ts for demo'
     );
-
-    const standaloneStylesJsonRaw = runCmd(
-      process.execPath,
-      [mpBin, 'styles', '--json'],
-      {
-        cwd: standaloneDir,
-        label:
-          '(standalone-app) node ./node_modules/.bin/make-pictures styles --json',
-      }
-    );
-    const standaloneStylesJson = JSON.parse(standaloneStylesJsonRaw) as {
-      builtInStyles?: unknown[];
-      customStyles?: Array<{ id?: string }>;
-      visualKits?: unknown[];
-    };
-    assert(
-      Array.isArray(standaloneStylesJson.builtInStyles) &&
-        standaloneStylesJson.builtInStyles.length === 10,
-      `Expected 10 builtInStyles in standalone styles --json, got ${standaloneStylesJson.builtInStyles?.length}`
-    );
-    assert(
-      Array.isArray(standaloneStylesJson.customStyles) &&
-        standaloneStylesJson.customStyles.some(
-          (s) => s.id === 'bespoke-editorial'
-        ),
-      'Expected customStyles in standalone styles --json to contain "bespoke-editorial"'
-    );
-    assert(
-      Array.isArray(standaloneStylesJson.visualKits) &&
-        standaloneStylesJson.visualKits.length === 7,
-      `Expected 7 visualKits in standalone styles --json, got ${standaloneStylesJson.visualKits?.length}`
-    );
-
-    // 4a-ter. Scaffold an editorial-collage film bound to bespoke-editorial to verify narrative kit .d.ts
-    runCmd(
-      process.execPath,
-      [
-        mpBin,
-        'new',
-        'editorial-smoke',
-        '--kit=editorial-collage',
-        '--style=bespoke-editorial',
-        '--lang=pl',
-      ],
-      {
-        cwd: standaloneDir,
-        label:
-          '(standalone-app) node ./node_modules/.bin/make-pictures new editorial-smoke --kit=editorial-collage --style=bespoke-editorial --lang=pl',
-      }
-    );
-
-    // 4a-quater. Scaffold --space=2.5d (paper-diorama-3d), --space=3d (isometric-3d), and --style=retro-pc capsules to permanently guard all 3 dimensional spaces against TS2322 regressions
-    runCmd(
-      process.execPath,
-      [mpBin, 'new', 'diorama-smoke', '--space=2.5d', '--lang=pl'],
-      {
-        cwd: standaloneDir,
-        label:
-          '(standalone-app) node ./node_modules/.bin/make-pictures new diorama-smoke --space=2.5d --lang=pl',
-      }
-    );
-    runCmd(
-      process.execPath,
-      [mpBin, 'new', 'clay-smoke', '--space=3d', '--lang=pl'],
-      {
-        cwd: standaloneDir,
-        label:
-          '(standalone-app) node ./node_modules/.bin/make-pictures new clay-smoke --space=3d --lang=pl',
-      }
-    );
-    runCmd(
-      process.execPath,
-      [
-        mpBin,
-        'new',
-        'retro-smoke',
-        '--space=2d',
-        '--style=retro-pc',
-        '--lang=pl',
-      ],
-      {
-        cwd: standaloneDir,
-        label:
-          '(standalone-app) node ./node_modules/.bin/make-pictures new retro-smoke --space=2d --style=retro-pc --lang=pl',
-      }
-    );
-
-    // 4b. Create new film via unpacked CLI binary
-    runCmd(
-      process.execPath,
-      [mpBin, 'new', 'test-film', '--kit=motion-diagrams-2d', '--lang=pl'],
-      {
-        cwd: standaloneDir,
-        label:
-          '(standalone-app) node ./node_modules/.bin/make-pictures new test-film --kit=motion-diagrams-2d --lang=pl',
-      }
-    );
-
-    const testFilmVideosDir = path.join(
-      standaloneDir,
-      'productions',
-      'test-film',
-      'assets',
-      'videos'
-    );
-    assert(
-      fs.existsSync(testFilmVideosDir),
-      'Newly scaffolded test-film capsule missing assets/videos/'
-    );
-
-    // 4c. Generate mock audio for test-film
-    runCmd(
-      process.execPath,
-      [mpBin, 'audio', '--production=test-film', '--mock'],
-      {
-        cwd: standaloneDir,
-        label:
-          '(standalone-app) node ./node_modules/.bin/make-pictures audio --production=test-film --mock',
-      }
-    );
-
-    // 4c-bis. Generate a deterministic 2s testsrc2 .mp4 and mount BrowserFrame + ScreenSpotlightOverlay
-    const demoMp4Path = path.join(testFilmVideosDir, 'demo.mp4');
-    runCmd(
-      'ffmpeg',
-      [
-        '-y',
-        '-f',
-        'lavfi',
-        '-i',
-        'testsrc2=size=640x400:rate=30',
-        '-t',
-        '2',
-        '-c:v',
-        'libx264',
-        '-pix_fmt',
-        'yuv420p',
-        demoMp4Path,
-      ],
-      {
-        cwd: standaloneDir,
-        label:
-          '(standalone-app) ffmpeg testsrc2 -> productions/test-film/assets/videos/demo.mp4 (2s)',
-      }
-    );
-
-    const testFilmTsxPath = path.join(
-      standaloneDir,
-      'productions',
-      'test-film',
-      'compositions',
-      'TestFilm.tsx'
-    );
-    fs.writeFileSync(
-      testFilmTsxPath,
-      `import React from 'react';
-import { AbsoluteFill, Audio, Sequence, staticFile } from 'remotion';
-import { z } from 'zod';
-import { STUDIO_FONTS, STUDIO_THEME, SmartMusicBed, SoundCue } from '@make-pictures/core';
-import { StyleProvider, type StylePreset } from '@make-pictures/core/style';
-import { type ChapterTitleCardProps } from '@make-pictures/kits/editorial-collage';
-import { type StoryCard2DProps } from '@make-pictures/kits/vector-scene-2d';
-import {
-  BrowserFrame,
-  ScreenSpotlightOverlay,
-  type PhoneFrameProps,
-} from '@make-pictures/kits/product-frames';
-import {
-  MUSIC_MANIFEST,
-  SFX_MANIFEST,
-  VOICEOVER_MANIFEST,
-} from '../generated/audio-manifest';
-
-export const TestFilmSchema = z.object({
-  headline: z.string().describe('Texts & Labels :: Headline'),
-  subheadline: z.string().describe('Texts & Labels :: Subheadline'),
-  badgeLabel: z.string().describe('Texts & Labels :: Kit Badge'),
-  accentColor: z.string().describe('Colors & Style :: Primary Accent'),
-  secondaryColor: z.string().describe('Colors & Style :: Secondary Accent'),
-  voiceoverVolume: z.number().min(0).max(1.5).describe('Audio :: Voiceover Volume'),
-  musicVolume: z.number().min(0).max(1).describe('Audio :: Music Base Volume'),
-  sfxVolume: z.number().min(0).max(1).describe('Audio :: SFX Volume'),
-});
-
-export type TestFilmProps = z.infer<typeof TestFilmSchema>;
-export type _PhoneCheck = PhoneFrameProps;
-export type _StyleCheck = [StylePreset, ChapterTitleCardProps, StoryCard2DProps];
-export const _StyleProviderRef = StyleProvider;
-
-const DIALOGUE_SEGMENTS = [
-  { sceneId: 'test-film-intro', fromFrame: 42, durationInFrames: 180 },
-  { sceneId: 'test-film-payoff', fromFrame: 402, durationInFrames: 180 },
-];
-
-export const TestFilm: React.FC<TestFilmProps> = (props) => {
-  const introVo = VOICEOVER_MANIFEST['test-film-intro'];
-  const payoffVo = VOICEOVER_MANIFEST['test-film-payoff'];
-  const whooshSfx = SFX_MANIFEST['whoosh-open'];
-
-  return (
-    <AbsoluteFill
-      style={{
-        backgroundColor: STUDIO_THEME.bgCanvas,
-        fontFamily: STUDIO_FONTS.sans,
-        justifyContent: 'center',
-        alignItems: 'center',
-      }}
-    >
-      {MUSIC_MANIFEST?.audioFile ? (
-        <SmartMusicBed
-          src={staticFile(MUSIC_MANIFEST.audioFile)}
-          dialogueSegments={DIALOGUE_SEGMENTS}
-          voiceoverManifest={VOICEOVER_MANIFEST}
-          baseVolume={props.musicVolume}
-          duckedVolume={Math.min(props.musicVolume * 0.34, 0.09)}
-          fadeOutFrames={90}
-        />
-      ) : null}
-
-      {introVo?.audioFile ? (
-        <Sequence from={42} durationInFrames={180} layout="none">
-          <Audio src={staticFile(introVo.audioFile)} volume={props.voiceoverVolume} />
-        </Sequence>
-      ) : null}
-
-      {payoffVo?.audioFile ? (
-        <Sequence from={402} durationInFrames={180} layout="none">
-          <Audio src={staticFile(payoffVo.audioFile)} volume={props.voiceoverVolume} />
-        </Sequence>
-      ) : null}
-
-      {whooshSfx?.audioFile ? (
-        <SoundCue src={staticFile(whooshSfx.audioFile)} atFrame={38} volume={props.sfxVolume} />
-      ) : null}
-
-      <BrowserFrame
-        url="app.example.com"
-        title={props.headline}
-        accentColor={props.accentColor}
-        videoSrc={staticFile('_productions/test-film/videos/demo.mp4')}
-      >
-        <ScreenSpotlightOverlay
-          x={50}
-          y={50}
-          width={40}
-          height={30}
-          startFrame={20}
-          label="Live MP4"
-        />
-      </BrowserFrame>
-    </AbsoluteFill>
-  );
-};
-`,
-      'utf8'
-    );
-
-    // Re-run tsc --noEmit to verify newly scaffolded test-film + product-frames + generated audio-manifest.ts typecheck cleanly
     runCmd(tscBin, ['--noEmit'], {
       cwd: standaloneDir,
-      label: '(standalone-app) ./node_modules/.bin/tsc --noEmit [with test-film + product-frames]',
+      label: '(Path A) tsc --noEmit [with demo video]',
     });
 
-    // 4d. Run Contact-Sheet QA in standalone consumer repo (proves Remotion bundles dist ESM/CJS cleanly)
-    runCmd(process.execPath, [mpBin, 'qa', 'TestFilm'], {
+    // A3: Native Remotion QA on StyleLab
+    runCmd(process.execPath, [mpBin, 'qa', 'StyleLab'], {
       cwd: standaloneDir,
-      label: '(standalone-app) node ./node_modules/.bin/make-pictures qa TestFilm',
+      label: '(Path A) make-pictures qa StyleLab',
     });
-
-    const qaTestFilmPng = path.join(standaloneDir, 'out', 'qa-TestFilm.png');
+    const qaStyleLabPng = path.join(standaloneDir, 'out', 'qa-StyleLab.png');
     assert(
-      fs.existsSync(qaTestFilmPng),
-      `Expected QA contact sheet at ${qaTestFilmPng}`
+      fs.existsSync(qaStyleLabPng) && fs.statSync(qaStyleLabPng).size > 10_000,
+      `Expected valid QA contact sheet at ${qaStyleLabPng}`
     );
-    const qaSize = fs.statSync(qaTestFilmPng).size;
+
+    // A4: Remotion Elements build
+    runCmd(
+      process.execPath,
+      [mpBin, 'elements', 'build', '--out=out/elements'],
+      {
+        cwd: standaloneDir,
+        label: '(Path A) make-pictures elements build --out=out/elements',
+      }
+    );
+    const elementsIndexPath = path.join(
+      standaloneDir,
+      'out',
+      'elements',
+      'index.json'
+    );
     assert(
-      qaSize > 10_000,
-      `Expected non-trivial PNG at ${qaTestFilmPng}, got ${qaSize} bytes`
+      fs.existsSync(elementsIndexPath),
+      `Expected ${elementsIndexPath}`
+    );
+    const elementsIndex = JSON.parse(
+      fs.readFileSync(elementsIndexPath, 'utf8')
+    ) as { count?: number; elements?: Array<{ slug: string }> };
+    assert(
+      elementsIndex.count === 7 && elementsIndex.elements?.length === 7,
+      `Expected 7 built Remotion Elements, got ${elementsIndex.count}`
+    );
+
+    // A5: Short 0.5s Remotion render smoke (30 frames @ 60 FPS)
+    runCmd(
+      remotionBin,
+      ['render', 'src/index.ts', 'StyleLab', 'out/smoke.mp4', '--frames=0-29'],
+      {
+        cwd: standaloneDir,
+        label:
+          '(Path A) remotion render src/index.ts StyleLab out/smoke.mp4 --frames=0-29',
+      }
+    );
+    const smokeMp4 = path.join(standaloneDir, 'out', 'smoke.mp4');
+    assert(
+      fs.existsSync(smokeMp4) && fs.statSync(smokeMp4).size > 5_000,
+      `Expected rendered smoke video at ${smokeMp4}`
     );
     console.log(
-      `  ✓ Rendered standalone QA contact sheet: out/qa-TestFilm.png (${Math.round(
-        qaSize / 1024
-      )} KB)`
+      `  ✓ Path A verified (typecheck, new demo, audio --mock, qa StyleLab, elements build [7], smoke render ${Math.round(fs.statSync(smokeMp4).size / 1024)} KB)`
     );
 
-    if (keepQaCopyPath) {
-      fs.mkdirSync(path.dirname(keepQaCopyPath), { recursive: true });
-      fs.copyFileSync(qaTestFilmPng, keepQaCopyPath);
-    }
-
-    // 4e. Spawn Studio Web server in standalone consumer repo & verify HTTP 200 JSON + HTML
-    await verifyStandaloneStudioServer(standaloneDir);
-
-    // 5. Consumer Mode B — Existing SaaS repo (`make-pictures init --dir=videos`)
-    logStep('4/5 • Consumer Mode B: Existing SaaS repo (make-pictures init --dir=videos)');
-    const existingSaasDir = path.join(tmpRoot, 'existing-saas');
-    fs.mkdirSync(existingSaasDir, { recursive: true });
+    // 4. Path B — Add-on `make-pictures init` inside a bare Remotion project
+    logStep('4/5 • Path B: make-pictures init inside bare Remotion project');
+    const bareRemotionDir = path.join(tmpRoot, 'bare-remotion');
+    fs.mkdirSync(path.join(bareRemotionDir, 'src'), { recursive: true });
     fs.writeFileSync(
-      path.join(existingSaasDir, 'package.json'),
+      path.join(bareRemotionDir, 'package.json'),
       JSON.stringify(
-        { name: 'acme-saas-dashboard', version: '1.0.0', private: true },
+        {
+          name: 'bare-remotion-app',
+          version: '1.0.0',
+          private: true,
+          type: 'module',
+          dependencies: {
+            react: '^19.1.0',
+            'react-dom': '^19.1.0',
+            remotion: '^4.0.545',
+            '@remotion/cli': '^4.0.545',
+            '@remotion/bundler': '^4.0.545',
+            '@remotion/renderer': '^4.0.545',
+            '@remotion/google-fonts': '^4.0.545',
+            '@remotion/media-utils': '^4.0.545',
+            '@make-pictures/remotion': '^3.0.0',
+            '@make-pictures/cli': '^3.0.0',
+            'lucide-react': '^0.475.0',
+            zod: '^3.24.2',
+          },
+        },
         null,
         2
       ) + '\n',
       'utf8'
     );
+    fs.writeFileSync(
+      path.join(bareRemotionDir, 'tsconfig.json'),
+      JSON.stringify(
+        {
+          compilerOptions: {
+            target: 'ES2022',
+            module: 'ESNext',
+            moduleResolution: 'bundler',
+            jsx: 'react-jsx',
+            strict: true,
+            noEmit: true,
+            esModuleInterop: true,
+            skipLibCheck: true,
+          },
+          include: ['src/**/*'],
+        },
+        null,
+        2
+      ) + '\n',
+      'utf8'
+    );
+    fs.writeFileSync(
+      path.join(bareRemotionDir, 'src', 'index.ts'),
+      `import { registerRoot } from 'remotion';\nimport { RemotionRoot } from './Root';\nregisterRoot(RemotionRoot);\n`,
+      'utf8'
+    );
+    const bareRootSource = `import React from 'react';
+import { AbsoluteFill, Composition, useCurrentFrame } from 'remotion';
+
+export const HelloWorld: React.FC = () => {
+  const frame = useCurrentFrame();
+  if (frame === 0) {
+    return <AbsoluteFill style={{ backgroundColor: '#F8FAFC' }} />;
+  }
+  return (
+    <AbsoluteFill
+      style={{
+        backgroundColor: '#F8FAFC',
+        color: '#0F172A',
+        justifyContent: 'center',
+        alignItems: 'center',
+        fontSize: 48,
+        fontWeight: 700,
+      }}
+    >
+      Hello Bare Remotion
+    </AbsoluteFill>
+  );
+};
+
+export const RemotionRoot: React.FC = () => (
+  <Composition
+    id="HelloWorld"
+    component={HelloWorld}
+    durationInFrames={300}
+    fps={60}
+    width={1920}
+    height={1080}
+  />
+);
+`;
+    const bareRootPath = path.join(bareRemotionDir, 'src', 'Root.tsx');
+    fs.writeFileSync(bareRootPath, bareRootSource, 'utf8');
 
     populateHermeticConsumerNodeModules({
-      consumerDir: existingSaasDir,
+      consumerDir: bareRemotionDir,
       tmpRoot,
       tarballsByPkgName,
     });
 
-    const saasMpBin = path.join(
-      existingSaasDir,
+    const bareTscBin = path.join(bareRemotionDir, 'node_modules', '.bin', 'tsc');
+    const bareMpBin = path.join(
+      bareRemotionDir,
       'node_modules',
       '.bin',
       'make-pictures'
     );
-    runCmd(process.execPath, [saasMpBin, 'init', '--dir=videos'], {
-      cwd: existingSaasDir,
-      label:
-        '(existing-saas) node ./node_modules/.bin/make-pictures init --dir=videos',
+
+    runCmd(process.execPath, [bareMpBin, 'init'], {
+      cwd: bareRemotionDir,
+      label: '(Path B) make-pictures init',
     });
 
-    const saasProdJson = path.join(
-      existingSaasDir,
-      'videos',
-      'productions',
-      'hello-studio',
-      'production.json'
-    );
+    // Verify existing src/Root.tsx was NOT overwritten!
     assert(
-      fs.existsSync(saasProdJson),
-      `Expected ${saasProdJson} after make-pictures init --dir=videos`
+      fs.readFileSync(bareRootPath, 'utf8') === bareRootSource,
+      'Path B: make-pictures init MUST NOT modify existing src/Root.tsx'
     );
+    assertSyncedSkills(bareRemotionDir, 'Path B bare Remotion project');
+
+    runCmd(bareTscBin, ['--noEmit'], {
+      cwd: bareRemotionDir,
+      label: '(Path B) tsc --noEmit',
+    });
+
+    runCmd(process.execPath, [bareMpBin, 'qa', 'HelloWorld'], {
+      cwd: bareRemotionDir,
+      label: '(Path B) make-pictures qa HelloWorld',
+    });
+    const qaHelloPng = path.join(bareRemotionDir, 'out', 'qa-HelloWorld.png');
     assert(
-      fs.existsSync(
-        path.join(
-          existingSaasDir,
-          'videos',
-          'productions',
-          'hello-studio',
-          'assets',
-          'videos'
-        )
-      ),
-      'SaaS hello-studio capsule missing videos/productions/hello-studio/assets/videos/'
+      fs.existsSync(qaHelloPng) && fs.statSync(qaHelloPng).size > 5_000,
+      `Expected valid QA contact sheet at ${qaHelloPng}`
     );
-    assert(
-      fs.existsSync(path.join(existingSaasDir, 'videos', 'styles', 'README.md')),
-      'SaaS workspace missing videos/styles/README.md after make-pictures init --dir=videos'
-    );
-    runCmd(
-      process.execPath,
-      [
-        saasMpBin,
-        'style',
-        'new',
-        'saas-brand',
-        '--from=cyber-telemetry',
-        '--dir=videos',
-      ],
-      {
-        cwd: existingSaasDir,
-        label:
-          '(existing-saas) node ./node_modules/.bin/make-pictures style new saas-brand --from=cyber-telemetry --dir=videos',
-      }
-    );
-    assert(
-      fs.existsSync(
-        path.join(
-          existingSaasDir,
-          'videos',
-          'styles',
-          'saas-brand.style.json'
-        )
-      ),
-      'Expected videos/styles/saas-brand.style.json in existing-saas'
-    );
-    const saasStylesJsonRaw = runCmd(
-      process.execPath,
-      [saasMpBin, 'styles', '--json', '--dir=videos'],
-      {
-        cwd: existingSaasDir,
-        label:
-          '(existing-saas) node ./node_modules/.bin/make-pictures styles --json --dir=videos',
-      }
-    );
-    const saasStylesJson = JSON.parse(saasStylesJsonRaw) as {
-      builtInStyles?: unknown[];
-      customStyles?: Array<{ id?: string }>;
-      visualKits?: unknown[];
-    };
-    assert(
-      Array.isArray(saasStylesJson.builtInStyles) &&
-        saasStylesJson.builtInStyles.length === 10 &&
-        Array.isArray(saasStylesJson.customStyles) &&
-        saasStylesJson.customStyles.some((s) => s.id === 'saas-brand') &&
-        Array.isArray(saasStylesJson.visualKits) &&
-        saasStylesJson.visualKits.length === 7,
-      'Unexpected payload from make-pictures styles --json --dir=videos'
-    );
-    assertAgentAndClaudeSkillsDiscovery(existingSaasDir, 'Existing SaaS app');
     console.log(
-      `  ✓ Verified videos/productions/hello-studio/production.json + videos/styles/saas-brand.style.json + AGENTS.md/.agents + CLAUDE.md/.claude/skills (all ${EXPECTED_SKILLS.length} skills)`
+      `  ✓ Path B verified (existing src/Root.tsx untouched, 5 skills synced, tsc --noEmit, qa HelloWorld ${Math.round(fs.statSync(qaHelloPng).size / 1024)} KB)`
     );
 
     logStep('5/5 • Cleanup & Final Summary');
     console.log(
-      '✅ ALL 5 NPM PACKAGES PACKED & VERIFIED END-TO-END IN HERMETIC CONSUMER REPOS!'
+      '✅ ALL 3 NPM PACKAGES PACKED & VERIFIED END-TO-END (PATH A + PATH B)!'
     );
   } finally {
     if (fs.existsSync(tmpRoot)) {
