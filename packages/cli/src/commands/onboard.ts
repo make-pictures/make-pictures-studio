@@ -1,12 +1,11 @@
 import { execSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
-import net from 'node:net';
 import path from 'node:path';
-import { BUILT_IN_STYLE_IDS } from '../../../core/src/style/presets';
+import { BUILT_IN_STYLE_IDS } from '@make-pictures/remotion/style/presets';
 import {
   DEFAULT_ELEVENLABS_MODEL_ID,
   getDefaultVoiceIdForLang,
-} from '../../../core/src/audio/voices';
+} from '@make-pictures/remotion/audio/voices';
 import { SCENES_KIT_IDS } from './new-production';
 import { resolveWorkspaceContext } from './workspace-paths';
 
@@ -26,7 +25,6 @@ export interface OnboardRuntimeDeps {
   env?: NodeJS.ProcessEnv;
   checkFfmpeg?: () => boolean;
   installDeps?: (rootDir: string) => boolean;
-  isPortOpen?: (port: number, host?: string) => Promise<boolean>;
   elevenLabsRunner?: (
     rootDir: string,
     subcommandArgs: string[]
@@ -56,6 +54,10 @@ export type WorkspaceBootstrapState =
     }
   | {
       state: 'empty_dir';
+      effectiveRootDir: string;
+    }
+  | {
+      state: 'existing_remotion';
       effectiveRootDir: string;
     }
   | {
@@ -102,7 +104,7 @@ const INSTRUCTIONS: Record<string, string> = {
   ask_choice:
     'Ask the user what `say` says and wait for their choice, then run the matching command from `details.choices`.',
   ask_what_to_build:
-    'Tell the user `say`, then end your turn and wait for their answer. Read AGENTS.md and .agents/plugins/make-pictures/skills/ to guide them through creating their 60 FPS animation.',
+    'Tell the user `say`, then end your turn and wait for their answer. Read AGENTS.md and .agents/skills/ alongside remotion-dev/skills to guide them through creating their 60 FPS animation.',
   done: 'Tell the user `say`. Setup is complete.',
 };
 
@@ -149,6 +151,24 @@ function isEffectivelyEmptyDir(dirPath: string): boolean {
   return entries.every((entry) => IGNORABLE_EMPTY_DIR_ENTRIES.has(entry));
 }
 
+function readPackageJson(dirPath: string): {
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+  scripts?: Record<string, string>;
+} | null {
+  const pkgPath = path.join(dirPath, 'package.json');
+  if (!fs.existsSync(pkgPath)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(pkgPath, 'utf8')) as {
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+      scripts?: Record<string, string>;
+    };
+  } catch {
+    return null;
+  }
+}
+
 function isMakePicturesWorkspaceDir(dirPath: string): {
   isWorkspace: boolean;
   autoDir?: string;
@@ -158,51 +178,59 @@ function isMakePicturesWorkspaceDir(dirPath: string): {
   }
 
   // 1. Engine monorepo
-  if (
-    fs.existsSync(path.join(dirPath, 'packages', 'core', 'src', 'index.ts')) &&
-    fs.existsSync(path.join(dirPath, 'packages', 'kits', 'src', 'index.ts'))
-  ) {
+  if (fs.existsSync(path.join(dirPath, 'packages', 'remotion', 'src', 'index.ts'))) {
     return { isWorkspace: true };
   }
 
-  // 2. Existing capsule directories
-  if (fs.existsSync(path.join(dirPath, 'productions'))) {
+  // 2. Explicit v3 make-pictures.json config
+  if (fs.existsSync(path.join(dirPath, 'make-pictures.json'))) {
     return { isWorkspace: true };
   }
-  if (fs.existsSync(path.join(dirPath, 'videos', 'productions'))) {
+  if (fs.existsSync(path.join(dirPath, 'videos', 'make-pictures.json'))) {
     return { isWorkspace: true, autoDir: 'videos' };
   }
 
-  // 3. package.json declaring @make-pictures/* or make-pictures scripts
-  const pkgPath = path.join(dirPath, 'package.json');
-  if (fs.existsSync(pkgPath)) {
-    try {
-      const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8')) as {
-        dependencies?: Record<string, string>;
-        devDependencies?: Record<string, string>;
-        scripts?: Record<string, string>;
-      };
-      const allDeps = [
-        ...Object.keys(pkg.dependencies ?? {}),
-        ...Object.keys(pkg.devDependencies ?? {}),
-      ];
-      if (allDeps.some((dep) => dep.startsWith('@make-pictures/'))) {
-        return { isWorkspace: true };
-      }
-      const scripts = pkg.scripts ?? {};
-      if (
-        Object.values(scripts).some(
-          (cmd) => typeof cmd === 'string' && cmd.includes('make-pictures')
-        )
-      ) {
-        return { isWorkspace: true };
-      }
-    } catch {
-      // Ignore malformed package.json
+  // 3. package.json declaring @make-pictures/remotion, @make-pictures/cli, or make-pictures scripts
+  const pkg = readPackageJson(dirPath);
+  if (pkg) {
+    const allDeps = [
+      ...Object.keys(pkg.dependencies ?? {}),
+      ...Object.keys(pkg.devDependencies ?? {}),
+    ];
+    if (
+      allDeps.includes('@make-pictures/remotion') ||
+      allDeps.includes('@make-pictures/cli')
+    ) {
+      return { isWorkspace: true };
+    }
+    const scripts = pkg.scripts ?? {};
+    if (
+      Object.values(scripts).some(
+        (cmd) => typeof cmd === 'string' && cmd.includes('make-pictures')
+      )
+    ) {
+      return { isWorkspace: true };
     }
   }
 
   return { isWorkspace: false };
+}
+
+function isExistingRemotionRepo(dirPath: string): boolean {
+  const pkg = readPackageJson(dirPath);
+  if (pkg) {
+    const allDeps = [
+      ...Object.keys(pkg.dependencies ?? {}),
+      ...Object.keys(pkg.devDependencies ?? {}),
+    ];
+    if (allDeps.includes('remotion') || allDeps.includes('@remotion/cli')) {
+      return true;
+    }
+  }
+  return (
+    fs.existsSync(path.join(dirPath, 'remotion.config.ts')) ||
+    fs.existsSync(path.join(dirPath, 'remotion.config.mjs'))
+  );
 }
 
 function findAvailableSubdir(parentDir: string, baseName: string): string {
@@ -269,6 +297,13 @@ export function detectWorkspaceBootstrapState(
     };
   }
 
+  if (isExistingRemotionRepo(rootDir)) {
+    return {
+      state: 'existing_remotion',
+      effectiveRootDir: rootDir,
+    };
+  }
+
   return {
     state: 'existing_app',
     effectiveRootDir: rootDir,
@@ -290,18 +325,8 @@ function getCommandRunners(
   doctorCmd: string;
   doctorSetupCmd: string;
 } {
-  const pkgPath = path.join(rootDir, 'package.json');
-  let scripts: Record<string, string> = {};
-  if (fs.existsSync(pkgPath)) {
-    try {
-      const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8')) as {
-        scripts?: Record<string, string>;
-      };
-      scripts = pkg.scripts ?? {};
-    } catch {
-      // Ignore malformed package.json
-    }
-  }
+  const pkg = readPackageJson(rootDir);
+  const scripts = pkg?.scripts ?? {};
 
   const hasOnboardScript = Boolean(scripts.onboard);
   const hasStudioScript = Boolean(scripts.studio);
@@ -327,10 +352,11 @@ function getCommandRunners(
       hasOnboardScript && !dirRel
         ? 'npm run onboard'
         : `npx make-pictures onboard${dirFlag}`,
-    studioCmd:
-      hasStudioScript && !dirRel
+    studioCmd: dirRel
+      ? `npx make-pictures studio${dirFlag}`
+      : hasStudioScript
         ? 'npm run studio'
-        : `npx make-pictures studio${dirFlag}`,
+        : 'npx remotion studio',
     doctorCmd:
       hasDoctorScript && !dirRel
         ? 'npm run doctor'
@@ -343,25 +369,21 @@ function getCommandRunners(
 }
 
 function hasNodeModules(rootDir: string): boolean {
+  const hasRemotion = fs.existsSync(
+    path.join(rootDir, 'node_modules', 'remotion', 'package.json')
+  );
+  if (!hasRemotion) return false;
   return (
     fs.existsSync(
-      path.join(rootDir, 'node_modules', 'remotion', 'package.json')
-    ) &&
-    fs.existsSync(
-      path.join(rootDir, 'node_modules', '@remotion', 'player', 'package.json')
-    ) &&
-    (fs.existsSync(
-      path.join(
-        rootDir,
-        'node_modules',
-        '@elevenlabs',
-        'elevenlabs-js',
-        'package.json'
-      )
+      path.join(rootDir, 'node_modules', '@make-pictures', 'remotion', 'package.json')
     ) ||
-      fs.existsSync(
-        path.join(rootDir, 'node_modules', '@make-pictures', 'cli', 'package.json')
-      ))
+    fs.existsSync(
+      path.join(rootDir, 'node_modules', '@make-pictures', 'cli', 'package.json')
+    ) ||
+    fs.existsSync(
+      path.join(rootDir, 'node_modules', '@elevenlabs', 'elevenlabs-js', 'package.json')
+    ) ||
+    fs.existsSync(path.join(rootDir, 'packages', 'remotion', 'src', 'index.ts'))
   );
 }
 
@@ -381,24 +403,6 @@ function defaultInstallDeps(rootDir: string): boolean {
     stdio: 'inherit',
   });
   return res.status === 0;
-}
-
-function defaultIsPortOpen(
-  port = 3000,
-  host = '127.0.0.1'
-): Promise<boolean> {
-  return new Promise((resolve) => {
-    const socket = net.createConnection({ port, host });
-    const finish = (open: boolean): void => {
-      socket.removeAllListeners();
-      socket.destroy();
-      resolve(open);
-    };
-    socket.setTimeout(250);
-    socket.once('connect', () => finish(true));
-    socket.once('timeout', () => finish(false));
-    socket.once('error', () => finish(false));
-  });
 }
 
 function ensureGitignore(rootDir: string): void {
@@ -525,11 +529,11 @@ function isWaitReply(reply: OnboardReply | null): boolean {
 }
 
 /**
- * Onboarding workflow supporting both:
- * 1. Zero-terminal one-paste bootstrap + deterministic JSON state machine
- *    (`bootstrap` -> `init` -> `connect` -> `wait` -> `check` -> background Studio Web)
- *    for AI coding agents (Google Antigravity, Claude Code, Cursor, Codex).
- * 2. Interactive terminal UX for human creators (`npm run onboard`).
+ * Remotion-first onboarding workflow supporting:
+ * 1. 3-mode workspace bootstrap (`empty_dir` -> `create-make-pictures`, `existing_remotion` -> `init` in-place,
+ *    `existing_app` -> `init --dir=videos` vs standalone) + tandem AI skills (`npx remotion skills add` + bundled skills).
+ * 2. Optional ElevenLabs browser authorization (`--env-path .env.local`) or offline `--mock` workflow.
+ * 3. Native Remotion Studio launch (`npx remotion studio`).
  */
 export async function runOnboardCommand(
   options: OnboardCommandOptions = {}
@@ -542,7 +546,6 @@ export async function runOnboardCommand(
   const env = options.deps?.env ?? process.env;
   const checkFfmpeg = options.deps?.checkFfmpeg ?? defaultHasFfmpeg;
   const installDeps = options.deps?.installDeps ?? defaultInstallDeps;
-  const isPortOpen = options.deps?.isPortOpen ?? defaultIsPortOpen;
   const elevenLabsRunner =
     options.deps?.elevenLabsRunner ?? defaultRunElevenLabsOnboard;
   const maxWaitAttempts = options.deps?.maxWaitAttempts ?? 10;
@@ -575,7 +578,7 @@ export async function runOnboardCommand(
   };
 
   // ---------------------------------------------------------------------------
-  // Phase 0: Workspace Bootstrap Detection (when run in a directory without make.pictures yet)
+  // Phase 0: 3-Mode Workspace Bootstrap Detection
   // ---------------------------------------------------------------------------
   const bootstrap = detectWorkspaceBootstrapState(initialRootDir, {
     dir: options.dir,
@@ -588,12 +591,21 @@ export async function runOnboardCommand(
 
     if (!useJson) {
       writeLine('==============================================================');
-      writeLine(' 🎬 make.pictures — Video-as-Code Studio Onboarding');
+      writeLine(' 🎬 make.pictures v3 — Remotion Toolkit Onboarding');
       writeLine('==============================================================\n');
       if (bootstrap.state === 'empty_dir') {
-        writeLine('📦 Empty directory detected — run:');
+        writeLine('📦 Empty directory detected — scaffold a native Remotion 4 project:');
         writeLine(`   npx -y create-make-pictures@latest . ${langFlag}`);
+        writeLine('   npx remotion skills add');
         writeLine('   npm run onboard');
+      } else if (bootstrap.state === 'existing_remotion') {
+        writeLine(
+          '📦 Existing Remotion project detected — add make.pictures in-place (preserves src/Root.tsx):'
+        );
+        writeLine('   npm install @make-pictures/remotion @make-pictures/cli');
+        writeLine(`   npx make-pictures init ${langFlag}`);
+        writeLine('   npx remotion skills add');
+        writeLine(`   npx make-pictures onboard ${langFlag}`);
       } else if (bootstrap.state === 'existing_app') {
         writeLine('📦 Existing app detected — choose one:');
         writeLine(
@@ -603,7 +615,7 @@ export async function runOnboardCommand(
           `   • Separate folder (my-films/): npx -y create-make-pictures@latest my-films ${langFlag}`
         );
       } else {
-        writeLine('📦 Create a new make.pictures Studio project:');
+        writeLine('📦 Create a new make.pictures Remotion project:');
         writeLine(
           `   npx -y create-make-pictures@latest ${bootstrap.targetSubdir} ${langFlag}`
         );
@@ -616,9 +628,29 @@ export async function runOnboardCommand(
       emit({
         next: 'run',
         say: isPl
-          ? 'Instaluję projekt studia filmowego make.pictures bezpośrednio w tym folderze (Remotion 60 FPS, Three.js, ElevenLabs oraz skille AI).'
-          : "I'll install make.pictures Studio directly in this folder (Remotion 60 FPS, Three.js, ElevenLabs, and AI skills).",
-        run: `npx -y create-make-pictures@latest . ${langFlag} && npm run onboard -- init ${langFlag}${jsonSuffix}`,
+          ? 'Tworzę natywny projekt Remotion 4 + make.pictures v3 w tym folderze i instaluję skille w tandemie (`remotion-dev/skills` + make.pictures).'
+          : "I'll scaffold a native Remotion 4 + make.pictures v3 project in this folder and install tandem AI skills (`remotion-dev/skills` + make.pictures).",
+        run: `npx -y create-make-pictures@latest . ${langFlag} && npx make-pictures init ${langFlag} && npx -y remotion skills add && npm run onboard -- init ${langFlag}${jsonSuffix}`,
+        details: {
+          mode: 'empty_dir',
+          remotion_skills_command: 'npx remotion skills add',
+        },
+      });
+      return;
+    }
+
+    if (bootstrap.state === 'existing_remotion') {
+      emit({
+        next: 'run',
+        say: isPl
+          ? 'Wykryłem istniejący projekt Remotion. Dodaję `@make-pictures/remotion` i `@make-pictures/cli` bezpośrednio w tym repozytorium (bez nadpisywania `src/Root.tsx`) oraz instaluję skille w tandemie (`npx remotion skills add`).'
+          : 'I detected an existing Remotion repository. Adding `@make-pictures/remotion` and `@make-pictures/cli` in-place (preserving your `src/Root.tsx`) and syncing tandem skills (`npx remotion skills add`).',
+        run: `npm install @make-pictures/remotion@latest @make-pictures/cli@latest && npx make-pictures init ${langFlag} && npx -y remotion skills add && npx make-pictures onboard init ${langFlag}${jsonSuffix}`,
+        details: {
+          mode: 'existing_remotion',
+          preserves_root_tsx: true,
+          remotion_skills_command: 'npx remotion skills add',
+        },
       });
       return;
     }
@@ -628,11 +660,12 @@ export async function runOnboardCommand(
       emit({
         next: 'run',
         say: isPl
-          ? `Tworzę nowy projekt studia filmowego make.pictures w podfolderze \`${sub}/\` i instaluję pakiety.`
-          : `I'll create a new make.pictures Studio project in \`${sub}/\` and install its packages.`,
-        run: `npx -y create-make-pictures@latest ${sub} ${langFlag} && npx -y @make-pictures/cli@latest onboard init --cwd=${sub} ${langFlag}${jsonSuffix}`,
+          ? `Tworzę nowy projekt Remotion 4 + make.pictures v3 w podfolderze \`${sub}/\` i instaluję skille AI w tandemie.`
+          : `I'll create a new Remotion 4 + make.pictures v3 project in \`${sub}/\` and install tandem AI skills.`,
+        run: `npx -y create-make-pictures@latest ${sub} ${langFlag} && npx -y @make-pictures/cli@latest init --cwd=${sub} ${langFlag} && (cd ${sub} && npx -y remotion skills add) && npx -y @make-pictures/cli@latest onboard init --cwd=${sub} ${langFlag}${jsonSuffix}`,
         details: {
           workspace_dir: sub,
+          remotion_skills_command: 'npx remotion skills add',
         },
       });
       return;
@@ -649,12 +682,13 @@ export async function runOnboardCommand(
       emit({
         next: 'run',
         say: isPl
-          ? `Dodaję studio filmowe make.pictures w podfolderze \`${saasDir}/\` Twojej aplikacji i instaluję wymagane pakiety.`
-          : `I'll add make.pictures Studio inside \`${saasDir}/\` of your existing app and install the required packages.`,
-        run: `npm install -D @make-pictures/core@latest @make-pictures/kits@latest @make-pictures/studio@latest @make-pictures/cli@latest remotion @remotion/cli @remotion/player @remotion/bundler @remotion/renderer @remotion/media-utils @remotion/google-fonts @remotion/three @react-three/fiber @react-three/drei three @types/three zod lucide-react vite @vitejs/plugin-react && npx make-pictures init --dir=${saasDir} ${langFlag} && npx make-pictures onboard init --dir=${saasDir} ${langFlag}${jsonSuffix}`,
+          ? `Dodaję Remotion + make.pictures v3 w podfolderze \`${saasDir}/\` Twojej aplikacji i instaluję skille w tandemie.`
+          : `I'll add Remotion + make.pictures v3 inside \`${saasDir}/\` of your existing app and install tandem skills.`,
+        run: `npm install -D @make-pictures/remotion@latest @make-pictures/cli@latest remotion @remotion/cli @remotion/bundler @remotion/renderer @remotion/google-fonts @remotion/media-utils lucide-react zod && npx make-pictures init --dir=${saasDir} ${langFlag} && npx -y remotion skills add && npx make-pictures onboard init --dir=${saasDir} ${langFlag}${jsonSuffix}`,
         details: {
           mode: 'saas',
           dir: saasDir,
+          remotion_skills_command: 'npx remotion skills add',
         },
       });
       return;
@@ -664,12 +698,13 @@ export async function runOnboardCommand(
       emit({
         next: 'run',
         say: isPl
-          ? `Tworzę osobny projekt studia make.pictures w podfolderze \`${standaloneTarget}/\`.`
-          : `I'll create a separate standalone make.pictures Studio project in \`${standaloneTarget}/\`.`,
-        run: `npx -y create-make-pictures@latest ${standaloneTarget} ${langFlag} && npx -y @make-pictures/cli@latest onboard init --cwd=${standaloneTarget} ${langFlag}${jsonSuffix}`,
+          ? `Tworzę osobny projekt Remotion 4 + make.pictures v3 w podfolderze \`${standaloneTarget}/\`.`
+          : `I'll create a separate standalone Remotion 4 + make.pictures v3 project in \`${standaloneTarget}/\`.`,
+        run: `npx -y create-make-pictures@latest ${standaloneTarget} ${langFlag} && npx -y @make-pictures/cli@latest init --cwd=${standaloneTarget} ${langFlag} && (cd ${standaloneTarget} && npx -y remotion skills add) && npx -y @make-pictures/cli@latest onboard init --cwd=${standaloneTarget} ${langFlag}${jsonSuffix}`,
         details: {
           mode: 'standalone',
           workspace_dir: standaloneTarget,
+          remotion_skills_command: 'npx remotion skills add',
         },
       });
       return;
@@ -683,8 +718,8 @@ export async function runOnboardCommand(
       instruction:
         'Ask the user `say` and wait for their answer. If they choose inside this app (`videos/`), run `details.choices.saas`. If they choose a separate project (`my-films/`), run `details.choices.standalone`.',
       say: isPl
-        ? `W tym folderze znajduje się już istniejąca aplikacja. Czy mam dodać studio filmowe w podfolderze \`${saasDir}/\` tej aplikacji, czy utworzyć osobny projekt w podfolderze \`${standaloneTarget}/\`?`
-        : `I detected an existing application in this folder. Would you like to add make.pictures Studio inside \`${saasDir}/\` of this app, or create a separate standalone project in \`${standaloneTarget}/\`?`,
+        ? `W tym folderze znajduje się już istniejąca aplikacja. Czy mam dodać Remotion + make.pictures w podfolderze \`${saasDir}/\` tej aplikacji, czy utworzyć osobny projekt w podfolderze \`${standaloneTarget}/\`?`
+        : `I detected an existing application in this folder. Would you like to add Remotion + make.pictures inside \`${saasDir}/\` of this app, or create a separate standalone project in \`${standaloneTarget}/\`?`,
       details: {
         choices: {
           saas: saasChoiceCmd,
@@ -723,22 +758,20 @@ export async function runOnboardCommand(
     const forceReplace = extraArgs.includes('--replace');
 
     writeLine('==============================================================');
-    writeLine(' 🎬 make.pictures — Video-as-Code Studio Onboarding');
+    writeLine(' 🎬 make.pictures v3 — Remotion Toolkit Onboarding');
     writeLine('==============================================================\n');
 
     ensureGitignore(rootDir);
 
     if (!hasNodeModules(rootDir)) {
       if (rawStep === 'check' || rawStep === 'status') {
-        writeLine('❌ Studio dependencies are not installed yet.');
+        writeLine('❌ Project dependencies are not installed yet.');
         writeLine(
           '   Run `npm install` first, then re-run `' + humanOnboardCmd + '`.'
         );
         return;
       }
-      writeLine(
-        '📦 Installing make.pictures Studio dependencies (npm install)...'
-      );
+      writeLine('📦 Installing Remotion & make.pictures dependencies (npm install)...');
       const installed = installDeps(rootDir);
       if (!installed || !hasNodeModules(rootDir)) {
         throw new Error(
@@ -746,7 +779,7 @@ export async function runOnboardCommand(
         );
       }
     }
-    writeLine('✅ Studio packages verified (Remotion 60 FPS + ElevenLabs SDK)');
+    writeLine('✅ Remotion 4 + make.pictures packages verified');
 
     if (checkFfmpeg()) {
       writeLine('✅ FFmpeg audio/video engine ready');
@@ -784,22 +817,20 @@ export async function runOnboardCommand(
       writeLine(
         `✅ ElevenLabs API key (...${keyLast4}) verified in .env.local!\n`
       );
-      writeLine('✨ make.pictures Studio is ready!');
-      writeLine(
-        '   • In Antigravity or Claude Code: just describe the film you want to create.'
-      );
-      writeLine(
-        `   • Visual 60 FPS preview:         ${studioCmd}  (http://127.0.0.1:3000)`
-      );
+      writeLine('✨ make.pictures v3 is ready!');
+      writeLine('   • Tandem AI skills:    npx remotion skills add');
+      writeLine(`   • Native preview:      ${studioCmd}  (Remotion Studio)`);
+      writeLine('   • New composition:     npx make-pictures new my-film');
     };
 
     const existingKey = resolveValidKey();
 
     if (rawStep === 'check' || rawStep === 'status') {
       if (!existingKey) {
-        writeLine('\n⚠️  ElevenLabs API key is not configured in .env.local yet.');
+        writeLine('\n⚠️  ElevenLabs API key is not configured in .env.local yet (optional).');
         writeLine(`   • Authorize in browser: ${humanOnboardCmd}`);
         writeLine(`   • Work offline (--mock): ${doctorSetupCmd}`);
+        writeLine(`   • Launch Remotion Studio: ${studioCmd}`);
         return;
       }
       printReadySummary(existingKey);
@@ -820,7 +851,7 @@ export async function runOnboardCommand(
       fs.unlinkSync(envLocalPath);
     }
 
-    writeLine('\n🔑 Connecting ElevenLabs (Voiceovers, AI Music & SFX)...');
+    writeLine('\n🔑 Connecting ElevenLabs (Optional — Voiceovers, AI Music & SFX)...');
     writeLine('   Opening the ElevenLabs approval page in your browser.');
     writeLine(
       '   Sign in (or create an account) and click "Authorize" — your API key'
@@ -856,7 +887,7 @@ export async function runOnboardCommand(
         '   2. Save it as `ELEVENLABS_API_KEY=...` inside `.env.local`'
       );
       writeLine(
-        `   3. Verify with \`${doctorCmd}\` (or run \`${studioCmd}\` in offline \`--mock\` mode)`
+        `   3. Verify with \`${doctorCmd}\` or launch Remotion Studio with \`${studioCmd}\``
       );
       return;
     }
@@ -915,8 +946,8 @@ export async function runOnboardCommand(
     workspaceDirRel !== '.' ? `${workspaceDirRel}/AGENTS.md` : 'AGENTS.md';
   const skillsDirRel =
     workspaceDirRel !== '.'
-      ? `${workspaceDirRel}/.agents/plugins/make-pictures/skills/`
-      : '.agents/plugins/make-pictures/skills/';
+      ? `${workspaceDirRel}/.agents/skills/`
+      : '.agents/skills/';
   const studioLaunchCmd =
     workspaceDirRel !== '.' ? `cd ${workspaceDirRel} && ${studioCmd}` : studioCmd;
 
@@ -924,7 +955,7 @@ export async function runOnboardCommand(
     `Never open, print or cat .env.local; run \`${onboardCmd('check')}\` or \`${doctorCmd}\` to verify it.`,
     'Never ask for an API key in chat, and never accept one pasted there.',
     'Never put the API key in code; tools read ELEVENLABS_API_KEY from .env.local.',
-    `Always read ${agentsMdRel} and ${skillsDirRel} before writing or rendering any animation.`,
+    `Always read ${agentsMdRel} and ${skillsDirRel} alongside official \`remotion-dev/skills\` (\`npx remotion skills add\`) before writing or rendering any animation.`,
   ];
 
   const handleCheck = async (): Promise<void> => {
@@ -957,27 +988,23 @@ export async function runOnboardCommand(
       return;
     }
 
-    const studioAlreadyRunning = await isPortOpen(3000, '127.0.0.1');
     const keyLast4 = key.slice(-4);
-
-    const finalInstruction = studioAlreadyRunning
-      ? `Studio Web is already running at http://127.0.0.1:3000. Read \`${agentsMdRel}\` (and load relevant skills from \`${skillsDirRel}\` when building scenes). Do NOT synthesize demo voiceovers during setup so zero ElevenLabs credits are spent upfront. Tell the user \`say\` and end your turn to wait for their film idea.`
-      : `Start \`${studioLaunchCmd}\` as a background/daemon process using your command tool's background/daemon option so Studio Web stays live at http://127.0.0.1:3000 without blocking your turn. Read \`${agentsMdRel}\` (and load relevant skills from \`${skillsDirRel}\` when building scenes). Do NOT synthesize demo voiceovers during setup so zero ElevenLabs credits are spent upfront. Tell the user \`say\` and end your turn to wait for their film idea.`;
+    const finalInstruction = `Ensure tandem skills are installed (\`npx remotion skills add\` + \`${skillsDirRel}\`). Start native Remotion Studio (\`${studioLaunchCmd}\` or \`npx remotion studio\`) as a background/daemon process without blocking your turn. Read \`${agentsMdRel}\` and load relevant skills from \`${skillsDirRel}\` when building scenes. Do NOT synthesize demo voiceovers during setup so zero ElevenLabs credits are spent upfront. Tell the user \`say\` and end your turn to wait for their film idea.`;
 
     emit({
       next: 'ask_what_to_build',
       instruction: finalInstruction,
       say: isPl
-        ? `Środowisko make.pictures jest gotowe! Klucz ElevenLabs (końcówka ${keyLast4}) został zapisany w .env.local, a podgląd 60 FPS Studio Web (wraz z zakładką 🎨 Style Lab do podglądu i edycji stylów na żywo) działa pod adresem http://127.0.0.1:3000. Jaki film chcesz stworzyć? Opisz krótko temat, klimat plastyczny i opcjonalnie czy wolisz format poziomy 16:9 czy pionowy Short 9:16.`
-        : `make.pictures Studio is ready! Your ElevenLabs API key (ending in ${keyLast4}) is saved in .env.local, and the 60 FPS Studio Web preview (including 🎨 Style Lab for live style browsing and editing) is live at http://127.0.0.1:3000. What film would you like to create? Describe the topic, visual mood/style, and optionally 16:9 landscape or 9:16 vertical.`,
+        ? `Środowisko make.pictures v3 + Remotion jest gotowe! Klucz ElevenLabs (końcówka ${keyLast4}) został zapisany w .env.local, a natywne Remotion Studio (z wbudowaną kompozycją StyleLab i inspektorem Zod) możesz uruchomić poleceniem \`${studioLaunchCmd}\`. Jaki film chcesz stworzyć? Opisz krótko temat, klimat plastyczny i opcjonalnie czy wolisz format poziomy 16:9 czy pionowy Short 9:16.`
+        : `make.pictures v3 + Remotion is ready! Your ElevenLabs API key (ending in ${keyLast4}) is saved in .env.local, and native Remotion Studio (with the built-in StyleLab composition and Zod Props Inspector) runs via \`${studioLaunchCmd}\`. What film would you like to create? Describe the topic, visual mood/style, and optionally 16:9 landscape or 9:16 vertical.`,
       rules,
       details: {
         env_file: '.env.local',
         key_last4: keyLast4,
         workspace_dir: workspaceDirRel,
-        studio_web_url: 'http://127.0.0.1:3000',
+        remotion_studio: true,
         studio_command: studioLaunchCmd,
-        studio_already_running: studioAlreadyRunning,
+        remotion_skills_command: 'npx remotion skills add',
         visual_kits: [...SCENES_KIT_IDS],
         built_in_styles: [...BUILT_IN_STYLE_IDS],
         docs: [agentsMdRel, skillsDirRel],
@@ -990,12 +1017,14 @@ export async function runOnboardCommand(
 
     if (!hasNodeModules(rootDir)) {
       const installPrefix =
-        workspaceDirRel !== '.' ? `cd ${workspaceDirRel} && npm install` : 'npm install';
+        workspaceDirRel !== '.'
+          ? `cd ${workspaceDirRel} && npm install`
+          : 'npm install';
       emit({
         next: 'run',
         say: isPl
-          ? 'Instaluję zależności studia make.pictures (Remotion 60 FPS, Three.js oraz ElevenLabs SDK).'
-          : "First, I'll install the make.pictures Studio dependencies (Remotion 60 FPS, Three.js, and ElevenLabs SDK).",
+          ? 'Instaluję zależności Remotion 4 i make.pictures v3.'
+          : "First, I'll install the Remotion 4 and make.pictures v3 dependencies.",
         run: `${installPrefix} && ${onboardCmd('init')}`,
         rules,
       });
@@ -1032,15 +1061,17 @@ export async function runOnboardCommand(
     emit({
       next: 'run',
       say: isPl
-        ? 'Teraz otworzę stronę autoryzacji ElevenLabs w Twojej przeglądarce. Zaloguj się (lub załóż konto) i kliknij Authorize — klucz API zapisze się bezpośrednio w `.env.local` bez pojawiania się na czacie.'
-        : "Next, I'll open the ElevenLabs approval page in your browser. Sign in (or create an account) and click Authorize — your API key will be saved directly to `.env.local` without ever appearing in chat.",
+        ? 'Teraz (opcjonalnie) połączę ElevenLabs w Twojej przeglądarce. Zaloguj się i kliknij Authorize — klucz API zapisze się bezpośrednio w `.env.local` bez pojawiania się na czacie (możesz też pracować całkowicie offline z flagą `--mock`).'
+        : "Next, I'll optionally open the ElevenLabs approval page in your browser. Sign in and click Authorize — your API key will be saved directly to `.env.local` without ever appearing in chat (or you can work offline with `--mock`).",
       run: onboardCmd('connect'),
       rules,
       details: {
         env_file: '.env.local',
+        optional: true,
+        remotion_skills_command: 'npx remotion skills add',
         fallback_note: isPl
-          ? `Jeśli wolisz teraz pracować offline bez klucza ElevenLabs, powiedz mi o tym, a uruchomię \`${doctorSetupCmd}\`.`
-          : `If you prefer to use the studio offline without an ElevenLabs key right now, tell me and run \`${doctorSetupCmd}\`.`,
+          ? `Jeśli wolisz teraz pracować offline bez klucza ElevenLabs, powiedz mi o tym, a uruchomię \`${doctorSetupCmd}\` oraz \`${studioLaunchCmd}\`.`
+          : `If you prefer to work offline without an ElevenLabs key right now, tell me and run \`${doctorSetupCmd}\` and \`${studioLaunchCmd}\`.`,
       },
     });
   };

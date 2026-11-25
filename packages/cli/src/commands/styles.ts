@@ -11,9 +11,12 @@ import {
   withNormalizedStyleOptics,
   type DimensionalSpace,
   type StylePreset,
-} from '../../../core/src/style/presets';
+} from '@make-pictures/remotion/style/presets';
 import { SCENES_KIT_IDS, type ScaffoldKitId } from './new-production';
-import { resolveWorkspaceContext } from './workspace-paths';
+import {
+  loadMakePicturesConfig,
+  resolveWorkspaceContext,
+} from './workspace-paths';
 
 const STYLE_SLUG_RE = /^[a-z0-9][a-z0-9-]{0,62}$/;
 
@@ -85,13 +88,14 @@ export const STYLES_README_MD = `# Custom Styles (\`styles/*.style.json\`)
 
 Pliki \`*.style.json\` w tym katalogu definiują wielokrotnego użytku kierunki plastyczne (**Art Direction**) dla Twoich filmów — paletę kolorów, parę fontów Google Fonts (\`latin-ext\`), fakturę tła, geometrię kart, profil sprężyn oraz domyślny nastrój audio.
 
-- Podgląd i edycja na żywo w **60 FPS**: otwórz Studio Web (\`npm run studio\`) i przełącz widok na **🎨 Style Lab**.
+- Podgląd na żywo w **60 FPS**: uruchom \`npx remotion studio\` i wybierz kompozycję **StyleLab**.
 - Tworzenie nowego stylu z CLI: \`npx make-pictures style new moj-styl --from=editorial-press\`
 - Użycie stylu w nowym filmie: \`npx make-pictures new moj-film --kit=editorial-collage --style=moj-styl\`
 `;
 
 export function ensureWorkspaceStylesDir(studioDir: string): string {
-  const stylesDir = path.join(studioDir, 'styles');
+  const config = loadMakePicturesConfig(studioDir);
+  const stylesDir = path.resolve(studioDir, config.stylesDir);
   fs.mkdirSync(stylesDir, { recursive: true });
   const readmePath = path.join(stylesDir, 'README.md');
   if (!fs.existsSync(readmePath)) {
@@ -104,7 +108,8 @@ export function loadWorkspaceCustomStyles(studioDir: string): {
   styles: StylePreset[];
   warnings: string[];
 } {
-  const stylesDir = path.join(studioDir, 'styles');
+  const config = loadMakePicturesConfig(studioDir);
+  const stylesDir = path.resolve(studioDir, config.stylesDir);
   if (!fs.existsSync(stylesDir)) {
     return { styles: [], warnings: [] };
   }
@@ -226,7 +231,7 @@ export async function runStylesListCommand(options?: {
   );
   if (customStyles.length === 0) {
     console.log(
-      '  (brak — utwórz własny styl przez `npx make-pictures style new moj-styl` lub w zakładce 🎨 Style Lab w Studio Web)'
+      '  (brak — utwórz własny styl przez `npx make-pictures style new moj-styl` lub przetestuj style w kompozycji `StyleLab` przez `npx remotion studio`)'
     );
   } else {
     for (const s of customStyles) {

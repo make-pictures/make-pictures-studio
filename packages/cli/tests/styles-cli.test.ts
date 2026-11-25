@@ -13,14 +13,12 @@ import {
   runStyleNewCommand,
   runStylesListCommand,
 } from '../src/commands/styles';
-import { runInitCommand } from '../src/commands/init';
-import { FALLBACK_AGENTS_MD } from '../src/commands/workspace-paths';
+import {
+  FALLBACK_AGENTS_MD,
+  loadMakePicturesConfig,
+} from '../src/commands/workspace-paths';
 import { auditCompositionDirection } from '../src/director/audit-direction';
 import { runCli } from '../src/index';
-import {
-  createMakePicturesApp,
-  runCreateCli,
-} from '../../create-make-pictures/src/index';
 
 test('make-pictures style new creates validated styles/<slug>.style.json and blocks built-in IDs and path traversal', async () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mp-styles-cli-'));
@@ -70,7 +68,45 @@ test('make-pictures style new creates validated styles/<slug>.style.json and blo
   }
 });
 
-test('make-pictures new defaults to vector-scene-2d + minimal-product and generates 7 distinct TSX templates', async () => {
+test('loadMakePicturesConfig reads optional make-pictures.json with zero lock-in defaults', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mp-config-'));
+  try {
+    const defaults = loadMakePicturesConfig(tmpDir);
+    assert.deepEqual(defaults, {
+      entryPoint: 'src/index.ts',
+      publicDir: 'public',
+      videosDir: 'src/videos',
+      stylesDir: 'styles',
+      lang: 'en',
+      fps: 60,
+    });
+
+    fs.writeFileSync(
+      path.join(tmpDir, 'make-pictures.json'),
+      JSON.stringify({
+        entryPoint: 'remotion/index.ts',
+        videosDir: 'remotion/films',
+        stylesDir: 'remotion/styles',
+        lang: 'pl',
+        fps: 30,
+      }),
+      'utf8'
+    );
+    const custom = loadMakePicturesConfig(tmpDir);
+    assert.deepEqual(custom, {
+      entryPoint: 'remotion/index.ts',
+      publicDir: 'public',
+      videosDir: 'remotion/films',
+      stylesDir: 'remotion/styles',
+      lang: 'pl',
+      fps: 30,
+    });
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('make-pictures new defaults to vector-scene-2d + minimal-product, generates 7 distinct TSX templates in src/videos/<slug>/, and registers in src/Root.tsx', async () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mp-new-7kits-'));
   try {
     const defProd = await runNewProductionCommand({
@@ -78,32 +114,36 @@ test('make-pictures new defaults to vector-scene-2d + minimal-product and genera
       slug: 'default-film',
       lang: 'pl',
     });
+    assert.equal(
+      defProd.productionDir,
+      path.join(tmpDir, 'src', 'videos', 'default-film')
+    );
+
     const defIndex = fs.readFileSync(
       path.join(defProd.productionDir, 'index.ts'),
       'utf8'
     );
     assert.match(defIndex, /vector-scene-2d/);
     assert.doesNotMatch(defIndex, /paper-diorama-3d/);
+    assert.doesNotMatch(defIndex, /defineProduction/);
 
     const defTsx = fs.readFileSync(
-      path.join(defProd.productionDir, 'compositions', 'DefaultFilm.tsx'),
+      path.join(defProd.productionDir, 'DefaultFilm.tsx'),
       'utf8'
     );
     assert.match(defTsx, /VectorSceneStage2D/);
     assert.match(defTsx, /foregroundCallouts/);
     assert.match(defTsx, /focusShiftFrame=\{150\}/);
+    assert.match(defTsx, /"styleId": "minimal-product"/);
+    assert.match(defTsx, /@make-pictures\/remotion/);
 
-    const defProps = JSON.parse(
-      fs.readFileSync(
-        path.join(
-          defProd.productionDir,
-          'compositions',
-          'DefaultFilm.props.json'
-        ),
-        'utf8'
-      )
-    ) as { styleId: string };
-    assert.equal(defProps.styleId, 'minimal-product');
+    const rootTsx = fs.readFileSync(
+      path.join(tmpDir, 'src', 'Root.tsx'),
+      'utf8'
+    );
+    assert.match(rootTsx, /id="DefaultFilm"/);
+    assert.match(rootTsx, /component=\{DefaultFilm\}/);
+    assert.match(rootTsx, /defaultProps=\{defaultDefaultFilmProps\}/);
 
     assert.equal(SCENES_KIT_IDS.length, 7);
     const seenTemplates = new Set<string>();
@@ -120,14 +160,9 @@ test('make-pictures new defaults to vector-scene-2d + minimal-product and genera
         style: styleId,
         lang: 'pl',
       });
-      const compFiles = fs
-        .readdirSync(path.join(res.productionDir, 'compositions'))
-        .filter((f) => f.endsWith('.tsx'));
-      assert.equal(compFiles.length, 1);
-      const tsx = fs.readFileSync(
-        path.join(res.productionDir, 'compositions', compFiles[0]!),
-        'utf8'
-      );
+      const tsxPath = path.join(res.productionDir, `${res.compositionId}.tsx`);
+      assert.equal(fs.existsSync(tsxPath), true);
+      const tsx = fs.readFileSync(tsxPath, 'utf8');
       assert.match(tsx, /StyleProvider/);
       assert.match(tsx, /renderBackdrop/);
       assert.match(tsx, /style=\{props\.styleId\}/);
@@ -135,6 +170,7 @@ test('make-pictures new defaults to vector-scene-2d + minimal-product and genera
       assert.match(tsx, /<SoundCue\b/);
       assert.match(tsx, /ContinuousSceneFlow/);
       assert.match(tsx, /crossDissolveFrames=\{48\}/);
+      assert.doesNotMatch(tsx, /@make-pictures\/core|@make-pictures\/kits/);
       assert.doesNotMatch(tsx, /PaperMountainBackdrop3D/);
       assert.doesNotMatch(tsx, /warm-parquet/);
       assert.doesNotMatch(tsx, /codeMorphFrame/);
@@ -149,6 +185,7 @@ test('make-pictures new defaults to vector-scene-2d + minimal-product and genera
       if (kitId === 'isometric-3d') {
         assert.match(tsx, /StudioHdrRig3D/);
         assert.match(tsx, /PodcastStudioSet3D/);
+        assert.match(tsx, /from '@make-pictures\/remotion\/camera'/);
         assert.match(tsx, /DirectorCamera3D/);
         assert.match(tsx, /ClayCharacter3D/);
         assert.doesNotMatch(tsx, /showGrid/);
@@ -192,8 +229,8 @@ test('make-pictures new defaults to vector-scene-2d + minimal-product and genera
         .replaceAll(res.compositionId, 'COMP');
       seenTemplates.add(normalizedTemplate);
 
-      const prodJson = JSON.parse(
-        fs.readFileSync(path.join(res.productionDir, 'production.json'), 'utf8')
+      const audioJson = JSON.parse(
+        fs.readFileSync(path.join(res.productionDir, 'audio.json'), 'utf8')
       ) as {
         scenes: Array<{ voiceId?: string }>;
         score?: { moodPreset?: string };
@@ -201,10 +238,10 @@ test('make-pictures new defaults to vector-scene-2d + minimal-product and genera
 
       if (kitId === 'editorial-collage') {
         assert.equal(
-          prodJson.scenes[0]?.voiceId,
+          audioJson.scenes[0]?.voiceId,
           VOICE_ARCHETYPE_TO_ELEVENLABS_ID_BY_LANG.pl['documentary-warm']
         );
-        assert.equal(prodJson.score?.moodPreset, 'warm-story');
+        assert.equal(audioJson.score?.moodPreset, 'warm-story');
       }
     }
 
@@ -232,7 +269,7 @@ test('make-pictures new defaults to vector-scene-2d + minimal-product and genera
     ]);
     const voicedManifest = JSON.parse(
       fs.readFileSync(
-        path.join(tmpDir, 'productions', 'voiced-film', 'production.json'),
+        path.join(tmpDir, 'src', 'videos', 'voiced-film', 'audio.json'),
         'utf8'
       )
     ) as { scenes: Array<{ voiceId?: string }>; score?: { moodPreset?: string } };
@@ -243,105 +280,40 @@ test('make-pictures new defaults to vector-scene-2d + minimal-product and genera
   }
 });
 
-test('createMakePicturesApp and init scaffold styles/README.md, registerCustomStyles, and default to vector-scene-2d unless --kit is passed', async () => {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mp-create-styles-'));
-  const appDir = path.join(tmpDir, 'studio-app');
-  const cliKitDir = path.join(tmpDir, 'cli-kit-app');
-  const saasRepoDir = path.join(tmpDir, 'saas-repo');
+test('FALLBACK_AGENTS_MD references v3 skills and --space=2d/2.5d/3d scaffolds pass auditCompositionDirection', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mp-space-scaffolds-cli-'));
   try {
-    await createMakePicturesApp({
-      targetDir: appDir,
-      lang: 'pl',
-      install: false,
-    });
-    assert.equal(fs.existsSync(path.join(appDir, 'styles', 'README.md')), true);
-    const pkgJson = JSON.parse(
-      fs.readFileSync(path.join(appDir, 'package.json'), 'utf8')
-    ) as { scripts?: Record<string, string> };
-    assert.equal(pkgJson.scripts?.styles, 'make-pictures styles');
+    assert.match(FALLBACK_AGENTS_MD, /art-direction-and-styles/);
+    assert.match(FALLBACK_AGENTS_MD, /kits-2d/);
+    assert.match(FALLBACK_AGENTS_MD, /remotion studio/);
+    assert.doesNotMatch(
+      FALLBACK_AGENTS_MD,
+      /@make-pictures\/studio|@make-pictures\/core|@make-pictures\/kits|Studio Web/
+    );
 
-    const srcIndex = fs.readFileSync(
-      path.join(appDir, 'src', 'index.ts'),
-      'utf8'
-    );
-    assert.match(srcIndex, /registerCustomStyles/);
-    const helloIndex = fs.readFileSync(
-      path.join(appDir, 'productions', 'hello-studio', 'index.ts'),
-      'utf8'
-    );
-    assert.match(helloIndex, /vector-scene-2d/);
-
-    // Explicit --kit flag on create-make-pictures CLI is honored
-    await runCreateCli([
-      cliKitDir,
-      '--kit=paper-diorama-3d',
-      '--lang=pl',
-      '--no-install',
-    ]);
-    const cliKitIndex = fs.readFileSync(
-      path.join(cliKitDir, 'productions', 'hello-studio', 'index.ts'),
-      'utf8'
-    );
-    assert.match(cliKitIndex, /paper-diorama-3d/);
-
-    // make-pictures init --dir=videos scaffolds styles/README.md + registerCustomStyles + vector-scene-2d
-    fs.mkdirSync(saasRepoDir, { recursive: true });
-    await runInitCommand({
-      cwd: saasRepoDir,
-      dir: 'videos',
-      lang: 'pl',
-    });
-    assert.equal(
-      fs.existsSync(path.join(saasRepoDir, 'videos', 'styles', 'README.md')),
-      true
-    );
-    const saasEntry = fs.readFileSync(
-      path.join(saasRepoDir, 'videos', 'index.ts'),
-      'utf8'
-    );
-    assert.match(saasEntry, /registerCustomStyles/);
-    const saasHelloIndex = fs.readFileSync(
-      path.join(
-        saasRepoDir,
-        'videos',
-        'productions',
-        'hello-studio',
-        'index.ts'
-      ),
-      'utf8'
-    );
-    assert.match(saasHelloIndex, /vector-scene-2d/);
-
-    // Fallback AGENTS.md includes new skills
-    assert.match(FALLBACK_AGENTS_MD, /style-and-art-direction/);
-    assert.match(FALLBACK_AGENTS_MD, /kit-editorial-and-vector/);
-
-    // CLI --space=2d/2.5d/3d scaffolds via runCli(['new', ...]) pass auditCompositionDirection (allowFastCuts: false)
-    const spaceCliDir = path.join(tmpDir, 'space-cli-studio');
-    fs.mkdirSync(spaceCliDir, { recursive: true });
     for (const [slug, flags, expectedToken] of [
       ['cli-retro-2d', ['--space=2d', '--style=retro-pc'], 'RetroPcWindowStage2D'],
       ['cli-cutout-25d', ['--space=2.5d'], 'DioramaStage3D'],
       ['cli-clay-3d', ['--space=3d'], 'PodcastStudioSet3D'],
     ] as const) {
-      await runCli(['new', slug, ...flags, '--lang=pl', `--cwd=${spaceCliDir}`]);
+      await runCli(['new', slug, ...flags, '--lang=pl', `--cwd=${tmpDir}`]);
       const compId = slug
         .split('-')
         .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
         .join('');
+      const videoDir = path.join(tmpDir, 'src', 'videos', slug);
       const compTsx = fs.readFileSync(
-        path.join(spaceCliDir, 'productions', slug, 'compositions', `${compId}.tsx`),
+        path.join(videoDir, `${compId}.tsx`),
         'utf8'
       );
       assert.match(compTsx, new RegExp(`<${expectedToken}\\b`));
 
       const audit = auditCompositionDirection({
-        studioDir: spaceCliDir,
-        rootDir: spaceCliDir,
+        studioDir: tmpDir,
+        rootDir: tmpDir,
         compositionId: compId,
         origin: 'production',
-        productionId: slug,
-        propsFile: `productions/${slug}/compositions/${compId}.props.json`,
+        capsuleDir: videoDir,
         durationInFrames: 720,
         fps: 60,
         allowFastCuts: false,

@@ -5,7 +5,6 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { BUILTIN_EXAMPLE_PRODUCTIONS } from '../../../examples';
 import {
   DirectorAuditError,
   auditCompositionDirection,
@@ -20,7 +19,6 @@ import {
 import {
   auditFrameZeroDomInPage,
   auditRenderedFrameDomInPage,
-  parseStaticProductionHintFromDisk,
   resolveQaGridDimensions,
   selectQaSampleFrames,
 } from '../src/commands/qa-contact-sheet';
@@ -29,33 +27,30 @@ import { runCli } from '../src/index';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MONOREPO_ROOT = path.resolve(__dirname, '..', '..', '..');
 
-function makeTempCapsule(
+function makeTempVideoProject(
   files: Record<string, string>,
   slug = 'test-film'
-): { studioDir: string; capsuleDir: string; cleanup: () => void } {
+): { studioDir: string; videoDir: string; cleanup: () => void } {
   const studioDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mp-director-qa-'));
-  const capsuleDir = path.join(studioDir, 'productions', slug);
-  fs.mkdirSync(path.join(capsuleDir, 'compositions'), { recursive: true });
+  const videoDir = path.join(studioDir, 'src', 'videos', slug);
+  fs.mkdirSync(videoDir, { recursive: true });
 
   for (const [relPath, content] of Object.entries(files)) {
-    const absPath = path.join(capsuleDir, relPath);
+    const absPath = path.join(videoDir, relPath);
     fs.mkdirSync(path.dirname(absPath), { recursive: true });
     fs.writeFileSync(absPath, content, 'utf8');
   }
 
   return {
     studioDir,
-    capsuleDir,
+    videoDir,
     cleanup: () => fs.rmSync(studioDir, { recursive: true, force: true }),
   };
 }
 
 test('Rule 1 (MIN_SCENE_SPAN): rejects short sceneTimeline spans (< 270f) and short visual <Sequence> tags while ignoring layout="none" audio sequences', () => {
-  const { studioDir, cleanup } = makeTempCapsule({
-    'compositions/FastCutFilm.props.json': JSON.stringify({
-      styleId: 'minimal-product',
-    }),
-    'compositions/FastCutFilm.tsx': [
+  const { studioDir, videoDir, cleanup } = makeTempVideoProject({
+    'FastCutFilm.tsx': [
       "import React from 'react';",
       "import { AbsoluteFill, Audio, Sequence } from 'remotion';",
       'export const FastCutFilm: React.FC = () => (',
@@ -82,7 +77,7 @@ test('Rule 1 (MIN_SCENE_SPAN): rejects short sceneTimeline spans (< 270f) and sh
           studioDir,
           compositionId: 'FastCutFilm',
           origin: 'production',
-          propsFile: 'productions/test-film/compositions/FastCutFilm.props.json',
+          capsuleDir: videoDir,
           durationInFrames: 600,
           fps: 60,
           sceneTimeline: [
@@ -97,8 +92,6 @@ test('Rule 1 (MIN_SCENE_SPAN): rejects short sceneTimeline spans (< 270f) and sh
           codes.includes('MIN_SCENE_SPAN'),
           `Expected MIN_SCENE_SPAN in ${JSON.stringify(codes)}`
         );
-        // Must flag both the 174f sceneTimeline visual span and the 174f visual <Sequence>,
-        // while NOT flagging the 42f layout="none" audio sequence or the commented sequence
         const minSpanViolations = err.violations.filter(
           (v) => v.code === 'MIN_SCENE_SPAN'
         );
@@ -108,12 +101,11 @@ test('Rule 1 (MIN_SCENE_SPAN): rejects short sceneTimeline spans (< 270f) and sh
       }
     );
 
-    // With allowFastCuts: true, returns result with violations instead of throwing
     const softResult: DirectorAuditResult = auditCompositionDirection({
       studioDir,
       compositionId: 'FastCutFilm',
       origin: 'production',
-      propsFile: 'productions/test-film/compositions/FastCutFilm.props.json',
+      capsuleDir: videoDir,
       durationInFrames: 600,
       fps: 60,
       allowFastCuts: true,
@@ -136,9 +128,8 @@ test('Rule 2A (COMPETING_FOCAL_POINT): rejects mounting <WordByWordStage> alongs
     'MetricComparisonCard',
     'SystemNode',
   ] as const) {
-    const { studioDir, cleanup } = makeTempCapsule({
-      'compositions/BusyFocal.props.json': '{}',
-      'compositions/BusyFocal.tsx': [
+    const { studioDir, videoDir, cleanup } = makeTempVideoProject({
+      'BusyFocal.tsx': [
         "import React from 'react';",
         "import { AbsoluteFill } from 'remotion';",
         'export const BusyFocal: React.FC = () => (',
@@ -157,7 +148,7 @@ test('Rule 2A (COMPETING_FOCAL_POINT): rejects mounting <WordByWordStage> alongs
             studioDir,
             compositionId: 'BusyFocal',
             origin: 'production',
-            propsFile: 'productions/test-film/compositions/BusyFocal.props.json',
+            capsuleDir: videoDir,
             durationInFrames: 600,
             fps: 60,
           }),
@@ -176,11 +167,10 @@ test('Rule 2A (COMPETING_FOCAL_POINT): rejects mounting <WordByWordStage> alongs
   }
 
   // Separated into two calm >= 270f scenes via ContinuousSceneFlow -> PASS
-  const separated = makeTempCapsule({
-    'compositions/CalmKinetic.props.json': '{}',
-    'compositions/CalmKinetic.tsx': [
+  const separated = makeTempVideoProject({
+    'CalmKinetic.tsx': [
       "import React from 'react';",
-      "import { ContinuousSceneFlow } from '@make-pictures/core';",
+      "import { ContinuousSceneFlow } from '@make-pictures/remotion';",
       'const IntroWords: React.FC = () => <WordByWordStage sceneId="s1" />;',
       'const PayoffCard: React.FC = () => <ImpactKeywordCard keyword="Calm" />;',
       'export const CalmKinetic: React.FC = () => (',
@@ -200,7 +190,7 @@ test('Rule 2A (COMPETING_FOCAL_POINT): rejects mounting <WordByWordStage> alongs
       studioDir: separated.studioDir,
       compositionId: 'CalmKinetic',
       origin: 'production',
-      propsFile: 'productions/test-film/compositions/CalmKinetic.props.json',
+      capsuleDir: separated.videoDir,
       durationInFrames: 720,
       fps: 60,
     });
@@ -211,9 +201,9 @@ test('Rule 2A (COMPETING_FOCAL_POINT): rejects mounting <WordByWordStage> alongs
   }
 });
 
-test('Rule 2B (Reading Cadence & Breathing Room): rejects > 2.8 spoken words/s or < 36 frames of breathing room in production.json', () => {
-  const { studioDir, cleanup } = makeTempCapsule({
-    'production.json': JSON.stringify({
+test('Rule 2B (Reading Cadence & Breathing Room): rejects > 2.8 spoken words/s or < 36 frames of breathing room in audio.json', () => {
+  const { studioDir, videoDir, cleanup } = makeTempVideoProject({
+    'audio.json': JSON.stringify({
       id: 'test-film',
       title: 'Overstuffed Script',
       fps: 60,
@@ -221,13 +211,11 @@ test('Rule 2B (Reading Cadence & Breathing Room): rejects > 2.8 spoken words/s o
         {
           id: 's1',
           durationInSeconds: 4.5,
-          // 19 words in a 5.0s (300f) visual span = 3.8 words/s (> 2.8)
           text: 'One two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen.',
         },
         {
           id: 's2',
           durationInSeconds: 5.8,
-          // 8 words in a 6.0s (360f) visual span = 1.33 words/s, BUT spoken frames = 348 -> 360 - 348 = 12f (< 36f breathing room!)
           text: 'Calm short sentence yet audio runs too long.',
         },
       ],
@@ -240,8 +228,7 @@ test('Rule 2B (Reading Cadence & Breathing Room): rejects > 2.8 spoken words/s o
       null,
       2
     )};\n`,
-    'compositions/Overstuffed.props.json': '{}',
-    'compositions/Overstuffed.tsx':
+    'Overstuffed.tsx':
       'export const Overstuffed = () => <div>Calm visual</div>;\n',
   });
 
@@ -252,7 +239,7 @@ test('Rule 2B (Reading Cadence & Breathing Room): rejects > 2.8 spoken words/s o
           studioDir,
           compositionId: 'Overstuffed',
           origin: 'production',
-          propsFile: 'productions/test-film/compositions/Overstuffed.props.json',
+          capsuleDir: videoDir,
           durationInFrames: 660,
           fps: 60,
           sceneTimeline: [
@@ -280,9 +267,8 @@ test('Rule 2B (Reading Cadence & Breathing Room): rejects > 2.8 spoken words/s o
 });
 
 test('Rule 3 (Anti-Choppy Transition Gate): rejects <SceneTransition> with flash-cut, paper-curtain, iris-wipe, or durationInFrames < 30', () => {
-  const { studioDir, cleanup } = makeTempCapsule({
-    'compositions/ChoppyTransitions.props.json': '{}',
-    'compositions/ChoppyTransitions.tsx': [
+  const { studioDir, videoDir, cleanup } = makeTempVideoProject({
+    'ChoppyTransitions.tsx': [
       "import React from 'react';",
       'export const ChoppyTransitions = () => (',
       '  <>',
@@ -302,8 +288,7 @@ test('Rule 3 (Anti-Choppy Transition Gate): rejects <SceneTransition> with flash
           studioDir,
           compositionId: 'ChoppyTransitions',
           origin: 'production',
-          propsFile:
-            'productions/test-film/compositions/ChoppyTransitions.props.json',
+          capsuleDir: videoDir,
           durationInFrames: 1800,
           fps: 60,
         }),
@@ -323,9 +308,8 @@ test('Rule 3 (Anti-Choppy Transition Gate): rejects <SceneTransition> with flash
 });
 
 test('Rule 4 (Rounded-Card Unclipped Bar Hygiene): rejects overflow: visible + unclipped absolute top: 0 bar (height 2..8) unless ClippedSurfaceChrome is used', () => {
-  const unclipped = makeTempCapsule({
-    'compositions/LeakyNode.props.json': '{}',
-    'compositions/LeakyNode.tsx': [
+  const unclipped = makeTempVideoProject({
+    'LeakyNode.tsx': [
       "import React from 'react';",
       'export const LeakyNode: React.FC = () => (',
       '  <div style={{ position: "relative", borderRadius: 18, overflow: \'visible\' }}>',
@@ -343,7 +327,7 @@ test('Rule 4 (Rounded-Card Unclipped Bar Hygiene): rejects overflow: visible + u
           studioDir: unclipped.studioDir,
           compositionId: 'LeakyNode',
           origin: 'production',
-          propsFile: 'productions/test-film/compositions/LeakyNode.props.json',
+          capsuleDir: unclipped.videoDir,
           durationInFrames: 360,
           fps: 60,
         }),
@@ -361,11 +345,10 @@ test('Rule 4 (Rounded-Card Unclipped Bar Hygiene): rejects overflow: visible + u
     unclipped.cleanup();
   }
 
-  const clipped = makeTempCapsule({
-    'compositions/CleanNode.props.json': '{}',
-    'compositions/CleanNode.tsx': [
+  const clipped = makeTempVideoProject({
+    'CleanNode.tsx': [
       "import React from 'react';",
-      "import { ClippedSurfaceChrome } from '@make-pictures/core';",
+      "import { ClippedSurfaceChrome } from '@make-pictures/remotion';",
       'export const CleanNode: React.FC = () => (',
       '  <div style={{ position: "relative", borderRadius: 18, overflow: \'visible\' }}>',
       '    <ClippedSurfaceChrome topBarHeight={3} topBarColor="#FF0055" specularRim />',
@@ -381,7 +364,7 @@ test('Rule 4 (Rounded-Card Unclipped Bar Hygiene): rejects overflow: visible + u
       studioDir: clipped.studioDir,
       compositionId: 'CleanNode',
       origin: 'production',
-      propsFile: 'productions/test-film/compositions/CleanNode.props.json',
+      capsuleDir: clipped.videoDir,
       durationInFrames: 360,
       fps: 60,
     });
@@ -439,7 +422,6 @@ test('Rule 5 (verifyCleanFrameZeroImage): accepts pure solid bgCanvas frame 0 PN
     assert.equal(dirtyRes.clean, false);
     assert.ok(dirtyRes.maxChannelSpread > 0);
 
-    // A single 1x1 pixel dot on a 1920x1080 canvas MUST be caught by full-resolution variance check
     const hairlinePng = path.join(tmpDir, 'hairline-f0.png');
     execFileSync(
       'ffmpeg',
@@ -468,10 +450,10 @@ test('Rule 5 (verifyCleanFrameZeroImage): accepts pure solid bgCanvas frame 0 PN
   }
 });
 
-test('Well-paced <ContinuousSceneFlow> production passes cleanly, and capsule scoping ignores unrelated sibling capsules', () => {
-  const { studioDir, cleanup } = makeTempCapsule(
+test('Well-paced <ContinuousSceneFlow> video passes cleanly, and video scoping ignores unrelated sibling videos', () => {
+  const { studioDir, videoDir, cleanup } = makeTempVideoProject(
     {
-      'production.json': JSON.stringify({
+      'audio.json': JSON.stringify({
         id: 'calm-showreel',
         title: 'Calm Showreel v4',
         fps: 60,
@@ -496,12 +478,9 @@ test('Well-paced <ContinuousSceneFlow> production passes cleanly, and capsule sc
         null,
         2
       )};\n`,
-      'compositions/CalmShowreel.props.json': JSON.stringify({
-        styleId: 'editorial-press',
-      }),
-      'compositions/CalmShowreel.tsx': [
+      'CalmShowreel.tsx': [
         "import React from 'react';",
-        "import { ContinuousSceneFlow, StyleProvider } from '@make-pictures/core';",
+        "import { ContinuousSceneFlow, StyleProvider } from '@make-pictures/remotion';",
         'export const CalmShowreel: React.FC = () => (',
         '  <StyleProvider style="editorial-press" renderBackdrop>',
         '    <ContinuousSceneFlow',
@@ -519,12 +498,11 @@ test('Well-paced <ContinuousSceneFlow> production passes cleanly, and capsule sc
   );
 
   try {
-    // Plant a broken sibling capsule in the same studioDir to verify strict capsule scoping
     const brokenSiblingDir = path.join(
       studioDir,
-      'productions',
-      'broken-sibling',
-      'compositions'
+      'src',
+      'videos',
+      'broken-sibling'
     );
     fs.mkdirSync(brokenSiblingDir, { recursive: true });
     fs.writeFileSync(
@@ -537,8 +515,7 @@ test('Well-paced <ContinuousSceneFlow> production passes cleanly, and capsule sc
       studioDir,
       compositionId: 'CalmShowreel',
       origin: 'production',
-      propsFile:
-        'productions/calm-showreel/compositions/CalmShowreel.props.json',
+      capsuleDir: videoDir,
       durationInFrames: 1320,
       fps: 60,
       sceneTimeline: [
@@ -553,48 +530,14 @@ test('Well-paced <ContinuousSceneFlow> production passes cleanly, and capsule sc
   }
 });
 
-test('All existing built-in examples/* compositions pass auditCompositionDirection cleanly', () => {
-  const allExampleEntries = BUILTIN_EXAMPLE_PRODUCTIONS.flatMap((prod) =>
-    prod.compositions.map((comp) => ({
-      ...comp,
-      origin: comp.origin ?? prod.origin ?? 'example',
-      voiceoverManifest: prod.voiceoverManifest,
-    }))
-  );
-
-  assert.ok(
-    allExampleEntries.length >= 7,
-    `Expected at least 7 built-in example compositions, found ${allExampleEntries.length}`
-  );
-
-  for (const entry of allExampleEntries) {
-    const res = auditCompositionDirection({
-      studioDir: MONOREPO_ROOT,
-      rootDir: MONOREPO_ROOT,
-      compositionId: entry.id,
-      origin: entry.origin,
-      propsFile: entry.propsFile,
-      durationInFrames: entry.durationInFrames,
-      fps: entry.fps,
-      sceneTimeline: entry.sceneTimeline,
-      voiceoverManifest: entry.voiceoverManifest,
-    });
-    assert.equal(
-      res.ok,
-      true,
-      `Expected built-in example "${entry.id}" to pass cleanly, got violations: ${JSON.stringify(res.violations)}`
-    );
-    assert.equal(res.violations.length, 0);
-  }
-});
-
-test('CLI wires --allow-fast-cuts boolean flag into runQaContactSheetCommand and documents Director Gate in canonical skills', () => {
+test('CLI wires --allow-fast-cuts and --audio flags into runQaContactSheetCommand', () => {
   const cliIndexSrc = fs.readFileSync(
     path.join(MONOREPO_ROOT, 'packages', 'cli', 'src', 'index.ts'),
     'utf8'
   );
   assert.match(cliIndexSrc, /'allow-fast-cuts'/);
   assert.match(cliIndexSrc, /allowFastCuts/);
+  assert.match(cliIndexSrc, /audioManifestPath/);
 
   const qaSrc = fs.readFileSync(
     path.join(
@@ -609,37 +552,15 @@ test('CLI wires --allow-fast-cuts boolean flag into runQaContactSheetCommand and
   );
   assert.match(qaSrc, /auditCompositionDirection/);
   assert.match(qaSrc, /verifyCleanFrameZeroImage/);
-  assert.match(qaSrc, /allowFastCuts/);
-
-  for (const skillName of [
-    'make-pictures-director',
-    'style-and-art-direction',
-    'cinematography-and-vfx',
-  ]) {
-    const skillMd = fs.readFileSync(
-      path.join(
-        MONOREPO_ROOT,
-        '.agents',
-        'plugins',
-        'make-pictures',
-        'skills',
-        skillName,
-        'SKILL.md'
-      ),
-      'utf8'
-    );
-    assert.match(
-      skillMd,
-      /ContinuousSceneFlow|interpolateStylePresets|atelier/,
-      `Expected ${skillName}/SKILL.md to document Stage 1 Director DNA & Artistic Worlds`
-    );
-  }
+  assert.match(qaSrc, /selectComposition/);
+  assert.match(qaSrc, /resolveCompositionSourceFromRoot/);
+  assert.doesNotMatch(qaSrc, /lookupRegistryHint/);
 });
 
-test('End-to-end runCli(["qa", ...]) fast-fails with DirectorAuditError before Remotion bundling when a production violates pacing rules', async () => {
-  const { studioDir, cleanup } = makeTempCapsule(
+test('End-to-end runCli(["qa", ...]) fast-fails with DirectorAuditError before Remotion bundling when a video violates pacing rules', async () => {
+  const { studioDir, cleanup } = makeTempVideoProject(
     {
-      'production.json': JSON.stringify({
+      'audio.json': JSON.stringify({
         id: 'rush-cut',
         title: 'Rush Cut',
         fps: 60,
@@ -648,31 +569,7 @@ test('End-to-end runCli(["qa", ...]) fast-fails with DirectorAuditError before R
           { id: 's2', durationInSeconds: 5.0, text: 'Second calm scene.' },
         ],
       }),
-      'index.ts': [
-        'export default {',
-        "  id: 'rush-cut',",
-        "  origin: 'production',",
-        '  compositions: [',
-        '    {',
-        "      id: 'RushCut',",
-        '      fps: 60,',
-        '      width: 1920,',
-        '      height: 1080,',
-        '      durationInFrames: 600,',
-        '      usesThree: false,',
-        "      propsFile: 'productions/rush-cut/compositions/RushCut.props.json',",
-        '      sceneTimeline: [',
-        "        { sceneId: 's1', fromFrame: 0, durationInFrames: 174 },",
-        "        { sceneId: 's2', fromFrame: 174, durationInFrames: 300 },",
-        '      ],',
-        '      component: () => null,',
-        '      defaultProps: {},',
-        '    },',
-        '  ],',
-        '};',
-      ].join('\n'),
-      'compositions/RushCut.props.json': '{}',
-      'compositions/RushCut.tsx': [
+      'RushCut.tsx': [
         "import React from 'react';",
         'export const RushCut = () => (',
         '  <Sequence from={0} durationInFrames={174}>',
@@ -682,6 +579,21 @@ test('End-to-end runCli(["qa", ...]) fast-fails with DirectorAuditError before R
       ].join('\n'),
     },
     'rush-cut'
+  );
+
+  fs.writeFileSync(
+    path.join(studioDir, 'src', 'index.ts'),
+    "import { registerRoot } from 'remotion';\nimport { RemotionRoot } from './Root';\nregisterRoot(RemotionRoot);\n"
+  );
+  fs.writeFileSync(
+    path.join(studioDir, 'src', 'Root.tsx'),
+    [
+      "import { Composition } from 'remotion';",
+      "import { RushCut } from './videos/rush-cut/RushCut';",
+      'export const RemotionRoot = () => (',
+      '  <Composition id="RushCut" component={RushCut} durationInFrames={600} fps={60} width={1920} height={1080} />',
+      ');',
+    ].join('\n')
   );
 
   try {
@@ -739,7 +651,6 @@ test('selectQaSampleFrames and resolveQaGridDimensions default to --grid=auto, g
   assert.equal(samples5[0], 0);
   assert.equal(samples5[11], 2310);
 
-  // Every scene in the 5-scene timeline has a settled frame well past its entrance spring
   for (const seg of nominal5Scenes) {
     assert.ok(
       samples5.some(
@@ -750,7 +661,6 @@ test('selectQaSampleFrames and resolveQaGridDimensions default to --grid=auto, g
     );
   }
 
-  // 9-scene film with 2 dual sub-view scenes (A -> B): mandatory points > 12 -> auto-grid expands to 4x4!
   const nineSceneWithSubViews = [
     { sceneId: 's1', fromFrame: 0, durationInFrames: 360 },
     {
@@ -778,7 +688,6 @@ test('selectQaSampleFrames and resolveQaGridDimensions default to --grid=auto, g
     { sceneId: 's8', fromFrame: 2660, durationInFrames: 360 },
     { sceneId: 's9', fromFrame: 3020, durationInFrames: 420 },
   ];
-  // 1 (f=0) + 7 single scenes + 4 sub-views + 1 (end settle) = 13 mandatory frames -> 4x4 (16 tiles)!
   const autoSamples = selectQaSampleFrames(3440, undefined, nineSceneWithSubViews);
   const autoGrid = resolveQaGridDimensions(undefined, autoSamples.length);
   assert.equal(autoGrid.cols, 4);
@@ -786,7 +695,6 @@ test('selectQaSampleFrames and resolveQaGridDimensions default to --grid=auto, g
   assert.equal(autoSamples.length, 16);
   assert.equal(autoSamples[0], 0);
 
-  // Verify 100% presence of EVERY scene and EVERY sub-view
   assert.ok(autoSamples.some((f) => f > 360 && f < 570), 'Missing s2/view-a');
   assert.ok(autoSamples.some((f) => f > 570 && f < 780), 'Missing s2/view-b');
   assert.ok(autoSamples.some((f) => f > 1500 && f < 1720), 'Missing s5/overview');
@@ -802,7 +710,6 @@ test('selectQaSampleFrames and resolveQaGridDimensions default to --grid=auto, g
 });
 
 test('Extended QA rules catch RAW_HTML_IMG_TAG, FONT_BELOW_1080P_FLOOR, EXCESSIVE_SUBVIEWS, expanded INSUFFICIENT_BREATHING_ROOM (pre/post/outro), and DOM CARD_VERTICAL_VOID', () => {
-  // 1. RAW_HTML_IMG_TAG catches lowercase <img> while ignoring <Img> and commented/stringified <img>
   const imgViolations = scanTsxForRawHtmlImgTags(
     [
       "import { Img } from 'remotion';",
@@ -821,7 +728,6 @@ test('Extended QA rules catch RAW_HTML_IMG_TAG, FONT_BELOW_1080P_FLOOR, EXCESSIV
   assert.equal(imgViolations[0]!.code, 'RAW_HTML_IMG_TAG');
   assert.equal(imgViolations[0]!.line, 7);
 
-  // 2. Static FONT_BELOW_1080P_FLOOR catches fontSize: 10..17 while allowing >= 18
   const fontViolations = scanTsxForSmallFontSizes(
     [
       'export const MicroType = () => (',
@@ -837,7 +743,6 @@ test('Extended QA rules catch RAW_HTML_IMG_TAG, FONT_BELOW_1080P_FLOOR, EXCESSIV
   assert.equal(fontViolations[0]!.code, 'FONT_BELOW_1080P_FLOOR');
   assert.equal(fontViolations[0]!.line, 3);
 
-  // 3. EXCESSIVE_SUBVIEWS catches > 2 subViews on sceneTimeline or multiple SceneSubViewDissolve in one scene
   const subViewTsxViolations = scanTsxForExcessiveSubViews(
     [
       'export const TooManySubViews = () => (',
@@ -852,45 +757,45 @@ test('Extended QA rules catch RAW_HTML_IMG_TAG, FONT_BELOW_1080P_FLOOR, EXCESSIV
   assert.equal(subViewTsxViolations.length, 1);
   assert.equal(subViewTsxViolations[0]!.code, 'EXCESSIVE_SUBVIEWS');
 
-  // 4. Expanded INSUFFICIENT_BREATHING_ROOM (pre < 36f, post < 90f, outro < 132f) + EXCESSIVE_SUBVIEWS via auditCompositionDirection
-  const tightCapsule = makeTempCapsule({
-    'production.json': JSON.stringify({
-      id: 'tight-film',
-      title: 'Tight Pacing',
-      fps: 60,
-      scenes: [
-        { id: 's1', durationInSeconds: 3.0, text: 'Krótka pierwsza myśl.' },
-        { id: 's2', durationInSeconds: 3.5, text: 'Krótka druga myśl na finał.' },
-      ],
-    }),
-    'generated/audio-manifest.ts': `export const VOICEOVER_MANIFEST = ${JSON.stringify({
-      s1: { sceneId: 's1', durationInSeconds: 3.0, fps: 60 },
-      s2: { sceneId: 's2', durationInSeconds: 3.5, fps: 60 },
-    })};\n`,
-    'compositions/TightFilm.props.json': '{}',
-    'compositions/TightFilm.tsx': [
-      "import React from 'react';",
-      "import { ContinuousSceneFlow } from '@make-pictures/core';",
-      'export const TightFilm = () => (',
-      '  <ContinuousSceneFlow scenes={[',
-      "    { id: 's1', durationInFrames: 300, render: () => <div>A</div> },",
-      "    { id: 's2', durationInFrames: 360, render: () => <div>B</div> },",
-      '  ]} />',
-      ');',
-    ].join('\n'),
-  }, 'tight-film');
+  const tightCapsule = makeTempVideoProject(
+    {
+      'audio.json': JSON.stringify({
+        id: 'tight-film',
+        title: 'Tight Pacing',
+        fps: 60,
+        scenes: [
+          { id: 's1', durationInSeconds: 3.0, text: 'Krótka pierwsza myśl.' },
+          { id: 's2', durationInSeconds: 3.5, text: 'Krótka druga myśl na finał.' },
+        ],
+      }),
+      'generated/audio-manifest.ts': `export const VOICEOVER_MANIFEST = ${JSON.stringify({
+        s1: { sceneId: 's1', durationInSeconds: 3.0, fps: 60 },
+        s2: { sceneId: 's2', durationInSeconds: 3.5, fps: 60 },
+      })};\n`,
+      'TightFilm.tsx': [
+        "import React from 'react';",
+        "import { ContinuousSceneFlow } from '@make-pictures/remotion';",
+        'export const TightFilm = () => (',
+        '  <ContinuousSceneFlow scenes={[',
+        "    { id: 's1', durationInFrames: 300, render: () => <div>A</div> },",
+        "    { id: 's2', durationInFrames: 360, render: () => <div>B</div> },",
+        '  ]} />',
+        ');',
+      ].join('\n'),
+    },
+    'tight-film'
+  );
 
   try {
     const res = auditCompositionDirection({
       studioDir: tightCapsule.studioDir,
       compositionId: 'TightFilm',
       origin: 'production',
-      propsFile: 'productions/tight-film/compositions/TightFilm.props.json',
+      capsuleDir: tightCapsule.videoDir,
       durationInFrames: 660,
       fps: 60,
       allowFastCuts: true,
       sceneTimeline: [
-        // s1 (0..300): pre=18 (< 36!), spoken=180 -> post=102 (>= 90), 3 subViews (> 2!)
         {
           sceneId: 's1',
           fromFrame: 18,
@@ -901,7 +806,6 @@ test('Extended QA rules catch RAW_HTML_IMG_TAG, FONT_BELOW_1080P_FLOOR, EXCESSIV
             { id: 'c', fromOffsetFrames: 200 },
           ],
         },
-        // s2 (300..660, final): pre=42 (>= 36), spoken=210 -> outro=660-(342+210)=108 (< 132!)
         { sceneId: 's2', fromFrame: 342, durationInFrames: 210 },
       ],
     });
@@ -919,13 +823,11 @@ test('Extended QA rules catch RAW_HTML_IMG_TAG, FONT_BELOW_1080P_FLOOR, EXCESSIV
     tightCapsule.cleanup();
   }
 
-  // 5. Verify DOM evaluator functions are self-contained functions ready for Chromium page.evaluate
   assert.equal(typeof auditRenderedFrameDomInPage, 'function');
   assert.equal(typeof auditFrameZeroDomInPage, 'function');
 });
 
-test('JSX scanner preserves 1:1 UTF-16 offsets across emojis & nested templates, ignores JSX text apostrophes, and parseStaticProductionHintFromDisk preserves subViews across multi-composition capsules', () => {
-  // 1. Apostrophes in JSX copy ("It's", "User's") + emojis ("🎨🔍") + nested `${...}` template literals
+test('JSX scanner preserves 1:1 UTF-16 offsets across emojis & nested templates, ignores JSX text apostrophes, and recognizes computeSceneTimingFromVoiceover', () => {
   const complexTsx = [
     "import React from 'react';",
     'const badge = `🎨 Styl: ${true ? `wewnętrzny ✅` : "brak"}`;',
@@ -949,10 +851,9 @@ test('JSX scanner preserves 1:1 UTF-16 offsets across emojis & nested templates,
   assert.match(rawImgHits[0]!.snippet ?? '', /^<img src="actual-raw-tag\.png"/);
   assert.equal(scanTsxForSmallFontSizes(complexTsx, 'ApostropheScene.tsx').length, 0);
 
-  // 2. computeSceneTimingFromVoiceover(...) recognized as >= 270f scene separation in scanTsxForCompetingFocalPoints
   const computedTimingTsx = [
     "import React from 'react';",
-    "import { ContinuousSceneFlow, computeSceneTimingFromVoiceover } from '@make-pictures/core';",
+    "import { ContinuousSceneFlow, computeSceneTimingFromVoiceover } from '@make-pictures/remotion';",
     'const t1 = computeSceneTimingFromVoiceover(3.2);',
     'const t2 = computeSceneTimingFromVoiceover(3.6, { isFinalScene: true });',
     'export const CalmTwoScene = () => (',
@@ -966,71 +867,4 @@ test('JSX scanner preserves 1:1 UTF-16 offsets across emojis & nested templates,
     scanTsxForCompetingFocalPoints(computedTimingTsx, 'CalmTwoScene.tsx'),
     []
   );
-
-  // 3. parseStaticProductionHintFromDisk parses nested subViews without truncating sceneTimeline and scopes durationInFrames per compositionId
-  const multiCompCapsule = makeTempCapsule(
-    {
-      'index.ts': [
-        "import { defineProduction } from '@make-pictures/core';",
-        'export default defineProduction({',
-        "  id: 'multi-subview',",
-        '  compositions: [',
-        '    {',
-        "      id: 'TeaserShort',",
-        '      fps: 60,',
-        '      width: 1080,',
-        '      height: 1920,',
-        '      durationInFrames: 300,',
-        '      usesThree: false,',
-        "      propsFile: 'productions/multi-subview/compositions/TeaserShort.props.json',",
-        "      sceneTimeline: [{ sceneId: 't1', fromFrame: 42, durationInFrames: 168 }],",
-        '    },',
-        '    {',
-        "      id: 'FullMainFilm',",
-        '      fps: 60,',
-        '      width: 1920,',
-        '      height: 1080,',
-        '      durationInFrames: 1140,',
-        '      usesThree: true,',
-        "      propsFile: 'productions/multi-subview/compositions/FullMainFilm.props.json',",
-        '      sceneTimeline: [',
-        "        { sceneId: 's1', fromFrame: 42, durationInFrames: 180 },",
-        '        {',
-        "          sceneId: 's2',",
-        '          fromFrame: 402,',
-        '          durationInFrames: 240,',
-        '          subViews: [',
-        "            { id: 'overview', fromOffsetFrames: 0 },",
-        "            { id: 'closeup', fromOffsetFrames: 190 },",
-        '          ],',
-        '        },',
-        "        { sceneId: 's3', fromFrame: 822, durationInFrames: 180 },",
-        '      ],',
-        '    },',
-        '  ],',
-        '});',
-      ].join('\n'),
-    },
-    'multi-subview'
-  );
-
-  try {
-    const parsed = parseStaticProductionHintFromDisk(
-      multiCompCapsule.studioDir,
-      'multi-subview',
-      'FullMainFilm'
-    );
-    assert.ok(parsed);
-    assert.equal(parsed.durationInFrames, 1140);
-    assert.equal(parsed.usesThree, true);
-    assert.equal(parsed.sceneTimeline?.length, 3);
-    assert.equal(parsed.sceneTimeline?.[1]?.sceneId, 's2');
-    assert.deepEqual(parsed.sceneTimeline?.[1]?.subViews, [
-      { id: 'overview', fromOffsetFrames: 0 },
-      { id: 'closeup', fromOffsetFrames: 190 },
-    ]);
-    assert.equal(parsed.sceneTimeline?.[2]?.sceneId, 's3');
-  } finally {
-    multiCompCapsule.cleanup();
-  }
 });

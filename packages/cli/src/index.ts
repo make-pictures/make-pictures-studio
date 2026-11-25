@@ -6,11 +6,11 @@ import type {
   MusicMoodPreset,
   MusicScoreSpec,
   SfxFallbackPreset,
-} from '@make-pictures/core';
+} from '@make-pictures/remotion/types';
 import {
   DimensionalSpaceSchema,
   type DimensionalSpace,
-} from '../../core/src/style/presets';
+} from '@make-pictures/remotion/style/presets';
 import {
   runAssetsCleanScanCommand,
   runAssetsSheetCommand,
@@ -57,6 +57,7 @@ const BOOLEAN_FLAGS = new Set([
   'no-browser',
   'replace',
   'allow-fast-cuts',
+  'gl-angle',
   'mine',
 ]);
 
@@ -137,28 +138,28 @@ function loadEnvFiles(cwd?: string): void {
 
 function printHelp(): void {
   console.log(`
-make.pictures Studio CLI (@make-pictures/cli)
+make.pictures v3.0 — Production & Audio/QA Toolkit CLI for Remotion (@make-pictures/cli)
 
 Usage:
   make-pictures <command> [options]
 
-Global Workspace Options:
+Global Workspace Options (optional make-pictures.json overrides defaults):
   --cwd=<path>      Project root directory (defaults to current directory)
-  --dir=<subdir>    Studio subdirectory inside an existing app (e.g. --dir=videos)
-  --entry=<path>    Explicit Remotion registerRoot entry file for qa/render
+  --dir=<subdir>    Remotion subdirectory inside an existing app (e.g. --dir=videos)
+  --entry=<path>    Explicit Remotion registerRoot entry file (default: src/index.ts)
 
 Commands:
-  studio [--port=3000] [--host=127.0.0.1] [--dir=<subdir>]
-      Launch the 60 FPS Studio Web workstation (HMR + Props Inspector + Safe Box)
+  studio [--port=3000] [--host=127.0.0.1] [--entry=<path>] [--dir=<subdir>]
+      Launch native Remotion Studio (\`remotion studio <entryPoint>\`)
 
   init [--dir=videos] [--space=2d|2.5d|3d] [--kit=vector-scene-2d] [--style=minimal-product] [--lang=en|pl] [--force]
-      Initialize make.pictures capsules + AI agent skills inside an existing repo
+      Add @make-pictures/remotion, tandem AI skills, and optional starter composition to an existing repo
 
   onboard [init|connect|wait|check|status] [--json|--human] [--no-browser]
-      Interactive terminal setup (or agent JSON workflow when --json / agent shell)
+      3-mode Remotion-first onboarding (empty dir, existing Remotion repo, or existing app)
 
   doctor [--setup] [--dir=<subdir>]
-      Verify Node.js, FFmpeg, ElevenLabs connectivity, capsules, and Remotion
+      Verify Node.js, FFmpeg, ElevenLabs connectivity, audio.json manifests, and Remotion
 
   styles [--space=2d|2.5d|3d] [--json] [--dir=<subdir>]
       List all 10 built-in Art Direction styles, custom styles/*.style.json, and 7 visual kits
@@ -167,25 +168,28 @@ Commands:
       Create a reusable custom Art Direction preset in styles/<slug>.style.json
 
   new <slug> [--space=2d|2.5d|3d] [--kit=vector-scene-2d|editorial-collage|kinetic-typography|data-storytelling|motion-diagrams-2d|paper-diorama-3d|isometric-3d] [--style=minimal-product] [--voice=<voiceId>] [--lang=en|pl] [--dir=<subdir>]
-      Scaffold an isolated production capsule in productions/<slug>/
+      Scaffold src/videos/<slug>/ (audio.json, <CompId>.tsx, index.ts) and register <Composition> in src/Root.tsx
 
-  audio [--production=<slug>] [--mock] [--force] [--dir=<subdir>]
-      Generate ElevenLabs TTS voiceovers + word timestamps + AI Music + AI SFX
+  audio [slug] [--manifest=<path>] [--mock] [--force] [--dir=<subdir>]
+      Generate ElevenLabs TTS / Text-to-Dialogue / Music / SFX into public/audio/<slug>/ + generated/audio-manifest.ts
 
   voices [--lang=pl|en|all] [--gender=female|male] [--query="..."] [--mine] [--limit=12] [--json] [--audition="Sample text" --voice=<voiceId> [--model=<modelId>] [--out=<file.mp3>]]
-      Discover native ElevenLabs voices (curated, your account, and Voice Library) or audition 1 short sentence
+      Discover native ElevenLabs voices or audition 1 short sentence
 
-  music [--production=<slug>] [--prompt="..."] [--mood=ambient-tech] [--duration=16] [--mock] [--force]
+  music [prompt] [--production=<slug>] [--mood=ambient-tech] [--duration=16] [--mock] [--force]
       Generate or refresh background score track
 
-  sfx [--production=<slug>] [--id=whoosh] [--prompt="..."] [--preset=whoosh] [--loop] [--mock] [--force]
+  sfx [prompt] [--production=<slug>] [--id=whoosh] [--preset=whoosh] [--loop] [--mock] [--force]
       Generate or refresh Foley / SFX asset
 
-  qa <CompositionId> [--grid=auto|4x3] [--out=out/qa-<id>.png] [--duration=<frames>] [--allow-fast-cuts] [--dir=<subdir>]
-      Run Hard Director QA Gate + render auto-sized Contact-Sheet PNG covering 100% of scenes & sub-views
+  qa <CompositionId> [--grid=auto|4x3] [--audio=<path>] [--out=out/qa-<id>.png] [--duration=<frames>] [--allow-fast-cuts] [--gl-angle] [--dir=<subdir>]
+      Run native Remotion selectComposition + Hard Director QA Gate + Contact-Sheet PNG
 
-  render <CompositionId> [outPath] [--no-master] [--props=<jsonOrFile>] [--dir=<subdir>]
+  render <CompositionId> [outPath] [--no-master] [--props=<jsonOrFile>] [--gl-angle] [--dir=<subdir>]
       Render 60 FPS MP4 (auto --gl=angle for 3D) + master loudness to -14 LUFS
+
+  elements build [--out=dist/elements] [--base-url=https://make.pictures/elements]
+      Build Remotion Elements payloads (@remotion/studio-protocol) for all 7 flagship components
 
   image "<prompt>" --out=<file.png> [--style=<styleId>] [--aspect=1:1|16:9|9:16] [--model=gemini-2.5-flash-image] [--dir=<subdir>]
       Generate style-anchored illustration asset with strict no-text protection (requires GEMINI_API_KEY)
@@ -249,15 +253,16 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
   switch (command) {
     case 'studio': {
       const portStr = getStringFlag(flags, 'port');
-      const port = portStr ? Number(portStr) : 3000;
-      if (!Number.isFinite(port) || port <= 0) {
+      const port = portStr ? Number(portStr) : undefined;
+      if (port !== undefined && (!Number.isFinite(port) || port <= 0)) {
         throw new Error(`Invalid --port value: "${portStr}"`);
       }
       await runStudioCommand({
         cwd,
         dir,
+        entryPoint: entry,
         port,
-        host: getStringFlag(flags, 'host') ?? '127.0.0.1',
+        host: getStringFlag(flags, 'host'),
       });
       return;
     }
@@ -422,6 +427,7 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
         dir,
         productionSlug:
           getStringFlag(flags, 'production') || positionals[1] || undefined,
+        manifestPath: getStringFlag(flags, 'manifest'),
         mock: Boolean(flags.mock),
         force: Boolean(flags.force),
       });
@@ -469,7 +475,7 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
         positionals[1] || getStringFlag(flags, 'composition');
       if (!compositionId) {
         throw new Error(
-          'Missing <CompositionId>. Usage: make-pictures qa <CompositionId> [--grid=4x3] [--out=out/qa-id.png]'
+          'Missing <CompositionId>. Usage: make-pictures qa <CompositionId> [--grid=auto|4x3] [--audio=<path>] [--out=out/qa-id.png]'
         );
       }
       const durStr = getStringFlag(flags, 'duration');
@@ -480,8 +486,10 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
         compositionId,
         grid: getStringFlag(flags, 'grid'),
         outPath: getStringFlag(flags, 'out'),
+        audioManifestPath: getStringFlag(flags, 'audio'),
         durationOverride: durStr ? Number(durStr) : undefined,
-        glAngle: flags.gl === 'angle' ? true : undefined,
+        glAngle:
+          flags['gl-angle'] === true || flags.gl === 'angle' ? true : undefined,
         allowFastCuts: Boolean(flags['allow-fast-cuts']),
       });
       return;
@@ -492,7 +500,7 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
         positionals[1] || getStringFlag(flags, 'composition');
       if (!compositionId) {
         throw new Error(
-          'Missing <CompositionId>. Usage: make-pictures render <CompositionId> [outPath] [--no-master]'
+          'Missing <CompositionId>. Usage: make-pictures render <CompositionId> [outPath] [--no-master] [--gl-angle]'
         );
       }
       const outPath = positionals[2] || getStringFlag(flags, 'out');
@@ -505,11 +513,19 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
         outPath,
         noMaster: Boolean(flags['no-master']),
         propsArg: getStringFlag(flags, 'props'),
-        glAngle: flags.gl === 'angle' ? true : undefined,
+        glAngle:
+          flags['gl-angle'] === true || flags.gl === 'angle' ? true : undefined,
         concurrency: getStringFlag(flags, 'concurrency'),
         timeoutMs: timeoutStr ? Number(timeoutStr) : undefined,
       });
       return;
+    }
+
+    case 'elements': {
+      // [WAVE3] wire elements build command from ./commands/elements
+      throw new Error(
+        'Remotion Elements exporter is being wired in Wave 3. Usage: make-pictures elements build [--out=dist/elements]'
+      );
     }
 
     case 'image': {

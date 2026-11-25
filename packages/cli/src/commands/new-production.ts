@@ -8,26 +8,28 @@ import {
   type DimensionalSpace,
   type StylePreset,
   type VoiceArchetype,
-} from '../../../core/src/style/presets';
+} from '@make-pictures/remotion/style/presets';
 import {
   DEFAULT_ELEVENLABS_MODEL_ID,
   VOICE_ARCHETYPE_TO_ELEVENLABS_ID_BY_LANG,
   getDefaultVoiceIdForArchetype,
   getDefaultVoiceIdForLang,
-} from '../../../core/src/audio/voices';
+} from '@make-pictures/remotion/audio/voices';
 import type {
+  AudioManifestFile,
   MusicMoodPreset,
-  ProductionManifest,
   SceneVoiceoverData,
-} from '../../../core/src/index';
+} from '@make-pictures/remotion/types';
 import {
   buildSyntheticWordTimestamps,
   computeSceneCacheHash,
-  ensureProductionPublicSymlink,
   writeProductionAudioManifest,
 } from './audio';
 import { loadWorkspaceCustomStyles } from './styles';
-import { resolveWorkspaceContext } from './workspace-paths';
+import {
+  loadMakePicturesConfig,
+  resolveWorkspaceContext,
+} from './workspace-paths';
 
 export const SCENES_KIT_IDS = [
   'editorial-collage',
@@ -164,7 +166,7 @@ export function buildScaffoldProductionManifest(
     style?: StylePreset;
     voiceId?: string;
   }
-): ProductionManifest {
+): AudioManifestFile {
   const isPl = lang === 'pl';
   const resolvedStyle = options?.style ?? BUILT_IN_STYLES['minimal-product'];
   const mood: MusicMoodPreset = options?.style
@@ -187,12 +189,11 @@ export function buildScaffoldProductionManifest(
       {
         id: `${slug}-intro`,
         title: isPl ? 'Scena 1 — Wprowadzenie' : 'Scene 1 — Opening Scene',
-        component: slugToPascalCase(slug),
         durationInSeconds: 3.0,
         durationInFrames: 180,
         voiceId,
         speaker: 'Narrator',
-        voiceEffect: 'clean',
+        acousticPreset: 'clean',
         text: isPl
           ? `${title} otwiera spokojną opowieść pełną światła i ruchu.`
           : `${title} opens a calm visual story shaped by light.`,
@@ -200,12 +201,11 @@ export function buildScaffoldProductionManifest(
       {
         id: `${slug}-payoff`,
         title: isPl ? 'Scena 2 — Rozwinięcie' : 'Scene 2 — Core Insight',
-        component: slugToPascalCase(slug),
         durationInSeconds: 3.0,
         durationInFrames: 180,
         voiceId,
         speaker: kit === 'isometric-3d' ? 'Partner' : 'Narrator',
-        voiceEffect: 'clean',
+        acousticPreset: 'clean',
         text: isPl
           ? 'Muzyka miękko ustępuje narracji, zostawiając przestrzeń na każdy obraz.'
           : 'Warm music yields gently to narration, giving every image room to breathe.',
@@ -238,7 +238,7 @@ export function buildScaffoldProductionManifest(
   };
 }
 
-export function buildScaffoldPropsJson(
+export function buildScaffoldDefaultProps(
   title: string,
   _kit: ScaffoldKitId,
   lang: 'pl' | 'en',
@@ -260,7 +260,10 @@ export function buildScaffoldPropsJson(
   };
 }
 
-function buildSchemaBlock(pascalName: string): string {
+function buildSchemaBlock(
+  pascalName: string,
+  defaultPropsObj: Record<string, unknown>
+): string {
   return `export const ${pascalName}Schema = z.object({
   styleId: z.string().describe('Kolory & Styl :: Styl bazowy (Style ID)'),
   headline: z.string().describe('Teksty & Napisy :: Nagłówek'),
@@ -273,7 +276,13 @@ function buildSchemaBlock(pascalName: string): string {
   sfxVolume: z.number().min(0).max(1).describe('Audio :: Głośność SFX'),
 });
 
-export type ${pascalName}Props = z.infer<typeof ${pascalName}Schema>;`;
+export type ${pascalName}Props = z.infer<typeof ${pascalName}Schema>;
+
+export const default${pascalName}Props: ${pascalName}Props = ${JSON.stringify(
+    defaultPropsObj,
+    null,
+    2
+  )};`;
 }
 
 function buildAudioJsxBlock(): string {
@@ -325,10 +334,26 @@ export function buildScaffoldCompositionTsx(params: {
   kit: ScaffoldKitId;
   styleId?: string;
   lang?: 'pl' | 'en';
+  title?: string;
+  style?: StylePreset;
 }): string {
   const { slug, pascalName, kit, styleId, lang = 'pl' } = params;
   const isPl = lang === 'pl';
-  const schemaBlock = buildSchemaBlock(pascalName);
+  const resolvedStyle =
+    params.style ??
+    (styleId && isBuiltInStyleId(styleId)
+      ? BUILT_IN_STYLES[styleId]
+      : BUILT_IN_STYLES['minimal-product']);
+  const defaultPropsObj = buildScaffoldDefaultProps(
+    params.title ?? slugToHumanTitle(slug),
+    kit,
+    lang,
+    resolvedStyle
+  );
+  if (styleId && !params.style) {
+    defaultPropsObj.styleId = styleId;
+  }
+  const schemaBlock = buildSchemaBlock(pascalName, defaultPropsObj);
   const audioBlock = buildAudioJsxBlock();
 
   switch (kit) {
@@ -347,19 +372,19 @@ import {
   StyleProvider,
   VoiceoverTrack,
   type OpticalShot2D,
-} from '@make-pictures/core';
+} from '@make-pictures/remotion';
 import {
   ChapterTitleCard,
   EditorialDeskStage,
   EditorialMediaCard,
   HighlightQuoteStage,
   SplitStoryLayout,
-} from '@make-pictures/kits/editorial-collage';
+} from '@make-pictures/remotion/kits/editorial-collage';
 import {
   MUSIC_MANIFEST,
   SFX_MANIFEST,
   VOICEOVER_MANIFEST,
-} from '../generated/audio-manifest';
+} from './generated/audio-manifest';
 
 ${schemaBlock}
 
@@ -472,16 +497,16 @@ import {
   StageLightingRig,
   StyleProvider,
   VoiceoverTrack,
-} from '@make-pictures/core';
+} from '@make-pictures/remotion';
 import {
   ImpactKeywordCard,
   WordByWordStage,
-} from '@make-pictures/kits/kinetic-typography';
+} from '@make-pictures/remotion/kits/kinetic-typography';
 import {
   MUSIC_MANIFEST,
   SFX_MANIFEST,
   VOICEOVER_MANIFEST,
-} from '../generated/audio-manifest';
+} from './generated/audio-manifest';
 
 ${schemaBlock}
 
@@ -592,18 +617,18 @@ import {
   SoundCue,
   StyleProvider,
   VoiceoverTrack,
-} from '@make-pictures/core';
+} from '@make-pictures/remotion';
 import {
   AnimatedBarRace,
   DataStoryStage2D,
   MetricComparisonCard,
   TimelineTrack,
-} from '@make-pictures/kits/data-storytelling';
+} from '@make-pictures/remotion/kits/data-storytelling';
 import {
   MUSIC_MANIFEST,
   SFX_MANIFEST,
   VOICEOVER_MANIFEST,
-} from '../generated/audio-manifest';
+} from './generated/audio-manifest';
 
 ${schemaBlock}
 
@@ -761,16 +786,16 @@ import {
   StageLightingRig,
   StyleProvider,
   VoiceoverTrack,
-} from '@make-pictures/core';
+} from '@make-pictures/remotion';
 import {
   RetroPcWindowStage2D,
   type RetroPcHopSpec,
-} from '@make-pictures/kits/motion-diagrams-2d';
+} from '@make-pictures/remotion/kits/motion-diagrams-2d';
 import {
   MUSIC_MANIFEST,
   SFX_MANIFEST,
   VOICEOVER_MANIFEST,
-} from '../generated/audio-manifest';
+} from './generated/audio-manifest';
 
 ${schemaBlock}
 
@@ -914,7 +939,7 @@ import {
   StyleProvider,
   VoiceoverTrack,
   useStudioStyle,
-} from '@make-pictures/core';
+} from '@make-pictures/remotion';
 import {
   DataFlowEdge,
   MotionDiagramStage2D,
@@ -924,12 +949,12 @@ import {
   portRight,
   portTop,
   type NodeBox,
-} from '@make-pictures/kits/motion-diagrams-2d';
+} from '@make-pictures/remotion/kits/motion-diagrams-2d';
 import {
   MUSIC_MANIFEST,
   SFX_MANIFEST,
   VOICEOVER_MANIFEST,
-} from '../generated/audio-manifest';
+} from './generated/audio-manifest';
 
 ${schemaBlock}
 
@@ -1148,7 +1173,7 @@ import {
   StyleProvider,
   VoiceoverTrack,
   useStudioStyle,
-} from '@make-pictures/core';
+} from '@make-pictures/remotion';
 import {
   AtelierDeskCutout3D,
   CloudCanopyCutout3D,
@@ -1159,12 +1184,12 @@ import {
   PineGroveCutout3D,
   PopUpHinge3D,
   SunburstArchCutout3D,
-} from '@make-pictures/kits/paper-diorama-3d';
+} from '@make-pictures/remotion/kits/paper-diorama-3d';
 import {
   MUSIC_MANIFEST,
   SFX_MANIFEST,
   VOICEOVER_MANIFEST,
-} from '../generated/audio-manifest';
+} from './generated/audio-manifest';
 
 ${schemaBlock}
 
@@ -1433,7 +1458,6 @@ import {
   CINEMATIC_SPRINGS,
   ClippedSurfaceChrome,
   ContinuousSceneFlow,
-  DirectorCamera3D,
   SmartMusicBed,
   SoundCue,
   StyleProvider,
@@ -1442,18 +1466,19 @@ import {
   formatHeadingText,
   getTactileSurfaceStyle,
   useStudioStyle,
-} from '@make-pictures/core';
+} from '@make-pictures/remotion';
+import { DirectorCamera3D } from '@make-pictures/remotion/camera';
 import {
   ClayCharacter3D,
   PodcastStudioSet3D,
   StudioHdrRig3D,
   computePodcastStudioLayout,
-} from '@make-pictures/kits/isometric-3d';
+} from '@make-pictures/remotion/kits/isometric-3d';
 import {
   MUSIC_MANIFEST,
   SFX_MANIFEST,
   VOICEOVER_MANIFEST,
-} from '../generated/audio-manifest';
+} from './generated/audio-manifest';
 
 ${schemaBlock}
 
@@ -1691,18 +1716,18 @@ import {
   SoundCue,
   StyleProvider,
   VoiceoverTrack,
-} from '@make-pictures/core';
+} from '@make-pictures/remotion';
 import {
   AnnotatedCallout2D,
   ComparisonSplit2D,
   StoryCard2D,
   VectorSceneStage2D,
-} from '@make-pictures/kits/vector-scene-2d';
+} from '@make-pictures/remotion/kits/vector-scene-2d';
 import {
   MUSIC_MANIFEST,
   SFX_MANIFEST,
   VOICEOVER_MANIFEST,
-} from '../generated/audio-manifest';
+} from './generated/audio-manifest';
 
 ${schemaBlock}
 
@@ -1813,70 +1838,50 @@ export function buildScaffoldProductionIndexTs(params: {
   const { slug, title, pascalName, kit } = params;
   const usesThree = kit === 'paper-diorama-3d' || kit === 'isometric-3d';
 
-  return `import { defineProduction, type ProductionManifest } from '@make-pictures/core';
-import productionJson from './production.json';
-import {
+  return `import {
   ${pascalName},
   ${pascalName}Schema,
-} from './compositions/${pascalName}';
-import defaultProps from './compositions/${pascalName}.props.json';
+  default${pascalName}Props,
+} from './${pascalName}';
 import { VOICEOVER_MANIFEST } from './generated/audio-manifest';
 
-const manifest = productionJson as ProductionManifest;
-
-export default defineProduction({
-  id: '${slug}',
+export const compositionMeta = {
+  id: '${pascalName}',
+  slug: '${slug}',
   title: '${title}',
-  origin: 'production',
-  manifest,
-  voiceoverManifest: VOICEOVER_MANIFEST,
-  compositions: [
+  kit: '${kit}',
+  fps: 60,
+  width: 1920,
+  height: 1080,
+  durationInFrames: 720,
+  usesThree: ${usesThree},
+  sceneTimeline: [
     {
-      id: '${pascalName}',
-      title: '${title}',
-      subtitle: '60 FPS Capsule • ${kit}',
-      group: 'Productions (${title})',
-      kit: '${kit}',
-      fps: 60,
-      width: 1920,
-      height: 1080,
-      durationInFrames: 720,
-      usesThree: ${usesThree},
-      propsFile: 'productions/${slug}/compositions/${pascalName}.props.json',
-      sceneTimeline: [
-        {
-          sceneId: '${slug}-intro',
-          fromFrame: 42,
-          durationInFrames: 180,
-          label: '1. Intro',
-        },
-        {
-          sceneId: '${slug}-payoff',
-          fromFrame: 402,
-          durationInFrames: 180,
-          label: '2. Payoff',
-        },
-      ],
-      sfxTimeline: [
-        { sfxId: 'whoosh-open', fromFrame: 38, label: 'Opening Whoosh' },
-        { sfxId: 'card-pop', fromFrame: 398, label: 'Card Pop' },
-      ],
-      cameraTimeline: [
-        { shotLabel: 'Establishing Wide', fromFrame: 0, durationInFrames: 360 },
-        { shotLabel: 'Medium Focus', fromFrame: 360, durationInFrames: 360 },
-      ],
-      hasMusicScore: true,
-      component: ${pascalName},
-      schema: ${pascalName}Schema,
-      defaultProps,
+      sceneId: '${slug}-intro',
+      fromFrame: 42,
+      durationInFrames: 180,
+      label: '1. Intro',
+    },
+    {
+      sceneId: '${slug}-payoff',
+      fromFrame: 402,
+      durationInFrames: 180,
+      label: '2. Payoff',
     },
   ],
-});
+} as const;
+
+export {
+  ${pascalName},
+  ${pascalName}Schema,
+  default${pascalName}Props,
+  VOICEOVER_MANIFEST,
+};
 `;
 }
 
 export function buildPrepopulatedVoiceovers(
-  manifest: ProductionManifest
+  manifest: AudioManifestFile
 ): Record<string, SceneVoiceoverData> {
   const fps = manifest.fps || 60;
   const records: Record<string, SceneVoiceoverData> = {};
@@ -1913,16 +1918,105 @@ export function buildPrepopulatedVoiceovers(
 }
 
 /**
- * Scaffolds a clean, self-contained production capsule inside `<studioDir>/productions/<slug>/`
- * and creates `<studioDir>/public/_productions/<slug> -> ../../productions/<slug>/assets`.
+ * Registers a newly scaffolded composition inside `<studioDir>/src/Root.tsx` using standard
+ * Remotion `<Composition id=... component=... schema=... defaultProps=... />` syntax.
+ * Creates a clean `src/Root.tsx` if none exists yet, and is idempotent if `id` is already present.
+ */
+export function registerCompositionInRootTsx(params: {
+  rootTsxPath: string;
+  compositionId: string;
+  importRelPath: string;
+  durationInFrames?: number;
+  fps?: number;
+  width?: number;
+  height?: number;
+}): { updated: boolean; created: boolean } {
+  const {
+    rootTsxPath,
+    compositionId,
+    importRelPath,
+    durationInFrames = 720,
+    fps = 60,
+    width = 1920,
+    height = 1080,
+  } = params;
+
+  const schemaName = `${compositionId}Schema`;
+  const defaultPropsName = `default${compositionId}Props`;
+  const normalizedImport = importRelPath.replace(/\\/g, '/').replace(/\.tsx?$/, '');
+  const importLine = `import { ${compositionId}, ${schemaName}, ${defaultPropsName} } from '${normalizedImport}';`;
+  const compElement = `      <Composition
+        id="${compositionId}"
+        component={${compositionId}}
+        schema={${schemaName}}
+        defaultProps={${defaultPropsName}}
+        durationInFrames={${durationInFrames}}
+        fps={${fps}}
+        width={${width}}
+        height={${height}}
+      />`;
+
+  if (!fs.existsSync(rootTsxPath)) {
+    fs.mkdirSync(path.dirname(rootTsxPath), { recursive: true });
+    const freshRoot = `import React from 'react';
+import { Composition } from 'remotion';
+${importLine}
+
+export const RemotionRoot: React.FC = () => {
+  return (
+    <>
+${compElement}
+    </>
+  );
+};
+`;
+    fs.writeFileSync(rootTsxPath, freshRoot, 'utf8');
+    return { updated: true, created: true };
+  }
+
+  const existing = fs.readFileSync(rootTsxPath, 'utf8');
+  const escapedId = compositionId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  if (new RegExp(`\\bid\\s*=\\s*["']${escapedId}["']`).test(existing)) {
+    return { updated: false, created: false };
+  }
+
+  let next = existing;
+  const importMatches = [...next.matchAll(/^import\s[\s\S]*?;\s*$/gm)];
+  if (importMatches.length > 0) {
+    const lastMatch = importMatches[importMatches.length - 1]!;
+    const insertAt = (lastMatch.index ?? 0) + lastMatch[0].length;
+    next = `${next.slice(0, insertAt)}\n${importLine}${next.slice(insertAt)}`;
+  } else {
+    next = `${importLine}\n${next}`;
+  }
+
+  const fragmentCloseIdx = next.lastIndexOf('</>');
+  const reactFragmentCloseIdx = next.lastIndexOf('</React.Fragment>');
+  const insertionIdx =
+    fragmentCloseIdx !== -1 ? fragmentCloseIdx : reactFragmentCloseIdx;
+
+  if (insertionIdx !== -1) {
+    next = `${next.slice(0, insertionIdx)}${compElement}\n    ${next.slice(insertionIdx)}`;
+    fs.writeFileSync(rootTsxPath, next, 'utf8');
+    return { updated: true, created: false };
+  }
+
+  return { updated: false, created: false };
+}
+
+/**
+ * Scaffolds a clean video directory inside `<studioDir>/<videosDir>/<slug>/`
+ * (`audio.json`, `<PascalId>.tsx`, `generated/audio-manifest.ts`, `index.ts`)
+ * and registers `<Composition>` in `src/Root.tsx` using standard Remotion defaults.
  */
 export async function runNewProductionCommand(
   options: NewProductionOptions
-): Promise<{ productionDir: string; compositionId: string }> {
+): Promise<{ productionDir: string; compositionId: string; rootTsxPath: string }> {
   const { rootDir, studioDir, dirRel } = resolveWorkspaceContext({
     cwd: options.cwd ?? options.rootDir,
     dir: options.dir,
   });
+  const config = loadMakePicturesConfig(studioDir);
 
   const slug = normalizeProductionSlug(options.slug);
   if (options.space !== undefined) {
@@ -1943,7 +2037,7 @@ export async function runNewProductionCommand(
     : undefined;
   const kit: ScaffoldKitId =
     options.kit ?? spaceDefaults?.kit ?? 'vector-scene-2d';
-  const lang: 'pl' | 'en' = options.lang ?? 'en';
+  const lang: 'pl' | 'en' = options.lang ?? config.lang ?? 'en';
   const resolvedStyle = resolveScaffoldStyle(
     studioDir,
     options.style ?? spaceDefaults?.styleId
@@ -1951,24 +2045,13 @@ export async function runNewProductionCommand(
   const pascalName = slugToPascalCase(slug);
   const title = slugToHumanTitle(slug);
 
-  const productionDir = path.join(studioDir, 'productions', slug);
+  const productionDir = path.resolve(studioDir, config.videosDir, slug);
   if (fs.existsSync(productionDir) && !options.force) {
     throw new Error(
-      `Production "${path.relative(rootDir, productionDir)}" already exists. Pass --force to overwrite.`
+      `Video directory "${path.relative(rootDir, productionDir)}" already exists. Pass --force to overwrite.`
     );
   }
 
-  fs.mkdirSync(path.join(productionDir, 'compositions'), { recursive: true });
-  fs.mkdirSync(path.join(productionDir, 'assets', 'voiceovers'), {
-    recursive: true,
-  });
-  fs.mkdirSync(path.join(productionDir, 'assets', 'music'), {
-    recursive: true,
-  });
-  fs.mkdirSync(path.join(productionDir, 'assets', 'sfx'), { recursive: true });
-  fs.mkdirSync(path.join(productionDir, 'assets', 'videos'), {
-    recursive: true,
-  });
   fs.mkdirSync(path.join(productionDir, 'generated'), { recursive: true });
 
   const manifest = buildScaffoldProductionManifest(slug, title, kit, lang, {
@@ -1976,26 +2059,21 @@ export async function runNewProductionCommand(
     voiceId: options.voice,
   });
   fs.writeFileSync(
-    path.join(productionDir, 'production.json'),
+    path.join(productionDir, 'audio.json'),
     `${JSON.stringify(manifest, null, 2)}\n`,
     'utf8'
   );
 
-  const defaultProps = buildScaffoldPropsJson(title, kit, lang, resolvedStyle);
   fs.writeFileSync(
-    path.join(productionDir, 'compositions', `${pascalName}.props.json`),
-    `${JSON.stringify(defaultProps, null, 2)}\n`,
-    'utf8'
-  );
-
-  fs.writeFileSync(
-    path.join(productionDir, 'compositions', `${pascalName}.tsx`),
+    path.join(productionDir, `${pascalName}.tsx`),
     buildScaffoldCompositionTsx({
       slug,
       pascalName,
       kit,
       styleId: resolvedStyle.id,
       lang,
+      title,
+      style: resolvedStyle,
     }),
     'utf8'
   );
@@ -2015,30 +2093,48 @@ export async function runNewProductionCommand(
     'utf8'
   );
 
-  const linkPath = ensureProductionPublicSymlink(studioDir, slug);
+  const rootTsxPath = path.join(studioDir, 'src', 'Root.tsx');
+  const rawRelImport = path.relative(
+    path.dirname(rootTsxPath),
+    path.join(productionDir, pascalName)
+  );
+  const importRelPath = rawRelImport.startsWith('.')
+    ? rawRelImport
+    : `./${rawRelImport}`;
+
+  const regResult = registerCompositionInRootTsx({
+    rootTsxPath,
+    compositionId: pascalName,
+    importRelPath,
+    durationInFrames: 720,
+    fps: config.fps,
+    width: 1920,
+    height: 1080,
+  });
+
   const dirFlagHint = dirRel !== '.' ? ` --dir=${dirRel}` : '';
 
   console.log('==============================================================');
   console.log(
-    ` 🎬 Scaffolded Isolated Production Capsule: ${path.relative(rootDir, productionDir)}`
+    ` 🎬 Scaffolded Remotion Video: ${path.relative(rootDir, productionDir)}`
   );
   console.log('==============================================================');
   console.log(
-    `  • Manifest:     ${path.relative(rootDir, path.join(productionDir, 'production.json'))}`
+    `  • Audio Spec:   ${path.relative(rootDir, path.join(productionDir, 'audio.json'))}`
   );
   console.log(
-    `  • Composition:  ${path.relative(rootDir, path.join(productionDir, 'compositions', `${pascalName}.tsx`))} (${kit}, style: ${resolvedStyle.id})`
+    `  • Composition:  ${path.relative(rootDir, path.join(productionDir, `${pascalName}.tsx`))} (${kit}, style: ${resolvedStyle.id})`
   );
-  console.log(
-    `  • Props JSON:   ${path.relative(rootDir, path.join(productionDir, 'compositions', `${pascalName}.props.json`))}`
-  );
-  console.log(
-    `  • Asset Mirror: ${path.relative(rootDir, linkPath)} -> ../../productions/${slug}/assets`
-  );
+  if (regResult.updated) {
+    console.log(
+      `  • Registered:   ${path.relative(rootDir, rootTsxPath)} (<Composition id="${pascalName}" />)`
+    );
+  }
   console.log('\nNext steps:');
-  console.log(`  1. npx make-pictures audio --production=${slug}${dirFlagHint}`);
-  console.log(`  2. npx make-pictures qa ${pascalName}${dirFlagHint}`);
-  console.log(`  3. npx make-pictures render ${pascalName}${dirFlagHint}`);
+  console.log(`  1. npx make-pictures audio ${slug} --mock${dirFlagHint}`);
+  console.log(`  2. npx remotion studio`);
+  console.log(`  3. npx make-pictures qa ${pascalName}${dirFlagHint}`);
+  console.log(`  4. npx make-pictures render ${pascalName}${dirFlagHint}`);
 
-  return { productionDir, compositionId: pascalName };
+  return { productionDir, compositionId: pascalName, rootTsxPath };
 }

@@ -333,7 +333,7 @@ function execFfmpegChecked(
       (err as { code?: string }).code === 'ENOENT'
     ) {
       throw new Error(
-        'FFmpeg binary not found on PATH. Install ffmpeg and verify with `npx make-pictures doctor`.'
+        'FFmpeg binary not found on PATH.\nInstall FFmpeg and retry:\n  • macOS:   brew install ffmpeg\n  • Ubuntu:  sudo apt install ffmpeg\n  • Windows: winget install Gyan.FFmpeg'
       );
     }
     throw err;

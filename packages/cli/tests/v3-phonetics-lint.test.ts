@@ -7,7 +7,7 @@ import {
   CURATED_VOICES,
   getRecommendedVoiceSettings,
   snapStabilityForElevenLabsModel,
-} from '../../core/src/index';
+} from '@make-pictures/remotion/audio/voices';
 import {
   extractElevenLabsV3Tags,
   lintElevenLabsV3Usage,
@@ -265,10 +265,10 @@ test('runAudioCommand passes capsuleModelId as defaultModelId into lintManifestV
   const warnings: string[] = [];
 
   try {
-    const prodDir = path.join(tmpDir, 'productions', 'v3-lint-check');
+    const prodDir = path.join(tmpDir, 'src', 'videos', 'v3-lint-check');
     fs.mkdirSync(prodDir, { recursive: true });
     fs.writeFileSync(
-      path.join(prodDir, 'production.json'),
+      path.join(prodDir, 'audio.json'),
       JSON.stringify(
         {
           id: 'v3-lint-check',
@@ -295,6 +295,25 @@ test('runAudioCommand passes capsuleModelId as defaultModelId into lintManifestV
       warnings.push(args.map(String).join(' '));
     };
 
+    // Without --mock and without ELEVENLABS_API_KEY, runAudioCommand fails fast with an actionable error
+    const prevKey = process.env.ELEVENLABS_API_KEY;
+    delete process.env.ELEVENLABS_API_KEY;
+    try {
+      await assert.rejects(
+        () =>
+          runAudioCommand({
+            cwd: tmpDir,
+            productionSlug: 'v3-lint-check',
+            mock: false,
+          }),
+        /ELEVENLABS_API_KEY.*--mock/s
+      );
+    } finally {
+      if (prevKey !== undefined) {
+        process.env.ELEVENLABS_API_KEY = prevKey;
+      }
+    }
+
     await runAudioCommand({
       cwd: tmpDir,
       productionSlug: 'v3-lint-check',
@@ -313,7 +332,7 @@ test('runAudioCommand passes capsuleModelId as defaultModelId into lintManifestV
     // Mock word timestamps must strip eleven_v3 audio tags so words[] never contain [thoughtful]
     const voJson = JSON.parse(
       fs.readFileSync(
-        path.join(prodDir, 'assets', 'voiceovers', 's1.json'),
+        path.join(tmpDir, 'public', 'audio', 'v3-lint-check', 'voiceovers', 's1.json'),
         'utf8'
       )
     ) as { words: Array<{ word: string }> };

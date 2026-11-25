@@ -1,6 +1,7 @@
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import type { DimensionalSpace } from '../../../core/src/style/presets';
+import type { DimensionalSpace } from '@make-pictures/remotion/style/presets';
 import {
   defaultKitAndStyleForSpace,
   runNewProductionCommand,
@@ -8,9 +9,10 @@ import {
 } from './new-production';
 import { ensureWorkspaceStylesDir } from './styles';
 import {
-  ensureConsumerRemotionEntry,
+  DEFAULT_MAKE_PICTURES_CONFIG,
+  loadMakePicturesConfig,
   resolveWorkspaceContext,
-  syncBundledAiPluginToProject,
+  syncBundledSkillsToProject,
 } from './workspace-paths';
 
 export interface InitCommandOptions {
@@ -22,32 +24,32 @@ export interface InitCommandOptions {
   voice?: string;
   lang?: 'pl' | 'en';
   force?: boolean;
+  skipRemotionSkills?: boolean;
+  remotionSkillsRunner?: (rootDir: string) => boolean;
 }
 
-const REQUIRED_RUNTIME_PACKAGES = [
-  '@make-pictures/core',
-  '@make-pictures/kits',
-  '@make-pictures/studio',
+export const REQUIRED_RUNTIME_PACKAGES = [
+  '@make-pictures/remotion',
   '@make-pictures/cli',
   'remotion',
   '@remotion/cli',
-  '@remotion/player',
   '@remotion/bundler',
   '@remotion/renderer',
-  '@remotion/media-utils',
   '@remotion/google-fonts',
+  '@remotion/media-utils',
   'lucide-react',
   'zod',
-];
+] as const;
 
-function hasExistingProductions(productionsRoot: string): boolean {
-  if (!fs.existsSync(productionsRoot)) return false;
-  for (const entry of fs.readdirSync(productionsRoot, { withFileTypes: true })) {
+function hasExistingVideos(videosRoot: string): boolean {
+  if (!fs.existsSync(videosRoot)) return false;
+  for (const entry of fs.readdirSync(videosRoot, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
+    const candidateDir = path.join(videosRoot, entry.name);
     if (
-      fs.existsSync(
-        path.join(productionsRoot, entry.name, 'production.json')
-      )
+      fs.existsSync(path.join(candidateDir, 'audio.json')) ||
+      fs.existsSync(path.join(candidateDir, 'index.ts')) ||
+      fs.existsSync(path.join(candidateDir, 'index.tsx'))
     ) {
       return true;
     }
@@ -82,16 +84,69 @@ function findMissingPackages(rootDir: string): string[] {
   });
 }
 
+function defaultRunRemotionSkillsAdd(rootDir: string): boolean {
+  try {
+    const res = spawnSync('npx', ['-y', 'remotion', 'skills', 'add'], {
+      cwd: rootDir,
+      stdio: 'pipe',
+      timeout: 15_000,
+    });
+    return res.status === 0;
+  } catch {
+    return false;
+  }
+}
+
+function buildStarterEntrySource(): string {
+  return `import { registerRoot } from 'remotion';
+import { RemotionRoot } from './Root';
+
+registerRoot(RemotionRoot);
+`;
+}
+
+function buildStarterRootSource(): string {
+  return `import React from 'react';
+import { Composition } from 'remotion';
+import {
+  DEFAULT_STYLE_LAB_PROPS,
+  StyleLabComposition,
+  StyleLabSchema,
+} from '@make-pictures/remotion/style-lab';
+
+export const RemotionRoot: React.FC = () => {
+  return (
+    <>
+      <Composition
+        id="StyleLab"
+        component={StyleLabComposition}
+        schema={StyleLabSchema}
+        defaultProps={DEFAULT_STYLE_LAB_PROPS}
+        durationInFrames={360}
+        fps={60}
+        width={1920}
+        height={1080}
+      />
+    </>
+  );
+};
+`;
+}
+
 /**
- * Initializes `make.pictures` Studio inside an existing repository (e.g. a Next.js / SaaS monorepo
- * via `npx make-pictures init --dir=videos`).
+ * Initializes `make.pictures` inside an existing Remotion repository (in-place, preserving `src/Root.tsx`)
+ * or inside a subdirectory of an existing app (e.g. `npx make-pictures init --dir=videos`).
  */
 export async function runInitCommand(
   options: InitCommandOptions = {}
 ): Promise<{
   studioDir: string;
   entryPath: string;
-  pluginDir: string;
+  rootTsxPath: string;
+  preservedExistingRoot: boolean;
+  skillsDir: string;
+  claudeSkillsDir: string;
+  remotionSkillsAdded: boolean;
 }> {
   const { rootDir, studioDir, dirRel } = resolveWorkspaceContext({
     cwd: options.cwd,
@@ -107,15 +162,38 @@ export async function runInitCommand(
   const lang: 'pl' | 'en' = options.lang ?? 'en';
   const force = Boolean(options.force);
 
-  const productionsRoot = path.join(studioDir, 'productions');
-  const publicDir = path.join(studioDir, 'public');
-  fs.mkdirSync(productionsRoot, { recursive: true });
+  const configPath = path.join(studioDir, 'make-pictures.json');
+  if (!fs.existsSync(configPath) || force) {
+    fs.mkdirSync(studioDir, { recursive: true });
+    fs.writeFileSync(
+      configPath,
+      `${JSON.stringify({ ...DEFAULT_MAKE_PICTURES_CONFIG, lang }, null, 2)}\n`,
+      'utf8'
+    );
+  }
+
+  const config = loadMakePicturesConfig(studioDir);
+  const videosRoot = path.resolve(studioDir, config.videosDir);
+  const publicDir = path.resolve(studioDir, config.publicDir);
+  fs.mkdirSync(videosRoot, { recursive: true });
   fs.mkdirSync(publicDir, { recursive: true });
   ensureWorkspaceStylesDir(studioDir);
 
-  const entryPath = ensureConsumerRemotionEntry(studioDir, rootDir, force);
+  const entryPath = path.resolve(studioDir, config.entryPoint);
+  const rootTsxPath = path.join(path.dirname(entryPath), 'Root.tsx');
+  const hadExistingRoot = fs.existsSync(rootTsxPath);
 
-  if (!hasExistingProductions(productionsRoot) || force) {
+  fs.mkdirSync(path.dirname(entryPath), { recursive: true });
+  if (!fs.existsSync(entryPath)) {
+    fs.writeFileSync(entryPath, buildStarterEntrySource(), 'utf8');
+  }
+  if (!hadExistingRoot) {
+    fs.writeFileSync(rootTsxPath, buildStarterRootSource(), 'utf8');
+  }
+
+  // Only scaffold a starter video when initializing a fresh studio root without an existing src/Root.tsx.
+  // Existing Remotion repos keep their src/Root.tsx completely untouched.
+  if (!hadExistingRoot && (!hasExistingVideos(videosRoot) || force)) {
     await runNewProductionCommand({
       cwd: rootDir,
       dir: dirRel,
@@ -130,47 +208,57 @@ export async function runInitCommand(
     });
   }
 
-  const { pluginDestDir, agentsMdPath } = syncBundledAiPluginToProject(rootDir, {
-    force,
-  });
+  const { agentsSkillsDir, claudeSkillsDir, agentsMdPath } =
+    syncBundledSkillsToProject(rootDir, { force });
+
+  const remotionSkillsAdded = options.skipRemotionSkills
+    ? false
+    : (options.remotionSkillsRunner ?? defaultRunRemotionSkillsAdd)(rootDir);
 
   const dirFlag = dirRel !== '.' ? ` --dir=${dirRel}` : '';
   const missingPkgs = findMissingPackages(rootDir);
 
   console.log('\n==============================================================');
-  console.log(' ✨ Initialized make.pictures Studio in Existing Project');
+  console.log(' ✨ Initialized make.pictures v3 Toolkit');
   console.log('==============================================================');
+  console.log(`  • Workspace Root:  ${dirRel === '.' ? '.' : dirRel}`);
+  console.log(`  • Remotion Entry:  ${path.relative(rootDir, entryPath)}`);
   console.log(
-    `  • Studio Root:    ${dirRel === '.' ? '.' : dirRel}`
+    `  • Remotion Root:   ${path.relative(rootDir, rootTsxPath)}${hadExistingRoot ? ' (preserved existing)' : ' (created with StyleLab)'}`
   );
-  console.log(
-    `  • Remotion Entry: ${path.relative(rootDir, entryPath)}`
-  );
-  console.log(
-    `  • AI Skills:      ${path.relative(rootDir, pluginDestDir)}`
-  );
-  console.log(
-    `  • Agent Rules:    ${path.relative(rootDir, agentsMdPath)}`
-  );
-
-  if (missingPkgs.length > 0) {
-    console.log('\n📦 Install studio packages if not installed yet:');
+  console.log(`  • AI Skills:       ${path.relative(rootDir, agentsSkillsDir)}`);
+  console.log(`  • Claude Skills:   ${path.relative(rootDir, claudeSkillsDir)}`);
+  console.log(`  • Agent Rules:     ${path.relative(rootDir, agentsMdPath)}`);
+  if (remotionSkillsAdded) {
+    console.log('  • Remotion Skills: installed via `npx remotion skills add`');
+  } else if (!options.skipRemotionSkills) {
     console.log(
-      '   npm install -D @make-pictures/core @make-pictures/kits @make-pictures/studio @make-pictures/cli remotion @remotion/cli @remotion/player @remotion/bundler @remotion/renderer @remotion/media-utils @remotion/google-fonts @remotion/three @react-three/fiber @react-three/drei three @types/three react react-dom zod lucide-react vite @vitejs/plugin-react'
+      '  • Remotion Skills: run `npx remotion skills add` once online for official Remotion skills'
     );
   }
 
+  if (missingPkgs.length > 0) {
+    console.log('\n📦 Install missing v3 packages:');
+    console.log(`   npm install ${missingPkgs.join(' ')}`);
+  }
+
   console.log('\n🚀 Next commands:');
-  console.log(`   1. npx make-pictures onboard`);
-  console.log(`   2. npx make-pictures studio${dirFlag}`);
+  console.log(`   1. npx make-pictures onboard${dirFlag}`);
   console.log(
-    `   3. npx make-pictures audio --production=hello-studio${dirFlag}`
+    dirRel === '.'
+      ? '   2. npx remotion studio'
+      : `   2. npx make-pictures studio${dirFlag}`
   );
-  console.log(`   4. npx make-pictures qa HelloStudio${dirFlag}`);
+  console.log(`   3. npx make-pictures new my-film --space=2d${dirFlag}`);
+  console.log(`   4. npx make-pictures qa MyFilm${dirFlag}`);
 
   return {
     studioDir,
     entryPath,
-    pluginDir: pluginDestDir,
+    rootTsxPath,
+    preservedExistingRoot: hadExistingRoot,
+    skillsDir: agentsSkillsDir,
+    claudeSkillsDir,
+    remotionSkillsAdded,
   };
 }

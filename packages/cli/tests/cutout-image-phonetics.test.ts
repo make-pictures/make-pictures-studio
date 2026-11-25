@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import zlib from 'node:zlib';
-import { BUILT_IN_STYLES } from '../../core/src/style/presets';
+import { BUILT_IN_STYLES } from '@make-pictures/remotion/style/presets';
 import {
   POLISH_LETTERED_ACRONYMS,
   POLISH_WORD_ACRONYMS,

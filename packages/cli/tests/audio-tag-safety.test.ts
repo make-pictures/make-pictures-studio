@@ -4,21 +4,19 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import * as coreAudio from '../../core/src/audio/index';
-import * as studioClient from '../../studio/src/client/index';
+import * as remotionAudio from '@make-pictures/remotion/audio';
 import {
   auditStudioAudioLifetimes,
   scanTsxForUnboundedAudioSequences,
 } from '../src/audio/audit-audio-tags';
 import { buildScaffoldCompositionTsx } from '../src/commands/new-production';
-import { createMakePicturesApp } from '../../create-make-pictures/src/index';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MONOREPO_ROOT = path.resolve(__dirname, '..', '..', '..');
 
 test('resolveSoundCueDurationInFrames bounds one-shot SFX to a finite window instead of Infinity', () => {
   const resolveFn = (
-    coreAudio as Record<string, unknown>
+    remotionAudio as Record<string, unknown>
   ).resolveSoundCueDurationInFrames as
     | ((params: {
         resolvedFrame: number;
@@ -34,7 +32,7 @@ test('resolveSoundCueDurationInFrames bounds one-shot SFX to a finite window ins
   assert.equal(
     typeof resolveFn,
     'function',
-    'Expected resolveSoundCueDurationInFrames to be exported from @make-pictures/core/audio'
+    'Expected resolveSoundCueDurationInFrames to be exported from @make-pictures/remotion/audio'
   );
 
   // 1. Default one-shot fallback (6s * 60fps = 360 frames, NOT Infinity)
@@ -93,7 +91,7 @@ test('resolveSoundCueDurationInFrames bounds one-shot SFX to a finite window ins
 
 test('resolveVoiceoverDurationInFrames computes finite sequence duration from durationInSeconds + tail padding', () => {
   const resolveVoFn = (
-    coreAudio as Record<string, unknown>
+    remotionAudio as Record<string, unknown>
   ).resolveVoiceoverDurationInFrames as
     | ((params: {
         fromFrame: number;
@@ -110,7 +108,7 @@ test('resolveVoiceoverDurationInFrames computes finite sequence duration from du
   assert.equal(
     typeof resolveVoFn,
     'function',
-    'Expected resolveVoiceoverDurationInFrames to be exported from @make-pictures/core/audio'
+    'Expected resolveVoiceoverDurationInFrames to be exported from @make-pictures/remotion/audio'
   );
 
   // 4.5s + 0.35s default tail padding at 60fps = ceil(4.85 * 60) = 291 frames
@@ -133,29 +131,6 @@ test('resolveVoiceoverDurationInFrames computes finite sequence duration from du
       durationInSeconds: 4.5,
     }),
     100
-  );
-});
-
-test('StageViewport configures STUDIO_SHARED_AUDIO_TAGS = 32 on @remotion/player <Player />', () => {
-  const sharedTags = (studioClient as Record<string, unknown>)
-    .STUDIO_SHARED_AUDIO_TAGS;
-  assert.equal(sharedTags, 32);
-
-  const stageViewportSrc = fs.readFileSync(
-    path.join(
-      MONOREPO_ROOT,
-      'packages',
-      'studio',
-      'src',
-      'client',
-      'components',
-      'StageViewport.tsx'
-    ),
-    'utf8'
-  );
-  assert.match(
-    stageViewportSrc,
-    /numberOfSharedAudioTags=\{STUDIO_SHARED_AUDIO_TAGS\}/
   );
 });
 
@@ -183,22 +158,18 @@ test('scanTsxForUnboundedAudioSequences flags <Sequence> without durationInFrame
 
   const warnings = scanTsxForUnboundedAudioSequences(
     brokenTsx,
-    'productions/historia-pizzy/compositions/HistoriaPizzy.tsx'
+    'src/videos/historia-pizzy/HistoriaPizzy.tsx'
   );
   assert.equal(warnings.length, 1);
   assert.equal(warnings[0].line, 8);
   assert.match(warnings[0].message, /durationInFrames|VoiceoverTrack/i);
+  assert.match(warnings[0].message, /@make-pictures\/remotion\/audio/);
 });
 
-test('auditStudioAudioLifetimes inspects productions/*/compositions/*.tsx inside studioDir', () => {
+test('auditStudioAudioLifetimes inspects src/videos/**/*.tsx inside studioDir', () => {
   const tmpStudio = fs.mkdtempSync(path.join(os.tmpdir(), 'mp-audio-audit-'));
   try {
-    const compDir = path.join(
-      tmpStudio,
-      'productions',
-      'pizza-film',
-      'compositions'
-    );
+    const compDir = path.join(tmpStudio, 'src', 'videos', 'pizza-film');
     fs.mkdirSync(compDir, { recursive: true });
     fs.writeFileSync(
       path.join(compDir, 'PizzaFilm.tsx'),
@@ -214,7 +185,7 @@ test('auditStudioAudioLifetimes inspects productions/*/compositions/*.tsx inside
   }
 });
 
-test('new-production and create-make-pictures scaffolds use <VoiceoverTrack /> and pass durationSeconds to <SoundCue />', async () => {
+test('new-production scaffolds use <VoiceoverTrack /> and pass durationSeconds to <SoundCue />', () => {
   for (const kit of ['paper-diorama-3d', 'motion-diagrams-2d'] as const) {
     const tsx = buildScaffoldCompositionTsx({
       slug: 'historia-pizzy',
@@ -228,32 +199,6 @@ test('new-production and create-make-pictures scaffolds use <VoiceoverTrack /> a
       scanTsxForUnboundedAudioSequences(tsx, `HistoriaPizzy-${kit}.tsx`).length,
       0
     );
-
-    const tmpApp = fs.mkdtempSync(path.join(os.tmpdir(), `cmp-audio-${kit}-`));
-    try {
-      await createMakePicturesApp({
-        targetDir: tmpApp,
-        kit,
-        lang: 'pl',
-        install: false,
-        force: true,
-      });
-      const helloTsx = fs.readFileSync(
-        path.join(
-          tmpApp,
-          'productions',
-          'hello-studio',
-          'compositions',
-          'HelloStudio.tsx'
-        ),
-        'utf8'
-      );
-      assert.match(helloTsx, /<VoiceoverTrack\b/);
-      assert.match(helloTsx, /durationSeconds=\{whooshSfx\.durationSeconds\}/);
-      assert.equal(auditStudioAudioLifetimes(tmpApp).length, 0);
-    } finally {
-      fs.rmSync(tmpApp, { recursive: true, force: true });
-    }
   }
 });
 

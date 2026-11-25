@@ -5,28 +5,27 @@ import path from 'node:path';
 import dotenv from 'dotenv';
 import { ElevenLabsClient } from '@elevenlabs/elevenlabs-js';
 import type {
+  AudioManifestFile,
+  AudioSceneSpec,
   CharacterAlignment,
   DialogueInputTurn,
   DialogueVoiceSegment,
   MusicMoodPreset,
   MusicScoreSpec,
-  ProductionManifest,
-  SceneDefinition,
-  ScenesManifest,
   SceneVoiceoverData,
   SfxAssetSpec,
   SfxFallbackPreset,
   VoiceAcousticPreset,
   VoiceSettingsConfig,
   WordTimestamp,
-} from '@make-pictures/core';
+} from '@make-pictures/remotion/types';
 import {
   DEFAULT_ELEVENLABS_MODEL_ID,
   getDefaultVoiceIdForLang,
   getRecommendedVoiceSettings,
   snapStabilityForElevenLabsModel,
   supportsLanguageCodeParam,
-} from '../../../core/src/audio/voices';
+} from '@make-pictures/remotion/audio/voices';
 import {
   generateMusicScore,
   type GeneratedMusicMetadata,
@@ -40,7 +39,11 @@ import {
   lintManifestVoiceovers,
   stripElevenLabsV3Tags,
 } from '../audio/phonetics-lint';
-import { resolveWorkspaceContext } from './workspace-paths';
+import {
+  assertFfmpegInstalled,
+  loadMakePicturesConfig,
+  resolveWorkspaceContext,
+} from './workspace-paths';
 
 const CLI_VOICE_ACOUSTIC_FILTERS: Record<VoiceAcousticPreset, string> = {
   clean: 'apad=pad_dur=0.25',
@@ -71,6 +74,7 @@ export interface AudioCommandOptions {
   cwd?: string;
   dir?: string;
   productionSlug?: string;
+  manifestPath?: string;
   mock?: boolean;
   force?: boolean;
 }
@@ -82,6 +86,15 @@ export function hasActiveElevenLabsApiKey(): boolean {
     raw !== 'your_elevenlabs_api_key_here' &&
     raw !== 'twoj_klucz_api_elevenlabs' &&
     raw !== 'offline-fallback-key'
+  );
+}
+
+export function assertElevenLabsApiKeyOrMock(mock: boolean): void {
+  if (mock || hasActiveElevenLabsApiKey()) {
+    return;
+  }
+  throw new Error(
+    'ELEVENLABS_API_KEY is not configured.\n  • Connect ElevenLabs: npx make-pictures onboard\n  • Or generate deterministic offline mock audio: re-run with --mock'
   );
 }
 
@@ -99,8 +112,8 @@ export function computeTextHash(text: string): string {
 }
 
 export function isDialogueScene(
-  scene: SceneDefinition
-): scene is SceneDefinition & { dialogueInputs: DialogueInputTurn[] } {
+  scene: AudioSceneSpec
+): scene is AudioSceneSpec & { dialogueInputs: DialogueInputTurn[] } {
   return Array.isArray(scene.dialogueInputs) && scene.dialogueInputs.length >= 2;
 }
 
@@ -118,7 +131,7 @@ export function resolveEffectiveDialogueModelId(
 }
 
 export function computeSceneCacheHash(
-  scene: SceneDefinition,
+  scene: AudioSceneSpec,
   options?: { effectiveLanguageCode?: string }
 ): string {
   const baseKey = scene.voiceSettings
@@ -137,8 +150,9 @@ export function computeSceneCacheHash(
       )}`
     );
   }
-  if (scene.voiceEffect && scene.voiceEffect !== 'clean') {
-    extraParts.push(`fx:${scene.voiceEffect}`);
+  const acoustic = scene.acousticPreset ?? scene.voiceEffect;
+  if (acoustic && acoustic !== 'clean') {
+    extraParts.push(`fx:${acoustic}`);
   }
   if (scene.previousText) {
     extraParts.push(`prev:${scene.previousText}`);
@@ -630,7 +644,7 @@ export async function synthesizeSceneDialogueViaSdk(params: {
 }
 
 async function processSceneVoiceover(params: {
-  scene: SceneDefinition;
+  scene: AudioSceneSpec;
   fps: number;
   voiceoversDir: string;
   audioFileRelPrefix: string;
@@ -751,7 +765,8 @@ async function processSceneVoiceover(params: {
     const rawMp3Path = `${mp3Path}.raw.mp3`;
     fs.writeFileSync(rawMp3Path, audioBuffer);
 
-    const acousticFilter = getVoiceAcousticFilter(scene.voiceEffect);
+    const acousticPreset = scene.acousticPreset ?? scene.voiceEffect;
+    const acousticFilter = getVoiceAcousticFilter(acousticPreset);
     execFileSync(
       'ffmpeg',
       ['-y', '-i', rawMp3Path, '-af', acousticFilter, mp3Path],
@@ -822,7 +837,8 @@ async function processSceneVoiceover(params: {
     const rawMp3Path = `${mp3Path}.raw.mp3`;
     fs.writeFileSync(rawMp3Path, audioBuffer);
 
-    const acousticFilter = getVoiceAcousticFilter(scene.voiceEffect);
+    const acousticPreset = scene.acousticPreset ?? scene.voiceEffect;
+    const acousticFilter = getVoiceAcousticFilter(acousticPreset);
     execFileSync(
       'ffmpeg',
       ['-y', '-i', rawMp3Path, '-af', acousticFilter, mp3Path],
@@ -926,64 +942,6 @@ async function processSceneVoiceover(params: {
   return payload;
 }
 
-/**
- * Ensures `<studioDir>/public/_productions/<slug>` points cleanly to `../../productions/<slug>/assets`.
- */
-export function ensureProductionPublicSymlink(
-  studioDir: string,
-  slug: string
-): string {
-  const assetsDir = path.join(studioDir, 'productions', slug, 'assets');
-  fs.mkdirSync(assetsDir, { recursive: true });
-
-  const publicProductionsDir = path.join(studioDir, 'public', '_productions');
-  fs.mkdirSync(publicProductionsDir, { recursive: true });
-
-  const linkPath = path.join(publicProductionsDir, slug);
-  const relativeTarget = path.relative(publicProductionsDir, assetsDir);
-
-  try {
-    const stat = fs.lstatSync(linkPath);
-    if (stat.isSymbolicLink()) {
-      const existingTarget = fs.readlinkSync(linkPath);
-      const resolvedExisting = path.resolve(publicProductionsDir, existingTarget);
-      if (resolvedExisting === path.resolve(assetsDir)) {
-        return linkPath;
-      }
-      fs.unlinkSync(linkPath);
-    } else {
-      return linkPath;
-    }
-  } catch {
-    // linkPath does not exist yet
-  }
-
-  const symlinkType = process.platform === 'win32' ? 'junction' : 'dir';
-  fs.symlinkSync(relativeTarget, linkPath, symlinkType);
-  return linkPath;
-}
-
-function writeRootVoiceoverManifest(
-  studioDir: string,
-  records: Record<string, SceneVoiceoverData>
-): void {
-  const generatedDir = path.join(studioDir, 'src', 'generated');
-  fs.mkdirSync(generatedDir, { recursive: true });
-  const targetFile = path.join(generatedDir, 'voiceover-data.ts');
-
-  const fileContents = `// AUTO-GENERATED BY make.pictures audio CLI — DO NOT EDIT MANUALLY
-import type { SceneVoiceoverData } from '../types/scene';
-
-export const VOICEOVER_MANIFEST: Record<string, SceneVoiceoverData> = ${JSON.stringify(
-    records,
-    null,
-    2
-  )};
-`;
-
-  fs.writeFileSync(targetFile, fileContents, 'utf8');
-}
-
 export function writeProductionAudioManifest(params: {
   productionDir: string;
   voiceovers: Record<string, SceneVoiceoverData>;
@@ -995,7 +953,7 @@ export function writeProductionAudioManifest(params: {
   const targetFile = path.join(generatedDir, 'audio-manifest.ts');
 
   const fileContents = `// AUTO-GENERATED BY @make-pictures/cli — DO NOT EDIT MANUALLY
-import type { SceneVoiceoverData } from '@make-pictures/core';
+import type { SceneVoiceoverData } from '@make-pictures/remotion/types';
 
 export interface ProductionMusicEntry {
   id: string;
@@ -1046,58 +1004,148 @@ export const SFX_MANIFEST: Record<string, ProductionSfxEntry> = ${JSON.stringify
   return targetFile;
 }
 
-async function processProductionCapsule(params: {
+interface DiscoveredAudioManifest {
+  slug: string;
+  videoDir: string;
+  manifestPath: string;
+}
+
+function resolveAudioManifestForSlug(
+  studioDir: string,
+  videosDirRel: string,
+  slug: string
+): DiscoveredAudioManifest | null {
+  const candidates = [
+    path.resolve(studioDir, videosDirRel, slug, 'audio.json'),
+    path.join(studioDir, 'examples', slug, 'audio.json'),
+    path.join(studioDir, 'productions', slug, 'audio.json'),
+  ];
+  for (const manifestPath of candidates) {
+    if (fs.existsSync(manifestPath)) {
+      return {
+        slug,
+        videoDir: path.dirname(manifestPath),
+        manifestPath,
+      };
+    }
+  }
+  return null;
+}
+
+export function discoverAudioManifests(
+  studioDir: string,
+  videosDirRel?: string
+): DiscoveredAudioManifest[] {
+  const config = loadMakePicturesConfig(studioDir);
+  const effectiveVideosDir = videosDirRel ?? config.videosDir;
+  const searchRoots = [
+    path.resolve(studioDir, effectiveVideosDir),
+    path.join(studioDir, 'productions'),
+  ];
+
+  const found: DiscoveredAudioManifest[] = [];
+  const seenDirs = new Set<string>();
+
+  for (const root of searchRoots) {
+    if (!fs.existsSync(root)) continue;
+    const entries = fs
+      .readdirSync(root, { withFileTypes: true })
+      .filter((e) => e.isDirectory() && !e.name.startsWith('.'))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    for (const entry of entries) {
+      const videoDir = path.join(root, entry.name);
+      if (seenDirs.has(videoDir)) continue;
+      const manifestPath = path.join(videoDir, 'audio.json');
+      if (fs.existsSync(manifestPath)) {
+        seenDirs.add(videoDir);
+        found.push({
+          slug: entry.name,
+          videoDir,
+          manifestPath,
+        });
+      }
+    }
+  }
+
+  return found;
+}
+
+async function processAudioManifest(params: {
   rootDir: string;
   studioDir: string;
+  publicDirRel: string;
   slug: string;
+  videoDir: string;
+  manifestPath: string;
   defaultVoiceId: string;
   modelId: string;
   force: boolean;
   useLiveApi: boolean;
 }): Promise<void> {
-  const { rootDir, studioDir, slug, defaultVoiceId, modelId, force, useLiveApi } =
-    params;
-  const productionDir = path.join(studioDir, 'productions', slug);
-  const manifestPath = path.join(productionDir, 'production.json');
+  const {
+    rootDir,
+    studioDir,
+    publicDirRel,
+    slug,
+    videoDir,
+    manifestPath,
+    defaultVoiceId,
+    modelId,
+    force,
+    useLiveApi,
+  } = params;
 
   if (!fs.existsSync(manifestPath)) {
     throw new Error(
-      `Production manifest not found at ${path.relative(
-        rootDir,
-        manifestPath
-      )}`
+      `Audio manifest not found at ${path.relative(rootDir, manifestPath)}`
     );
   }
 
-  console.log(`\n🎬 Production Capsule: "${slug}"`);
-  ensureProductionPublicSymlink(studioDir, slug);
+  let manifest: AudioManifestFile;
+  try {
+    manifest = JSON.parse(
+      fs.readFileSync(manifestPath, 'utf8')
+    ) as AudioManifestFile;
+  } catch (err) {
+    throw new Error(
+      `Invalid JSON in ${path.relative(rootDir, manifestPath)}: ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
 
-  const manifest = JSON.parse(
-    fs.readFileSync(manifestPath, 'utf8')
-  ) as ProductionManifest & { lang?: string };
+  const effectiveSlug = manifest.id?.trim() || slug;
+  console.log(
+    `\n🎬 Audio Manifest: "${effectiveSlug}" (${path.relative(rootDir, manifestPath)})`
+  );
+
   const fps = manifest.fps || 60;
   const hasExplicitEnvVoice = Boolean(process.env.ELEVENLABS_VOICE_ID?.trim());
-  const capsuleDefaultVoiceId =
+  const defaultManifestVoiceId =
     manifest.voiceId?.trim() ||
     (hasExplicitEnvVoice
       ? defaultVoiceId
       : getDefaultVoiceIdForLang(manifest.lang));
-  const capsuleModelId = manifest.modelId?.trim() || modelId;
-  const capsuleLanguageCode =
+  const manifestModelId = manifest.modelId?.trim() || modelId;
+  const manifestLanguageCode =
     manifest.languageCode?.trim() || manifest.lang?.trim() || undefined;
 
   const phoneticsWarnings = lintManifestVoiceovers(manifest, {
-    defaultVoiceId: capsuleDefaultVoiceId,
-    defaultModelId: capsuleModelId,
+    defaultVoiceId: defaultManifestVoiceId,
+    defaultModelId: manifestModelId,
   });
   for (const warn of phoneticsWarnings) {
     console.warn(`  ⚠️  ${warn}`);
   }
 
-  const assetsDir = path.join(productionDir, 'assets');
-  const voiceoversDir = path.join(assetsDir, 'voiceovers');
-  const musicDir = path.join(assetsDir, 'music');
-  const sfxDir = path.join(assetsDir, 'sfx');
+  const publicAudioBase = path.resolve(
+    studioDir,
+    publicDirRel,
+    'audio',
+    effectiveSlug
+  );
+  const voiceoversDir = path.join(publicAudioBase, 'voiceovers');
+  const musicDir = path.join(publicAudioBase, 'music');
+  const sfxDir = path.join(publicAudioBase, 'sfx');
 
   const voiceovers: Record<string, SceneVoiceoverData> = {};
   let totalSceneSeconds = 0;
@@ -1107,10 +1155,10 @@ async function processProductionCapsule(params: {
       scene,
       fps,
       voiceoversDir,
-      audioFileRelPrefix: `_productions/${slug}/voiceovers`,
-      defaultVoiceId: capsuleDefaultVoiceId,
-      modelId: capsuleModelId,
-      defaultLanguageCode: capsuleLanguageCode,
+      audioFileRelPrefix: `audio/${effectiveSlug}/voiceovers`,
+      defaultVoiceId: defaultManifestVoiceId,
+      modelId: manifestModelId,
+      defaultLanguageCode: manifestLanguageCode,
       force,
       useLiveApi,
     });
@@ -1122,7 +1170,7 @@ async function processProductionCapsule(params: {
   if (manifest.score) {
     musicMeta = await generateMusicScore(manifest.score, {
       outputDir: musicDir,
-      publicRelPrefix: `_productions/${slug}/music`,
+      publicRelPrefix: `audio/${effectiveSlug}/music`,
       useLiveApi,
       force,
       fallbackDurationSeconds: Math.max(8, totalSceneSeconds + 1.5),
@@ -1133,7 +1181,7 @@ async function processProductionCapsule(params: {
   for (const sfxSpec of manifest.sfx ?? []) {
     const sfxMeta = await generateSfxAsset(sfxSpec, {
       outputDir: sfxDir,
-      publicRelPrefix: `_productions/${slug}/sfx`,
+      publicRelPrefix: `audio/${effectiveSlug}/sfx`,
       useLiveApi,
       force,
     });
@@ -1141,42 +1189,21 @@ async function processProductionCapsule(params: {
   }
 
   const manifestOut = writeProductionAudioManifest({
-    productionDir,
+    productionDir: videoDir,
     voiceovers,
     music: musicMeta,
     sfx: sfxRecords,
   });
   console.log(
-    `  ✨ Updated capsule manifest: ${path.relative(rootDir, manifestOut)}`
+    `  ✨ Updated audio manifest: ${path.relative(rootDir, manifestOut)}`
   );
-}
-
-function discoverProductionSlugs(studioDir: string): string[] {
-  const productionsRoot = path.join(studioDir, 'productions');
-  if (!fs.existsSync(productionsRoot)) {
-    return [];
-  }
-
-  const entries = fs.readdirSync(productionsRoot, { withFileTypes: true });
-  const slugs: string[] = [];
-  for (const entry of entries) {
-    if (!entry.isDirectory() || entry.name.startsWith('.')) continue;
-    const manifestFile = path.join(
-      productionsRoot,
-      entry.name,
-      'production.json'
-    );
-    if (fs.existsSync(manifestFile)) {
-      slugs.push(entry.name);
-    }
-  }
-  return slugs.sort();
 }
 
 /**
  * Unified AI Audio Studio build command:
- * - With `--production=<slug>`: builds voiceovers + score + SFX for that isolated capsule.
- * - Without `--production`: builds root `scenes.json` (if present) + all `<studioDir>/productions/*` capsules.
+ * - Reads `audio.json` in `<videosDir>/<slug>/audio.json` (or explicit `--manifest=<path>`).
+ * - Writes `.mp3` assets to `<publicDir>/audio/<slug>/` and generates `<videoDir>/generated/audio-manifest.ts`.
+ * - Fails fast with clear actionable messages when `ELEVENLABS_API_KEY` (without `--mock`) or `ffmpeg` is missing.
  */
 export async function runAudioCommand(
   options: AudioCommandOptions = {}
@@ -1185,15 +1212,18 @@ export async function runAudioCommand(
     cwd: options.cwd ?? options.rootDir,
     dir: options.dir,
   });
+  const config = loadMakePicturesConfig(studioDir);
 
   dotenv.config({ path: path.join(rootDir, '.env.local') });
   dotenv.config({ path: path.join(rootDir, '.env') });
 
   const force = Boolean(options.force);
   const mock = Boolean(options.mock);
-  const hasKey = hasActiveElevenLabsApiKey();
-  const useLiveApi = hasKey && !mock;
 
+  assertFfmpegInstalled('audio synthesis');
+  assertElevenLabsApiKeyOrMock(mock);
+
+  const useLiveApi = hasActiveElevenLabsApiKey() && !mock;
   const defaultVoiceId =
     process.env.ELEVENLABS_VOICE_ID?.trim() || DEFAULT_VOICE_ID;
   const modelId = process.env.ELEVENLABS_MODEL_ID?.trim() || DEFAULT_MODEL_ID;
@@ -1203,66 +1233,81 @@ export async function runAudioCommand(
   console.log('==============================================================');
 
   if (!useLiveApi) {
-    console.log(
-      'ℹ️  Running in deterministic local mode (--mock or no ELEVENLABS_API_KEY).'
-    );
+    console.log('ℹ️  Running in deterministic offline mock mode (--mock).');
   } else {
     console.log(
       `✅ Live ElevenLabs API active | Default Voice: ${defaultVoiceId} | Model: ${modelId}`
     );
   }
 
-  if (options.productionSlug) {
-    await processProductionCapsule({
+  if (options.manifestPath) {
+    const resolvedManifest = path.resolve(rootDir, options.manifestPath);
+    if (!fs.existsSync(resolvedManifest)) {
+      throw new Error(
+        `Audio manifest not found: ${path.relative(rootDir, resolvedManifest)}`
+      );
+    }
+    const videoDir = path.dirname(resolvedManifest);
+    const slug = path.basename(videoDir);
+    await processAudioManifest({
       rootDir,
       studioDir,
-      slug: options.productionSlug,
+      publicDirRel: config.publicDir,
+      slug,
+      videoDir,
+      manifestPath: resolvedManifest,
       defaultVoiceId,
       modelId,
       force,
       useLiveApi,
     });
-    console.log('\n✅ Production audio pipeline complete!');
+    console.log('\n✅ Audio pipeline complete!');
     return;
   }
 
-  // Root `scenes.json` + baseline assets (only when `scenes.json` exists, e.g. engine monorepo)
-  const scenesPath = path.join(studioDir, 'scenes.json');
-  if (fs.existsSync(scenesPath)) {
-    ensureBaselineStudioAssets(studioDir);
-    console.log('\n📦 Root Studio Scenes (scenes.json)');
-    const manifest = JSON.parse(
-      fs.readFileSync(scenesPath, 'utf8')
-    ) as ScenesManifest;
-    const fps = manifest.project?.fps || 60;
-    const voiceoversDir = path.join(studioDir, 'public', 'voiceovers');
-
-    const rootVoiceovers: Record<string, SceneVoiceoverData> = {};
-    for (const scene of manifest.scenes ?? []) {
-      const data = await processSceneVoiceover({
-        scene,
-        fps,
-        voiceoversDir,
-        audioFileRelPrefix: 'voiceovers',
-        defaultVoiceId,
-        modelId,
-        force,
-        useLiveApi,
-      });
-      rootVoiceovers[scene.id] = data;
+  if (options.productionSlug) {
+    const target = resolveAudioManifestForSlug(
+      studioDir,
+      config.videosDir,
+      options.productionSlug
+    );
+    if (!target) {
+      throw new Error(
+        `Audio manifest not found for "${options.productionSlug}". Expected ${path.join(config.videosDir, options.productionSlug, 'audio.json')} (or pass --manifest=<path>).`
+      );
     }
-
-    writeRootVoiceoverManifest(studioDir, rootVoiceovers);
-    console.log('  ✨ Updated src/generated/voiceover-data.ts');
-  }
-
-  // Process all isolated capsules in `<studioDir>/productions/*`
-  const slugs = discoverProductionSlugs(studioDir);
-  for (const slug of slugs) {
-    await processProductionCapsule({
+    await processAudioManifest({
       rootDir,
       studioDir,
-      slug,
+      publicDirRel: config.publicDir,
+      slug: target.slug,
+      videoDir: target.videoDir,
+      manifestPath: target.manifestPath,
+      defaultVoiceId,
+      modelId,
+      force,
+      useLiveApi,
+    });
+    console.log('\n✅ Audio pipeline complete!');
+    return;
+  }
+
+  const manifests = discoverAudioManifests(studioDir, config.videosDir);
+  if (manifests.length === 0) {
+    console.log(
+      `ℹ️  No audio.json manifests found in ${config.videosDir}/*/audio.json. Run \`npx make-pictures new <slug>\` or pass \`--manifest=<path>\`.`
+    );
+    return;
+  }
+
+  for (const target of manifests) {
+    await processAudioManifest({
+      rootDir,
+      studioDir,
+      publicDirRel: config.publicDir,
+      slug: target.slug,
+      videoDir: target.videoDir,
+      manifestPath: target.manifestPath,
       defaultVoiceId,
       modelId,
       force,
@@ -1290,21 +1335,26 @@ export async function runMusicShortcutCommand(params: {
     cwd: params.cwd ?? params.rootDir,
     dir: params.dir,
   });
+  const config = loadMakePicturesConfig(studioDir);
   dotenv.config({ path: path.join(rootDir, '.env.local') });
-  const useLiveApi = hasActiveElevenLabsApiKey() && !params.mock;
+  dotenv.config({ path: path.join(rootDir, '.env') });
+
+  const mock = Boolean(params.mock);
+  assertFfmpegInstalled('music generation');
+  assertElevenLabsApiKeyOrMock(mock);
+  const useLiveApi = hasActiveElevenLabsApiKey() && !mock;
 
   if (params.productionSlug) {
-    const productionDir = path.join(
+    const target = resolveAudioManifestForSlug(
       studioDir,
-      'productions',
+      config.videosDir,
       params.productionSlug
     );
-    const manifestPath = path.join(productionDir, 'production.json');
-    if (fs.existsSync(manifestPath)) {
-      ensureProductionPublicSymlink(studioDir, params.productionSlug);
+    if (target) {
       const manifest = JSON.parse(
-        fs.readFileSync(manifestPath, 'utf8')
-      ) as ProductionManifest;
+        fs.readFileSync(target.manifestPath, 'utf8')
+      ) as AudioManifestFile;
+      const slug = manifest.id?.trim() || target.slug;
       const spec: MusicScoreSpec = manifest.score ?? {
         id: params.id || 'main-score',
         mode: params.mode ?? 'prompt',
@@ -1314,8 +1364,8 @@ export async function runMusicShortcutCommand(params: {
         forceInstrumental: true,
       };
       await generateMusicScore(spec, {
-        outputDir: path.join(productionDir, 'assets', 'music'),
-        publicRelPrefix: `_productions/${params.productionSlug}/music`,
+        outputDir: path.resolve(studioDir, config.publicDir, 'audio', slug, 'music'),
+        publicRelPrefix: `audio/${slug}/music`,
         useLiveApi,
         force: params.force,
       });
@@ -1334,7 +1384,7 @@ export async function runMusicShortcutCommand(params: {
       forceInstrumental: true,
     },
     {
-      outputDir: path.join(studioDir, 'public', 'music'),
+      outputDir: path.resolve(studioDir, config.publicDir, 'music'),
       publicRelPrefix: 'music',
       useLiveApi,
       force: params.force,
@@ -1359,25 +1409,30 @@ export async function runSfxShortcutCommand(params: {
     cwd: params.cwd ?? params.rootDir,
     dir: params.dir,
   });
+  const config = loadMakePicturesConfig(studioDir);
   dotenv.config({ path: path.join(rootDir, '.env.local') });
-  const useLiveApi = hasActiveElevenLabsApiKey() && !params.mock;
+  dotenv.config({ path: path.join(rootDir, '.env') });
+
+  const mock = Boolean(params.mock);
+  assertFfmpegInstalled('SFX generation');
+  assertElevenLabsApiKeyOrMock(mock);
+  const useLiveApi = hasActiveElevenLabsApiKey() && !mock;
 
   if (params.productionSlug && !params.prompt) {
-    const productionDir = path.join(
+    const target = resolveAudioManifestForSlug(
       studioDir,
-      'productions',
+      config.videosDir,
       params.productionSlug
     );
-    const manifestPath = path.join(productionDir, 'production.json');
-    if (fs.existsSync(manifestPath)) {
-      ensureProductionPublicSymlink(studioDir, params.productionSlug);
+    if (target) {
       const manifest = JSON.parse(
-        fs.readFileSync(manifestPath, 'utf8')
-      ) as ProductionManifest;
+        fs.readFileSync(target.manifestPath, 'utf8')
+      ) as AudioManifestFile;
+      const slug = manifest.id?.trim() || target.slug;
       for (const spec of manifest.sfx ?? []) {
         await generateSfxAsset(spec, {
-          outputDir: path.join(productionDir, 'assets', 'sfx'),
-          publicRelPrefix: `_productions/${params.productionSlug}/sfx`,
+          outputDir: path.resolve(studioDir, config.publicDir, 'audio', slug, 'sfx'),
+          publicRelPrefix: `audio/${slug}/sfx`,
           useLiveApi,
           force: params.force,
         });
@@ -1401,21 +1456,17 @@ export async function runSfxShortcutCommand(params: {
   };
 
   const outDir = params.productionSlug
-    ? path.join(
+    ? path.resolve(
         studioDir,
-        'productions',
+        config.publicDir,
+        'audio',
         params.productionSlug,
-        'assets',
         'sfx'
       )
-    : path.join(studioDir, 'public', 'sfx');
+    : path.resolve(studioDir, config.publicDir, 'sfx');
   const relPrefix = params.productionSlug
-    ? `_productions/${params.productionSlug}/sfx`
+    ? `audio/${params.productionSlug}/sfx`
     : 'sfx';
-
-  if (params.productionSlug) {
-    ensureProductionPublicSymlink(studioDir, params.productionSlug);
-  }
 
   await generateSfxAsset(spec, {
     outputDir: outDir,

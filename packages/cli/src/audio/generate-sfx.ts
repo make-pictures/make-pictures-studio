@@ -6,7 +6,7 @@ import { ElevenLabsClient } from '@elevenlabs/elevenlabs-js';
 import type {
   SfxAssetSpec,
   SfxFallbackPreset,
-} from '@make-pictures/core';
+} from '@make-pictures/remotion/types';
 
 export interface GeneratedSfxMetadata {
   id: string;

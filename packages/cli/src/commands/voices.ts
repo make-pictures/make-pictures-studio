@@ -12,7 +12,7 @@ import {
   supportsLanguageCodeParam,
   type CuratedVoiceProfile,
   type ElevenLabsModelInfo,
-} from '../../../core/src/audio/voices';
+} from '@make-pictures/remotion/audio/voices';
 import { hasActiveElevenLabsApiKey } from './audio';
 import { resolveWorkspaceContext } from './workspace-paths';
 
