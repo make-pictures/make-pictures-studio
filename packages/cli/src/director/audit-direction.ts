@@ -2,6 +2,10 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
+  assertFfmpegInstalled,
+  loadMakePicturesConfig,
+} from '../commands/workspace-paths';
+import {
   blankCommentsPreservingNewlines,
   blankStringsAndCommentsPreservingNewlines,
   lineNumberAtOffset,
@@ -67,7 +71,10 @@ export interface AuditDirectionParams {
   origin?: 'example' | 'production';
   productionId?: string;
   capsuleDir?: string;
-  propsFile?: string;
+  /** Resolved source file of the target composition (from `src/Root.tsx`). */
+  sourceFile?: string;
+  /** Optional explicit path to `audio.json` or `generated/audio-manifest.ts`. */
+  audioManifestPath?: string;
   durationInFrames?: number;
   fps?: number;
   sceneTimeline?: ReadonlyArray<AuditSceneSegment>;
@@ -232,11 +239,11 @@ function inferOrigin(params: AuditDirectionParams): 'example' | 'production' {
   if (params.origin === 'example' || params.origin === 'production') {
     return params.origin;
   }
-  const normalizedProps = (params.propsFile ?? '').replace(/\\/g, '/');
+  const normalizedSource = (params.sourceFile ?? '').replace(/\\/g, '/');
   const normalizedCapsule = (params.capsuleDir ?? '').replace(/\\/g, '/');
   if (
-    normalizedProps.startsWith('examples/') ||
-    normalizedProps.includes('/examples/') ||
+    normalizedSource.startsWith('examples/') ||
+    normalizedSource.includes('/examples/') ||
     normalizedCapsule.startsWith('examples/') ||
     normalizedCapsule.includes('/examples/')
   ) {
@@ -245,78 +252,72 @@ function inferOrigin(params: AuditDirectionParams): 'example' | 'production' {
   return 'production';
 }
 
-function resolveTargetCapsuleDir(
+function resolveTargetVideoDir(
   params: AuditDirectionParams,
   origin: 'example' | 'production'
 ): string | null {
   const studioDir = path.resolve(params.studioDir);
-  const rootDir = path.resolve(params.rootDir ?? params.studioDir);
+  const config = loadMakePicturesConfig(studioDir);
 
   if (params.capsuleDir) {
     return path.resolve(studioDir, params.capsuleDir);
   }
 
-  if (params.propsFile) {
-    const candidateInStudio = path.resolve(studioDir, params.propsFile);
-    const candidateInRoot = path.resolve(rootDir, params.propsFile);
-    const resolvedProps = fs.existsSync(candidateInStudio)
-      ? candidateInStudio
-      : fs.existsSync(candidateInRoot)
-        ? candidateInRoot
-        : candidateInStudio;
-    const propsDir = path.dirname(resolvedProps);
-    return path.basename(propsDir) === 'compositions'
-      ? path.dirname(propsDir)
-      : propsDir;
+  if (params.sourceFile) {
+    const resolvedSrc = path.resolve(studioDir, params.sourceFile);
+    if (fs.existsSync(resolvedSrc)) {
+      return path.dirname(resolvedSrc);
+    }
   }
 
   if (params.productionId) {
-    const baseFolder = origin === 'example' ? 'examples' : 'productions';
-    const byProdId = path.join(studioDir, baseFolder, params.productionId);
-    if (fs.existsSync(byProdId)) {
-      return byProdId;
+    const candidates = [
+      path.resolve(studioDir, config.videosDir, params.productionId),
+      path.join(studioDir, origin === 'example' ? 'examples' : 'productions', params.productionId),
+    ];
+    for (const c of candidates) {
+      if (fs.existsSync(c)) return c;
     }
   }
 
   const slug = toKebabSlug(params.compositionId);
-  const bySlug = path.join(
-    studioDir,
-    origin === 'example' ? 'examples' : 'productions',
-    slug
-  );
-  if (fs.existsSync(bySlug)) {
-    return bySlug;
+  const slugCandidates = [
+    path.resolve(studioDir, config.videosDir, slug),
+    path.join(studioDir, origin === 'example' ? 'examples' : 'productions', slug),
+  ];
+  for (const c of slugCandidates) {
+    if (fs.existsSync(c)) return c;
   }
 
-  const fallbackProds = path.join(studioDir, 'productions');
-  return fs.existsSync(fallbackProds) ? fallbackProds : null;
+  return null;
 }
 
-function loadMergedPropsJson(params: AuditDirectionParams): Record<string, unknown> {
+function collectTargetTsxFiles(
+  params: AuditDirectionParams,
+  videoDir: string | null
+): string[] {
   const studioDir = path.resolve(params.studioDir);
-  const rootDir = path.resolve(params.rootDir ?? params.studioDir);
-  let diskProps: Record<string, unknown> = {};
-
-  if (params.propsFile) {
-    for (const candidate of [
-      path.resolve(studioDir, params.propsFile),
-      path.resolve(rootDir, params.propsFile),
-    ]) {
-      if (fs.existsSync(candidate)) {
-        try {
-          const parsed = JSON.parse(fs.readFileSync(candidate, 'utf8'));
-          if (parsed && typeof parsed === 'object') {
-            diskProps = parsed as Record<string, unknown>;
-          }
-        } catch {
-          // ignore invalid JSON
-        }
-        break;
+  if (params.sourceFile) {
+    const resolvedSrc = path.resolve(studioDir, params.sourceFile);
+    if (fs.existsSync(resolvedSrc)) {
+      // If component lives inside a dedicated video folder (with audio.json / index.ts) or src/videos/<slug>,
+      // scan sibling .tsx files in that folder; if it lives directly in src/, scope strictly to that file.
+      const parentDir = path.dirname(resolvedSrc);
+      const isRootSrcDir =
+        path.resolve(parentDir) === path.join(studioDir, 'src') ||
+        path.resolve(parentDir) === studioDir;
+      if (isRootSrcDir) {
+        return resolvedSrc.endsWith('.tsx') ? [resolvedSrc] : [];
       }
+      return collectTsxFilesRecursive(parentDir);
     }
   }
 
-  return { ...diskProps, ...(params.inputProps ?? {}) };
+  if (videoDir && fs.existsSync(videoDir)) {
+    return collectTsxFilesRecursive(videoDir);
+  }
+
+  return [];
 }
 
 function extractNumericConstMap(cleaned: string): Map<string, number> {
@@ -816,7 +817,7 @@ export function scanTsxForChoppyTransitions(
         filePath,
         line: lineNumberAtOffset(source, offset),
         snippet: rawTag.replace(/\s+/g, ' ').trim(),
-        message: `<SceneTransition> uses ${reasons.join(' and ')}. Replace abrupt wipes and flashes with <ContinuousSceneFlow> or <OpticalCrossDissolve> from @make-pictures/core.`,
+        message: `<SceneTransition> uses ${reasons.join(' and ')}. Replace abrupt wipes and flashes with <ContinuousSceneFlow> or <OpticalCrossDissolve> from @make-pictures/remotion.`,
       });
     }
   }
@@ -918,7 +919,7 @@ export function scanTsxForUnclippedCardBars(
             rawSnippet.length > 140
               ? `${rawSnippet.slice(0, 137)}...`
               : rawSnippet,
-          message: `Absolute top: 0 accent bar (height 2..8px) sits inside an overflow: 'visible' container without <ClippedSurfaceChrome>, causing square bar corners to protrude past rounded card borders. Wrap internal bars and highlights in <ClippedSurfaceChrome> from @make-pictures/core.`,
+          message: `Absolute top: 0 accent bar (height 2..8px) sits inside an overflow: 'visible' container without <ClippedSurfaceChrome>, causing square bar corners to protrude past rounded card borders. Wrap internal bars and highlights in <ClippedSurfaceChrome> from @make-pictures/remotion.`,
         });
         break;
       }
@@ -1050,7 +1051,7 @@ export function scanTsxForExcessiveSubViews(
         line: lineNumberAtOffset(source, absOffset),
         snippet: '<SceneSubViewDissolve ... />',
         message:
-          'Single scene component mounts multiple <SceneSubViewDissolve> blocks (3+ sub-views). Limit each scene to at most 1 evolving layout or 2 sub-views (View A -> View B); split 3+ views into separate scenes in production.json.',
+          'Single scene component mounts multiple <SceneSubViewDissolve> blocks (3+ sub-views). Limit each scene to at most 1 evolving layout or 2 sub-views (View A -> View B); split 3+ views into separate scenes in audio.json.',
       });
     }
   }
@@ -1104,18 +1105,13 @@ function countSpokenWords(text: string): number {
     .filter((token) => /[\p{L}\p{N}]/u.test(token)).length;
 }
 
-function loadCapsuleVoiceoverManifestFromDisk(
-  capsuleDir: string
+function loadVoiceoverManifestTsFromPath(
+  audioManifestTsPath: string
 ): Record<string, AuditVoiceoverEntry> | null {
-  const audioManifestPath = path.join(
-    capsuleDir,
-    'generated',
-    'audio-manifest.ts'
-  );
-  if (!fs.existsSync(audioManifestPath)) return null;
+  if (!fs.existsSync(audioManifestTsPath)) return null;
 
   try {
-    const raw = fs.readFileSync(audioManifestPath, 'utf8');
+    const raw = fs.readFileSync(audioManifestTsPath, 'utf8');
     const markerMatch = raw.match(
       /export\s+const\s+VOICEOVER_MANIFEST(?:\s*:[^=]+)?=\s*\{/
     );
@@ -1137,7 +1133,48 @@ function loadCapsuleVoiceoverManifestFromDisk(
   }
 }
 
-interface RawProductionManifestJson {
+function loadCapsuleVoiceoverManifestFromDisk(
+  capsuleDir: string,
+  explicitAudioPath?: string
+): Record<string, AuditVoiceoverEntry> | null {
+  if (explicitAudioPath && explicitAudioPath.endsWith('.ts')) {
+    const loaded = loadVoiceoverManifestTsFromPath(explicitAudioPath);
+    if (loaded) return loaded;
+  }
+  const candidates = [
+    path.join(capsuleDir, 'generated', 'audio-manifest.ts'),
+    path.join(path.dirname(capsuleDir), 'generated', 'audio-manifest.ts'),
+  ];
+  for (const candidate of candidates) {
+    const loaded = loadVoiceoverManifestTsFromPath(candidate);
+    if (loaded) return loaded;
+  }
+  return null;
+}
+
+function resolveAudioJsonPath(
+  capsuleDir: string | null,
+  explicitAudioPath?: string
+): string | null {
+  if (explicitAudioPath && explicitAudioPath.endsWith('.json') && fs.existsSync(explicitAudioPath)) {
+    return explicitAudioPath;
+  }
+  if (explicitAudioPath && explicitAudioPath.endsWith('.ts')) {
+    const baseDir = path.basename(path.dirname(explicitAudioPath)) === 'generated'
+      ? path.dirname(path.dirname(explicitAudioPath))
+      : path.dirname(explicitAudioPath);
+    const siblingAudioJson = path.join(baseDir, 'audio.json');
+    if (fs.existsSync(siblingAudioJson)) return siblingAudioJson;
+  }
+  if (!capsuleDir) return null;
+  const candidates = [
+    path.join(capsuleDir, 'audio.json'),
+    path.join(path.dirname(capsuleDir), 'audio.json'),
+  ];
+  return candidates.find((p) => fs.existsSync(p)) ?? null;
+}
+
+interface RawAudioManifestJson {
   fps?: number;
   scenes?: Array<{
     id: string;
@@ -1149,6 +1186,7 @@ interface RawProductionManifestJson {
 
 /**
  * Runs the Hard Director Audit Gate on a target composition before rendering QA stills.
+ * Works on any standard Remotion project (with or without `audio.json`).
  * By default (`allowFastCuts === false`), throws `DirectorAuditError` when any violation is found.
  */
 export function auditCompositionDirection(
@@ -1160,15 +1198,12 @@ export function auditCompositionDirection(
   const minPreSettleFrames = Math.round(0.6 * fps);
   const minPostHoldFrames = Math.round(1.5 * fps);
   const minFinalPostHoldFrames = Math.round(2.2 * fps);
-  const capsuleDir = resolveTargetCapsuleDir(params, origin);
-  const effectiveProps = loadMergedPropsJson(params);
+  const capsuleDir = resolveTargetVideoDir(params, origin);
+  const effectiveProps = params.inputProps ?? {};
 
   const violations: DirectorAuditViolation[] = [];
   const inspectedFiles: string[] = [];
-  const capsuleTsxFiles =
-    capsuleDir && fs.existsSync(capsuleDir)
-      ? collectTsxFilesRecursive(capsuleDir)
-      : [];
+  const capsuleTsxFiles = collectTargetTsxFiles(params, capsuleDir);
 
   const sceneTimeline = params.sceneTimeline ?? [];
   const durationInFrames = params.durationInFrames;
@@ -1241,131 +1276,137 @@ export function auditCompositionDirection(
     }
   }
 
-  // Rule 2B — Reading Cadence (`<= 2.8 words/s`) & Breathing Room (`pre >= 36f`, `post >= 90f`, `outro >= 132f`) on `production.json`
-  if (origin === 'production' && capsuleDir && sceneTimeline.length > 0) {
-    const prodJsonPath = path.join(capsuleDir, 'production.json');
-    if (fs.existsSync(prodJsonPath)) {
-      try {
-        const manifest = JSON.parse(
-          fs.readFileSync(prodJsonPath, 'utf8')
-        ) as RawProductionManifestJson;
-        const scenesById = new Map(
-          (manifest.scenes ?? []).map((s) => [s.id, s])
-        );
-        const voiceoverMap =
-          params.voiceoverManifest &&
-          Object.keys(params.voiceoverManifest).length > 0
-            ? params.voiceoverManifest
-            : loadCapsuleVoiceoverManifestFromDisk(capsuleDir);
+  // Rule 2B — Reading Cadence (`<= 2.8 words/s`) & Breathing Room (`pre >= 36f`, `post >= 90f`, `outro >= 132f`) on `audio.json`
+  const resolvedAudioJsonPath = resolveAudioJsonPath(
+    capsuleDir,
+    params.audioManifestPath
+  );
+  if (origin === 'production' && resolvedAudioJsonPath && sceneTimeline.length > 0) {
+    try {
+      const manifest = JSON.parse(
+        fs.readFileSync(resolvedAudioJsonPath, 'utf8')
+      ) as RawAudioManifestJson;
+      const scenesById = new Map(
+        (manifest.scenes ?? []).map((s) => [s.id, s])
+      );
+      const voiceoverMap =
+        params.voiceoverManifest &&
+        Object.keys(params.voiceoverManifest).length > 0
+          ? params.voiceoverManifest
+          : capsuleDir
+            ? loadCapsuleVoiceoverManifestFromDisk(
+                capsuleDir,
+                params.audioManifestPath
+              )
+            : null;
 
-        const lastSeg = sceneTimeline[sceneTimeline.length - 1]!;
-        const fallbackTotal = lastSeg.fromFrame + lastSeg.durationInFrames;
-        const resolvedTotalFrames = durationInFrames ?? fallbackTotal;
+      const lastSeg = sceneTimeline[sceneTimeline.length - 1]!;
+      const fallbackTotal = lastSeg.fromFrame + lastSeg.durationInFrames;
+      const resolvedTotalFrames = durationInFrames ?? fallbackTotal;
 
-        for (let i = 0; i < sceneTimeline.length; i++) {
-          const seg = sceneTimeline[i]!;
-          const isFinalScene = i === sceneTimeline.length - 1;
-          const visualStart = nominalBoundaries
-            ? nominalBoundaries[i]!
-            : i === 0
-              ? 0
-              : Math.max(0, seg.fromFrame - leadingDialogueOffset);
-          const visualEnd = nominalBoundaries
-            ? nominalBoundaries[i + 1]!
-            : i + 1 < sceneTimeline.length
-              ? Math.max(
-                  visualStart + 1,
-                  sceneTimeline[i + 1]!.fromFrame - leadingDialogueOffset
-                )
-              : resolvedTotalFrames;
-          const visualSpanFrames = Math.max(1, visualEnd - visualStart);
-          const visualSpanSeconds = visualSpanFrames / fps;
+      for (let i = 0; i < sceneTimeline.length; i++) {
+        const seg = sceneTimeline[i]!;
+        const isFinalScene = i === sceneTimeline.length - 1;
+        const visualStart = nominalBoundaries
+          ? nominalBoundaries[i]!
+          : i === 0
+            ? 0
+            : Math.max(0, seg.fromFrame - leadingDialogueOffset);
+        const visualEnd = nominalBoundaries
+          ? nominalBoundaries[i + 1]!
+          : i + 1 < sceneTimeline.length
+            ? Math.max(
+                visualStart + 1,
+                sceneTimeline[i + 1]!.fromFrame - leadingDialogueOffset
+              )
+            : resolvedTotalFrames;
+        const visualSpanFrames = Math.max(1, visualEnd - visualStart);
+        const visualSpanSeconds = visualSpanFrames / fps;
 
-          const sceneDef = scenesById.get(seg.sceneId);
-          if (sceneDef?.text) {
-            const wordCount = countSpokenWords(sceneDef.text);
-            const wordsPerSec = wordCount / visualSpanSeconds;
-            if (wordsPerSec > 2.8 + 1e-6) {
-              violations.push({
-                code: 'READING_CADENCE_OVER_BUDGET',
-                rule: 'READING_CADENCE_BUDGET',
-                filePath: prodJsonPath,
-                message: `Scene "${seg.sceneId}" speaks ${wordCount} words across ${visualSpanSeconds.toFixed(2)}s (${wordsPerSec.toFixed(2)} words/s > 2.80 words/s max). Trim spoken narration or lengthen the visual scene window so viewers have room to absorb both image and voice.`,
-              });
+        const sceneDef = scenesById.get(seg.sceneId);
+        if (sceneDef?.text) {
+          const wordCount = countSpokenWords(sceneDef.text);
+          const wordsPerSec = wordCount / visualSpanSeconds;
+          if (wordsPerSec > 2.8 + 1e-6) {
+            violations.push({
+              code: 'READING_CADENCE_OVER_BUDGET',
+              rule: 'READING_CADENCE_BUDGET',
+              filePath: resolvedAudioJsonPath,
+              message: `Scene "${seg.sceneId}" speaks ${wordCount} words across ${visualSpanSeconds.toFixed(2)}s (${wordsPerSec.toFixed(2)} words/s > 2.80 words/s max). Trim spoken narration or lengthen the visual scene window so viewers have room to absorb both image and voice.`,
+            });
+          }
+        }
+
+        if (sceneTimeline.length > 1) {
+          const voEntry = voiceoverMap?.[seg.sceneId];
+          let spokenFrames: number | undefined;
+
+          if (
+            voEntry &&
+            typeof voEntry.durationInSeconds === 'number' &&
+            voEntry.durationInSeconds > 0
+          ) {
+            spokenFrames = Math.round(voEntry.durationInSeconds * fps);
+          } else if (seg.durationInFrames > 0) {
+            if (
+              seg.durationInFrames === visualSpanFrames &&
+              sceneDef &&
+              (typeof sceneDef.durationInFrames === 'number' ||
+                typeof sceneDef.durationInSeconds === 'number')
+            ) {
+              const candidateSpoken =
+                sceneDef.durationInFrames ??
+                Math.round((sceneDef.durationInSeconds ?? 0) * fps);
+              spokenFrames =
+                candidateSpoken > 0 ? candidateSpoken : seg.durationInFrames;
+            } else {
+              spokenFrames = seg.durationInFrames;
             }
           }
 
-          if (sceneTimeline.length > 1) {
-            const voEntry = voiceoverMap?.[seg.sceneId];
-            let spokenFrames: number | undefined;
+          if (typeof spokenFrames === 'number' && spokenFrames > 0) {
+            const requiredPostFrames = isFinalScene
+              ? minFinalPostHoldFrames
+              : minPostHoldFrames;
 
-            if (
-              voEntry &&
-              typeof voEntry.durationInSeconds === 'number' &&
-              voEntry.durationInSeconds > 0
-            ) {
-              spokenFrames = Math.round(voEntry.durationInSeconds * fps);
-            } else if (seg.durationInFrames > 0) {
-              if (
-                seg.durationInFrames === visualSpanFrames &&
-                sceneDef &&
-                (typeof sceneDef.durationInFrames === 'number' ||
-                  typeof sceneDef.durationInSeconds === 'number')
-              ) {
-                const candidateSpoken =
-                  sceneDef.durationInFrames ??
-                  Math.round((sceneDef.durationInSeconds ?? 0) * fps);
-                spokenFrames =
-                  candidateSpoken > 0 ? candidateSpoken : seg.durationInFrames;
-              } else {
-                spokenFrames = seg.durationInFrames;
+            if (seg.fromFrame > visualStart) {
+              const preFrames = seg.fromFrame - visualStart;
+              const postFrames = visualEnd - (seg.fromFrame + spokenFrames);
+
+              if (preFrames < minPreSettleFrames) {
+                violations.push({
+                  code: 'INSUFFICIENT_BREATHING_ROOM',
+                  rule: 'SCENE_BREATHING_ROOM',
+                  filePath: resolvedAudioJsonPath,
+                  message: `Scene "${seg.sceneId}" starts voiceover after only ${preFrames} frames (${(preFrames / fps).toFixed(2)}s < ${minPreSettleFrames}f / 0.60s minimum pre-speech settle; target ~42f / 0.70s).`,
+                });
               }
-            }
-
-            if (typeof spokenFrames === 'number' && spokenFrames > 0) {
-              const requiredPostFrames = isFinalScene
-                ? minFinalPostHoldFrames
-                : minPostHoldFrames;
-
-              if (seg.fromFrame > visualStart) {
-                const preFrames = seg.fromFrame - visualStart;
-                const postFrames = visualEnd - (seg.fromFrame + spokenFrames);
-
-                if (preFrames < minPreSettleFrames) {
-                  violations.push({
-                    code: 'INSUFFICIENT_BREATHING_ROOM',
-                    rule: 'SCENE_BREATHING_ROOM',
-                    filePath: prodJsonPath,
-                    message: `Scene "${seg.sceneId}" starts voiceover after only ${preFrames} frames (${(preFrames / fps).toFixed(2)}s < ${minPreSettleFrames}f / 0.60s minimum pre-speech settle; target ~42f / 0.70s).`,
-                  });
-                }
-                if (postFrames < requiredPostFrames) {
-                  violations.push({
-                    code: 'INSUFFICIENT_BREATHING_ROOM',
-                    rule: 'SCENE_BREATHING_ROOM',
-                    filePath: prodJsonPath,
-                    message: `Scene "${seg.sceneId}" leaves only ${postFrames} frames (${(postFrames / fps).toFixed(2)}s) of ${isFinalScene ? 'final-scene outro' : 'post-speech'} hold (< ${requiredPostFrames}f / ${(requiredPostFrames / fps).toFixed(2)}s minimum). Increase scene duration or shorten narration.`,
-                  });
-                }
-              } else {
-                const totalRequiredBreathing =
-                  minPreSettleFrames + requiredPostFrames;
-                const breathingFrames = visualSpanFrames - spokenFrames;
-                if (breathingFrames < totalRequiredBreathing) {
-                  violations.push({
-                    code: 'INSUFFICIENT_BREATHING_ROOM',
-                    rule: 'SCENE_BREATHING_ROOM',
-                    filePath: prodJsonPath,
-                    message: `Scene "${seg.sceneId}" leaves only ${breathingFrames} frames (${(breathingFrames / fps).toFixed(2)}s) of total breathing room (${visualSpanFrames}f visual span - ${spokenFrames}f spoken audio < ${totalRequiredBreathing}f minimum: ${minPreSettleFrames}f pre + ${requiredPostFrames}f ${isFinalScene ? 'outro' : 'post'} hold). Increase scene duration or shorten narration.`,
-                  });
-                }
+              if (postFrames < requiredPostFrames) {
+                violations.push({
+                  code: 'INSUFFICIENT_BREATHING_ROOM',
+                  rule: 'SCENE_BREATHING_ROOM',
+                  filePath: resolvedAudioJsonPath,
+                  message: `Scene "${seg.sceneId}" leaves only ${postFrames} frames (${(postFrames / fps).toFixed(2)}s) of ${isFinalScene ? 'final-scene outro' : 'post-speech'} hold (< ${requiredPostFrames}f / ${(requiredPostFrames / fps).toFixed(2)}s minimum). Increase scene duration or shorten narration.`,
+                });
+              }
+            } else {
+              const totalRequiredBreathing =
+                minPreSettleFrames + requiredPostFrames;
+              const breathingFrames = visualSpanFrames - spokenFrames;
+              if (breathingFrames < totalRequiredBreathing) {
+                violations.push({
+                  code: 'INSUFFICIENT_BREATHING_ROOM',
+                  rule: 'SCENE_BREATHING_ROOM',
+                  filePath: resolvedAudioJsonPath,
+                  message: `Scene "${seg.sceneId}" leaves only ${breathingFrames} frames (${(breathingFrames / fps).toFixed(2)}s) of total breathing room (${visualSpanFrames}f visual span - ${spokenFrames}f spoken audio < ${totalRequiredBreathing}f minimum: ${minPreSettleFrames}f pre + ${requiredPostFrames}f ${isFinalScene ? 'outro' : 'post'} hold). Increase scene duration or shorten narration.`,
+                });
               }
             }
           }
         }
-      } catch {
-        // Ignore malformed JSON; doctor/audio commands validate manifest syntax separately
       }
+    } catch {
+      // Ignore malformed JSON; doctor/audio commands validate manifest syntax separately
     }
   }
 
@@ -1424,6 +1465,7 @@ export function auditCompositionDirection(
 export function verifyCleanFrameZeroImage(
   imagePath: string
 ): CleanFrameZeroResult {
+  assertFfmpegInstalled('Frame 0 pixel verification');
   const rawRgb = execFileSync(
     'ffmpeg',
     [

@@ -2,7 +2,6 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
 import type { openBrowser as OpenBrowserFn } from '@remotion/renderer';
 import { auditStudioAudioLifetimes } from '../audio/audit-audio-tags';
 import {
@@ -12,17 +11,25 @@ import {
   type AuditVoiceoverEntry,
   type DirectorAuditViolation,
 } from '../director/audit-direction';
+import { detectCompositionUsesThree } from './render';
 import {
+  assertFfmpegInstalled,
+  assertRemotionInstalled,
+  loadMakePicturesConfig,
   resolveRemotionEntryPoint,
   resolveWorkspaceContext,
 } from './workspace-paths';
-import { blankCommentsPreservingNewlines } from '../utils/jsx-source-scan';
+import {
+  blankCommentsPreservingNewlines,
+  readJsxOpeningTagEnd,
+} from '../utils/jsx-source-scan';
 
 export interface QaContactSheetOptions {
   rootDir?: string;
   cwd?: string;
   dir?: string;
   entryPoint?: string;
+  audioManifestPath?: string;
   compositionId: string;
   grid?: string; // e.g. 'auto' (default) or '4x3'
   outPath?: string;
@@ -53,26 +60,6 @@ export interface QaTimelineSegmentHint {
   durationInFrames: number;
   label?: string;
   subViews?: QaTimelineSubViewHint[];
-}
-
-export interface RegistryHint {
-  origin?: 'example' | 'production';
-  productionId?: string;
-  propsFile?: string;
-  durationInFrames?: number;
-  fps?: number;
-  usesThree?: boolean;
-  sceneTimeline?: Array<
-    QaTimelineSegmentHint & {
-      sceneId: string;
-    }
-  >;
-  cameraTimeline?: Array<{
-    shotLabel?: string;
-    fromFrame: number;
-    durationInFrames: number;
-  }>;
-  voiceoverManifest?: Record<string, AuditVoiceoverEntry | undefined>;
 }
 
 export interface QaSamplePoint {
@@ -782,475 +769,312 @@ function writeRgbaPamBadge(params: {
   fs.writeFileSync(params.filePath, Buffer.concat([header, pixels]));
 }
 
-function extractEntryFromLoadedModule(
-  mod: Record<string, unknown> | undefined,
-  compositionId: string,
-  fallbackOrigin: 'example' | 'production',
-  fallbackProductionId: string
-): RegistryHint | null {
-  if (!mod || typeof mod !== 'object') return null;
-
-  const topVo =
-    (mod.VOICEOVER_MANIFEST as
-      | Record<string, AuditVoiceoverEntry | undefined>
-      | undefined) ??
-    (mod.voiceoverManifest as
-      | Record<string, AuditVoiceoverEntry | undefined>
-      | undefined);
-
-  for (const candidate of [
-    mod.default,
-    mod.production,
-    mod.COMPOSITIONS,
-    mod.compositions,
-  ]) {
-    if (!candidate || typeof candidate !== 'object') continue;
-
-    const asProd = candidate as {
-      id?: string;
-      origin?: 'example' | 'production';
-      voiceoverManifest?: Record<string, AuditVoiceoverEntry | undefined>;
-      compositions?: RegistryHint[];
-    };
-    if (Array.isArray(asProd.compositions)) {
-      const hit = asProd.compositions.find(
-        (c) => (c as { id?: string }).id === compositionId
-      );
-      if (hit) {
-        return {
-          ...hit,
-          origin: hit.origin ?? asProd.origin ?? fallbackOrigin,
-          productionId: hit.productionId ?? asProd.id ?? fallbackProductionId,
-          voiceoverManifest:
-            hit.voiceoverManifest ?? asProd.voiceoverManifest ?? topVo,
-        };
-      }
-    }
-
-    if (Array.isArray(candidate)) {
-      const hit = (candidate as Array<RegistryHint & { id?: string }>).find(
-        (c) => c && typeof c === 'object' && c.id === compositionId
-      );
-      if (hit) {
-        return {
-          ...hit,
-          origin: hit.origin ?? fallbackOrigin,
-          productionId: hit.productionId ?? fallbackProductionId,
-          voiceoverManifest: hit.voiceoverManifest ?? topVo,
-        };
-      }
-    }
-
-    if ((candidate as { id?: string }).id === compositionId) {
-      const hit = candidate as RegistryHint;
-      return {
-        ...hit,
-        origin: hit.origin ?? fallbackOrigin,
-        productionId: hit.productionId ?? fallbackProductionId,
-        voiceoverManifest: hit.voiceoverManifest ?? topVo,
-      };
-    }
-  }
-
-  return null;
-}
-
-function readBalancedDelimEnd(
-  cleaned: string,
-  openIdx: number,
-  openChar: '{' | '[',
-  closeChar: '}' | ']'
-): number {
-  if (cleaned[openIdx] !== openChar) return -1;
-  let depth = 0;
-  let i = openIdx;
-  const len = cleaned.length;
-  while (i < len) {
-    const ch = cleaned[i]!;
-    if (ch === "'" || ch === '"' || ch === '`') {
-      const quote = ch;
-      i += 1;
-      while (i < len) {
-        if (cleaned[i] === '\\') {
-          i += 2;
-          continue;
-        }
-        if ((quote === "'" || quote === '"') && (cleaned[i] === '\n' || cleaned[i] === '\r')) {
-          break;
-        }
-        if (cleaned[i] === quote) {
-          i += 1;
-          break;
-        }
-        i += 1;
-      }
-      continue;
-    }
-    if (ch === openChar) {
-      depth += 1;
-    } else if (ch === closeChar) {
-      depth -= 1;
-      if (depth === 0) return i;
-    }
-    i += 1;
-  }
-  return -1;
-}
-
-function splitTopLevelObjectBlocks(arrayInner: string): string[] {
-  const blocks: string[] = [];
-  let i = 0;
-  const len = arrayInner.length;
-  while (i < len) {
-    const ch = arrayInner[i]!;
-    if (ch === "'" || ch === '"' || ch === '`') {
-      const quote = ch;
-      i += 1;
-      while (i < len) {
-        if (arrayInner[i] === '\\') {
-          i += 2;
-          continue;
-        }
-        if ((quote === "'" || quote === '"') && (arrayInner[i] === '\n' || arrayInner[i] === '\r')) {
-          break;
-        }
-        if (arrayInner[i] === quote) {
-          i += 1;
-          break;
-        }
-        i += 1;
-      }
-      continue;
-    }
-    if (ch === '{') {
-      const closeIdx = readBalancedDelimEnd(arrayInner, i, '{', '}');
-      if (closeIdx === -1) break;
-      blocks.push(arrayInner.slice(i, closeIdx + 1));
-      i = closeIdx + 1;
-      continue;
-    }
-    i += 1;
-  }
-  return blocks;
-}
-
-function findEnclosingObjectBlock(
-  cleaned: string,
-  matchIndex: number
-): string | null {
-  let depth = 0;
-  for (let p = matchIndex - 1; p >= 0; p--) {
-    const ch = cleaned[p]!;
-    if (ch === '}') {
-      depth += 1;
-    } else if (ch === '{') {
-      if (depth === 0) {
-        const closeIdx = readBalancedDelimEnd(cleaned, p, '{', '}');
-        return closeIdx !== -1 ? cleaned.slice(p, closeIdx + 1) : null;
-      }
-      depth -= 1;
+function resolveRelativeTsSourceFile(basePath: string): string | null {
+  const candidates = [
+    basePath,
+    `${basePath}.tsx`,
+    `${basePath}.ts`,
+    `${basePath}.jsx`,
+    `${basePath}.js`,
+    path.join(basePath, 'index.tsx'),
+    path.join(basePath, 'index.ts'),
+  ];
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
+      return candidate;
     }
   }
   return null;
 }
 
-export function parseStaticProductionHintFromDisk(
-  studioDir: string,
-  slug: string,
+function parseImportedModuleMap(
+  cleanedSource: string
+): Map<string, string> {
+  const map = new Map<string, string>();
+  const importRe =
+    /\bimport\s+(?:type\s+)?([\s\S]*?)\s+from\s+['"]([^'"]+)['"]/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = importRe.exec(cleanedSource)) !== null) {
+    const clause = (match[1] ?? '').trim();
+    const specifier = (match[2] ?? '').trim();
+    if (!specifier.startsWith('.')) continue;
+
+    // Namespace import: `import * as ns from './foo'`
+    const nsMatch = clause.match(/^\*\s+as\s+([A-Za-z_$][A-Za-z0-9_$]*)$/);
+    if (nsMatch) {
+      map.set(nsMatch[1]!, specifier);
+      continue;
+    }
+
+    // Named imports: `{ Foo, Bar as Baz }` (optionally preceded by default import)
+    const braceStart = clause.indexOf('{');
+    const braceEnd = clause.lastIndexOf('}');
+    if (braceStart !== -1 && braceEnd > braceStart) {
+      const beforeBrace = clause
+        .slice(0, braceStart)
+        .replace(/,\s*$/, '')
+        .trim();
+      if (/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(beforeBrace)) {
+        map.set(beforeBrace, specifier);
+      }
+      const namedPart = clause.slice(braceStart + 1, braceEnd);
+      for (const rawItem of namedPart.split(',')) {
+        const cleanedItem = rawItem.replace(/^type\s+/, '').trim();
+        if (!cleanedItem) continue;
+        const asMatch = cleanedItem.match(
+          /^([A-Za-z_$][A-Za-z0-9_$]*)\s+as\s+([A-Za-z_$][A-Za-z0-9_$]*)$/
+        );
+        if (asMatch) {
+          map.set(asMatch[2]!, specifier);
+        } else if (/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(cleanedItem)) {
+          map.set(cleanedItem, specifier);
+        }
+      }
+      continue;
+    }
+
+    // Default import: `import Foo from './Foo'`
+    if (/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(clause)) {
+      map.set(clause, specifier);
+    }
+  }
+
+  return map;
+}
+
+/**
+ * Locates the source `.tsx`/`.ts` file of a Remotion `<Composition id="..." component={Ident} />`
+ * by statically parsing `rootFilePath` (typically `src/Root.tsx`) and resolving the import of `Ident`.
+ */
+export function resolveCompositionSourceFromRoot(
+  rootFilePath: string,
   compositionId: string
-): RegistryHint | null {
-  const prodDir = path.join(studioDir, 'productions', slug);
-  if (!fs.existsSync(prodDir)) return null;
-
-  const propsCandidateRel = `productions/${slug}/compositions/${compositionId}.props.json`;
-  const hasMatchingProps = fs.existsSync(
-    path.join(studioDir, propsCandidateRel)
-  );
-
-  const indexTsPath = ['index.ts', 'index.tsx']
-    .map((f) => path.join(prodDir, f))
-    .find((p) => fs.existsSync(p));
-  const rawIndexSrc = indexTsPath ? fs.readFileSync(indexTsPath, 'utf8') : '';
-  const indexSrc = blankCommentsPreservingNewlines(rawIndexSrc);
-  const escapedId = compositionId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const idMatch = new RegExp(`\\bid\\s*:\\s*['"]${escapedId}['"]`).exec(
-    indexSrc
-  );
-  const mentionsId = Boolean(idMatch);
-
-  if (!hasMatchingProps && !mentionsId && slug !== toKebabSlug(compositionId)) {
+): string | null {
+  if (!fs.existsSync(rootFilePath) || !fs.statSync(rootFilePath).isFile()) {
     return null;
   }
 
-  const scopedBlock =
-    idMatch && idMatch.index !== undefined
-      ? (findEnclosingObjectBlock(indexSrc, idMatch.index) ?? indexSrc)
-      : indexSrc;
+  const raw = fs.readFileSync(rootFilePath, 'utf8');
+  const cleaned = blankCommentsPreservingNewlines(raw);
+  const escapedId = compositionId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const idAttrRe = new RegExp(`\\bid\\s*=\\s*(?:["']${escapedId}["']|\\{\\s*["']${escapedId}["']\\s*\\})`);
 
-  const constNums = new Map<string, number>();
-  for (const cm of indexSrc.matchAll(
-    /\bconst\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*(?::[^=]+)?=\s*(\d+(?:\.\d+)?)\b/g
-  )) {
-    constNums.set(cm[1]!, Number(cm[2]));
-  }
-  const resolveNumToken = (tok: string | undefined): number | undefined => {
-    if (!tok) return undefined;
-    if (/^\d+(?:\.\d+)?$/.test(tok)) return Number(tok);
-    return constNums.get(tok);
-  };
+  const compOpenRe = /<Composition(?=[\s>/])/g;
+  let match: RegExpExecArray | null;
+  let componentIdent: string | null = null;
 
-  const hint: RegistryHint = {
-    origin: 'production',
-    productionId: slug,
-  };
+  while ((match = compOpenRe.exec(cleaned)) !== null) {
+    const tagEnd = readJsxOpeningTagEnd(cleaned, match.index);
+    if (tagEnd === -1) continue;
+    const tagText = cleaned.slice(match.index, tagEnd + 1);
+    compOpenRe.lastIndex = tagEnd + 1;
 
-  const propsMatch = scopedBlock.match(
-    /\bpropsFile\s*:\s*['"]([^'"]+)['"]/
-  );
-  if (propsMatch) {
-    hint.propsFile = propsMatch[1];
-  } else if (hasMatchingProps) {
-    hint.propsFile = propsCandidateRel;
-  }
+    if (!idAttrRe.test(tagText)) continue;
 
-  const usesThreeMatch =
-    scopedBlock.match(/\busesThree\s*:\s*(true|false)\b/) ??
-    indexSrc.match(/\busesThree\s*:\s*(true|false)\b/);
-  if (usesThreeMatch) {
-    hint.usesThree = usesThreeMatch[1] === 'true';
-  }
-
-  // Strip nested `sceneTimeline: [...]` before matching top-level composition `durationInFrames`
-  let scopedWithoutTimeline = scopedBlock;
-  const tlPropMatch = /\bsceneTimeline\s*:\s*\[/.exec(scopedBlock);
-  let timelineArrayInner: string | null = null;
-  if (tlPropMatch) {
-    const openBracket =
-      tlPropMatch.index + tlPropMatch[0].lastIndexOf('[');
-    const closeBracket = readBalancedDelimEnd(
-      scopedBlock,
-      openBracket,
-      '[',
-      ']'
+    const compAttr = tagText.match(
+      /\bcomponent\s*=\s*\{\s*([A-Za-z_$][A-Za-z0-9_$]*)(?:\.[A-Za-z_$][A-Za-z0-9_$]*)?\s*\}/
     );
-    if (closeBracket !== -1) {
-      timelineArrayInner = scopedBlock.slice(openBracket + 1, closeBracket);
-      scopedWithoutTimeline =
-        scopedBlock.slice(0, tlPropMatch.index) +
-        scopedBlock.slice(closeBracket + 1);
-    }
-  } else {
-    const fallbackTl = /\bsceneTimeline\s*:\s*\[/.exec(indexSrc);
-    if (fallbackTl) {
-      const openBracket =
-        fallbackTl.index + fallbackTl[0].lastIndexOf('[');
-      const closeBracket = readBalancedDelimEnd(
-        indexSrc,
-        openBracket,
-        '[',
-        ']'
-      );
-      if (closeBracket !== -1) {
-        timelineArrayInner = indexSrc.slice(openBracket + 1, closeBracket);
-      }
+    if (compAttr) {
+      componentIdent = compAttr[1]!;
+      break;
     }
   }
 
-  const durMatch = scopedWithoutTimeline.match(
-    /\bdurationInFrames\s*:\s*([A-Za-z0-9_$]+)\b/
+  if (!componentIdent) {
+    return null;
+  }
+
+  const imports = parseImportedModuleMap(cleaned);
+  const relSpec = imports.get(componentIdent);
+  if (!relSpec) {
+    // Component may be declared directly in Root.tsx
+    const localDeclRe = new RegExp(
+      `\\b(?:const|function|class)\\s+${componentIdent}\\b`
+    );
+    return localDeclRe.test(cleaned) ? path.resolve(rootFilePath) : null;
+  }
+
+  const resolved = resolveRelativeTsSourceFile(
+    path.resolve(path.dirname(rootFilePath), relSpec)
   );
-  const resolvedDur = resolveNumToken(durMatch?.[1]);
-  if (resolvedDur !== undefined) {
-    hint.durationInFrames = resolvedDur;
+  if (!resolved) {
+    return null;
   }
 
-  const fpsMatch =
-    scopedWithoutTimeline.match(/\bfps\s*:\s*(\d+)\b/) ??
-    indexSrc.match(/\bfps\s*:\s*(\d+)\b/);
-  if (fpsMatch) {
-    hint.fps = Number(fpsMatch[1]);
-  }
-
-  if (timelineArrayInner !== null) {
-    const segBlocks = splitTopLevelObjectBlocks(timelineArrayInner);
-    const parsedSegments: NonNullable<RegistryHint['sceneTimeline']> = [];
-    for (const segObj of segBlocks) {
-      let segHeader = segObj;
-      let subViewsInner: string | null = null;
-      const svMatch = /\bsubViews\s*:\s*\[/.exec(segObj);
-      if (svMatch) {
-        const svOpen = svMatch.index + svMatch[0].lastIndexOf('[');
-        const svClose = readBalancedDelimEnd(segObj, svOpen, '[', ']');
-        if (svClose !== -1) {
-          subViewsInner = segObj.slice(svOpen + 1, svClose);
-          segHeader =
-            segObj.slice(0, svMatch.index) + segObj.slice(svClose + 1);
-        }
-      }
-
-      const sid = segHeader.match(/\bsceneId\s*:\s*['"]([^'"]+)['"]/)?.[1];
-      const fromRaw = segHeader.match(
-        /\bfromFrame\s*:\s*([A-Za-z0-9_$]+)\b/
-      )?.[1];
-      const durRaw = segHeader.match(
-        /\bdurationInFrames\s*:\s*([A-Za-z0-9_$]+)\b/
-      )?.[1];
-      const label = segHeader.match(/\blabel\s*:\s*['"]([^'"]+)['"]/)?.[1];
-      const fromVal = resolveNumToken(fromRaw);
-      const durVal = resolveNumToken(durRaw);
-
-      if (sid && fromVal !== undefined && durVal !== undefined) {
-        const parsedSubViews: QaTimelineSubViewHint[] = [];
-        if (subViewsInner !== null) {
-          for (const svObj of splitTopLevelObjectBlocks(subViewsInner)) {
-            const svId = svObj.match(/\bid\s*:\s*['"]([^'"]+)['"]/)?.[1];
-            const svLabel = svObj.match(/\blabel\s*:\s*['"]([^'"]+)['"]/)?.[1];
-            const svOffRaw = svObj.match(
-              /\bfromOffsetFrames\s*:\s*([A-Za-z0-9_$]+)\b/
-            )?.[1];
-            const svOff = resolveNumToken(svOffRaw);
-            if (svOff !== undefined) {
-              parsedSubViews.push({
-                ...(svId ? { id: svId } : {}),
-                fromOffsetFrames: svOff,
-                ...(svLabel ? { label: svLabel } : {}),
-              });
-            }
-          }
-        }
-        parsedSegments.push({
-          sceneId: sid,
-          fromFrame: fromVal,
-          durationInFrames: durVal,
-          ...(label ? { label } : {}),
-          ...(parsedSubViews.length > 0 ? { subViews: parsedSubViews } : {}),
-        });
-      }
-    }
-    if (parsedSegments.length > 0) {
-      hint.sceneTimeline = parsedSegments;
-    }
-  }
-
-  const prodJsonPath = path.join(prodDir, 'production.json');
-  if (fs.existsSync(prodJsonPath)) {
+  // If resolved to a barrel `index.ts`, try chasing a direct re-export of `componentIdent`
+  if (path.basename(resolved) === 'index.ts') {
     try {
-      const manifest = JSON.parse(fs.readFileSync(prodJsonPath, 'utf8')) as {
-        fps?: number;
-        scenes?: Array<{
-          id: string;
-          durationInFrames?: number;
-          durationInSeconds?: number;
-        }>;
-      };
-      const fps = hint.fps ?? manifest.fps ?? 60;
-      hint.fps = fps;
-      if (
-        !hint.sceneTimeline &&
-        Array.isArray(manifest.scenes) &&
-        manifest.scenes.length > 0
-      ) {
-        const preSettle = Math.round(0.7 * fps);
-        const postHold = Math.round(1.6 * fps);
-        const minSpan = Math.round(4.5 * fps);
-        let sceneStart = 0;
-        hint.sceneTimeline = manifest.scenes.map((s, idx) => {
-          const dur =
-            s.durationInFrames ?? Math.round((s.durationInSeconds ?? 4) * fps);
-          const isFinal = idx === (manifest.scenes?.length ?? 1) - 1;
-          const tailHold = isFinal ? Math.round(2.4 * fps) : postHold;
-          const seg = {
-            sceneId: s.id,
-            fromFrame: sceneStart + preSettle,
-            durationInFrames: dur,
-          };
-          sceneStart += Math.max(minSpan, preSettle + dur + tailHold);
-          return seg;
-        });
+      const barrelSrc = blankCommentsPreservingNewlines(
+        fs.readFileSync(resolved, 'utf8')
+      );
+      const barrelImports = parseImportedModuleMap(barrelSrc);
+      const innerSpec = barrelImports.get(componentIdent);
+      if (innerSpec) {
+        const innerResolved = resolveRelativeTsSourceFile(
+          path.resolve(path.dirname(resolved), innerSpec)
+        );
+        if (innerResolved) {
+          return innerResolved;
+        }
       }
     } catch {
-      // ignore
+      // Keep barrel path
     }
   }
 
-  return hint;
+  return resolved;
 }
 
-export async function lookupRegistryHint(
-  studioDir: string,
-  compositionId: string
-): Promise<RegistryHint> {
-  // 1. Try dynamic import of monorepo `src/compositions/registry.ts` (covers built-in `examples/*` under `tsx`)
-  try {
-    const registryPath = path.join(
-      studioDir,
-      'src',
-      'compositions',
-      'registry.ts'
+/**
+ * Discovers a neighboring `generated/audio-manifest.ts` or `audio.json` next to a composition
+ * source file (or its parent directory). Returns `null` for standard Remotion compositions without audio specs.
+ */
+export function discoverNeighborAudioManifest(
+  compFilePath: string
+): string | null {
+  const absComp = path.resolve(compFilePath);
+  const compDir = path.dirname(absComp);
+  const parentDir = path.dirname(compDir);
+
+  const candidates = [
+    path.join(compDir, 'generated', 'audio-manifest.ts'),
+    path.join(compDir, 'audio.json'),
+  ];
+
+  // Only inspect parentDir if compDir looks like a nested subfolder (e.g. `compositions/`)
+  if (path.basename(compDir) === 'compositions') {
+    candidates.push(
+      path.join(parentDir, 'generated', 'audio-manifest.ts'),
+      path.join(parentDir, 'audio.json')
     );
-    if (fs.existsSync(registryPath)) {
-      const mod = (await import(pathToFileURL(registryPath).href)) as {
-        getCompositionById?: (id: string) => RegistryHint | undefined;
-      };
-      const found = mod.getCompositionById?.(compositionId);
-      if (found) {
-        return found;
+  }
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
+      return candidate;
+    }
+  }
+
+  return null;
+}
+
+interface DerivedAudioTimeline {
+  fps?: number;
+  sceneTimeline?: Array<QaTimelineSegmentHint & { sceneId: string }>;
+  voiceoverManifest?: Record<string, AuditVoiceoverEntry | undefined>;
+}
+
+function readVoiceoverManifestLiteral(
+  tsFilePath: string
+): Record<string, AuditVoiceoverEntry | undefined> | undefined {
+  if (!fs.existsSync(tsFilePath)) return undefined;
+  try {
+    const raw = fs.readFileSync(tsFilePath, 'utf8');
+    const marker = /export\s+const\s+VOICEOVER_MANIFEST(?:\s*:[^=]+)?=\s*\{/.exec(
+      raw
+    );
+    if (!marker || marker.index === undefined) return undefined;
+    const startIdx = marker.index + marker[0].lastIndexOf('{');
+    let depth = 0;
+    let endIdx = -1;
+    for (let i = startIdx; i < raw.length; i++) {
+      const ch = raw[i];
+      if (ch === '{') depth += 1;
+      else if (ch === '}') {
+        depth -= 1;
+        if (depth === 0) {
+          endIdx = i;
+          break;
+        }
       }
     }
+    if (endIdx === -1) return undefined;
+    const parsed = JSON.parse(raw.slice(startIdx, endIdx + 1));
+    return parsed && typeof parsed === 'object'
+      ? (parsed as Record<string, AuditVoiceoverEntry | undefined>)
+      : undefined;
   } catch {
-    // Non-tsx runtime or missing optional peer — fall through to capsule discovery
+    return undefined;
+  }
+}
+
+function deriveTimelineFromAudioManifest(
+  audioPath: string | null,
+  fallbackFps: number
+): DerivedAudioTimeline {
+  if (!audioPath || !fs.existsSync(audioPath)) {
+    return {};
   }
 
-  // 2. Scan `productions/*/index.{ts,tsx}` and `examples/*/index.{ts,tsx}` directly
-  for (const [folder, fallbackOrigin] of [
-    ['productions', 'production'],
-    ['examples', 'example'],
-  ] as const) {
-    const baseDir = path.join(studioDir, folder);
-    if (!fs.existsSync(baseDir)) continue;
+  let audioJsonPath: string | null = null;
+  let audioTsPath: string | null = null;
 
-    const dirs = fs
-      .readdirSync(baseDir, { withFileTypes: true })
-      .filter((d) => d.isDirectory() && !d.name.startsWith('.'))
-      .sort((a, b) => a.name.localeCompare(b.name));
+  if (audioPath.endsWith('.json')) {
+    audioJsonPath = audioPath;
+    const candidateTs = path.join(
+      path.dirname(audioPath),
+      'generated',
+      'audio-manifest.ts'
+    );
+    if (fs.existsSync(candidateTs)) audioTsPath = candidateTs;
+  } else if (audioPath.endsWith('.ts')) {
+    audioTsPath = audioPath;
+    const baseDir =
+      path.basename(path.dirname(audioPath)) === 'generated'
+        ? path.dirname(path.dirname(audioPath))
+        : path.dirname(audioPath);
+    const candidateJson = path.join(baseDir, 'audio.json');
+    if (fs.existsSync(candidateJson)) audioJsonPath = candidateJson;
+  }
 
-    for (const dirEntry of dirs) {
-      const indexFile = ['index.ts', 'index.tsx']
-        .map((f) => path.join(baseDir, dirEntry.name, f))
-        .find((p) => fs.existsSync(p));
-      if (indexFile) {
-        try {
-          const mod = (await import(
-            pathToFileURL(indexFile).href
-          )) as Record<string, unknown>;
-          const matched = extractEntryFromLoadedModule(
-            mod,
-            compositionId,
-            fallbackOrigin,
-            dirEntry.name
-          );
-          if (matched) {
-            return matched;
-          }
-        } catch {
-          // Raw `node` runtime cannot import `.ts`/`.tsx` directly — handled by static fallback below
-        }
-      }
+  const voiceoverManifest = audioTsPath
+    ? readVoiceoverManifestLiteral(audioTsPath)
+    : undefined;
 
-      if (fallbackOrigin === 'production') {
-        const staticHint = parseStaticProductionHintFromDisk(
-          studioDir,
-          dirEntry.name,
-          compositionId
-        );
-        if (staticHint) {
-          return staticHint;
-        }
-      }
+  if (!audioJsonPath) {
+    return { voiceoverManifest };
+  }
+
+  try {
+    const manifest = JSON.parse(fs.readFileSync(audioJsonPath, 'utf8')) as {
+      fps?: number;
+      scenes?: Array<{
+        id: string;
+        durationInFrames?: number;
+        durationInSeconds?: number;
+      }>;
+    };
+    const fps = manifest.fps ?? fallbackFps;
+    if (!Array.isArray(manifest.scenes) || manifest.scenes.length === 0) {
+      return { fps, voiceoverManifest };
     }
-  }
 
-  return {};
+    const preSettle = Math.round(0.7 * fps);
+    const postHold = Math.round(1.6 * fps);
+    const minSpan = Math.round(4.5 * fps);
+    let sceneStart = 0;
+    const sceneTimeline = manifest.scenes.map((s, idx) => {
+      const voSec = voiceoverManifest?.[s.id]?.durationInSeconds;
+      const dur =
+        typeof voSec === 'number' && voSec > 0
+          ? Math.round(voSec * fps)
+          : s.durationInFrames ?? Math.round((s.durationInSeconds ?? 4) * fps);
+      const isFinal = idx === (manifest.scenes?.length ?? 1) - 1;
+      const tailHold = isFinal ? Math.round(2.4 * fps) : postHold;
+      const seg = {
+        sceneId: s.id,
+        fromFrame: sceneStart + preSettle,
+        durationInFrames: dur,
+      };
+      sceneStart += Math.max(minSpan, preSettle + dur + tailHold);
+      return seg;
+    });
+
+    return { fps, sceneTimeline, voiceoverManifest };
+  } catch {
+    return { voiceoverManifest };
+  }
 }
 
 function logAllowedFastCutWarnings(
@@ -1277,6 +1101,9 @@ function logAllowedFastCutWarnings(
  * 100% scene and sub-view coverage), starting at `frame = 0`, drawing frame & scene/sub-view
  * badges (`f=0`, `f=490 (8.17s) • s2/view-a`, ...) and for vertical `9:16` Shorts compositions
  * drawing the green `Golden Safe Box` (`x=40..910, y=220..1380`) plus red UI dead-zone overlays.
+ *
+ * Works natively on any standard Remotion project via `@remotion/bundler` + `@remotion/renderer`
+ * `selectComposition()` / `renderStill()`, with optional `audio.json` discovery.
  */
 export async function runQaContactSheetCommand(
   options: QaContactSheetOptions
@@ -1285,6 +1112,7 @@ export async function runQaContactSheetCommand(
     cwd: options.cwd ?? options.rootDir,
     dir: options.dir,
   });
+  const config = loadMakePicturesConfig(studioDir);
 
   const { compositionId } = options;
   const isAutoGrid =
@@ -1301,31 +1129,52 @@ export async function runQaContactSheetCommand(
     explicitEntry: options.entryPoint,
   });
 
-  const publicDir = path.join(studioDir, 'public');
+  const entryDir = path.dirname(entryPoint);
+  const rootFilePath =
+    [
+      path.join(entryDir, 'Root.tsx'),
+      path.join(entryDir, 'Root.ts'),
+      entryPoint,
+    ].find((p) => fs.existsSync(p)) ?? entryPoint;
+
+  const sourceFile = resolveCompositionSourceFromRoot(
+    rootFilePath,
+    compositionId
+  );
+  const resolvedAudioPath = options.audioManifestPath
+    ? path.resolve(rootDir, options.audioManifestPath)
+    : sourceFile
+      ? discoverNeighborAudioManifest(sourceFile)
+      : null;
+
+  const derivedAudio = deriveTimelineFromAudioManifest(
+    resolvedAudioPath,
+    config.fps
+  );
+  const isExampleOrigin = Boolean(
+    sourceFile && sourceFile.replace(/\\/g, '/').includes('/examples/')
+  );
+
+  const publicDir = path.resolve(studioDir, config.publicDir);
   fs.mkdirSync(publicDir, { recursive: true });
 
-  const hint = await lookupRegistryHint(studioDir, compositionId);
-  const useAngleGl = options.glAngle ?? hint.usesThree ?? true;
-  const preBundleDuration = options.durationOverride ?? hint.durationInFrames;
-  let preBundledAuditComplete = false;
+  const useAngleGl =
+    options.glAngle ??
+    detectCompositionUsesThree(studioDir, entryPoint, compositionId);
 
-  const previewMandatoryCount =
-    typeof preBundleDuration === 'number'
-      ? collectMandatoryQaSamplePoints(
-          preBundleDuration,
-          hint.sceneTimeline,
-          hint.cameraTimeline
-        ).length
-      : 12;
   const previewGrid = resolveQaGridDimensions(
     options.grid,
-    previewMandatoryCount
+    derivedAudio.sceneTimeline
+      ? derivedAudio.sceneTimeline.length + 2
+      : 12
   );
 
   console.log('==============================================================');
   console.log(
     ` 🔍 make.pictures — Contact-Sheet QA (${compositionId} • ${
-      isAutoGrid ? `auto ${previewGrid.cols}x${previewGrid.rows}` : `${previewGrid.cols}x${previewGrid.rows}`
+      isAutoGrid
+        ? `auto ${previewGrid.cols}x${previewGrid.rows}`
+        : `${previewGrid.cols}x${previewGrid.rows}`
     })`
   );
   console.log('==============================================================');
@@ -1340,27 +1189,32 @@ export async function runQaContactSheetCommand(
     }
   }
 
-  // Fast-fail Director QA Gate BEFORE bundling or launching Chromium when duration metadata is known
-  if (typeof preBundleDuration === 'number') {
-    const auditResult = auditCompositionDirection({
-      studioDir,
-      rootDir,
-      compositionId,
-      origin: hint.origin,
-      productionId: hint.productionId,
-      propsFile: hint.propsFile,
-      durationInFrames: preBundleDuration,
-      fps: hint.fps,
-      sceneTimeline: hint.sceneTimeline,
-      voiceoverManifest: hint.voiceoverManifest,
-      inputProps: options.inputProps,
-      allowFastCuts: options.allowFastCuts,
-    });
-    if (auditResult.violations.length > 0 && options.allowFastCuts) {
-      logAllowedFastCutWarnings(rootDir, auditResult.violations);
-    }
-    preBundledAuditComplete = true;
+  // Fast-fail static AST/JSX Director QA Gate BEFORE bundling or launching Chromium
+  const preAudit = auditCompositionDirection({
+    studioDir,
+    rootDir,
+    compositionId,
+    origin: isExampleOrigin ? 'example' : 'production',
+    sourceFile: sourceFile ?? undefined,
+    audioManifestPath: resolvedAudioPath ?? undefined,
+    durationInFrames: options.durationOverride,
+    fps: derivedAudio.fps ?? config.fps,
+    sceneTimeline: derivedAudio.sceneTimeline,
+    voiceoverManifest: derivedAudio.voiceoverManifest,
+    inputProps: options.inputProps,
+    allowFastCuts: options.allowFastCuts,
+  });
+  if (preAudit.violations.length > 0 && options.allowFastCuts) {
+    logAllowedFastCutWarnings(rootDir, preAudit.violations);
   }
+
+  // Fail fast with actionable messages if Remotion or FFmpeg are missing before bundling
+  assertRemotionInstalled(rootDir, [
+    'remotion',
+    '@remotion/bundler',
+    '@remotion/renderer',
+  ]);
+  assertFfmpegInstalled('QA contact-sheet generation');
 
   const tempWorkDir = fs.mkdtempSync(
     path.join(os.tmpdir(), 'make-pictures-qa-')
@@ -1384,21 +1238,18 @@ export async function runQaContactSheetCommand(
       publicDir,
       webpackOverride: (currentConfiguration) => {
         if (!isEngineMonorepo) {
-          // External consumer project: resolve `@make-pictures/*` directly from `node_modules`
           return currentConfiguration;
         }
-        const studioSrc = path.resolve(rootDir, 'packages/studio/src');
         return {
           ...currentConfiguration,
           resolve: {
             ...currentConfiguration.resolve,
             alias: {
               ...(currentConfiguration.resolve?.alias ?? {}),
-              '@make-pictures/core': path.resolve(rootDir, 'packages/core/src'),
-              '@make-pictures/kits': path.resolve(rootDir, 'packages/kits/src'),
-              ...(fs.existsSync(studioSrc)
-                ? { '@make-pictures/studio': studioSrc }
-                : {}),
+              '@make-pictures/remotion': path.resolve(
+                rootDir,
+                'packages/remotion/src'
+              ),
             },
           },
         };
@@ -1421,31 +1272,34 @@ export async function runQaContactSheetCommand(
     const { width, height, fps } = composition;
     const isVertical = height > width;
 
-    // Guarantee Director QA Gate runs BEFORE rendering stills even when duration came from selectComposition
-    if (!preBundledAuditComplete) {
-      const auditResult = auditCompositionDirection({
+    // Re-run duration-aware Director QA Gate with exact Remotion selectComposition() metadata
+    if (
+      options.durationOverride === undefined &&
+      derivedAudio.sceneTimeline &&
+      derivedAudio.sceneTimeline.length > 0
+    ) {
+      const fullAudit = auditCompositionDirection({
         studioDir,
         rootDir,
         compositionId,
-        origin: hint.origin,
-        productionId: hint.productionId,
-        propsFile: hint.propsFile,
+        origin: isExampleOrigin ? 'example' : 'production',
+        sourceFile: sourceFile ?? undefined,
+        audioManifestPath: resolvedAudioPath ?? undefined,
         durationInFrames: totalFrames,
         fps,
-        sceneTimeline: hint.sceneTimeline,
-        voiceoverManifest: hint.voiceoverManifest,
+        sceneTimeline: derivedAudio.sceneTimeline,
+        voiceoverManifest: derivedAudio.voiceoverManifest,
         inputProps: options.inputProps,
         allowFastCuts: options.allowFastCuts,
       });
-      if (auditResult.violations.length > 0 && options.allowFastCuts) {
-        logAllowedFastCutWarnings(rootDir, auditResult.violations);
+      if (fullAudit.violations.length > 0 && options.allowFastCuts) {
+        logAllowedFastCutWarnings(rootDir, fullAudit.violations);
       }
     }
 
     const mandatoryPoints = collectMandatoryQaSamplePoints(
       totalFrames,
-      hint.sceneTimeline,
-      hint.cameraTimeline
+      derivedAudio.sceneTimeline
     );
     const { cols, rows } = resolveQaGridDimensions(
       options.grid,
@@ -1456,8 +1310,7 @@ export async function runQaContactSheetCommand(
     const frames = selectQaSampleFrames(
       totalFrames,
       isAutoGrid ? undefined : tileCount,
-      hint.sceneTimeline,
-      hint.cameraTimeline
+      derivedAudio.sceneTimeline
     );
 
     const tagByFrame = new Map<number, string>();
@@ -1466,8 +1319,8 @@ export async function runQaContactSheetCommand(
         tagByFrame.set(mp.frame, mp.tag);
       }
     }
-    if (hint.sceneTimeline && hint.sceneTimeline.length > 0) {
-      const sortedSegs = [...hint.sceneTimeline].sort(
+    if (derivedAudio.sceneTimeline && derivedAudio.sceneTimeline.length > 0) {
+      const sortedSegs = [...derivedAudio.sceneTimeline].sort(
         (a, b) => a.fromFrame - b.fromFrame
       );
       for (const f of frames) {
@@ -1510,7 +1363,7 @@ export async function runQaContactSheetCommand(
           } else if (
             typeof activeStillFrame === 'number' &&
             activeStillFrame > 0 &&
-            hint.origin !== 'example'
+            !isExampleOrigin
           ) {
             capturedDomIssues = await page.evaluate(
               auditRenderedFrameDomInPage,
@@ -1581,7 +1434,7 @@ export async function runQaContactSheetCommand(
             rootDir
           );
         }
-      } else if (capturedDomIssues.length > 0 && hint.origin !== 'example') {
+      } else if (capturedDomIssues.length > 0 && !isExampleOrigin) {
         const domViolations: DirectorAuditViolation[] = capturedDomIssues.map(
           (issue) => ({
             code: issue.code,
