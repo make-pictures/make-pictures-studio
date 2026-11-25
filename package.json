@@ -40,6 +40,7 @@
     "render:diorama": "remotion render src/index.ts PaperDioramaDemo out/paper-diorama-demo.mp4 --fps=60 --gl=angle",
     "render:promo": "remotion render src/index.ts ProductPromo out/product-promo.mp4 --fps=60",
     "render:iso": "remotion render src/index.ts IsometricDialogueDemo out/isometric-3d-dialogue.mp4 --fps=60 --gl=angle",
+    "render:tactile": "remotion render src/index.ts Tactile3DShowcase out/tactile-3d-showcase.mp4 --fps=60 --gl=angle",
     "build:packages": "tsx scripts/build-packages.ts",
     "pack:verify": "tsx scripts/verify-npm-pack.ts",
     "release": "tsx scripts/publish-packages.ts",

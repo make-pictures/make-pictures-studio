@@ -1,25 +1,27 @@
 ---
-description: Core 60 FPS Video-as-Code & Studio Web production rules for make.pictures
+description: Core 60 FPS Video-as-Code & Remotion v3.0 production rules for make.pictures
 globs: "**/*"
 alwaysApply: true
 ---
 
 # make.pictures — Cursor Agent Rules
 
-Always read and follow [`AGENTS.md`](../../AGENTS.md) when creating or editing animations in this repository.
+Always read and follow [`AGENTS.md`](../../AGENTS.md) and the 5 canonical skills in [`skills/`](../../skills/) (alongside `remotion-dev/skills` for base Remotion APIs) when creating or editing animations in this repository.
 
 ## Key Engineering & Director Contracts
 
-1. **Props Inspector (`zod` + `*.props.json` + `registry.ts`):**
-   - Every composition in `src/compositions/` MUST export a `zod` `z.object({ ... })` schema using `.describe('Section :: Label')` for editable texts, hex colors (`#RRGGBB`), audio volumes (`0..1`), and camera parameters.
-   - Store default values in `src/compositions/<CompositionId>.props.json` and register the composition in `src/compositions/registry.ts` (`STUDIO_COMPOSITIONS`).
-   - Before editing an existing composition, read its `*.props.json` so you never overwrite parameter tweaks saved by the creator in **Studio Web** (`npm run studio`).
+1. **Native Remotion Studio (`src/Root.tsx` + Zod Schemas + `audio.json`):**
+   - Register every composition directly as `<Composition schema={...} defaultProps={...} />` in `src/Root.tsx` (including `StyleLab` from `@make-pictures/remotion/style-lab`) and preview live at 60 FPS in `npx remotion studio` (or `npx make-pictures studio`).
+   - Import runtime primitives and kits from `@make-pictures/remotion/*` subpath exports (keep root `.` and `./kinematics` free of `three` imports).
+   - Store per-film voiceover, dialogue (`dialogueInputs`), music, and SFX specs in `audio.json` and generate assets via `npx make-pictures audio <slug>` (outputs `public/audio/<slug>/*.mp3` + `generated/audio-manifest.ts`). Use optional `make-pictures.json` for custom workspace paths.
 
-2. **Vertical `9:16` (`1080×1920`) Golden Safe Box:**
+2. **Vertical `9:16` (`1080×1920`) Golden Safe Box & Typography (`>= 18 px`):**
    - Never shrink a `16:9` layout into `9:16`; build a dedicated vertical layout.
    - Keep all essential titles, cards, and details inside **`x ∈ [40, 910]`, `y ∈ [220, 1380]`** to avoid YouTube Shorts / Reels / TikTok UI dead zones (`y < 220`, `y > 1440`, and `x > 910` for `y > 900`).
+   - Enforce `TYPOGRAPHY_FLOOR_1080P` (`>= 18 px`), `boxSizing: 'border-box'`, and `>= 60%` visual canvas area.
 
-3. **Determinism & `PaperCutout3D` VRAM Safety:**
-   - Never use `Math.random()`; use `createSeededRandom(seed)` from `src/utils/prng.ts`.
-   - Pass `cacheDeps={[...]}` to `PaperCutout3D` whenever `draw(ctx)` references props or closure variables so Vite HMR and slider tweaks rebuild WebGL textures in `0 ms`.
-   - Keep `frame = 0` clean (`spring({ frame: frame - 2, fps, config: { damping: 200 } })`), verify key frames via `npx remotion still`, and listen/inspect generated `/public/voiceovers/*.mp3` files after `npm run voiceover`.
+3. **Determinism, 3D Safety & Mandatory QA Gate:**
+   - Never use `Math.random()`; use `createSeededRandom(seed)` from `@make-pictures/remotion/utils`.
+   - Keep `frame = 0` clean (`bgCanvas` RGB variance `0.00`, entrance springs starting from `frame - 2`).
+   - Pass `cacheDeps={[...]}` to `PaperCutout3D` whenever `draw(ctx)` references props or closure variables so WebGL textures rebuild deterministically; audit 3D clearances with `auditSceneCollisions3D` from `@make-pictures/remotion/kinematics`.
+   - Before final delivery, verify generated `public/audio/<slug>/*.mp3` files, run `npx make-pictures qa <CompositionId>` (`--grid=auto`) and inspect `out/qa-<CompositionId>.png`, run `npm run typecheck`, and render via `npx make-pictures render <CompositionId>` (`-14 LUFS`).

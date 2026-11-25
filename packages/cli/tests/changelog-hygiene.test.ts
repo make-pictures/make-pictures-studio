@@ -12,13 +12,17 @@ test('CHANGELOG.md documents public releases, is linked in READMEs, and respects
   assert.ok(fs.existsSync(changelogPath), 'Expected root CHANGELOG.md to exist');
 
   const content = fs.readFileSync(changelogPath, 'utf8');
-  for (const version of ['2.5.0', '2.4.1', '2.4.0', '2.3.2', '2.3.1', '2.3.0', '2.2.0', '2.1.1', '2.0.3', '2.0.2', '2.0.0']) {
+  for (const version of ['3.0.0', '2.5.0', '2.4.1', '2.4.0', '2.3.2', '2.3.1', '2.3.0', '2.2.0', '2.1.1', '2.0.3', '2.0.2', '2.0.0']) {
     assert.ok(
       content.includes(`[${version}]`),
       `Expected CHANGELOG.md to include section [${version}]`
     );
   }
 
+  assert.ok(
+    content.includes('https://github.com/make-pictures/make-pictures-studio/releases/tag/v3.0.0'),
+    'Expected CHANGELOG.md to link to v3.0.0 release tag'
+  );
   assert.ok(
     content.includes('https://github.com/make-pictures/make-pictures-studio/releases/tag/v2.5.0'),
     'Expected CHANGELOG.md to link to v2.5.0 release tag'

@@ -1,43 +1,53 @@
 # Isolated Film Productions (`productions/<slug>/`)
 
-Every user-created film or client episode lives inside its own self-contained capsule directory under `productions/<slug>/` (gitignored from the open-source `make.pictures` engine so engine updates never conflict with your films).
+User-created films and client episodes can live in isolated directories (gitignored from the open-source `make.pictures` toolkit so upgrades never conflict with your films). By default `npx make-pictures new` scaffolds into `src/videos/<slug>/`; set `"videosDir": "productions"` in an optional `make-pictures.json` at the repo root if you prefer keeping films under `productions/<slug>/`.
+
+## Optional `make-pictures.json`
+
+```json
+{
+  "videosDir": "productions"
+}
+```
 
 ## Quick Start
 
-1. **Scaffold a new isolated production capsule (`--space=2d|2.5d|3d`):**
+1. **Scaffold a new film (`--space=2d|2.5d|3d`):**
    ```bash
    npx make-pictures new my-episode --space=2d
    # or Soft-Clay 3D studio dialogue:
-   npx make-pictures new studio-talk --space=3d
+   npx make-pictures new studio-talk --space=3d --kit=isometric-3d
    ```
-2. **Generate voiceovers, AI music score & AI SFX:**
+2. **Generate voiceovers, AI music score & AI SFX from `audio.json`:**
    ```bash
-   npm run audio -- --production=my-episode
+   npx make-pictures audio my-episode
+   # Offline mock synthesis without an ElevenLabs key:
+   npx make-pictures audio my-episode --mock
    ```
-3. **Preview & live-tune props in Studio Web (`60 FPS`):**
+3. **Preview & live-tune Zod props in native Remotion Studio (`60 FPS`):**
    ```bash
-   npm run studio
+   npx remotion studio
+   # or:
+   npx make-pictures studio
    ```
-   Switch the left sidebar filter to **Productions** to focus exclusively on your films.
-4. **Run 12-frame Contact-Sheet QA & render broadcast `-14 LUFS` MP4:**
+   Register your film's `<Composition schema={...} defaultProps={...} />` directly in `src/Root.tsx`.
+4. **Run Contact-Sheet QA & render broadcast `-14 LUFS` MP4:**
    ```bash
-   npm run qa -- MyEpisode
-   npm run render -- MyEpisode
+   npx make-pictures qa MyEpisode
+   npx make-pictures render MyEpisode
    ```
 
-## Capsule Layout
+## Film Layout
 
 ```text
-productions/<slug>/
-├── production.json                 # Scene script, ElevenLabs voice settings, AI SFX & Music Score spec
-├── index.ts                        # Exports `defineProduction({ ... })` auto-discovered by Studio Web & Remotion
-├── compositions/
-│   ├── <PascalSlug>.tsx            # 60 FPS Remotion composition + Zod schema
-│   └── <PascalSlug>.props.json     # Live-editable Props Inspector defaults
-├── assets/                         # Mirrored via symlink at `public/_productions/<slug>/`
-│   ├── voiceovers/                 # Cached .mp3 + word-level alignment .json
-│   ├── music/                      # Cached ElevenLabs Music / procedural fallback score
-│   └── sfx/                        # Cached ElevenLabs SFX / procedural fallback foley
+productions/<slug>/                  # (or default src/videos/<slug>/)
+├── audio.json                       # Scene script, ElevenLabs v4 voice/dialogue settings, AI SFX & Music spec
+├── <PascalSlug>.tsx                 # 60 FPS Remotion composition + Zod schema registered in src/Root.tsx
 └── generated/
-    └── audio-manifest.ts           # Auto-generated typed manifest for capsule audio & word timestamps
+    └── audio-manifest.ts            # Auto-generated typed manifest for audio & word-level timestamps
+
+public/audio/<slug>/                 # Generated audio served natively by Remotion staticFile()
+├── voiceovers/                      # Cached .mp3 + word-level alignment .json
+├── music/                           # Cached ElevenLabs Music / procedural fallback score
+└── sfx/                             # Cached ElevenLabs SFX / procedural fallback foley
 ```

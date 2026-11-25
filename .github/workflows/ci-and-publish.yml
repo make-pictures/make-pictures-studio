@@ -12,7 +12,7 @@ on:
 
 jobs:
   verify:
-    name: Verify Build, Types, Vite & Hermetic npm Pack
+    name: Verify Build, Types, Tests & Hermetic npm Pack
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
@@ -58,9 +58,6 @@ jobs:
 
       - name: Typecheck workspace
         run: npm run typecheck
-
-      - name: Build Studio Web
-        run: npx vite build
 
       - name: End-to-end hermetic npm pack & consumer verification
         run: npm run pack:verify
