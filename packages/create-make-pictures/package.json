@@ -1,7 +1,7 @@
 {
   "name": "create-make-pictures",
-  "version": "2.5.0",
-  "description": "Scaffold a 60 FPS Video-as-Code Studio project powered by @make-pictures/core, @make-pictures/kits, @make-pictures/studio, and ElevenLabs AI Audio.",
+  "version": "3.0.0",
+  "description": "Scaffold a native Remotion 4 + React 19 video project pre-wired with @make-pictures/remotion, @make-pictures/cli, StyleLab, and ElevenLabs AI Audio.",
   "homepage": "https://make.pictures",
   "repository": {
     "type": "git",
@@ -32,7 +32,6 @@
   },
   "files": [
     "dist",
-    "assets",
     "README.md",
     "LICENSE"
   ],
