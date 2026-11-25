@@ -186,7 +186,7 @@ function buildCacheSnapshot(
 /**
  * Deterministically preloads all 3D textures behind Remotion `delayRender` so
  * headless rendering never captures unloaded meshes, and triggers a coalesced
- * redraw when textures decode in Remotion Player / Studio Web.
+ * redraw when textures decode in Remotion Player / Remotion Studio.
  */
 export function usePreloadedTextures3D(
   specs: ReadonlyArray<TexturePreloadSpec>,

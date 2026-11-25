@@ -28,7 +28,7 @@ import { projectPoint } from './_helpers/camera-projection';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-test('exports StudioHdrRig3D, ClayCharacter3D, PodcastStudioSet3D, and pure helpers from @make-pictures/kits', () => {
+test('exports StudioHdrRig3D, ClayCharacter3D, PodcastStudioSet3D, and pure helpers from @make-pictures/remotion/kits/isometric-3d', () => {
   assert.equal(typeof StudioHdrRig3D, 'function');
   assert.equal(typeof ClayCharacter3D, 'function');
   assert.equal(typeof PodcastStudioSet3D, 'function');

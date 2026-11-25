@@ -203,7 +203,7 @@ export function subscribeFrameCameraTelemetry(
 
 /**
  * Converts a declarative `ShotSpec3D[]` or `ShotSpec2D[]` sequence into
- * `ProductionCameraCut[]` entries for the Studio Web Multi-Track Director Timeline.
+ * `ProductionCameraCut[]` entries for multi-track camera timeline inspection.
  */
 export function shotsToCameraTimeline(
   shots: ReadonlyArray<{

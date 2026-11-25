@@ -38,7 +38,7 @@
     "render:starter": "remotion render src/index.ts StarterStory out/starter-story.mp4 --fps=60",
     "render:vertical": "remotion render src/index.ts StarterStoryVertical out/starter-story-vertical.mp4 --fps=60",
     "render:diorama": "remotion render src/index.ts PaperDioramaDemo out/paper-diorama-demo.mp4 --fps=60 --gl=angle",
-    "render:diagrams": "remotion render src/index.ts ArchitectureDemo out/architecture-demo.mp4 --fps=60",
+    "render:promo": "remotion render src/index.ts ProductPromo out/product-promo.mp4 --fps=60",
     "render:iso": "remotion render src/index.ts IsometricDialogueDemo out/isometric-3d-dialogue.mp4 --fps=60 --gl=angle",
     "build:packages": "tsx scripts/build-packages.ts",
     "pack:verify": "tsx scripts/verify-npm-pack.ts",

@@ -32,7 +32,7 @@ import * as kitsRoot from '../../remotion/src/kits/index';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-test('editorial-collage, vector-scene-2d, and @make-pictures/kits root export all narrative components', () => {
+test('editorial-collage, vector-scene-2d, and @make-pictures/remotion/kits/* export all narrative components', () => {
   assert.equal(typeof EditorialDeskStage, 'function');
   assert.equal(typeof ChapterTitleCard, 'function');
   assert.equal(typeof EditorialMediaCard, 'function');

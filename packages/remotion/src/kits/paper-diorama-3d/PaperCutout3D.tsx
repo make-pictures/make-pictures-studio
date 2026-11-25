@@ -77,7 +77,7 @@ interface CachedPaperTextures {
 
 /**
  * Bounded LRU texture cache to prevent VRAM exhaustion (`WebGL context lost`)
- * across multi-hour HMR sessions in Studio Web.
+ * across multi-hour HMR sessions in Remotion Studio.
  */
 const MAX_CACHED_CUTOUTS = 64;
 const TEXTURE_CACHE = new Map<string, CachedPaperTextures>();

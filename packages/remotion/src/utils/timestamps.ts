@@ -3,8 +3,8 @@ import type { SceneVoiceoverData, WordTimestamp } from '../types/scene';
 const REGISTERED_VOICEOVER_MANIFEST: Record<string, SceneVoiceoverData> = {};
 
 /**
- * Registers additional scene voiceover records (e.g. from isolated `productions/<slug>` capsules
- * or root manifests) into the shared runtime lookup table used by Studio Web and helper utilities.
+ * Registers additional scene voiceover records (e.g. from video audio manifests)
+ * into the shared runtime lookup table used by Remotion Studio and helper utilities.
  */
 export function registerVoiceoverManifest(
   manifest?: Record<string, SceneVoiceoverData> | null
