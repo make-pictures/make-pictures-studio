@@ -39,6 +39,22 @@ export interface CharacterAlignment {
   character_end_times_seconds: number[];
 }
 
+export interface DialogueInputTurn {
+  text: string;
+  voiceId: string;
+  speaker?: string;
+}
+
+export interface DialogueVoiceSegment {
+  voiceId: string;
+  speaker?: string;
+  dialogueInputIndex: number;
+  startTimeSeconds: number;
+  endTimeSeconds: number;
+  characterStartIndex?: number;
+  characterEndIndex?: number;
+}
+
 export interface SceneVoiceoverData {
   sceneId: string;
   text: string;
@@ -52,6 +68,7 @@ export interface SceneVoiceoverData {
   generatedAt: string;
   words: WordTimestamp[];
   alignment?: CharacterAlignment;
+  voiceSegments?: DialogueVoiceSegment[];
 }
 
 export interface VoiceSettingsConfig {
@@ -69,6 +86,7 @@ export interface SceneDefinition {
   durationInSeconds: number;
   durationInFrames?: number;
   text: string;
+  dialogueInputs?: DialogueInputTurn[];
   voiceId?: string;
   modelId?: string;
   languageCode?: string;

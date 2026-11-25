@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Player } from '@remotion/player';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Player, type PlayerRef } from '@remotion/player';
 import {
   AlertCircle,
   Check,
@@ -38,12 +38,89 @@ import { DirectorOverlays } from './DirectorOverlays';
 import { DirectorTimelinePanel } from './DirectorTimelinePanel';
 import { LiveTranscriptBar } from './LiveTranscriptBar';
 import { StageErrorBoundary, StageErrorCard } from './StageErrorBoundary';
+import { TransportScrubber } from './TransportScrubber';
 
 /**
  * Shared silent `<Html5Audio />` pool size pre-mounted by `@remotion/player` in Studio Web.
  * Remotion defaults to `5`, which overflows in multi-scene films with music + dialogue + layered SFX.
  */
 export const STUDIO_SHARED_AUDIO_TAGS = 32;
+
+const PLAYER_FILL_STYLE: React.CSSProperties = {
+  width: '100%',
+  height: '100%',
+};
+
+const MemoDirectorOverlays = React.memo(DirectorOverlays);
+const MemoDirectorTimelinePanel = React.memo(DirectorTimelinePanel);
+const MemoLiveTranscriptBar = React.memo(LiveTranscriptBar);
+
+interface MemoizedPlayerStageProps {
+  composition: StudioCompositionEntry;
+  inputProps: Record<string, unknown>;
+  retryNonce: number;
+  componentSignature: string;
+  initialFrame: number;
+  loop: boolean;
+  muted: boolean;
+  playerRefCallback: (instance: PlayerRef | null) => void;
+  getCurrentFrame: () => number;
+  onRetry: () => void;
+  errorFallback: (props: { error: Error }) => React.ReactNode;
+}
+
+/**
+ * Isolates `@remotion/player` `<Player />` from all surrounding Studio chrome state
+ * (popovers, bottom drawer toggles, render/QA status banners). Because `@remotion/player`
+ * is not internally wrapped in `React.memo`, keeping this boundary memoized with stable
+ * prop references prevents duplicate composition renders during 60 FPS playback.
+ */
+const MemoizedPlayerStage: React.FC<MemoizedPlayerStageProps> = React.memo(
+  ({
+    composition,
+    inputProps,
+    retryNonce,
+    componentSignature,
+    initialFrame,
+    loop,
+    muted,
+    playerRefCallback,
+    getCurrentFrame,
+    onRetry,
+    errorFallback,
+  }) => (
+    <StageErrorBoundary
+      resetKey={componentSignature}
+      composition={composition}
+      getCurrentFrame={getCurrentFrame}
+      propsSnapshot={inputProps}
+      onManualRetry={onRetry}
+    >
+      <Player
+        key={`${composition.id}:${retryNonce}`}
+        ref={playerRefCallback}
+        component={composition.component}
+        inputProps={inputProps}
+        durationInFrames={composition.durationInFrames}
+        compositionWidth={composition.width}
+        compositionHeight={composition.height}
+        fps={composition.fps}
+        initialFrame={initialFrame}
+        loop={loop}
+        controls={false}
+        clickToPlay={true}
+        spaceKeyToPlayOrPause={false}
+        initiallyMuted={muted}
+        numberOfSharedAudioTags={STUDIO_SHARED_AUDIO_TAGS}
+        acknowledgeRemotionLicense={true}
+        errorFallback={errorFallback}
+        style={PLAYER_FILL_STYLE}
+      />
+    </StageErrorBoundary>
+  )
+);
+
+MemoizedPlayerStage.displayName = 'MemoizedPlayerStage';
 
 export interface StageViewportProps {
   composition: StudioCompositionEntry;
@@ -56,18 +133,6 @@ export interface StageViewportProps {
 }
 
 type DrawerSubView = 'all' | 'timeline' | 'transcript';
-
-function formatTimecode(frame: number, fps: number): string {
-  const safeFps = fps > 0 ? fps : 60;
-  const totalSec = Math.max(0, frame) / safeFps;
-  const mins = Math.floor(totalSec / 60);
-  const secs = Math.floor(totalSec % 60);
-  const hundredths = Math.floor((totalSec - Math.floor(totalSec)) * 100);
-  return `${String(mins).padStart(2, '0')}:${String(secs).padStart(
-    2,
-    '0'
-  )}.${String(hundredths).padStart(2, '0')}`;
-}
 
 const preventButtonFocus = (e: React.MouseEvent<HTMLButtonElement>) => {
   e.preventDefault();
@@ -87,8 +152,9 @@ export const StageViewport: React.FC<StageViewportProps> = ({
 
   const {
     playerRefCallback,
-    displayFrame,
     currentFrameRef,
+    getFrame,
+    subscribeFrame,
     isPlaying,
     loop,
     setLoop,
@@ -102,6 +168,7 @@ export const StageViewport: React.FC<StageViewportProps> = ({
     durationInFrames: composition.durationInFrames,
     resetKey: composition.id,
     initialFrame: 0,
+    trackDisplayFrame: false,
     onFrameChange,
     onPlayingChange,
     onFpsMeasure,
@@ -363,12 +430,12 @@ export const StageViewport: React.FC<StageViewportProps> = ({
     const el = stageAreaRef.current;
     if (!el) return;
 
-    const computeFit = () => {
-      const rect = el.getBoundingClientRect();
-      const padX = rect.width < 640 ? 20 : 52;
-      const padY = rect.height < 480 ? 20 : 36;
-      const availW = Math.max(200, rect.width - padX);
-      const availH = Math.max(150, rect.height - padY);
+    let rafId: number | null = null;
+    const applyFit = (width: number, height: number) => {
+      const padX = width < 640 ? 20 : 52;
+      const padY = height < 480 ? 20 : 36;
+      const availW = Math.max(200, width - padX);
+      const availH = Math.max(150, height - padY);
       const aspect = composition.width / composition.height;
 
       let fitW = availW;
@@ -378,16 +445,35 @@ export const StageViewport: React.FC<StageViewportProps> = ({
         fitW = fitH * aspect;
       }
 
-      setStageBox({
-        w: Math.round(fitW),
-        h: Math.round(fitH),
-      });
+      const nextW = Math.round(fitW);
+      const nextH = Math.round(fitH);
+      setStageBox((prev) =>
+        prev.w === nextW && prev.h === nextH ? prev : { w: nextW, h: nextH }
+      );
     };
 
-    computeFit();
-    const ro = new ResizeObserver(computeFit);
+    const rect = el.getBoundingClientRect();
+    applyFit(rect.width, rect.height);
+
+    const ro = new ResizeObserver((entries) => {
+      const entry = entries[entries.length - 1];
+      const nextWidth = entry?.contentRect.width ?? el.clientWidth;
+      const nextHeight = entry?.contentRect.height ?? el.clientHeight;
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+      }
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        applyFit(nextWidth, nextHeight);
+      });
+    });
     ro.observe(el);
-    return () => ro.disconnect();
+    return () => {
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+      }
+      ro.disconnect();
+    };
   }, [composition.width, composition.height]);
 
   // Guard against WebGL context loss during heavy 3D sessions
@@ -422,6 +508,21 @@ export const StageViewport: React.FC<StageViewportProps> = ({
     setRetryNonce((n) => n + 1);
   }, []);
 
+  const handlePauseAndSeek = useCallback(
+    (target: number) => {
+      pause();
+      seekToFrame(target);
+    },
+    [pause, seekToFrame]
+  );
+
+  const handleOpenOutputFile = useCallback(
+    (file: string | null) => {
+      void handleOpenOutput(file);
+    },
+    [handleOpenOutput]
+  );
+
   const renderPlayerErrorFallback = useCallback(
     ({ error }: { error: Error }) => (
       <StageErrorCard
@@ -437,6 +538,12 @@ export const StageViewport: React.FC<StageViewportProps> = ({
 
   const isVertical = isVerticalComposition(composition);
   const maxFrameIndex = Math.max(0, composition.durationInFrames - 1);
+  const stableInitialFrame = useMemo(
+    () => Math.min(currentFrameRef.current, maxFrameIndex),
+    // Only recompute initialFrame when Player mounts/remounts (composition switch or retry)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [composition.id, retryNonce, maxFrameIndex]
+  );
   const hasActiveOverlay =
     overlays.goldenSafeBox || overlays.ruleOfThirds || overlays.safeMargins;
   const componentSignature = `${composition.id}:${retryNonce}:${String(
@@ -657,41 +764,23 @@ export const StageViewport: React.FC<StageViewportProps> = ({
               onRetry={handleRetry}
             />
           ) : (
-            <StageErrorBoundary
-              resetKey={componentSignature}
+            <MemoizedPlayerStage
               composition={composition}
-              getCurrentFrame={() => currentFrameRef.current}
-              propsSnapshot={inputProps}
-              onManualRetry={handleRetry}
-            >
-              <Player
-                key={`${composition.id}:${retryNonce}`}
-                ref={playerRefCallback}
-                component={composition.component}
-                inputProps={inputProps}
-                durationInFrames={composition.durationInFrames}
-                compositionWidth={composition.width}
-                compositionHeight={composition.height}
-                fps={composition.fps}
-                initialFrame={Math.min(currentFrameRef.current, maxFrameIndex)}
-                loop={loop}
-                controls={false}
-                clickToPlay={true}
-                spaceKeyToPlayOrPause={false}
-                initiallyMuted={muted}
-                numberOfSharedAudioTags={STUDIO_SHARED_AUDIO_TAGS}
-                acknowledgeRemotionLicense={true}
-                errorFallback={renderPlayerErrorFallback}
-                style={{
-                  width: '100%',
-                  height: '100%',
-                }}
-              />
-            </StageErrorBoundary>
+              inputProps={inputProps}
+              retryNonce={retryNonce}
+              componentSignature={componentSignature}
+              initialFrame={stableInitialFrame}
+              loop={loop}
+              muted={muted}
+              playerRefCallback={playerRefCallback}
+              getCurrentFrame={getFrame}
+              onRetry={handleRetry}
+              errorFallback={renderPlayerErrorFallback}
+            />
           )}
 
           {/* Pixel-exact SVG Composition Overlays */}
-          <DirectorOverlays
+          <MemoDirectorOverlays
             width={composition.width}
             height={composition.height}
             overlays={overlays}
@@ -731,8 +820,7 @@ export const StageViewport: React.FC<StageViewportProps> = ({
               className="mp-icon-btn"
               onMouseDown={preventButtonFocus}
               onClick={() => {
-                pause();
-                seekToFrame(displayFrame - 10);
+                handlePauseAndSeek(currentFrameRef.current - 10);
               }}
               title="-10 klatek (J / Shift + ←)"
               aria-label="Cofnij o 10 klatek"
@@ -745,8 +833,7 @@ export const StageViewport: React.FC<StageViewportProps> = ({
               className="mp-icon-btn"
               onMouseDown={preventButtonFocus}
               onClick={() => {
-                pause();
-                seekToFrame(displayFrame - 1);
+                handlePauseAndSeek(currentFrameRef.current - 1);
               }}
               title="-1 klatka (←)"
               aria-label="Poprzednia klatka"
@@ -759,8 +846,7 @@ export const StageViewport: React.FC<StageViewportProps> = ({
               className="mp-icon-btn"
               onMouseDown={preventButtonFocus}
               onClick={() => {
-                pause();
-                seekToFrame(displayFrame + 1);
+                handlePauseAndSeek(currentFrameRef.current + 1);
               }}
               title="+1 klatka (→)"
               aria-label="Następna klatka"
@@ -773,8 +859,7 @@ export const StageViewport: React.FC<StageViewportProps> = ({
               className="mp-icon-btn"
               onMouseDown={preventButtonFocus}
               onClick={() => {
-                pause();
-                seekToFrame(displayFrame + 10);
+                handlePauseAndSeek(currentFrameRef.current + 10);
               }}
               title="+10 klatek (L / Shift + →)"
               aria-label="Przeskocz o 10 klatek"
@@ -787,8 +872,7 @@ export const StageViewport: React.FC<StageViewportProps> = ({
               className="mp-icon-btn"
               onMouseDown={preventButtonFocus}
               onClick={() => {
-                pause();
-                seekToFrame(0);
+                handlePauseAndSeek(0);
               }}
               title="Klatka 0 — weryfikacja czystego tła startowego (0 / Home)"
               aria-label="Skocz do klatki 0"
@@ -797,25 +881,16 @@ export const StageViewport: React.FC<StageViewportProps> = ({
             </button>
           </div>
 
-          {/* Smooth Scrubber + Tabular Timecode Pill */}
-          <div className="mp-scrubber-wrap">
-            <input
-              type="range"
-              className="mp-timeline-slider"
-              min={0}
-              max={Math.max(1, maxFrameIndex)}
-              value={Math.min(displayFrame, maxFrameIndex)}
-              aria-label="Oś czasu klatek"
-              onChange={(e) => {
-                pause();
-                seekToFrame(Number(e.target.value));
-              }}
-            />
-            <span className="mp-timecode-pill mp-tabular">
-              {formatTimecode(displayFrame, composition.fps)} • f:{displayFrame}/
-              {maxFrameIndex}
-            </span>
-          </div>
+          {/* Smooth Scrubber + Tabular Timecode Pill (ref-driven, 0 React re-renders at 60 FPS) */}
+          <TransportScrubber
+            resetKey={composition.id}
+            fps={composition.fps}
+            maxFrameIndex={maxFrameIndex}
+            ariaLabel="Oś czasu klatek"
+            getFrame={getFrame}
+            subscribeFrame={subscribeFrame}
+            onScrub={handlePauseAndSeek}
+          />
 
           {/* Loop & Mute Toggles */}
           <div className="mp-transport-step-group" role="group" aria-label="Pętla i dźwięk">
@@ -1152,29 +1227,27 @@ export const StageViewport: React.FC<StageViewportProps> = ({
           </div>
         </div>
 
-        {(drawerSubView === 'all' || drawerSubView === 'timeline') && (
-          <DirectorTimelinePanel
-            composition={composition}
-            currentFrame={displayFrame}
-            hideQaActions
-            onSeek={(target) => {
-              pause();
-              seekToFrame(target);
-            }}
-            onOpenOutputFile={(f) => void handleOpenOutput(f)}
-          />
-        )}
+        {drawerOpen &&
+          (drawerSubView === 'all' || drawerSubView === 'timeline') && (
+            <MemoDirectorTimelinePanel
+              composition={composition}
+              getFrame={getFrame}
+              subscribeFrame={subscribeFrame}
+              hideQaActions
+              onSeek={handlePauseAndSeek}
+              onOpenOutputFile={handleOpenOutputFile}
+            />
+          )}
 
-        {(drawerSubView === 'all' || drawerSubView === 'transcript') && (
-          <LiveTranscriptBar
-            composition={composition}
-            currentFrame={displayFrame}
-            onSeek={(target) => {
-              pause();
-              seekToFrame(target);
-            }}
-          />
-        )}
+        {drawerOpen &&
+          (drawerSubView === 'all' || drawerSubView === 'transcript') && (
+            <MemoLiveTranscriptBar
+              composition={composition}
+              getFrame={getFrame}
+              subscribeFrame={subscribeFrame}
+              onSeek={handlePauseAndSeek}
+            />
+          )}
       </div>
 
       {/* ==================== ROOT-LEVEL QA CONTACT SHEET MODAL ==================== */}

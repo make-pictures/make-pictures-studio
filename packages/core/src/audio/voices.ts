@@ -23,16 +23,24 @@ export interface ElevenLabsModelInfo {
   notes: string;
 }
 
-export const DEFAULT_ELEVENLABS_MODEL_ID = 'eleven_multilingual_v2';
+export const DEFAULT_ELEVENLABS_MODEL_ID = 'eleven_v4';
 
 export const ELEVENLABS_TTS_MODELS: ReadonlyArray<ElevenLabsModelInfo> = [
   {
-    id: 'eleven_multilingual_v2',
-    label: 'Multilingual v2 (domyślny)',
-    supportsLanguageCode: false,
+    id: 'eleven_v4',
+    label: 'Eleven v4 (domyślny — ekspresja + dialogi)',
+    supportsLanguageCode: true,
     supportsTimestamps: true,
     notes:
-      'Wysoka jakość i ciągłość prozodyczna previousText/nextText. Nie przyjmuje languageCode — kluczowy jest dobór natywnego głosu dla języka scenariusza.',
+      'Najnowsza generacja ElevenLabs (90+ języków) — najwyższa ekspresja z tagami intonacji, naturalne wieloosobowe dialogi Text-to-Dialogue i pełne wsparcie languageCode.',
+  },
+  {
+    id: 'eleven_v4_turbo',
+    label: 'Eleven v4 Turbo (szybki + ekspresja)',
+    supportsLanguageCode: true,
+    supportsTimestamps: true,
+    notes:
+      'Szybki wariant Eleven v4 z tagami ekspresji i obsługą ISO 639-1 languageCode.',
   },
   {
     id: 'eleven_v3',
@@ -40,7 +48,15 @@ export const ELEVENLABS_TTS_MODELS: ReadonlyArray<ElevenLabsModelInfo> = [
     supportsLanguageCode: true,
     supportsTimestamps: true,
     notes:
-      'Nowa generacja z wysoką ekspresją i wsparciem wymuszania języka (languageCode).',
+      'Poprzednia generacja z ekspresją i wsparciem wymuszania języka (languageCode). Wymaga dyskretnego stability ∈ {0, 0.5, 1}.',
+  },
+  {
+    id: 'eleven_multilingual_v2',
+    label: 'Multilingual v2 (legacy)',
+    supportsLanguageCode: false,
+    supportsTimestamps: true,
+    notes:
+      'Klasyczny model v2 z ciągłością prozodyczną previousText/nextText. Nie przyjmuje languageCode ani tagów intonacji [tag].',
   },
   {
     id: 'eleven_turbo_v2_5',

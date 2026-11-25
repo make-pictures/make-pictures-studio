@@ -67,17 +67,17 @@ export function stripElevenLabsV3Tags(text: string): string {
 export function lintElevenLabsV3Usage(
   sceneId: string,
   text: string,
-  modelId = 'eleven_multilingual_v2',
+  modelId = 'eleven_v4',
   voiceSettings?: VoiceSettingsConfig
 ): string[] {
   const warnings: string[] = [];
-  const effectiveModelId = modelId.trim() || 'eleven_multilingual_v2';
+  const effectiveModelId = modelId.trim() || 'eleven_v4';
   const isV3OrNewer = /^(?:eleven_v3|eleven_v4)/i.test(effectiveModelId);
 
   const tags = extractElevenLabsV3Tags(text);
   if (tags.length > 0 && !isV3OrNewer) {
     warnings.push(
-      `[v3-audio-tags] (${sceneId}) Wykryto tagi ekspresji ElevenLabs v3 (${tags.join(', ')}) przy modelu "${effectiveModelId}" — model starszy niż eleven_v3 przeczyta je na głos! Przełącz scenę lub manifest na "eleven_v3" albo usuń nawiasy kwadratowe.`
+      `[v3-audio-tags] (${sceneId}) Wykryto tagi ekspresji ElevenLabs (${tags.join(', ')}) przy modelu "${effectiveModelId}" — model starszy niż eleven_v3/eleven_v4 przeczyta je na głos! Przełącz scenę lub manifest na "eleven_v4" albo usuń nawiasy kwadratowe.`
     );
   }
 
@@ -180,12 +180,21 @@ const POLISH_SIGNAL_RE =
 
 export function shouldRunPolishPhoneticsLint(params: {
   lang?: string;
-  scenes?: ReadonlyArray<Pick<SceneDefinition, 'text'>>;
+  scenes?: ReadonlyArray<Pick<SceneDefinition, 'text' | 'dialogueInputs'>>;
 }): boolean {
   if (params.lang === 'en') return false;
   if (params.lang === 'pl') return true;
   const combined = (params.scenes ?? [])
-    .map((s) => stripElevenLabsV3Tags(s.text ?? ''))
+    .map((s) => {
+      const parts: string[] = [];
+      if (s.text) parts.push(stripElevenLabsV3Tags(s.text));
+      if (Array.isArray(s.dialogueInputs)) {
+        for (const turn of s.dialogueInputs) {
+          if (turn.text) parts.push(stripElevenLabsV3Tags(turn.text));
+        }
+      }
+      return parts.join(' ');
+    })
     .join(' ');
   return POLISH_SIGNAL_RE.test(combined);
 }
@@ -221,7 +230,57 @@ export function lintManifestVoiceovers(
       scene.modelId?.trim() ||
       manifest.modelId?.trim() ||
       options?.defaultModelId?.trim() ||
-      'eleven_multilingual_v2';
+      'eleven_v4';
+
+    const sceneLang = scene.languageCode?.trim().toLowerCase();
+    const runPolishChecksForScene =
+      sceneLang === 'en' || sceneLang?.startsWith('en-')
+        ? false
+        : sceneLang === 'pl' || sceneLang?.startsWith('pl-')
+          ? true
+          : runPolishChecks;
+
+    const hasDialogueInputs =
+      Array.isArray(scene.dialogueInputs) && scene.dialogueInputs.length > 0;
+
+    if (hasDialogueInputs) {
+      scene.dialogueInputs!.forEach((turn, idx) => {
+        const turnLabel = `${scene.id}[turn:${idx}${turn.speaker ? `:${turn.speaker}` : ''}]`;
+        allWarnings.push(
+          ...lintElevenLabsV3Usage(
+            turnLabel,
+            turn.text ?? '',
+            effectiveModelId,
+            idx === 0 ? scene.voiceSettings : undefined
+          )
+        );
+
+        if (!runPolishChecksForScene) return;
+
+        const turnVoiceId =
+          turn.voiceId?.trim() ||
+          scene.voiceId?.trim() ||
+          manifest.voiceId?.trim() ||
+          options?.defaultVoiceId?.trim();
+        if (turnVoiceId && !warnedVoiceIds.has(turnVoiceId)) {
+          const voiceWarnings = lintPolishVoiceSelection(turnLabel, turnVoiceId);
+          if (voiceWarnings.length > 0) {
+            warnedVoiceIds.add(turnVoiceId);
+            allWarnings.push(...voiceWarnings);
+          }
+        }
+        if (turn.text) {
+          allWarnings.push(
+            ...lintPolishVoiceoverText(
+              turnLabel,
+              turn.text,
+              idx === 0 ? scene.voiceSettings : undefined
+            )
+          );
+        }
+      });
+      continue;
+    }
 
     allWarnings.push(
       ...lintElevenLabsV3Usage(
@@ -232,7 +291,7 @@ export function lintManifestVoiceovers(
       )
     );
 
-    if (!runPolishChecks) continue;
+    if (!runPolishChecksForScene) continue;
 
     const effectiveVoiceId =
       scene.voiceId?.trim() ||

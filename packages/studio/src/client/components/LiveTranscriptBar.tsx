@@ -1,13 +1,16 @@
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { MessageSquareText } from 'lucide-react';
 import {
   getSceneVoiceover,
   type StudioCompositionEntry,
 } from '@make-pictures/core';
+import type { SubscribeFrame } from '../hooks/useRemotionPlayer';
 
 export interface LiveTranscriptBarProps {
   composition: StudioCompositionEntry;
-  currentFrame: number;
+  currentFrame?: number;
+  getFrame?: () => number;
+  subscribeFrame?: SubscribeFrame;
   onSeek: (frame: number) => void;
 }
 
@@ -21,17 +24,40 @@ interface GlobalWordToken {
   isFirstInSegment: boolean;
 }
 
+interface TranscriptCursorState {
+  activeIndex: number;
+  lastPastIndex: number;
+}
+
 const preventButtonFocus = (e: React.MouseEvent<HTMLButtonElement>) => {
   e.preventDefault();
 };
 
+function computeTranscriptCursor(
+  tokens: ReadonlyArray<GlobalWordToken>,
+  frame: number
+): TranscriptCursorState {
+  let activeIndex = -1;
+  let lastPastIndex = -1;
+  for (let i = 0; i < tokens.length; i++) {
+    const tok = tokens[i];
+    if (frame >= tok.globalStartFrame && frame <= tok.globalEndFrame + 3) {
+      activeIndex = i;
+    } else if (frame > tok.globalEndFrame + 3) {
+      lastPastIndex = i;
+    }
+  }
+  return { activeIndex, lastPastIndex };
+}
+
 export const LiveTranscriptBar: React.FC<LiveTranscriptBarProps> = ({
   composition,
-  currentFrame,
+  currentFrame = 0,
+  getFrame,
+  subscribeFrame,
   onSeek,
 }) => {
   const scrollerRef = useRef<HTMLDivElement>(null);
-  const wordRefs = useRef<Map<number, HTMLButtonElement>>(new Map());
 
   const tokens = useMemo<GlobalWordToken[]>(() => {
     const list: GlobalWordToken[] = [];
@@ -72,25 +98,47 @@ export const LiveTranscriptBar: React.FC<LiveTranscriptBarProps> = ({
     return list;
   }, [composition]);
 
-  const activeIndex = useMemo<number>(() => {
-    let matched = -1;
-    for (let i = 0; i < tokens.length; i++) {
-      const tok = tokens[i];
-      if (
-        currentFrame >= tok.globalStartFrame &&
-        currentFrame <= tok.globalEndFrame + 3
-      ) {
-        matched = i;
-      }
-    }
-    return matched;
-  }, [tokens, currentFrame]);
+  const [subscribedCursor, setSubscribedCursor] =
+    useState<TranscriptCursorState>(() =>
+      computeTranscriptCursor(tokens, getFrame ? getFrame() : currentFrame)
+    );
+
+  // Only re-render transcript chips when the active/past word index actually changes (~2-4 Hz instead of 60 Hz)
+  useEffect(() => {
+    if (!subscribeFrame) return;
+
+    const syncFrame = (frame: number) => {
+      const next = computeTranscriptCursor(tokens, frame);
+      setSubscribedCursor((prev) =>
+        prev.activeIndex === next.activeIndex &&
+        prev.lastPastIndex === next.lastPastIndex
+          ? prev
+          : next
+      );
+    };
+
+    syncFrame(getFrame ? getFrame() : currentFrame);
+    return subscribeFrame(syncFrame);
+  }, [subscribeFrame, getFrame, currentFrame, tokens]);
+
+  const cursor = useMemo<TranscriptCursorState>(
+    () =>
+      subscribeFrame
+        ? subscribedCursor
+        : computeTranscriptCursor(tokens, currentFrame),
+    [subscribeFrame, subscribedCursor, tokens, currentFrame]
+  );
+
+  const { activeIndex, lastPastIndex } = cursor;
 
   useEffect(() => {
     if (activeIndex < 0) return;
     const scroller = scrollerRef.current;
-    const btn = wordRefs.current.get(activeIndex);
-    if (!scroller || !btn) return;
+    if (!scroller || scroller.clientWidth <= 0) return;
+    const btn = scroller.querySelector<HTMLButtonElement>(
+      `[data-word-idx="${activeIndex}"]`
+    );
+    if (!btn) return;
 
     const targetScrollLeft = Math.max(
       0,
@@ -147,7 +195,7 @@ export const LiveTranscriptBar: React.FC<LiveTranscriptBarProps> = ({
         <div className="mp-transcript-scroller" ref={scrollerRef}>
           {tokens.map((tok, idx) => {
             const isActive = idx === activeIndex;
-            const isPast = !isActive && currentFrame > tok.globalEndFrame + 3;
+            const isPast = !isActive && idx <= lastPastIndex;
 
             return (
               <React.Fragment key={tok.id}>
@@ -169,13 +217,7 @@ export const LiveTranscriptBar: React.FC<LiveTranscriptBarProps> = ({
 
                 <button
                   type="button"
-                  ref={(el) => {
-                    if (el) {
-                      wordRefs.current.set(idx, el);
-                    } else {
-                      wordRefs.current.delete(idx);
-                    }
-                  }}
+                  data-word-idx={idx}
                   className={`mp-word-chip ${isActive ? 'is-active' : ''} ${
                     isPast ? 'is-past' : ''
                   }`}

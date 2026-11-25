@@ -138,7 +138,7 @@ test('human interactive terminal runs full connect -> wait -> check flow without
 
     const envLocal = fs.readFileSync(path.join(rootDir, '.env.local'), 'utf8');
     assert.match(envLocal, /ELEVENLABS_VOICE_ID=/);
-    assert.match(envLocal, /ELEVENLABS_MODEL_ID=eleven_multilingual_v2/);
+    assert.match(envLocal, /ELEVENLABS_MODEL_ID=eleven_v4/);
 
     const gitignore = fs.readFileSync(path.join(rootDir, '.gitignore'), 'utf8');
     assert.match(gitignore, /\.env\.local/);

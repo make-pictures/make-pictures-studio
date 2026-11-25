@@ -40,12 +40,16 @@ import {
   FlowCurve,
   DataFlowEdge,
   buildCubicBezierPath,
+  buildElasticCordPath,
+  computeLiveNodePort,
   evaluateCubicBezier,
   evaluateCubicBezierAngleDeg,
   SystemNode,
   CodePayloadToast,
   resolvePayloadTokenColors,
   type CubicBezierCurve2D,
+  type ElasticCordOptions,
+  type LiveNodeTransform2D,
   type Point2D,
   type MotionDiagramStage2DProps,
   type MotionDiagramFocusState,
@@ -69,6 +73,8 @@ import {
   - `portBottom(node, dx = 0)` — bottom border (`y = cy + h / 2`)
   - `portLeft(node, dy = 0)` — left border (`x = cx - w / 2`)
   - `portRight(node, dy = 0)` — right border (`x = cx + w / 2`)
+- **Live Elastic Cords on Animated Cards (`computeLiveNodePort` & `buildElasticCordPath`):** Whenever cards bounce, squash, or tilt (`translateX/Y`, `rotateDeg`, `scaleX/Y`), compute transformed border ports with `computeLiveNodePort(box, side, transform, outsetPx)` (exact center-origin `scale -> rotate -> translate` + outward normal) and connect them via `buildElasticCordPath(from, to, { orientation, restLength, baseSagPx, archOffset, whipOffset, tension })` so cables stay locked 1:1 to live card borders, pull taut under stretch, and bow/whip elastically under slack.
+- **Zero-Jitter 2D Diagrams (`handheldIntensity = 0` default):** `DirectorCamera2D` defaults to `handheldIntensity = 0` and snaps to `transform: 'none'` (omitting `willChange`) at identity; `SystemNode`, `DataFlowEdge`, `CodePayloadToast`, and `RetroPcWindowStage2D` snap settled transforms to clean 2D / `'none'` without persistent `translate3d` or `willChange`.
 
 ### 2. Rounded-Corner Clipping Hygiene (`<ClippedSurfaceChrome />`) & Zero Developer Clutter
 - **`ClippedSurfaceChrome` Inside `overflow: 'visible'` Cards:** `SystemNode`, `WorldBox`, `CodePayloadToast`, and `DataFlowEdge` labels wrap their internal top accent bars, specular top-edge highlights (`specularRim={!isDark}`), and surface tint gradients inside `<ClippedSurfaceChrome />` (`borderRadius: 'inherit', overflow: 'hidden'`) while keeping only external port terminals (`data-port-terminal="left" | "right"`) outside the mask. If you build a custom world card with `overflow: 'visible'`, **always** wrap internal accent strips in `<ClippedSurfaceChrome>` (enforced by the `UNCLIPPED_CARD_BAR` rule in `npx make-pictures qa`).

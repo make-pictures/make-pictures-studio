@@ -6,6 +6,8 @@ import dotenv from 'dotenv';
 import { ElevenLabsClient } from '@elevenlabs/elevenlabs-js';
 import type {
   CharacterAlignment,
+  DialogueInputTurn,
+  DialogueVoiceSegment,
   MusicMoodPreset,
   MusicScoreSpec,
   ProductionManifest,
@@ -96,6 +98,25 @@ export function computeTextHash(text: string): string {
   return crypto.createHash('sha256').update(text.trim(), 'utf8').digest('hex');
 }
 
+export function isDialogueScene(
+  scene: SceneDefinition
+): scene is SceneDefinition & { dialogueInputs: DialogueInputTurn[] } {
+  return Array.isArray(scene.dialogueInputs) && scene.dialogueInputs.length >= 2;
+}
+
+export function resolveEffectiveDialogueModelId(
+  sceneModelId?: string,
+  fallbackModelId?: string
+): string {
+  const explicit = sceneModelId?.trim();
+  if (explicit) return explicit;
+  const fallback = fallbackModelId?.trim();
+  if (fallback && /^(?:eleven_v3|eleven_v4)/i.test(fallback)) {
+    return fallback;
+  }
+  return 'eleven_v4';
+}
+
 export function computeSceneCacheHash(
   scene: SceneDefinition,
   options?: { effectiveLanguageCode?: string }
@@ -105,6 +126,17 @@ export function computeSceneCacheHash(
     : scene.text;
 
   const extraParts: string[] = [];
+  if (isDialogueScene(scene)) {
+    extraParts.push(
+      `dialogue:${JSON.stringify(
+        scene.dialogueInputs.map((turn) => ({
+          text: turn.text,
+          voiceId: turn.voiceId.trim(),
+          ...(turn.speaker ? { speaker: turn.speaker } : {}),
+        }))
+      )}`
+    );
+  }
   if (scene.voiceEffect && scene.voiceEffect !== 'clean') {
     extraParts.push(`fx:${scene.voiceEffect}`);
   }
@@ -133,16 +165,24 @@ function normalizeWord(raw: string): string {
 
 /**
  * Converts ElevenLabs character-level alignment arrays into word-level timestamps.
+ * When `segmentBoundaries` is provided (from Text-to-Dialogue `voiceSegments`),
+ * flushes words cleanly across speaker turn boundaries even if no whitespace separates them.
  */
 export function extractWordsFromAlignment(
   alignment: CharacterAlignment,
-  fps: number
+  fps: number,
+  segmentBoundaries?: ReadonlyArray<number>
 ): WordTimestamp[] {
   const {
     characters,
     character_start_times_seconds: starts,
     character_end_times_seconds: ends,
   } = alignment;
+
+  const boundarySet =
+    segmentBoundaries && segmentBoundaries.length > 0
+      ? new Set(segmentBoundaries.filter((idx) => idx > 0))
+      : null;
 
   const words: WordTimestamp[] = [];
   let currentChars = '';
@@ -168,6 +208,9 @@ export function extractWordsFromAlignment(
   };
 
   for (let i = 0; i < characters.length; i++) {
+    if (boundarySet?.has(i)) {
+      flushWord();
+    }
     const ch = characters[i] ?? '';
     const st = starts[i] ?? wordEnd;
     const en = ends[i] ?? st;
@@ -269,6 +312,149 @@ export function buildSyntheticWordTimestamps(
   };
 }
 
+/**
+ * Builds deterministic proportional multi-speaker `voiceSegments`, `words`, and
+ * `alignment` for Text-to-Dialogue scenes when running in `--mock` / offline mode.
+ */
+export function buildSyntheticDialogueTimestamps(
+  dialogueInputs: ReadonlyArray<DialogueInputTurn>,
+  durationInSeconds: number,
+  fps: number
+): {
+  words: WordTimestamp[];
+  alignment: CharacterAlignment;
+  voiceSegments: DialogueVoiceSegment[];
+} {
+  const safeDuration = Math.max(1.0, durationInSeconds);
+  const leadInSec = Math.min(0.24, safeDuration * 0.08);
+  const tailOutSec = Math.min(0.4, safeDuration * 0.12);
+  const turnCount = Math.max(1, dialogueInputs.length);
+  const gapCount = Math.max(0, turnCount - 1);
+  const interTurnGapSec =
+    gapCount > 0
+      ? Math.min(
+          0.22,
+          Math.max(
+            0.05,
+            (safeDuration - leadInSec - tailOutSec) / (turnCount * 6)
+          )
+        )
+      : 0;
+  const usableSpeechSec = Math.max(
+    0.5,
+    safeDuration - leadInSec - tailOutSec - interTurnGapSec * gapCount
+  );
+
+  const parsedTurns = dialogueInputs.map((turn) => {
+    const spokenText = stripElevenLabsV3Tags(turn.text);
+    const tokens = spokenText.trim().split(/\s+/).filter(Boolean);
+    const tokenWeights = tokens.map((token) => {
+      const base = Math.max(3, token.length);
+      const pauseBonus = /[.,!?;:]$/.test(token) ? 3.5 : 0.8;
+      return base + pauseBonus;
+    });
+    const turnWeight = Math.max(
+      4,
+      tokenWeights.reduce((acc, w) => acc + w, 0)
+    );
+    return { turn, tokens, tokenWeights, turnWeight };
+  });
+
+  const totalWeight =
+    parsedTurns.reduce((acc, t) => acc + t.turnWeight, 0) || 1;
+
+  const words: WordTimestamp[] = [];
+  const characters: string[] = [];
+  const character_start_times_seconds: number[] = [];
+  const character_end_times_seconds: number[] = [];
+  const voiceSegments: DialogueVoiceSegment[] = [];
+
+  let cursor = leadInSec;
+
+  parsedTurns.forEach(({ turn, tokens, tokenWeights, turnWeight }, turnIdx) => {
+    const turnDuration = (turnWeight / totalWeight) * usableSpeechSec;
+    const turnStart = Number(cursor.toFixed(4));
+    const turnEnd = Number((cursor + turnDuration).toFixed(4));
+    const characterStartIndex = characters.length;
+
+    const localTotalWeight =
+      tokenWeights.reduce((acc, w) => acc + w, 0) || 1;
+    let wordCursor = turnStart;
+
+    tokens.forEach((token, tokenIdx) => {
+      const slotDuration = (tokenWeights[tokenIdx] / localTotalWeight) * turnDuration;
+      const pauseFraction = /[.,!?;:]$/.test(token) ? 0.2 : 0.08;
+      const speakDuration = Math.max(0.04, slotDuration * (1 - pauseFraction));
+      const startSec = Number(wordCursor.toFixed(4));
+      const endSec = Number(
+        Math.min(turnEnd, wordCursor + speakDuration).toFixed(4)
+      );
+
+      words.push({
+        word: token,
+        normalizedWord: normalizeWord(token),
+        start: startSec,
+        end: Math.max(endSec, Number((startSec + 0.04).toFixed(4))),
+        startFrame: Math.round(startSec * fps),
+        endFrame: Math.round(
+          Math.max(endSec, Number((startSec + 0.04).toFixed(4))) * fps
+        ),
+      });
+
+      const chars = Array.from(token);
+      const charStep = Math.max(0.005, (endSec - startSec) / Math.max(1, chars.length));
+      chars.forEach((ch, cIdx) => {
+        const cStart = Number((startSec + cIdx * charStep).toFixed(4));
+        const cEnd = Number((cStart + charStep).toFixed(4));
+        characters.push(ch);
+        character_start_times_seconds.push(cStart);
+        character_end_times_seconds.push(cEnd);
+      });
+
+      if (tokenIdx < tokens.length - 1) {
+        characters.push(' ');
+        character_start_times_seconds.push(endSec);
+        character_end_times_seconds.push(
+          Number(Math.min(turnEnd, wordCursor + slotDuration).toFixed(4))
+        );
+      }
+
+      wordCursor += slotDuration;
+    });
+
+    const characterEndIndex = characters.length;
+    voiceSegments.push({
+      voiceId: turn.voiceId.trim(),
+      ...(turn.speaker ? { speaker: turn.speaker } : {}),
+      dialogueInputIndex: turnIdx,
+      startTimeSeconds: turnStart,
+      endTimeSeconds: turnEnd,
+      characterStartIndex,
+      characterEndIndex,
+    });
+
+    if (turnIdx < parsedTurns.length - 1) {
+      const nextTurnStart = Number((turnEnd + interTurnGapSec).toFixed(4));
+      characters.push(' ');
+      character_start_times_seconds.push(turnEnd);
+      character_end_times_seconds.push(nextTurnStart);
+      cursor = nextTurnStart;
+    } else {
+      cursor = turnEnd;
+    }
+  });
+
+  return {
+    words,
+    alignment: {
+      characters,
+      character_start_times_seconds,
+      character_end_times_seconds,
+    },
+    voiceSegments,
+  };
+}
+
 function generateSyntheticMp3(outputPath: string, durationInSeconds: number): void {
   execFileSync(
     'ffmpeg',
@@ -351,6 +537,98 @@ async function synthesizeSceneVoiceoverViaSdk(params: {
   };
 }
 
+export interface TextToDialogueClientLike {
+  textToDialogue: {
+    convertWithTimestamps: ElevenLabsClient['textToDialogue']['convertWithTimestamps'];
+  };
+}
+
+export async function synthesizeSceneDialogueViaSdk(params: {
+  dialogueInputs: ReadonlyArray<DialogueInputTurn>;
+  modelId: string;
+  languageCode?: string;
+  voiceSettings?: VoiceSettingsConfig;
+  previousText?: string;
+  nextText?: string;
+  client?: TextToDialogueClientLike;
+}): Promise<{
+  audioBase64: string;
+  alignment?: CharacterAlignment;
+  voiceSegments: DialogueVoiceSegment[];
+}> {
+  const {
+    dialogueInputs,
+    modelId,
+    languageCode,
+    voiceSettings,
+    previousText,
+    nextText,
+  } = params;
+
+  const firstVoiceId = dialogueInputs[0]?.voiceId?.trim();
+  const defaultSettings = getRecommendedVoiceSettings(firstVoiceId, modelId);
+  const rawStability =
+    typeof voiceSettings?.stability === 'number'
+      ? voiceSettings.stability
+      : defaultSettings.stability;
+  const snappedStability =
+    typeof rawStability === 'number'
+      ? snapStabilityForElevenLabsModel(rawStability, modelId)
+      : 0.5;
+
+  const effectiveLanguageCode =
+    languageCode && supportsLanguageCodeParam(modelId)
+      ? languageCode.trim().toLowerCase()
+      : undefined;
+
+  const client = params.client ?? getElevenLabsClient();
+  const response = await client.textToDialogue.convertWithTimestamps({
+    inputs: dialogueInputs.map((turn) => ({
+      text: turn.text,
+      voiceId: turn.voiceId.trim(),
+    })),
+    modelId,
+    ...(effectiveLanguageCode ? { languageCode: effectiveLanguageCode } : {}),
+    settings: {
+      stability: snappedStability,
+    },
+    outputFormat: 'mp3_44100_128',
+    ...(previousText ? { previousText: previousText.slice(0, 100) } : {}),
+    ...(nextText ? { futureText: nextText.slice(0, 100) } : {}),
+  });
+
+  const rawAlignment = response.alignment ?? response.normalizedAlignment;
+  const alignment: CharacterAlignment | undefined = rawAlignment
+    ? {
+        characters: rawAlignment.characters,
+        character_start_times_seconds:
+          rawAlignment.characterStartTimesSeconds,
+        character_end_times_seconds: rawAlignment.characterEndTimesSeconds,
+      }
+    : undefined;
+
+  const voiceSegments: DialogueVoiceSegment[] = (
+    response.voiceSegments ?? []
+  ).map((seg) => {
+    const matchedInput = dialogueInputs[seg.dialogueInputIndex];
+    return {
+      voiceId: seg.voiceId,
+      ...(matchedInput?.speaker ? { speaker: matchedInput.speaker } : {}),
+      dialogueInputIndex: seg.dialogueInputIndex,
+      startTimeSeconds: Number(seg.startTimeSeconds.toFixed(4)),
+      endTimeSeconds: Number(seg.endTimeSeconds.toFixed(4)),
+      characterStartIndex: seg.characterStartIndex,
+      characterEndIndex: seg.characterEndIndex,
+    };
+  });
+
+  return {
+    audioBase64: response.audioBase64,
+    alignment,
+    voiceSegments,
+  };
+}
+
 async function processSceneVoiceover(params: {
   scene: SceneDefinition;
   fps: number;
@@ -376,14 +654,30 @@ async function processSceneVoiceover(params: {
 
   fs.mkdirSync(voiceoversDir, { recursive: true });
 
-  const sceneVoiceId = scene.voiceId?.trim() || defaultVoiceId;
-  const effectiveModelId = scene.modelId?.trim() || modelId;
+  const isDialogue = isDialogueScene(scene);
+  const effectiveText =
+    scene.text?.trim() ||
+    (isDialogue ? scene.dialogueInputs.map((t) => t.text).join(' ') : '');
+  const sceneVoiceId =
+    scene.voiceId?.trim() ||
+    (isDialogue ? scene.dialogueInputs[0]?.voiceId?.trim() : undefined) ||
+    defaultVoiceId;
+  const effectiveModelId = isDialogue
+    ? resolveEffectiveDialogueModelId(scene.modelId, modelId)
+    : scene.modelId?.trim() || modelId;
   const rawLangCode =
     scene.languageCode?.trim() || defaultLanguageCode?.trim() || undefined;
   const effectiveLanguageCode =
     rawLangCode && supportsLanguageCodeParam(effectiveModelId)
       ? rawLangCode.toLowerCase()
       : undefined;
+  const spokenWordCount = stripElevenLabsV3Tags(
+    isDialogue
+      ? scene.dialogueInputs.map((t) => t.text).join(' ')
+      : effectiveText
+  )
+    .split(/\s+/)
+    .filter(Boolean).length;
   const fallbackDurationSec =
     typeof scene.durationInSeconds === 'number' &&
     Number.isFinite(scene.durationInSeconds) &&
@@ -393,8 +687,9 @@ async function processSceneVoiceover(params: {
           2.5,
           Number(
             (
-              scene.text.trim().split(/\s+/).filter(Boolean).length / 2.4 +
-              0.6
+              spokenWordCount / 2.4 +
+              0.6 +
+              (isDialogue ? (scene.dialogueInputs.length - 1) * 0.25 : 0)
             ).toFixed(2)
           )
         );
@@ -415,7 +710,10 @@ async function processSceneVoiceover(params: {
         existing.textHash === textHash &&
         existing.voiceId === sceneVoiceId &&
         existing.modelId === effectiveModelId &&
-        (!useLiveApi || existing.provider === 'elevenlabs')
+        (!useLiveApi || existing.provider === 'elevenlabs') &&
+        (!isDialogue ||
+          (Array.isArray(existing.voiceSegments) &&
+            existing.voiceSegments.length > 0))
       ) {
         console.log(
           `  [CACHE HIT]  Scene "${scene.id}" (SHA-256: ${textHash.slice(0, 12)}…) — skipping.`
@@ -432,6 +730,80 @@ async function processSceneVoiceover(params: {
     }
   }
 
+  if (useLiveApi && isDialogue) {
+    const turnSummary = scene.dialogueInputs
+      .map((t) => t.speaker || t.voiceId.trim().slice(0, 8))
+      .join(' ↔ ');
+    console.log(
+      `  [ELEVENLABS DIALOGUE] Synthesizing ${scene.dialogueInputs.length}-turn dialogue + timestamps for "${scene.id}" (${turnSummary}, model: ${effectiveModelId}${effectiveLanguageCode ? `, lang: ${effectiveLanguageCode}` : ''}, effect: ${scene.voiceEffect ?? 'clean'})…`
+    );
+
+    const result = await synthesizeSceneDialogueViaSdk({
+      dialogueInputs: scene.dialogueInputs,
+      modelId: effectiveModelId,
+      languageCode: effectiveLanguageCode,
+      voiceSettings: scene.voiceSettings,
+      previousText: scene.previousText,
+      nextText: scene.nextText,
+    });
+
+    const audioBuffer = Buffer.from(result.audioBase64, 'base64');
+    const rawMp3Path = `${mp3Path}.raw.mp3`;
+    fs.writeFileSync(rawMp3Path, audioBuffer);
+
+    const acousticFilter = getVoiceAcousticFilter(scene.voiceEffect);
+    execFileSync(
+      'ffmpeg',
+      ['-y', '-i', rawMp3Path, '-af', acousticFilter, mp3Path],
+      { stdio: 'ignore' }
+    );
+    fs.unlinkSync(rawMp3Path);
+
+    const alignment = result.alignment;
+    const segmentStartIndices = result.voiceSegments
+      .map((s) => s.characterStartIndex)
+      .filter((idx): idx is number => typeof idx === 'number' && idx > 0);
+    const words = alignment
+      ? extractWordsFromAlignment(alignment, fps, segmentStartIndices)
+      : buildSyntheticDialogueTimestamps(
+          scene.dialogueInputs,
+          fallbackDurationSec,
+          fps
+        ).words;
+
+    const lastWordEnd =
+      words.length > 0 ? words[words.length - 1].end : fallbackDurationSec;
+    const lastSegmentEnd =
+      result.voiceSegments.length > 0
+        ? Math.max(...result.voiceSegments.map((s) => s.endTimeSeconds))
+        : 0;
+    const speechEnd = Math.max(lastWordEnd, lastSegmentEnd);
+
+    const payload: SceneVoiceoverData = {
+      sceneId: scene.id,
+      text: effectiveText,
+      textHash,
+      voiceId: sceneVoiceId,
+      modelId: effectiveModelId,
+      provider: 'elevenlabs',
+      fps,
+      durationInSeconds: Number(
+        Math.max(fallbackDurationSec, speechEnd + 0.25).toFixed(2)
+      ),
+      audioFile,
+      generatedAt: new Date().toISOString(),
+      words,
+      alignment,
+      voiceSegments: result.voiceSegments,
+    };
+
+    fs.writeFileSync(jsonPath, JSON.stringify(payload, null, 2), 'utf8');
+    console.log(
+      `  [SAVED]      ${audioFile} + .json (${words.length} words, ${result.voiceSegments.length} dialogue segments)`
+    );
+    return payload;
+  }
+
   if (useLiveApi) {
     console.log(
       `  [ELEVENLABS] Synthesizing voiceover + timestamps for "${scene.id}" (voice: ${sceneVoiceId}, model: ${effectiveModelId}${effectiveLanguageCode ? `, lang: ${effectiveLanguageCode}` : ''}, effect: ${scene.voiceEffect ?? 'clean'})…`
@@ -440,7 +812,7 @@ async function processSceneVoiceover(params: {
       voiceId: sceneVoiceId,
       modelId: effectiveModelId,
       languageCode: effectiveLanguageCode,
-      text: scene.text,
+      text: effectiveText,
       voiceSettings: scene.voiceSettings,
       previousText: scene.previousText,
       nextText: scene.nextText,
@@ -461,7 +833,7 @@ async function processSceneVoiceover(params: {
     const alignment = result.alignment;
     const words = alignment
       ? extractWordsFromAlignment(alignment, fps)
-      : buildSyntheticWordTimestamps(scene.text, fallbackDurationSec, fps)
+      : buildSyntheticWordTimestamps(effectiveText, fallbackDurationSec, fps)
           .words;
 
     const lastWordEnd =
@@ -469,7 +841,7 @@ async function processSceneVoiceover(params: {
 
     const payload: SceneVoiceoverData = {
       sceneId: scene.id,
-      text: scene.text,
+      text: effectiveText,
       textHash,
       voiceId: sceneVoiceId,
       modelId: effectiveModelId,
@@ -489,19 +861,54 @@ async function processSceneVoiceover(params: {
     return payload;
   }
 
+  if (isDialogue) {
+    console.log(
+      `  [FALLBACK DIALOGUE] Generating deterministic mock ${scene.dialogueInputs.length}-turn dialogue + voiceSegments for "${scene.id}"…`
+    );
+    generateSyntheticMp3(mp3Path, fallbackDurationSec);
+    const { words, alignment, voiceSegments } =
+      buildSyntheticDialogueTimestamps(
+        scene.dialogueInputs,
+        fallbackDurationSec,
+        fps
+      );
+
+    const payload: SceneVoiceoverData = {
+      sceneId: scene.id,
+      text: effectiveText,
+      textHash,
+      voiceId: sceneVoiceId,
+      modelId: effectiveModelId,
+      provider: 'synthetic-fallback',
+      fps,
+      durationInSeconds: fallbackDurationSec,
+      audioFile,
+      generatedAt: new Date().toISOString(),
+      words,
+      alignment,
+      voiceSegments,
+    };
+
+    fs.writeFileSync(jsonPath, JSON.stringify(payload, null, 2), 'utf8');
+    console.log(
+      `  [SAVED]      ${audioFile} + .json (${words.length} words, ${voiceSegments.length} dialogue segments)`
+    );
+    return payload;
+  }
+
   console.log(
     `  [FALLBACK]   Generating deterministic mock voiceover + word timestamps for "${scene.id}"…`
   );
   generateSyntheticMp3(mp3Path, fallbackDurationSec);
   const { words, alignment } = buildSyntheticWordTimestamps(
-    scene.text,
+    effectiveText,
     fallbackDurationSec,
     fps
   );
 
   const payload: SceneVoiceoverData = {
     sceneId: scene.id,
-    text: scene.text,
+    text: effectiveText,
     textHash,
     voiceId: sceneVoiceId,
     modelId: effectiveModelId,
@@ -599,8 +1006,8 @@ export interface ProductionMusicEntry {
   durationInSeconds: number;
   moodPreset: string;
   generatedAt: string;
-  songTitle?: string;
-  genres?: string[];
+  songTitle?: string | null;
+  genres?: string[] | null;
 }
 
 export interface ProductionSfxEntry {

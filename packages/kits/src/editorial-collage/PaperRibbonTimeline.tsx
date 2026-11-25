@@ -6,6 +6,11 @@ import {
   useStudioFontsReady,
   useStudioStyle,
 } from '@make-pictures/core';
+import {
+  buildCrispTranslateYTransform,
+  sanitizeEditorialOverlayStyle,
+  snapSettledProgress,
+} from './overlayStability';
 
 export interface PaperTimelineMilestone {
   id: string;
@@ -70,12 +75,14 @@ export const PaperRibbonTimeline: React.FC<PaperRibbonTimelineProps> = ({
     return null;
   }
 
-  const enter = spring({
+  const rawEnter = spring({
     frame: frame - effectiveStart,
     fps,
     config: getStyleSpringConfig(studioStyle, 'enter'),
   });
-  const finalOpacity = Math.max(0, Math.min(1, enter * opacity));
+  const enter = snapSettledProgress(rawEnter);
+  const rawOpacity = Math.max(0, Math.min(1, enter * opacity));
+  const finalOpacity = snapSettledProgress(rawOpacity);
   if (finalOpacity <= 0.005) {
     return null;
   }
@@ -110,6 +117,7 @@ export const PaperRibbonTimeline: React.FC<PaperRibbonTimelineProps> = ({
       : { top: 34 };
 
   const slideOffset = (1 - enter) * (position === 'bottom' ? 18 : -18);
+  const safeCustomStyle = sanitizeEditorialOverlayStyle(customStyle);
 
   return (
     <div
@@ -124,11 +132,12 @@ export const PaperRibbonTimeline: React.FC<PaperRibbonTimelineProps> = ({
         justifyContent: 'center',
         pointerEvents: 'none',
         opacity: finalOpacity,
-        transform: `translateY(${slideOffset.toFixed(2)}px)`,
+        transform: buildCrispTranslateYTransform(slideOffset, false),
+        WebkitFontSmoothing: 'antialiased',
         boxSizing: 'border-box',
         paddingLeft: isVertical ? 0 : 48,
         paddingRight: isVertical ? 0 : 48,
-        ...customStyle,
+        ...safeCustomStyle,
       }}
     >
       <div
@@ -177,30 +186,66 @@ export const PaperRibbonTimeline: React.FC<PaperRibbonTimelineProps> = ({
               >
                 <span
                   style={{
+                    display: 'inline-grid',
                     fontFamily: monoFontCss,
                     fontSize: 20,
-                    fontWeight: isActive ? 700 : 500,
                     fontVariantNumeric: 'tabular-nums',
-                    color: isActive
-                      ? studioStyle.palette.accentPrimary
-                      : studioStyle.palette.textSecondary,
                     lineHeight: 1.2,
                   }}
                 >
-                  {m.era}
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      gridArea: '1 / 1',
+                      fontWeight: 700,
+                      visibility: 'hidden',
+                      pointerEvents: 'none',
+                    }}
+                  >
+                    {m.era}
+                  </span>
+                  <span
+                    style={{
+                      gridArea: '1 / 1',
+                      fontWeight: isActive ? 700 : 500,
+                      color: isActive
+                        ? studioStyle.palette.accentPrimary
+                        : studioStyle.palette.textSecondary,
+                    }}
+                  >
+                    {m.era}
+                  </span>
                 </span>
                 <span
                   style={{
+                    display: 'inline-grid',
                     fontFamily: bodyFontCss,
                     fontSize: 21,
-                    fontWeight: isActive ? 700 : 500,
-                    color: isActive
-                      ? studioStyle.palette.textPrimary
-                      : studioStyle.palette.textSecondary,
                     lineHeight: 1.2,
                   }}
                 >
-                  {m.label}
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      gridArea: '1 / 1',
+                      fontWeight: 700,
+                      visibility: 'hidden',
+                      pointerEvents: 'none',
+                    }}
+                  >
+                    {m.label}
+                  </span>
+                  <span
+                    style={{
+                      gridArea: '1 / 1',
+                      fontWeight: isActive ? 700 : 500,
+                      color: isActive
+                        ? studioStyle.palette.textPrimary
+                        : studioStyle.palette.textSecondary,
+                    }}
+                  >
+                    {m.label}
+                  </span>
                 </span>
               </div>
             </React.Fragment>

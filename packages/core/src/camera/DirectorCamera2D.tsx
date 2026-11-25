@@ -156,7 +156,7 @@ export function evaluateDirectorCamera2D(
     nodes,
     shots,
     safeBox9x16Compensation = true,
-    handheldIntensity = 0.15,
+    handheldIntensity = 0,
     impulses = [],
     seed = 2026,
   } = params;
@@ -297,7 +297,7 @@ export interface DirectorCamera2DProps {
   variant?: 'light' | 'dark';
   /** Automatically centers bounded targets inside the `9:16 Golden Safe Box` when `stageHeight > stageWidth` */
   safeBox9x16Compensation?: boolean;
-  /** Subtle low-frequency handheld float intensity (default `0.15`) */
+  /** Subtle low-frequency handheld float intensity (default `0`; opt-in for organic drift) */
   handheldIntensity?: number;
   /** Damped harmonic camera shake impulses */
   impulses?: CameraImpulse[];
@@ -326,7 +326,7 @@ export const DirectorCamera2D: React.FC<DirectorCamera2DProps> = ({
   stageHeight,
   variant,
   safeBox9x16Compensation = true,
-  handheldIntensity = 0.15,
+  handheldIntensity = 0,
   impulses,
   seed = 2026,
   showGrid = true,
@@ -427,6 +427,29 @@ export const DirectorCamera2D: React.FC<DirectorCamera2DProps> = ({
         : 'rgba(51, 65, 85, 0.14)'
       : withStyleColorAlpha(studioStyle.palette.accentPrimary, 0.18);
 
+  const isIdentityCamera =
+    Math.abs(cam.zoom - 1) < 1e-4 &&
+    Math.abs(cam.rotateZ) < 1e-3 &&
+    Math.abs(cam.x - centerX) < 0.05 &&
+    Math.abs(cam.y - centerY) < 0.05;
+  const isCameraSettled =
+    cam.telemetry.velocity < 1e-4 &&
+    handheldIntensity === 0 &&
+    (impulses?.length ?? 0) === 0;
+  const isUnrotatedCamera = Math.abs(cam.rotateZ) < 1e-3;
+  const isUnitZoomCamera = Math.abs(cam.zoom - 1) < 1e-4;
+  const cameraTx = centerX - cam.x * cam.zoom;
+  const cameraTy = centerY - cam.y * cam.zoom;
+  const cameraTransform = isIdentityCamera
+    ? 'none'
+    : isUnrotatedCamera
+      ? isUnitZoomCamera && isCameraSettled
+        ? `translate(${Math.round(cameraTx)}px, ${Math.round(cameraTy)}px)`
+        : isUnitZoomCamera
+          ? `translate(${cameraTx.toFixed(2)}px, ${cameraTy.toFixed(2)}px)`
+          : `translate(${cameraTx.toFixed(2)}px, ${cameraTy.toFixed(2)}px) scale(${cam.zoom.toFixed(5)})`
+      : `translate(${centerX}px, ${centerY}px) scale(${cam.zoom}) rotate(${cam.rotateZ}deg) translate(${-cam.x}px, ${-cam.y}px)`;
+
   return (
     <DirectorCameraTelemetryProvider telemetry={cam.telemetry}>
       <AbsoluteFill
@@ -474,8 +497,10 @@ export const DirectorCamera2D: React.FC<DirectorCamera2DProps> = ({
             width: 0,
             height: 0,
             transformOrigin: '0 0',
-            willChange: 'transform',
-            transform: `translate3d(${centerX}px, ${centerY}px, 0) scale(${cam.zoom}) rotate(${cam.rotateZ}deg) translate3d(${-cam.x}px, ${-cam.y}px, 0)`,
+            ...(isIdentityCamera || isCameraSettled
+              ? {}
+              : { willChange: 'transform' }),
+            transform: cameraTransform,
           }}
         >
           {children}

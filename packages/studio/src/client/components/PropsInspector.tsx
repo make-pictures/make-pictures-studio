@@ -465,10 +465,19 @@ export const PropsInspector: React.FC<PropsInspectorProps> = ({
             return;
           }
           const readStats = mod.getPaperTextureCacheStats;
-          setCacheStats(readStats());
-          intervalId = setInterval(() => {
-            setCacheStats(readStats());
-          }, 1500);
+          const updateIfChanged = () => {
+            const next = readStats();
+            setCacheStats((prev) =>
+              prev &&
+              prev.size === next.size &&
+              prev.activeCount === next.activeCount &&
+              prev.maxEntries === next.maxEntries
+                ? prev
+                : next
+            );
+          };
+          updateIfChanged();
+          intervalId = setInterval(updateIfChanged, 1500);
         }
       )
       .catch(() => {

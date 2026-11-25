@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useId, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
   Camera,
   ChevronDown,
@@ -17,10 +17,13 @@ import {
   getRegisteredVoiceoverManifest,
   type StudioCompositionEntry,
 } from '@make-pictures/core';
+import type { SubscribeFrame } from '../hooks/useRemotionPlayer';
 
 export interface DirectorTimelinePanelProps {
   composition: StudioCompositionEntry;
-  currentFrame: number;
+  currentFrame?: number;
+  getFrame?: () => number;
+  subscribeFrame?: SubscribeFrame;
   onSeek: (frame: number) => void;
   onOpenOutputFile?: (outputFile: string | null) => void;
   hideQaActions?: boolean;
@@ -32,15 +35,65 @@ const preventButtonFocus = (e: React.MouseEvent<HTMLButtonElement>) => {
   e.preventDefault();
 };
 
+interface ActiveTimelineIndices {
+  cameraIdx: number;
+  voIdx: number;
+  sfxMask: string;
+}
+
+function computeActiveIndices(
+  frame: number,
+  cameraCuts: ReadonlyArray<{ fromFrame: number; durationInFrames: number }>,
+  sceneTimeline: ReadonlyArray<{ fromFrame: number; durationInFrames: number }>,
+  sfxCues: ReadonlyArray<{ fromFrame: number }>
+): ActiveTimelineIndices {
+  let cameraIdx = -1;
+  for (let i = 0; i < cameraCuts.length; i++) {
+    const cut = cameraCuts[i];
+    if (frame >= cut.fromFrame && frame < cut.fromFrame + cut.durationInFrames) {
+      cameraIdx = i;
+      break;
+    }
+  }
+
+  let voIdx = -1;
+  for (let i = 0; i < sceneTimeline.length; i++) {
+    const seg = sceneTimeline[i];
+    if (frame >= seg.fromFrame && frame < seg.fromFrame + seg.durationInFrames) {
+      voIdx = i;
+      break;
+    }
+  }
+
+  let sfxMask = '';
+  for (let i = 0; i < sfxCues.length; i++) {
+    if (Math.abs(frame - sfxCues[i].fromFrame) <= 8) {
+      sfxMask = sfxMask ? `${sfxMask},${i}` : String(i);
+    }
+  }
+
+  return { cameraIdx, voIdx, sfxMask };
+}
+
+function computePlayheadPct(frame: number, totalFrames: number): number {
+  return Math.min(
+    100,
+    Math.max(0, (frame / Math.max(1, totalFrames - 1)) * 100)
+  );
+}
+
 export const DirectorTimelinePanel: React.FC<DirectorTimelinePanelProps> = ({
   composition,
-  currentFrame,
+  currentFrame = 0,
+  getFrame,
+  subscribeFrame,
   onSeek,
   onOpenOutputFile,
   hideQaActions = false,
 }) => {
   const rawGradId = useId();
   const duckingGradId = `mpDuckingGrad-${rawGradId.replace(/[^a-zA-Z0-9_-]/g, '')}`;
+  const lanesRef = useRef<HTMLDivElement>(null);
 
   const [collapsed, setCollapsed] = useState<boolean>(false);
   const [qaState, setQaState] = useState<{
@@ -78,10 +131,6 @@ export const DirectorTimelinePanel: React.FC<DirectorTimelinePanelProps> = ({
   }, [showQaModal]);
 
   const totalFrames = Math.max(1, composition.durationInFrames);
-  const playheadPct = Math.min(
-    100,
-    Math.max(0, (currentFrame / Math.max(1, totalFrames - 1)) * 100)
-  );
 
   const cameraCuts = useMemo(() => {
     if (composition.cameraTimeline && composition.cameraTimeline.length > 0) {
@@ -99,6 +148,90 @@ export const DirectorTimelinePanel: React.FC<DirectorTimelinePanelProps> = ({
   const sfxCues = useMemo(
     () => composition.sfxTimeline ?? [],
     [composition.sfxTimeline]
+  );
+
+  const initialFrame = getFrame ? getFrame() : currentFrame;
+  const initialPlayheadPct = computePlayheadPct(initialFrame, totalFrames);
+
+  const [subscribedActive, setSubscribedActive] =
+    useState<ActiveTimelineIndices>(() =>
+      computeActiveIndices(
+        initialFrame,
+        cameraCuts,
+        composition.sceneTimeline,
+        sfxCues
+      )
+    );
+
+  // Imperative 60 FPS playhead via CSS variable (`transform: translate3d(...)`)
+  // and discrete state updates ONLY when the active clip/SFX actually changes.
+  useEffect(() => {
+    if (!subscribeFrame) return;
+
+    const syncFrame = (frame: number) => {
+      const lanes = lanesRef.current;
+      if (lanes) {
+        lanes.style.setProperty(
+          '--mp-playhead-pct',
+          computePlayheadPct(frame, totalFrames).toFixed(4)
+        );
+      }
+      const next = computeActiveIndices(
+        frame,
+        cameraCuts,
+        composition.sceneTimeline,
+        sfxCues
+      );
+      setSubscribedActive((prev) =>
+        prev.cameraIdx === next.cameraIdx &&
+        prev.voIdx === next.voIdx &&
+        prev.sfxMask === next.sfxMask
+          ? prev
+          : next
+      );
+    };
+
+    syncFrame(getFrame ? getFrame() : currentFrame);
+    return subscribeFrame(syncFrame);
+  }, [
+    subscribeFrame,
+    getFrame,
+    currentFrame,
+    totalFrames,
+    cameraCuts,
+    composition.sceneTimeline,
+    sfxCues,
+    collapsed,
+  ]);
+
+  const activeIndices = subscribeFrame
+    ? subscribedActive
+    : computeActiveIndices(
+        currentFrame,
+        cameraCuts,
+        composition.sceneTimeline,
+        sfxCues
+      );
+
+  const activeSfxSet = useMemo(() => {
+    const set = new Set<number>();
+    if (!activeIndices.sfxMask) return set;
+    for (const part of activeIndices.sfxMask.split(',')) {
+      const n = Number(part);
+      if (Number.isInteger(n)) set.add(n);
+    }
+    return set;
+  }, [activeIndices.sfxMask]);
+
+  const lanesStyle = useMemo(
+    () =>
+      ({
+        '--mp-playhead-pct': (subscribeFrame
+          ? initialPlayheadPct
+          : computePlayheadPct(currentFrame, totalFrames)
+        ).toFixed(4),
+      }) as React.CSSProperties,
+    [subscribeFrame, initialPlayheadPct, currentFrame, totalFrames]
   );
 
   const duckingSvgPaths = useMemo(() => {
@@ -265,7 +398,7 @@ export const DirectorTimelinePanel: React.FC<DirectorTimelinePanelProps> = ({
         </div>
 
         {!collapsed && (
-          <div className="mp-dt-lanes">
+          <div className="mp-dt-lanes" ref={lanesRef} style={lanesStyle}>
             {/* Lane 1: Camera Cuts */}
             <div className="mp-dt-row">
               <div className="mp-dt-row-label">
@@ -282,9 +415,7 @@ export const DirectorTimelinePanel: React.FC<DirectorTimelinePanelProps> = ({
                     1.5,
                     (cut.durationInFrames / totalFrames) * 100
                   );
-                  const isCurrent =
-                    currentFrame >= cut.fromFrame &&
-                    currentFrame < cut.fromFrame + cut.durationInFrames;
+                  const isCurrent = idx === activeIndices.cameraIdx;
 
                   return (
                     <button
@@ -310,10 +441,7 @@ export const DirectorTimelinePanel: React.FC<DirectorTimelinePanelProps> = ({
                     </button>
                   );
                 })}
-                <div
-                  className="mp-dt-playhead"
-                  style={{ left: `${playheadPct}%` }}
-                />
+                <div className="mp-dt-playhead" />
               </div>
             </div>
 
@@ -333,9 +461,7 @@ export const DirectorTimelinePanel: React.FC<DirectorTimelinePanelProps> = ({
                     1.5,
                     (seg.durationInFrames / totalFrames) * 100
                   );
-                  const isCurrent =
-                    currentFrame >= seg.fromFrame &&
-                    currentFrame < seg.fromFrame + seg.durationInFrames;
+                  const isCurrent = idx === activeIndices.voIdx;
 
                   return (
                     <button
@@ -359,10 +485,7 @@ export const DirectorTimelinePanel: React.FC<DirectorTimelinePanelProps> = ({
                     </button>
                   );
                 })}
-                <div
-                  className="mp-dt-playhead"
-                  style={{ left: `${playheadPct}%` }}
-                />
+                <div className="mp-dt-playhead" />
               </div>
             </div>
 
@@ -386,7 +509,7 @@ export const DirectorTimelinePanel: React.FC<DirectorTimelinePanelProps> = ({
                       98.5,
                       Math.max(0.5, (cue.fromFrame / totalFrames) * 100)
                     );
-                    const isNear = Math.abs(currentFrame - cue.fromFrame) <= 8;
+                    const isNear = activeSfxSet.has(idx);
                     return (
                       <button
                         key={`${cue.sfxId}-${cue.fromFrame}-${idx}`}
@@ -410,10 +533,7 @@ export const DirectorTimelinePanel: React.FC<DirectorTimelinePanelProps> = ({
                     );
                   })
                 )}
-                <div
-                  className="mp-dt-playhead"
-                  style={{ left: `${playheadPct}%` }}
-                />
+                <div className="mp-dt-playhead" />
               </div>
             </div>
 
@@ -472,10 +592,7 @@ export const DirectorTimelinePanel: React.FC<DirectorTimelinePanelProps> = ({
                     ? 'SmartMusicBed • Aktywny'
                     : 'Podgląd obwiedni sidechain'}
                 </span>
-                <div
-                  className="mp-dt-playhead"
-                  style={{ left: `${playheadPct}%` }}
-                />
+                <div className="mp-dt-playhead" />
               </div>
             </div>
           </div>

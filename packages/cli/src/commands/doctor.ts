@@ -110,7 +110,7 @@ export async function runDoctorCommand(
     } else {
       fs.writeFileSync(
         envLocalPath,
-        'ELEVENLABS_API_KEY=your_elevenlabs_api_key_here\nELEVENLABS_VOICE_ID=TX3LPaxmHKxFdv7VOQHJ\nELEVENLABS_MODEL_ID=eleven_multilingual_v2\n',
+        'ELEVENLABS_API_KEY=your_elevenlabs_api_key_here\nELEVENLABS_VOICE_ID=TX3LPaxmHKxFdv7VOQHJ\nELEVENLABS_MODEL_ID=eleven_v4\n',
         { mode: 0o600 }
       );
     }

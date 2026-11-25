@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Player } from '@remotion/player';
+import { Player, type PlayerRef } from '@remotion/player';
 import {
   Check,
   ChevronLeft,
@@ -23,6 +23,7 @@ import type {
 import { useRemotionPlayer } from '../hooks/useRemotionPlayer';
 import type { OverlaySettings } from '../types';
 import { DirectorOverlays } from './DirectorOverlays';
+import { TransportScrubber } from './TransportScrubber';
 import { StyleLabPreviewComposition } from './style-lab/StyleLabPreviewComposition';
 import {
   STYLE_LAB_DURATION_IN_FRAMES,
@@ -61,6 +62,55 @@ const preventButtonFocus = (e: React.MouseEvent<HTMLButtonElement>) => {
   e.preventDefault();
 };
 
+const PLAYER_FILL_STYLE: React.CSSProperties = {
+  width: '100%',
+  height: '100%',
+};
+
+const MemoDirectorOverlays = React.memo(DirectorOverlays);
+
+interface MemoizedStyleLabPlayerProps {
+  aspectRatio: StyleLabAspectRatio;
+  playerRefCallback: (instance: PlayerRef | null) => void;
+  inputProps: StyleLabCompositionProps;
+  compWidth: number;
+  compHeight: number;
+  initialFrame: number;
+  loop: boolean;
+}
+
+const MemoizedStyleLabPlayer: React.FC<MemoizedStyleLabPlayerProps> = React.memo(
+  ({
+    aspectRatio,
+    playerRefCallback,
+    inputProps,
+    compWidth,
+    compHeight,
+    initialFrame,
+    loop,
+  }) => (
+    <Player
+      key={`stylelab:${aspectRatio}`}
+      ref={playerRefCallback}
+      component={StyleLabPreviewComposition}
+      inputProps={inputProps}
+      durationInFrames={STYLE_LAB_DURATION_IN_FRAMES}
+      compositionWidth={compWidth}
+      compositionHeight={compHeight}
+      fps={STYLE_LAB_FPS}
+      initialFrame={initialFrame}
+      loop={loop}
+      controls={false}
+      clickToPlay={true}
+      spaceKeyToPlayOrPause={false}
+      acknowledgeRemotionLicense={true}
+      style={PLAYER_FILL_STYLE}
+    />
+  )
+);
+
+MemoizedStyleLabPlayer.displayName = 'MemoizedStyleLabPlayer';
+
 export interface StyleLabShowcaseProps {
   activeStyle: StylePreset;
   activeKit: BuiltinVisualKitId;
@@ -92,8 +142,9 @@ export const StyleLabShowcase: React.FC<StyleLabShowcaseProps> = ({
 
   const {
     playerRefCallback,
-    displayFrame,
     currentFrameRef,
+    getFrame,
+    subscribeFrame,
     isPlaying,
     loop,
     setLoop,
@@ -105,6 +156,7 @@ export const StyleLabShowcase: React.FC<StyleLabShowcaseProps> = ({
     durationInFrames: STYLE_LAB_DURATION_IN_FRAMES,
     resetKey: 'stylelab',
     initialFrame: 48,
+    trackDisplayFrame: false,
     onPlayingChange,
     onFpsMeasure,
   });
@@ -117,6 +169,12 @@ export const StyleLabShowcase: React.FC<StyleLabShowcaseProps> = ({
   const compWidth = aspectRatio === '9:16' ? 1080 : 1920;
   const compHeight = aspectRatio === '9:16' ? 1920 : 1080;
   const maxFrameIndex = STYLE_LAB_DURATION_IN_FRAMES - 1;
+  const stableInitialFrame = useMemo(
+    () => Math.min(currentFrameRef.current, maxFrameIndex),
+    // Only recompute initialFrame when Player remounts on aspectRatio switch
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [aspectRatio, maxFrameIndex]
+  );
   const activeSpace = resolveKitDimensionalSpace(activeKit);
   const cliCommand = `npx make-pictures new moj-film --space=${activeSpace} --kit=${activeKit} --style=${activeStyle.id}`;
 
@@ -126,6 +184,14 @@ export const StyleLabShowcase: React.FC<StyleLabShowcaseProps> = ({
       kit: activeKit,
     }),
     [activeStyle, activeKit]
+  );
+
+  const handlePauseAndSeek = useCallback(
+    (target: number) => {
+      pause();
+      seekToFrame(target);
+    },
+    [pause, seekToFrame]
   );
 
   useEffect(() => {
@@ -158,12 +224,12 @@ export const StyleLabShowcase: React.FC<StyleLabShowcaseProps> = ({
     const el = stageAreaRef.current;
     if (!el) return;
 
-    const computeFit = () => {
-      const rect = el.getBoundingClientRect();
-      const padX = rect.width < 640 ? 20 : 52;
-      const padY = rect.height < 480 ? 20 : 36;
-      const availW = Math.max(200, rect.width - padX);
-      const availH = Math.max(150, rect.height - padY);
+    let rafId: number | null = null;
+    const applyFit = (width: number, height: number) => {
+      const padX = width < 640 ? 20 : 52;
+      const padY = height < 480 ? 20 : 36;
+      const availW = Math.max(200, width - padX);
+      const availH = Math.max(150, height - padY);
       const aspect = compWidth / compHeight;
 
       let fitW = availW;
@@ -173,16 +239,35 @@ export const StyleLabShowcase: React.FC<StyleLabShowcaseProps> = ({
         fitW = fitH * aspect;
       }
 
-      setStageBox({
-        w: Math.round(fitW),
-        h: Math.round(fitH),
-      });
+      const nextW = Math.round(fitW);
+      const nextH = Math.round(fitH);
+      setStageBox((prev) =>
+        prev.w === nextW && prev.h === nextH ? prev : { w: nextW, h: nextH }
+      );
     };
 
-    computeFit();
-    const ro = new ResizeObserver(computeFit);
+    const rect = el.getBoundingClientRect();
+    applyFit(rect.width, rect.height);
+
+    const ro = new ResizeObserver((entries) => {
+      const entry = entries[entries.length - 1];
+      const nextWidth = entry?.contentRect.width ?? el.clientWidth;
+      const nextHeight = entry?.contentRect.height ?? el.clientHeight;
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+      }
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        applyFit(nextWidth, nextHeight);
+      });
+    });
     ro.observe(el);
-    return () => ro.disconnect();
+    return () => {
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+      }
+      ro.disconnect();
+    };
   }, [compWidth, compHeight]);
 
   return (
@@ -325,28 +410,17 @@ export const StyleLabShowcase: React.FC<StyleLabShowcaseProps> = ({
           className="mp-player-frame"
           style={{ width: stageBox.w, height: stageBox.h }}
         >
-          <Player
-            key={`stylelab:${aspectRatio}`}
-            ref={playerRefCallback}
-            component={StyleLabPreviewComposition}
+          <MemoizedStyleLabPlayer
+            aspectRatio={aspectRatio}
+            playerRefCallback={playerRefCallback}
             inputProps={inputProps}
-            durationInFrames={STYLE_LAB_DURATION_IN_FRAMES}
-            compositionWidth={compWidth}
-            compositionHeight={compHeight}
-            fps={STYLE_LAB_FPS}
-            initialFrame={Math.min(currentFrameRef.current, maxFrameIndex)}
+            compWidth={compWidth}
+            compHeight={compHeight}
+            initialFrame={stableInitialFrame}
             loop={loop}
-            controls={false}
-            clickToPlay={true}
-            spaceKeyToPlayOrPause={false}
-            acknowledgeRemotionLicense={true}
-            style={{
-              width: '100%',
-              height: '100%',
-            }}
           />
 
-          <DirectorOverlays
+          <MemoDirectorOverlays
             width={compWidth}
             height={compHeight}
             overlays={overlays}
@@ -390,8 +464,7 @@ export const StyleLabShowcase: React.FC<StyleLabShowcaseProps> = ({
               className="mp-icon-btn"
               onMouseDown={preventButtonFocus}
               onClick={() => {
-                pause();
-                seekToFrame(displayFrame - 10);
+                handlePauseAndSeek(currentFrameRef.current - 10);
               }}
               title="-10 klatek (J / Shift + ←)"
               aria-label="Cofnij o 10 klatek"
@@ -404,8 +477,7 @@ export const StyleLabShowcase: React.FC<StyleLabShowcaseProps> = ({
               className="mp-icon-btn"
               onMouseDown={preventButtonFocus}
               onClick={() => {
-                pause();
-                seekToFrame(displayFrame - 1);
+                handlePauseAndSeek(currentFrameRef.current - 1);
               }}
               title="-1 klatka (←)"
               aria-label="Poprzednia klatka"
@@ -418,8 +490,7 @@ export const StyleLabShowcase: React.FC<StyleLabShowcaseProps> = ({
               className="mp-icon-btn"
               onMouseDown={preventButtonFocus}
               onClick={() => {
-                pause();
-                seekToFrame(displayFrame + 1);
+                handlePauseAndSeek(currentFrameRef.current + 1);
               }}
               title="+1 klatka (→)"
               aria-label="Następna klatka"
@@ -432,8 +503,7 @@ export const StyleLabShowcase: React.FC<StyleLabShowcaseProps> = ({
               className="mp-icon-btn"
               onMouseDown={preventButtonFocus}
               onClick={() => {
-                pause();
-                seekToFrame(displayFrame + 10);
+                handlePauseAndSeek(currentFrameRef.current + 10);
               }}
               title="+10 klatek (L / Shift + →)"
               aria-label="Przeskocz o 10 klatek"
@@ -446,8 +516,7 @@ export const StyleLabShowcase: React.FC<StyleLabShowcaseProps> = ({
               className="mp-icon-btn"
               onMouseDown={preventButtonFocus}
               onClick={() => {
-                pause();
-                seekToFrame(0);
+                handlePauseAndSeek(0);
               }}
               title="Skocz do klatki 0 (weryfikacja czystego tła startowego)"
               aria-label="Skocz do klatki 0"
@@ -456,25 +525,16 @@ export const StyleLabShowcase: React.FC<StyleLabShowcaseProps> = ({
             </button>
           </div>
 
-          {/* Smooth Scrubber + Tabular Timecode Pill */}
-          <div className="mp-scrubber-wrap">
-            <input
-              type="range"
-              className="mp-timeline-slider"
-              min={0}
-              max={maxFrameIndex}
-              value={Math.min(displayFrame, maxFrameIndex)}
-              aria-label="Oś czasu podglądu stylu"
-              onChange={(e) => {
-                pause();
-                seekToFrame(Number(e.target.value));
-              }}
-            />
-            <span className="mp-timecode-pill mp-tabular">
-              {formatTimecode(displayFrame, STYLE_LAB_FPS)} • f:{displayFrame}/
-              {maxFrameIndex}
-            </span>
-          </div>
+          {/* Smooth Scrubber + Tabular Timecode Pill (ref-driven, 0 React re-renders at 60 FPS) */}
+          <TransportScrubber
+            resetKey="stylelab"
+            fps={STYLE_LAB_FPS}
+            maxFrameIndex={maxFrameIndex}
+            ariaLabel="Oś czasu podglądu stylu"
+            getFrame={getFrame}
+            subscribeFrame={subscribeFrame}
+            onScrub={handlePauseAndSeek}
+          />
 
           {/* Loop, Safe Box, Grid 3×3 & Frame 0 */}
           <div className="mp-toolbar-group" style={{ flexShrink: 0 }}>

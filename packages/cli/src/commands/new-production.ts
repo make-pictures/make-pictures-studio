@@ -182,6 +182,7 @@ export function buildScaffoldProductionManifest(
     title,
     fps: 60,
     lang,
+    modelId: DEFAULT_ELEVENLABS_MODEL_ID,
     scenes: [
       {
         id: `${slug}-intro`,

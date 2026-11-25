@@ -46,6 +46,11 @@ export interface StudioAppProps {
 const EMPTY_COMPOSITIONS: StudioCompositionEntry[] = [];
 const STYLE_SLUG_RE = /^[a-z0-9][a-z0-9-]{0,62}$/;
 
+const MemoTopbar = React.memo(Topbar);
+const MemoStageViewport = React.memo(StageViewport);
+const MemoStyleLabShowcase = React.memo(StyleLabShowcase);
+const MemoPropsInspector = React.memo(PropsInspector);
+
 function findComposition(
   list: StudioCompositionEntry[],
   id: string
@@ -124,6 +129,14 @@ export const StudioApp: React.FC<StudioAppProps> = ({
 
   const handleToggleInspector = useCallback(() => {
     setInspectorOpen((prev) => !prev);
+  }, []);
+
+  const handleCloseInspector = useCallback(() => {
+    setInspectorOpen(false);
+  }, []);
+
+  const handleToggleFilmAutoSave = useCallback(() => {
+    setAutoSave((prev) => !prev);
   }, []);
 
   const [selectedId, setSelectedId] = useState<string>(() =>
@@ -401,9 +414,11 @@ export const StudioApp: React.FC<StudioAppProps> = ({
       ? findComposition(compositions, selectedId) ?? compositions[0]
       : null;
 
-  const currentModuleDiskJson = activeComposition
-    ? JSON.stringify(activeComposition.defaultProps)
-    : '{}';
+  const currentModuleDiskJson = useMemo(
+    () =>
+      activeComposition ? JSON.stringify(activeComposition.defaultProps) : '{}',
+    [activeComposition]
+  );
 
   useEffect(() => {
     if (!activeComposition) return;
@@ -716,9 +731,12 @@ export const StudioApp: React.FC<StudioAppProps> = ({
       : activeBaselineStyle;
   }, [activeLiveStyleRaw, activeStyleId, activeBaselineStyle]);
 
-  const activeStyleBaselineJson =
-    savedStyleBaselineById[activeStyleId] ??
-    JSON.stringify(activeBaselineStyle);
+  const activeStyleBaselineJson = useMemo(
+    () =>
+      savedStyleBaselineById[activeStyleId] ??
+      JSON.stringify(activeBaselineStyle),
+    [savedStyleBaselineById, activeStyleId, activeBaselineStyle]
+  );
   const activeStyleLiveJson = useMemo(
     () => JSON.stringify(activeLiveStyleRaw),
     [activeLiveStyleRaw]
@@ -1157,9 +1175,19 @@ export const StudioApp: React.FC<StudioAppProps> = ({
     onChangeThemeMode: setThemeMode,
   };
 
-  // ==================== VIEW 1: STYLE LAB (60 FPS) ====================
-  if (viewMode === 'styles') {
-    const styleSaveAsBanner = isActiveStyleBuiltIn ? (
+  const handleToggleStyleAutoSave = useCallback(() => {
+    if (isActiveStyleBuiltIn) {
+      openSaveAsCustomPrompt();
+    } else {
+      setStyleAutoSave((v) => !v);
+    }
+  }, [isActiveStyleBuiltIn, openSaveAsCustomPrompt]);
+
+  const styleSaveAsBanner = useMemo(() => {
+    if (viewMode !== 'styles' || !isActiveStyleBuiltIn) {
+      return undefined;
+    }
+    return (
       <div className="mp-style-saveas-banner">
         <div className="mp-style-saveas-info">
           <Sparkles
@@ -1232,11 +1260,24 @@ export const StudioApp: React.FC<StudioAppProps> = ({
           </form>
         )}
       </div>
-    ) : undefined;
+    );
+  }, [
+    viewMode,
+    isActiveStyleBuiltIn,
+    activeStyleId,
+    showSaveAsCustomForm,
+    isSavingStyle,
+    openSaveAsCustomPrompt,
+    handleSubmitSaveAsCustom,
+    saveAsSlugDraft,
+    saveAsSlugError,
+  ]);
 
+  // ==================== VIEW 1: STYLE LAB (60 FPS) ====================
+  if (viewMode === 'styles') {
     return (
       <div className="mp-shell" data-theme={resolvedTheme}>
-        <Topbar
+        <MemoTopbar
           {...topbarSharedProps}
           isPlaying={isPlaying}
           inspectorOpen={inspectorOpen}
@@ -1248,7 +1289,7 @@ export const StudioApp: React.FC<StudioAppProps> = ({
             inspectorOpen ? '' : 'is-inspector-closed'
           }`.trim()}
         >
-          <StyleLabShowcase
+          <MemoStyleLabShowcase
             activeStyle={activeLiveStylePreset}
             activeKit={styleLabKit}
             onSelectKit={handleSelectStyleLabKit}
@@ -1261,7 +1302,7 @@ export const StudioApp: React.FC<StudioAppProps> = ({
             onFpsMeasure={setMeasuredFps}
           />
 
-          <PropsInspector
+          <MemoPropsInspector
             mode="styles"
             composition={syntheticStyleComposition}
             liveProps={activeLiveStyleRaw}
@@ -1272,17 +1313,11 @@ export const StudioApp: React.FC<StudioAppProps> = ({
             lastSavedAt={styleLastSavedAt}
             onChangeProps={handleChangeStyleDraft}
             onSave={handleSaveActiveStyle}
-            onToggleAutoSave={() => {
-              if (isActiveStyleBuiltIn) {
-                openSaveAsCustomPrompt();
-              } else {
-                setStyleAutoSave((v) => !v);
-              }
-            }}
+            onToggleAutoSave={handleToggleStyleAutoSave}
             onResetToDisk={handleResetActiveStyle}
             availableStyles={availableStyles}
             isMobileOpen={inspectorOpen}
-            onCloseMobile={() => setInspectorOpen(false)}
+            onCloseMobile={handleCloseInspector}
             styleSaveAsBanner={styleSaveAsBanner}
           />
         </div>
@@ -1291,7 +1326,7 @@ export const StudioApp: React.FC<StudioAppProps> = ({
           className={`mp-inspector-backdrop ${
             inspectorOpen ? '' : 'is-hidden'
           }`.trim()}
-          onClick={() => setInspectorOpen(false)}
+          onClick={handleCloseInspector}
           aria-hidden="true"
         />
       </div>
@@ -1302,7 +1337,11 @@ export const StudioApp: React.FC<StudioAppProps> = ({
   if (!activeComposition) {
     return (
       <div className="mp-shell" data-theme={resolvedTheme}>
-        <Topbar {...topbarSharedProps} activeComposition={null} isPlaying={false} />
+        <MemoTopbar
+          {...topbarSharedProps}
+          activeComposition={null}
+          isPlaying={false}
+        />
 
         <main className="mp-empty-studio-screen">
           <div className="mp-empty-studio-card">
@@ -1365,7 +1404,7 @@ export const StudioApp: React.FC<StudioAppProps> = ({
   // ==================== VIEW 3: FILMS WORKSPACE ====================
   return (
     <div className="mp-shell" data-theme={resolvedTheme}>
-      <Topbar
+      <MemoTopbar
         {...topbarSharedProps}
         isPlaying={isPlaying}
         inspectorOpen={inspectorOpen}
@@ -1377,7 +1416,7 @@ export const StudioApp: React.FC<StudioAppProps> = ({
           inspectorOpen ? '' : 'is-inspector-closed'
         }`.trim()}
       >
-        <StageViewport
+        <MemoStageViewport
           composition={activeComposition}
           inputProps={activeLiveProps}
           overlays={overlays}
@@ -1386,7 +1425,7 @@ export const StudioApp: React.FC<StudioAppProps> = ({
           onFpsMeasure={setMeasuredFps}
         />
 
-        <PropsInspector
+        <MemoPropsInspector
           mode="films"
           composition={activeComposition}
           liveProps={activeLiveProps}
@@ -1397,7 +1436,7 @@ export const StudioApp: React.FC<StudioAppProps> = ({
           lastSavedAt={lastSavedAt}
           onChangeProps={handleChangeLiveProps}
           onSave={handleSaveActive}
-          onToggleAutoSave={() => setAutoSave((v) => !v)}
+          onToggleAutoSave={handleToggleFilmAutoSave}
           onResetToDisk={handleResetActive}
           availableStyles={availableStyles}
           onOpenStyleLab={handleOpenStyleLab}
@@ -1406,7 +1445,7 @@ export const StudioApp: React.FC<StudioAppProps> = ({
           onSaveScene={handleSaveScene}
           onRefreshScenesAndStatus={handleRefreshScenesAndStatus}
           isMobileOpen={inspectorOpen}
-          onCloseMobile={() => setInspectorOpen(false)}
+          onCloseMobile={handleCloseInspector}
         />
       </div>
 
@@ -1414,7 +1453,7 @@ export const StudioApp: React.FC<StudioAppProps> = ({
         className={`mp-inspector-backdrop ${
           inspectorOpen ? '' : 'is-hidden'
         }`.trim()}
-        onClick={() => setInspectorOpen(false)}
+        onClick={handleCloseInspector}
         aria-hidden="true"
       />
     </div>

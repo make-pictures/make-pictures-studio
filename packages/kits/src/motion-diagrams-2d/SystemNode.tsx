@@ -293,14 +293,23 @@ export const SystemNode: React.FC<SystemNodeProps> = ({
           scaleFactor: 1,
         };
 
+  // Keep settled sharp nodes strictly at scale 1.0000 during activeRanges (active emphasis uses crisp accent border, top bar, shadow & tint — zero micro-scale text shimmer!)
   const scale =
-    (interpolate(enterProgress, [0, 1], [0.93, 1]) +
-      interpolate(activeStrength, [0, 1], [0, 0.018])) *
-    resolvedFocus.scaleFactor;
+    interpolate(enterProgress, [0, 1], [0.93, 1]) * resolvedFocus.scaleFactor;
   const translateY = interpolate(enterProgress, [0, 1], [18, 0]);
-  const opacity =
-    interpolate(enterProgress, [0, 0.65, 1], [0, 0.94, 1]) *
-    resolvedFocus.opacityScale;
+  const isTransformSettled =
+    Math.abs(translateY) < 0.25 && Math.abs(scale - 1) < 0.0005;
+  const nodeTransform = isTransformSettled
+    ? 'none'
+    : Math.abs(scale - 1) < 0.0005
+      ? `translateY(${Math.round(translateY)}px)`
+      : `translateY(${translateY.toFixed(2)}px) scale(${scale.toFixed(4)})`;
+  const rawEnterOpacity = interpolate(enterProgress, [0, 0.65, 1], [0, 0.94, 1], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+  const clampedEnterOpacity = rawEnterOpacity >= 0.998 ? 1 : rawEnterOpacity;
+  const opacity = clampedEnterOpacity * resolvedFocus.opacityScale;
 
   const displayedStatus =
     isCurrentlyActive && activeStatusText ? activeStatusText : statusText;
@@ -393,8 +402,8 @@ export const SystemNode: React.FC<SystemNodeProps> = ({
         height,
         opacity,
         filter: resolvedFocus.filterCss,
-        willChange: 'transform, opacity',
-        transform: `translate3d(0, ${translateY.toFixed(2)}px, 0) scale(${scale.toFixed(4)})`,
+        ...(isTransformSettled ? {} : { willChange: 'transform, opacity' }),
+        transform: nodeTransform,
         ...tactileChrome,
         padding: '13px 20px',
         display: 'flex',

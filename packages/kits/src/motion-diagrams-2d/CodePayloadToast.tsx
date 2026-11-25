@@ -170,13 +170,19 @@ export const CodePayloadToast: React.FC<CodePayloadToastProps> = ({
     extrapolateRight: 'clamp',
   });
 
-  const combined = enterProgress * exitProgress;
+  const combined = Math.max(0, Math.min(1, enterProgress * exitProgress));
   if (combined <= 0.002) {
     return null;
   }
+  const snappedOpacity = combined >= 0.998 ? 1 : combined;
 
   const translateY = interpolate(enterProgress, [0, 1], [16, 0]);
   const scale = interpolate(combined, [0, 1], [0.94, 1]);
+  const isToastSettled =
+    Math.abs(translateY) < 0.25 && Math.abs(scale - 1) < 0.0005;
+  const toastTransform = isToastSettled
+    ? 'none'
+    : `translateY(${translateY.toFixed(2)}px) scale(${scale.toFixed(4)})`;
   const lines = code.trim().split('\n');
 
   const plateChrome = getTactileSurfaceStyle(studioStyle, {
@@ -194,9 +200,9 @@ export const CodePayloadToast: React.FC<CodePayloadToastProps> = ({
         left: x - width / 2,
         top: y,
         width,
-        opacity: combined,
-        willChange: 'transform, opacity',
-        transform: `translate3d(0, ${translateY.toFixed(2)}px, 0) scale(${scale.toFixed(4)})`,
+        opacity: snappedOpacity,
+        ...(isToastSettled ? {} : { willChange: 'transform, opacity' }),
+        transform: toastTransform,
         ...plateChrome,
         overflow: 'hidden',
         pointerEvents: 'none',

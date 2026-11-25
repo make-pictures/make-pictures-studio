@@ -8,6 +8,11 @@ import {
   useStudioFontsReady,
   useStudioStyle,
 } from '@make-pictures/core';
+import {
+  buildCrispTranslateYTransform,
+  sanitizeEditorialOverlayStyle,
+  snapSettledProgress,
+} from './overlayStability';
 
 export interface FloatingEditorialDisplayProps {
   headline: string;
@@ -76,12 +81,14 @@ export const FloatingEditorialDisplay: React.FC<
     return null;
   }
 
-  const enter = spring({
+  const rawEnter = spring({
     frame: frame - effectiveStart,
     fps,
     config: getStyleSpringConfig(studioStyle, 'enter'),
   });
-  const finalOpacity = Math.max(0, Math.min(1, enter * opacity));
+  const enter = snapSettledProgress(rawEnter);
+  const rawOpacity = Math.max(0, Math.min(1, enter * opacity));
+  const finalOpacity = snapSettledProgress(rawOpacity);
   if (finalOpacity <= 0.005) {
     return null;
   }
@@ -145,17 +152,19 @@ export const FloatingEditorialDisplay: React.FC<
     position === 'center'
       ? {
           top: isVertical ? Math.round(800 * scaleY) : '50%',
-          transform: `translateY(calc(-50% + ${((1 - enter) * 14).toFixed(2)}px))`,
+          transform: buildCrispTranslateYTransform((1 - enter) * 14, true),
         }
       : position === 'bottom'
         ? {
             bottom: isVertical ? Math.round(540 * scaleY) : 118,
-            transform: `translateY(${((1 - enter) * 14).toFixed(2)}px)`,
+            transform: buildCrispTranslateYTransform((1 - enter) * 14, false),
           }
         : {
             top: isVertical ? Math.round(220 * scaleY) : 44,
-            transform: `translateY(${((1 - enter) * -14).toFixed(2)}px)`,
+            transform: buildCrispTranslateYTransform((1 - enter) * -14, false),
           };
+
+  const safeCustomStyle = sanitizeEditorialOverlayStyle(customStyle);
 
   return (
     <div
@@ -172,8 +181,9 @@ export const FloatingEditorialDisplay: React.FC<
         background: 'transparent',
         pointerEvents: 'none',
         opacity: finalOpacity,
+        WebkitFontSmoothing: 'antialiased',
         boxSizing: 'border-box',
-        ...customStyle,
+        ...safeCustomStyle,
       }}
     >
       {eyebrow && (
@@ -182,6 +192,7 @@ export const FloatingEditorialDisplay: React.FC<
             fontFamily: monoFontCss,
             fontSize: 19,
             fontWeight: 600,
+            fontVariantNumeric: 'tabular-nums',
             letterSpacing: '0.08em',
             textTransform: 'uppercase',
             color: accentColor,

@@ -191,11 +191,20 @@ export function attachPlayerLifecycle(
   };
 }
 
+export type FrameListener = (frame: number) => void;
+export type SubscribeFrame = (listener: FrameListener) => () => void;
+
 export interface UseRemotionPlayerOptions {
   fps: number;
   durationInFrames: number;
   resetKey: string;
   initialFrame?: number;
+  /**
+   * When `false`, `frameupdate` ticks update `currentFrameRef` and notify `subscribeFrame`
+   * listeners without calling `setDisplayFrame` in React state (eliminating 60 Hz parent
+   * re-renders above `<Player />`). Defaults to `true` for backward compatibility.
+   */
+  trackDisplayFrame?: boolean;
   onFrameChange?: (frame: number) => void;
   onPlayingChange?: (playing: boolean) => void;
   onFpsMeasure?: (fps: number) => void;
@@ -206,6 +215,8 @@ export interface UseRemotionPlayerResult {
   playerRefCallback: (instance: PlayerRef | null) => void;
   displayFrame: number;
   currentFrameRef: React.MutableRefObject<number>;
+  getFrame: () => number;
+  subscribeFrame: SubscribeFrame;
   isPlaying: boolean;
   loop: boolean;
   setLoop: React.Dispatch<React.SetStateAction<boolean>>;
@@ -225,6 +236,7 @@ export function useRemotionPlayer(
     durationInFrames,
     resetKey,
     initialFrame,
+    trackDisplayFrame = true,
     onFrameChange,
     onPlayingChange,
     onFpsMeasure,
@@ -237,6 +249,10 @@ export function useRemotionPlayer(
   const currentFrameRef = useRef<number>(initialClamped);
   const prevResetKeyRef = useRef<string>(resetKey);
   const effectResetKeyRef = useRef<string>(resetKey);
+  const frameListenersRef = useRef<Set<FrameListener>>(new Set());
+
+  const trackDisplayFrameRef = useRef<boolean>(trackDisplayFrame);
+  trackDisplayFrameRef.current = trackDisplayFrame;
 
   const [displayFrame, setDisplayFrame] = useState<number>(initialClamped);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
@@ -259,6 +275,28 @@ export function useRemotionPlayer(
   const onFpsMeasureRef = useRef(onFpsMeasure);
   onFpsMeasureRef.current = onFpsMeasure;
 
+  const getFrame = useCallback(() => currentFrameRef.current, []);
+
+  const subscribeFrame = useCallback<SubscribeFrame>((listener) => {
+    frameListenersRef.current.add(listener);
+    return () => {
+      frameListenersRef.current.delete(listener);
+    };
+  }, []);
+
+  const emitFrame = useCallback((clamped: number) => {
+    currentFrameRef.current = clamped;
+    if (trackDisplayFrameRef.current) {
+      setDisplayFrame((prev) => (prev === clamped ? prev : clamped));
+    }
+    if (frameListenersRef.current.size > 0) {
+      for (const listener of frameListenersRef.current) {
+        listener(clamped);
+      }
+    }
+    onFrameChangeRef.current?.(clamped);
+  }, []);
+
   // Preserve currentFrameRef across HMR when resetKey stays the same;
   // reset synchronously during render when switching resetKey (e.g. composition.id).
   if (prevResetKeyRef.current !== resetKey) {
@@ -278,16 +316,23 @@ export function useRemotionPlayer(
     if (effectResetKeyRef.current !== resetKey) {
       effectResetKeyRef.current = resetKey;
       const resetTarget = clampFrameIndex(initialFrame ?? 0, durationInFrames);
-      currentFrameRef.current = resetTarget;
-      setDisplayFrame(resetTarget);
+      emitFrame(resetTarget);
       isPlayingRef.current = false;
       setIsPlaying(false);
-      onFrameChangeRef.current?.(resetTarget);
       onPlayingChangeRef.current?.(false);
     } else {
-      setDisplayFrame(currentFrameRef.current);
+      const clamped = clampFrameIndex(currentFrameRef.current, durationInFrames);
+      currentFrameRef.current = clamped;
+      if (trackDisplayFrameRef.current) {
+        setDisplayFrame((prev) => (prev === clamped ? prev : clamped));
+      }
+      if (frameListenersRef.current.size > 0) {
+        for (const listener of frameListenersRef.current) {
+          listener(clamped);
+        }
+      }
     }
-  }, [resetKey, initialFrame, durationInFrames]);
+  }, [resetKey, initialFrame, durationInFrames, emitFrame]);
 
   const playerRefCallback = useCallback((instance: PlayerRef | null) => {
     playerRef.current = instance;
@@ -307,9 +352,7 @@ export function useRemotionPlayer(
       fps,
       onFrameChange: (frame) => {
         const clamped = clampFrameIndex(frame, durationInFrames);
-        currentFrameRef.current = clamped;
-        setDisplayFrame(clamped);
-        onFrameChangeRef.current?.(clamped);
+        emitFrame(clamped);
       },
       onPlayingChange: (playing) => {
         const changed = isPlayingRef.current !== playing;
@@ -323,17 +366,15 @@ export function useRemotionPlayer(
         onFpsMeasureRef.current?.(measured);
       },
     });
-  }, [playerInstance, fps, durationInFrames]);
+  }, [playerInstance, fps, durationInFrames, emitFrame]);
 
   const seekToFrame = useCallback(
     (target: number) => {
       const clamped = clampFrameIndex(target, durationInFrames);
-      currentFrameRef.current = clamped;
-      setDisplayFrame(clamped);
-      onFrameChangeRef.current?.(clamped);
+      emitFrame(clamped);
       playerRef.current?.seekTo(clamped);
     },
-    [durationInFrames]
+    [durationInFrames, emitFrame]
   );
 
   const pause = useCallback(() => {
@@ -364,14 +405,12 @@ export function useRemotionPlayer(
         durationInFrames > 1 &&
         currentFrameRef.current >= durationInFrames - 1
       ) {
-        currentFrameRef.current = 0;
-        setDisplayFrame(0);
-        onFrameChangeRef.current?.(0);
+        emitFrame(0);
         player.seekTo(0);
       }
       player.play();
     }
-  }, [durationInFrames]);
+  }, [durationInFrames, emitFrame]);
 
   const setMuted: React.Dispatch<React.SetStateAction<boolean>> = useCallback(
     (action) => {
@@ -457,6 +496,8 @@ export function useRemotionPlayer(
     playerRefCallback,
     displayFrame,
     currentFrameRef,
+    getFrame,
+    subscribeFrame,
     isPlaying,
     loop,
     setLoop,

@@ -556,6 +556,11 @@ export const RetroPcWindowStage2D: React.FC<RetroPcWindowStage2DProps> = ({
 
   const gaugeSegments = 10;
   const litGaugeCount = Math.round(clampedProgress * gaugeSegments);
+  const isWindowSettled =
+    Math.abs(windowTranslateY) < 0.25 && Math.abs(windowScale - 1) < 0.0005;
+  const windowTransform = isWindowSettled
+    ? 'none'
+    : `translateY(${windowTranslateY.toFixed(2)}px) scale(${windowScale.toFixed(4)})`;
 
   return (
     <div
@@ -568,8 +573,8 @@ export const RetroPcWindowStage2D: React.FC<RetroPcWindowStage2DProps> = ({
         width: layout.windowWidth,
         height: layout.windowHeight,
         opacity: windowOpacity,
-        transform: `translate3d(0, ${windowTranslateY.toFixed(2)}px, 0) scale(${windowScale.toFixed(4)})`,
-        willChange: 'transform, opacity',
+        transform: windowTransform,
+        ...(isWindowSettled ? {} : { willChange: 'transform, opacity' }),
         ...outerChrome,
         display: 'flex',
         flexDirection: 'column',

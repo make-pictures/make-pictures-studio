@@ -104,6 +104,7 @@ Load `sound-and-music-design` and write `productions/<slug>/production.json` con
   "title": "Jak prasa drukarska przyspieszyła naukę",
   "fps": 60,
   "lang": "pl",
+  "modelId": "eleven_v4",
   "scenes": [
     {
       "id": "s1-hook",
@@ -111,7 +112,7 @@ Load `sound-and-music-design` and write `productions/<slug>/production.json` con
       "speaker": "Narrator",
       "voiceId": "F9eb9uZYeJuHuO7Uvs1R",
       "voiceEffect": "clean",
-      "text": "W ciągu zaledwie pięćdziesięciu lat koszt książki spadł o osiemdziesiąt procent."
+      "text": "[thoughtful] W ciągu zaledwie pięćdziesięciu lat koszt książki spadł o osiemdziesiąt procent."
     }
   ],
   "score": {
@@ -141,7 +142,7 @@ Load `sound-and-music-design` and write `productions/<slug>/production.json` con
   3. **Final-Scene Outro Hold:** **`+2.2–2.5 s` (`132–150` frames; default `144f`, hard minimum `132f`)** paired with `<SmartMusicBed fadeOutFrames={90} />`.
 - **Sub-View Budget (`<= 2` Sub-Views via `<SceneSubViewDissolve />`):** Keep at most **1 evolving layout** OR **2 spacious sub-views (`View A → View B`)** connected via `<SceneSubViewDissolve switchAtFrame={...} dissolveFrames={54} />` (`48–60` frames). **3+ sub-views inside one scene are banned** — split them into separate scenes in `production.json`.
 - **Single Focal Point (`useFocalStagger` & `CINEMATIC_SPRINGS`):** Keep at most **1 primary focal hero** entering at once (`useFocalStagger(frame, fps)` staggers `lead` at `frame >= 2`, `support` at `+22f`, and `ambient` at `+40f`). **Never** mount `<WordByWordStage>` in the same scene/component as `<ImpactKeywordCard>`, `<StoryCard2D>`, `<MetricComparisonCard>`, or `<SystemNode>`.
-- **Conversational Script, Calm Cadence (`<= 2.8 words/s`) & Zero SKU Codes:** Open `s1-hook` in clear, conversational language (never buzzword soup). Never read catalog SKUs or hardware part numbers (`DK-940X-TB4`) aloud in `scene.text` — state the concrete user benefit in speech and place model series in a visual `badge`. Set natural `voiceSettings.speed: 0.98–1.00`.
+- **Creator/Audience-Focused Copy, Calm Cadence (`<= 2.8 words/s`) & Zero Tech-Spec Flexing:** Write film titles, cards, and narration strictly for the viewer — **never flex internal engine/render jargon** (`"60 FPS"`, `"-14 LUFS"`, `"0 kolizji"`, `"GPU"`, `"PBR"`, `"SAT"`) or read catalog SKU codes (`DK-940X-TB4`) aloud in `scene.text`. Open `s1-hook` in clear, conversational language, use `eleven_v4` (default) with expressive intonation tags (`[thoughtful]`, `[warmly]`, `[playful]`, `[amazed]`, `[excited]`), use **`dialogueInputs`** (ElevenLabs Text-to-Dialogue `convertWithTimestamps`) for multi-speaker studio conversations, and set natural `voiceSettings.speed: 0.98–1.00`.
 - **1080p Legibility (`>= 18–19 px`) & "Headline + 1 Concise Sentence" Card Rule:** Never render screen text `< 18px` (`TYPOGRAPHY_FLOOR_1080P`). Write cards as **Headline (`26–32 px`, `2–5` words) + 1 concise sentence (`19–22 px`, `6–11` words)** (`height: 'auto'`, `justifyContent: 'center'`, `boxSizing: 'border-box'` — never empty `space-between` voids; use `<HorizontalFeatureGrid2x2 />` for `2×2` summaries and `<EditorialPanoramaTrack />` instead of `3×2` tile grids).
 - **Rounded-Card Clipping Precision (`<ClippedSurfaceChrome />`) & Remotion `<Img>`:** Wrap internal top accent bars on `overflow: 'visible'` cards inside `<ClippedSurfaceChrome />`, and always use `<Img>` from `'remotion'` (never raw HTML `<img>`).
 - **No Bottom Subtitles by Default & Polish Sentence Case:** Omit burned-in bottom captions unless requested; write Polish headings in *Sentence case* (`Jak działa pamięć podręczna`), never Anglo-Saxon Title Case.
@@ -154,7 +155,7 @@ Load `sound-and-music-design` and write `productions/<slug>/production.json` con
    - **Pilot Demo (`2–3` key shots):** For multi-act 3D, archival, or custom-rig productions, build and render a short **Pilot Demo** (`10–15 s`, `2–3` signature shots covering hero materials, camera distance, and overlay readability) before synthesizing the entire narration or animating all scenes. Lock visual direction early so you never burn audio credits or render hours on a misaligned look.
    - **Mandatory Fact-Check before paid audio:** Before running paid ElevenLabs synthesis or final MP4 render on any documentary, historical, technical, or product script, verify every date, proper noun, measurement, and quotation against primary sources and resolve uncertainties first — re-recording voiceovers after a late factual fix wastes credits and shifts every downstream cue.
 2. Run `npx make-pictures doctor` (or `npx make-pictures onboard`) if this is the first session, and pick a **language-native voice** via `npx make-pictures voices --lang=pl --json` (or `--lang=en`; never use English premade voices like Liam/Sarah for Polish narration; optionally test 1 short sentence with `--audition="..." --voice=<id>`).
-3. Generate voiceovers + word timestamps + AI music score + AI SFX (automatically runs `lintManifestVoiceovers` checking native PL voice selection, Polish **głoskowce** `"api"` vs hyphenated **literowce** `"u-es-be"`, catalog SKUs, and `eleven_v3` audio-tag/discrete `stability` safety):
+3. Generate voiceovers (`eleven_v4` default, plus multi-speaker `dialogueInputs` via ElevenLabs Text-to-Dialogue `convertWithTimestamps` + `voiceSegments`) + word timestamps + AI music score + AI SFX (automatically runs `lintManifestVoiceovers` checking native PL voice selection, Polish **głoskowce** `"api"` vs hyphenated **literowce** `"u-es-be"`, catalog SKUs, inline audio-tag safety, and discrete `eleven_v3` `stability`):
    ```bash
    npx make-pictures audio --production=<slug>
    ```

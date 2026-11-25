@@ -400,14 +400,17 @@ export const DataFlowEdge: React.FC<DataFlowEdgeProps> = ({
           data-edge-label={id}
           style={{
             position: 'absolute',
-            left: labelAnchor.x + resolvedLabelOffsetX,
-            top: labelAnchor.y + resolvedLabelOffsetY,
-            transform: `translate3d(${labelTranslateX}, -50%, 0) scale(${interpolate(
-              drawProgress,
-              [0.4, 1],
-              [0.9, 1],
-              { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
-            ).toFixed(3)})`,
+            left: Math.round(labelAnchor.x + resolvedLabelOffsetX),
+            top: Math.round(labelAnchor.y + resolvedLabelOffsetY),
+            transform:
+              drawProgress >= 0.995
+                ? `translate(${labelTranslateX}, -50%)`
+                : `translate(${labelTranslateX}, -50%) scale(${interpolate(
+                    drawProgress,
+                    [0.4, 1],
+                    [0.9, 1],
+                    { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
+                  ).toFixed(3)})`,
             opacity: interpolate(drawProgress, [0.4, 0.9], [0, 1], {
               extrapolateLeft: 'clamp',
               extrapolateRight: 'clamp',

@@ -17,9 +17,11 @@ export type {
 export {
   attachPlayerLifecycle,
   useRemotionPlayer,
+  type FrameListener,
   type PlayerLifecycleCallbacks,
   type PlayerLifecycleEventName,
   type PlayerLifecycleTarget,
+  type SubscribeFrame,
   type UseRemotionPlayerOptions,
   type UseRemotionPlayerResult,
 } from './hooks/useRemotionPlayer';

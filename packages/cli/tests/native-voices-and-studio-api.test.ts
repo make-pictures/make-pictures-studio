@@ -65,9 +65,11 @@ test('voice catalog provides native PL voices for all archetypes and distinguish
   assert.ok(getCuratedVoices({ lang: 'pl', gender: 'male' }).length >= 1);
   assert.ok(CURATED_VOICES.length >= 8);
 
-  assert.equal(supportsLanguageCodeParam(DEFAULT_ELEVENLABS_MODEL_ID), false);
+  assert.equal(DEFAULT_ELEVENLABS_MODEL_ID, 'eleven_v4');
+  assert.equal(supportsLanguageCodeParam(DEFAULT_ELEVENLABS_MODEL_ID), true);
   assert.equal(supportsLanguageCodeParam('eleven_multilingual_v2'), false);
   assert.equal(supportsLanguageCodeParam('eleven_v3'), true);
+  assert.equal(supportsLanguageCodeParam('eleven_v4'), true);
   assert.equal(supportsLanguageCodeParam('eleven_turbo_v2_5'), true);
   assert.equal(supportsLanguageCodeParam('eleven_flash_v2_5'), true);
 });
@@ -171,7 +173,7 @@ test('onboard --lang=pl writes native Polish default ELEVENLABS_VOICE_ID into .e
 
     const envLocal = fs.readFileSync(path.join(tmpDir, '.env.local'), 'utf8');
     assert.match(envLocal, /ELEVENLABS_VOICE_ID=C8ZVSJxcymeT86xT429O/);
-    assert.match(envLocal, /ELEVENLABS_MODEL_ID=eleven_multilingual_v2/);
+    assert.match(envLocal, /ELEVENLABS_MODEL_ID=eleven_v4/);
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }

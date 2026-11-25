@@ -15,10 +15,10 @@ Design broadcast-ready, `-14 LUFS` mastered soundtracks combining word-aligned *
 
 ---
 
-## 1. ElevenLabs Voice Cast & Phonetic Spelling (`eleven_multilingual_v2`)
+## 1. ElevenLabs Voice Cast & Phonetic Spelling (`eleven_v4` Default)
 
 ### Phonetic Spelling Rules in `production.json` / `scenes.json`
-`eleven_multilingual_v2` can mispronounce raw uppercase acronyms, digits, or brand/style slugs in non-English scripts. Write natural phonetic spellings directly in `scene.text`:
+`eleven_v4` is the studio default (`DEFAULT_ELEVENLABS_MODEL_ID = 'eleven_v4'`) — delivering natural expressive intonation, inline acting tags, and native `languageCode` enforcement. Even with modern models, raw uppercase acronyms, digits, or brand/style slugs can be mispronounced in non-English scripts. Write natural phonetic spellings directly in `scene.text` (and in every turn of `scene.dialogueInputs`):
 - **Brand & style names (CRITICAL):**
   - `make.pictures`: write **`mejk pikczers`** in Polish and **`make pictures`** in English (**NEVER** write literal punctuation words like *„mejk kropka pikczers”* or *“make dot pictures”*!).
   - `retro-pc`: write **`retro pi si`** in Polish and **`retro pee see`** in English (never *„retro pe ce”* or raw `retro-pc`).
@@ -29,14 +29,14 @@ Design broadcast-ready, `-14 LUFS` mastered soundtracks combining word-aligned *
      - `API` → **`"api"`** (**NEVER** `"a-pe-i"`, `"a pe i"`, or English `"ej-pi-aj"`!)
      - `LED` → `"led"`, `RAM` → `"ram"`, `LAN` → `"lan"`, `PIN` → `"pin"`, `SIM` → `"sim"`, `CAD` → `"kad"`, `SaaS` → `"sas"`, `JSON` → `"dżejson"`.
   2. **Literowce (lettered acronyms spelled with mandatory hyphens `-`, never spaces):**
-     Spaces between letters (`"e er p"`, `"es ku el"`) cause `eleven_multilingual_v2` to slur adjacent syllables; always join letter names with hyphens (`-`):
+     Spaces between letters (`"e er p"`, `"es ku el"`) cause TTS models to slur adjacent syllables; always join letter names with hyphens (`-`):
      - `USB` → `"u-es-be"`, `SQL` → `"es-ku-el"`, `CRM` → `"ce-er-em"`, `ERP` → `"e-er-pe"`, `GSM` → `"gie-es-em"`, `PDF` → `"pe-de-ef"`, `HTML` → `"ha-te-em-el"`, `SDK` → `"es-de-ka"`, `HTTPS` → `"ha-te-te-pe-es"`, `CPU` → `"ce-pe-u"`.
   3. **Colloquial engineering digit grouping in standards & norms:**
      Group digits in pairs or single digits the way Polish engineers actually speak — never force long thousand-ordinals or literal `"kropka"`:
      - `ISO 8601` → `"izo osiemdziesiąt sześć zero jeden"`, `RFC 9110` → `"er-ef-ce dziewięćdziesiąt jeden dziesięć"`, `IEEE 802.11` → `"osiemset dwa jedenaście"`, `USB 3.2` → `"u-es-be trzy dwa"`, `HTTP 404` → `"błąd cztery-zero-cztery"`, `x86-64` → `"iks osiemdziesiąt sześć sześćdziesiąt cztery"`.
      - Spell out all numerals in the proper grammatical case (*„poniżej dwudziestu milisekund”*).
-  4. **Zero catalog SKU / part numbers in `scene.text`:**
-     Never read hardware SKUs or model strings (`DK-940X-TB4`, `PD-140W-G2`) aloud — speak the concrete function and user benefit in narration, and place model badges visually on the card (`badge="Seria 940"`). `npx make-pictures audio` runs `lintManifestVoiceovers` (`phonetics-lint.ts`) automatically before synthesis.
+  4. **Zero catalog SKU / part numbers or engine-spec flexing in `scene.text`:**
+     Never read hardware SKUs (`DK-940X-TB4`, `PD-140W-G2`) or internal engine specs (`60 FPS`, `-14 LUFS`, `0 kolizji`, `GPU`, `PBR`) aloud — speak in warm, audience-focused language of creative outcomes and user benefits, and place model badges visually on cards when needed (`badge="Seria 940"`). `npx make-pictures audio` runs `lintManifestVoiceovers` (`phonetics-lint.ts`) automatically before synthesis.
 - **Context continuity (`previousText` / `nextText`):** Pass optional `previousText` and `nextText` (prefixed with `. ` or `... ` to prevent trailing phoneme bleed) on `SceneDefinition` so multi-scene monologues maintain seamless prosody across cuts.
 
 ### Native Voice Selection Rule (CRITICAL — Never Use English Premade Voices for Polish!)
@@ -47,9 +47,9 @@ Default ElevenLabs premade voices (**Liam** `TX3LPaxmHKxFdv7VOQHJ`, **Sarah** `E
 1. Run **`npx make-pictures voices --lang=pl --json`** (or `--lang=en`, `--gender=female|male`, `--query="..."`) — this lists **curated native voices**, checks **the user's own ElevenLabs account voices first**, and searches the **ElevenLabs Voice Library** with free `previewUrl` samples (`0` credits).
 2. When testing a new voice on difficult text (e.g. long Polish numerals), audition **1 short sentence** before synthesizing the whole film:
    ```bash
-   npx make-pictures voices --voice=C8ZVSJxcymeT86xT429O --lang=pl --audition="Czterysta czterdzieści cztery tysiące pięćset pięćdziesiąt pięć."
+   npx make-pictures voices --voice=C8ZVSJxcymeT86xT429O --lang=pl --model=eleven_v4 --audition="Czterysta czterdzieści cztery tysiące pięćset pięćdziesiąt pięć."
    ```
-3. You can also set optional `modelId` (`eleven_multilingual_v2` default, or `eleven_v3` / `eleven_turbo_v2_5` / `eleven_flash_v2_5`) and `languageCode` (`"pl"` / `"en"`) per manifest or per scene in `production.json` (note: `languageCode` is automatically sent only for models that support it — skipped for `eleven_multilingual_v2`). `lintManifestVoiceovers` automatically warns if a Polish production uses a known English-native premade voice.
+3. Set `modelId: "eleven_v4"` (default; or `"eleven_v4_turbo"` / `"eleven_v3"` — avoid legacy `"eleven_multilingual_v2"` unless explicitly requested) and `languageCode` (`"pl"` / `"en"`) per manifest or per scene in `production.json` (`languageCode` is automatically sent for `eleven_v4*`, `eleven_v3`, `eleven_turbo_v2_5`, and `eleven_flash_v2_5`, and skipped on legacy `eleven_multilingual_v2`). `lintManifestVoiceovers` automatically warns if a Polish scene or dialogue turn uses a known English-native premade voice.
 
 ### Proven Native Studio Voice Profiles & Natural `0.98–1.00` Speech Speed
 
@@ -84,24 +84,54 @@ Keep `voiceSettings.speed` in the natural **`0.98–1.00`** range (`0.99` CLI de
    - `N2lVS1w4EtoT3dr4eOWO` (*Callum* — assistant / analyst)
    - `pqHfZKP75CvOlQylNhV4` (*Bill* — elderly mentor)
 
-### Expressive Acting Direction with `eleven_v3` (Audio Tags, Discrete `stability` & Micro-Segments)
+### Expressive Acting Direction with `eleven_v4` (Default) & `eleven_v3` (Audio Tags & Micro-Segments)
 
-When a documentary essay, story, or character monologue calls for richer human nuance than `eleven_multilingual_v2`, switch the manifest or individual scenes to `modelId: "eleven_v3"` (always audition 1 representative sentence first to A/B compare tone and Polish/English diction against `eleven_multilingual_v2`):
+Every new film defaults to **`modelId: "eleven_v4"`** (or **`eleven_v3`** when targeting v3 explicitly) for expressive human intonation, inline acting tags, and crisp Polish/English prosody (audition 1 representative sentence first before committing full credits):
 
 ```bash
-# 1-sentence A/B audition before committing full production credits:
-npx make-pictures voices --voice=C8ZVSJxcymeT86xT429O --lang=pl --model=eleven_v3 --audition="[thoughtful] Ten detal zmienia wszystko… [warmly] i zaraz zobaczysz dlaczego."
+# 1-sentence audition before synthesizing the full production:
+npx make-pictures voices --voice=C8ZVSJxcymeT86xT429O --lang=pl --model=eleven_v4 --audition="[thoughtful] Ten detal zmienia wszystko… [warmly] i zaraz zobaczysz dlaczego."
 ```
 
-1. **Inline Audio Tags (Strictly `eleven_v3` / `eleven_v4` Only):**
-   - Direct micro-shifts in delivery with concise bracketed cues right inside `scene.text`: `[thoughtful]`, `[warmly]`, `[playful]`, `[amazed]`, `[whispers]`, `[sighs]`, `[curious]`, `[excited]`.
+1. **Inline Audio Tags (`eleven_v4` & `eleven_v3` Only):**
+   - Direct micro-shifts in delivery with concise bracketed cues right inside `scene.text` or `dialogueInputs[].text`: `[thoughtful]`, `[warmly]`, `[playful]`, `[amazed]`, `[excited]`, `[whispers]`, `[sighs]`, `[curious]`.
    - Combine tags with natural **"thinking out loud" phrasing and gentle self-corrections** (e.g., *„…a właściwie jeszcze wcześniej, bo już w piętnastym wieku…”*) so the narration breathes like a real storyteller rather than a teleprompter.
-   - **Cross-Model Safety (`[v3-audio-tags]`):** Never leave `[thoughtful]` or other bracketed tags in a scene using `eleven_multilingual_v2` — v2 will literally read the English tag aloud! `lintManifestVoiceovers` (`phonetics-lint.ts`) strips v3 tags before Polish acronym checks and emits `[v3-audio-tags]` across both `pl` and `en` whenever tags appear on a non-v3/v4 model.
-2. **Discrete `stability` Constraint (`[v3-stability]`):**
-   - `eleven_v3` accepts **strictly discrete `voiceSettings.stability` values: `0.0` (Creative), `0.5` (Natural — recommended default), or `1.0` (Robust)**. Intermediate values like `0.35` or `0.48` fail or degrade unpredictably — `lintManifestVoiceovers` automatically flags them with `[v3-stability]`.
+   - **Cross-Model Safety (`[v3-audio-tags]`):** Never leave `[thoughtful]` or other bracketed tags in a scene using legacy `eleven_multilingual_v2` — v2 will literally read the English tag aloud! `lintManifestVoiceovers` (`phonetics-lint.ts`) strips inline tags before Polish acronym checks and emits `[v3-audio-tags]` across both `pl` and `en` whenever tags appear on a non-v3/v4 model.
+2. **Discrete `stability` Constraint when Explicitly Using `eleven_v3` (`[v3-stability]`):**
+   - If a scene or manifest explicitly uses `eleven_v3`, note that `eleven_v3` accepts **strictly discrete `voiceSettings.stability` values: `0.0` (Creative), `0.5` (Natural — recommended default), or `1.0` (Robust)**. Intermediate values like `0.35` or `0.48` fail or degrade on `eleven_v3` — `lintManifestVoiceovers` automatically flags them with `[v3-stability]` (and the CLI snaps them automatically).
 3. **Micro-Segment Splitting (`a/b/c`) for Physical Pauses & Credit Efficiency:**
    - Instead of one 25-second wall-of-text scene, split key narrative beats into short **micro-segments** (`s02a-setup`, `s02b-twist`, `s02c-resolve`) in `production.json` and space them on the visual timeline with explicit physical/SFX pauses (`0.6–1.4 s` for a sheet flip, reveal, or camera macro push).
    - Because `npx make-pictures audio` caches each segment by SHA-256 hash, editing one sentence re-synthesizes **only that 3-second micro-segment** instead of paying to regenerate an entire 25-second monologue.
+
+### Multi-Speaker Dialogues via `dialogueInputs` (ElevenLabs Text-to-Dialogue `convertWithTimestamps`)
+
+Never stitch a 2-speaker conversation (podcast studio, interview, co-host banter) out of separate single-voice `.mp3` clips when natural turn-taking and conversational cadence matter. Declare **`dialogueInputs`** directly on the scene in `production.json` — `@make-pictures/cli` automatically routes any scene with `dialogueInputs.length >= 2` to **`elevenlabs.textToDialogue.convertWithTimestamps`**, producing **one cohesive conversational `.mp3`** with exact per-turn `voiceSegments` and word timestamps:
+
+```json
+{
+  "id": "s4-studio-dialogue",
+  "durationInSeconds": 7.0,
+  "modelId": "eleven_v4",
+  "languageCode": "pl",
+  "voiceSettings": { "stability": 0.5, "speed": 0.99 },
+  "text": "[playful] Chcesz pogadać z widzem? Wskakujemy do studia trzy de! [warmly] Światło, uśmiech i dobra zabawa w jednym miejscu.",
+  "dialogueInputs": [
+    {
+      "speaker": "Luiza",
+      "voiceId": "C8ZVSJxcymeT86xT429O",
+      "text": "[playful] Chcesz pogadać z widzem? Wskakujemy prosto do ciepłego studia trzy de!"
+    },
+    {
+      "speaker": "Rafał",
+      "voiceId": "CLuTGacrAhcIhaJslbXt",
+      "text": "[warmly] Światło, uśmiech i dobra zabawa w jednym miejscu."
+    }
+  ]
+}
+```
+
+- **Unified Audio + Per-Turn `voiceSegments`:** Mount **one** `<VoiceoverTrack voiceover={VOICEOVER_MANIFEST['s4-studio-dialogue']} fromFrame={...} />`, and read `VOICEOVER_MANIFEST['s4-studio-dialogue'].voiceSegments` (`Array<{ voiceId, speaker?, dialogueInputIndex, startTimeSeconds, endTimeSeconds }>`) to drive exact lip-sync, listener head nods, speaking-host spotlights, and camera cuts without slicing or duplicating audio files.
+- **Linter & `--mock` Parity:** `lintManifestVoiceovers` automatically lints **every turn** in `dialogueInputs` (native Polish voice per turn, inline tags, discrete `eleven_v3` `stability`, Polish phonetics), and `--mock` synthesizes deterministic proportional `voiceSegments` for offline development.
 
 ### Declarative Voice Acoustic Filters (`voiceEffect`)
 Never hardcode scene IDs in audio scripts. Set `voiceEffect?: VoiceAcousticPreset` directly on any scene in `production.json`:

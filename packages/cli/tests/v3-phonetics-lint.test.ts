@@ -105,13 +105,11 @@ test('lintElevenLabsV3Usage flags bracketed tags on non-v3/v4 models and non-dis
   assert.match(v2TagWarnings[0]!, /s01/);
   assert.match(v2TagWarnings[0]!, /\[thoughtful\]/);
 
-  // Default omitted modelId falls back to eleven_multilingual_v2 -> [v3-audio-tags]
-  const defaultModelTagWarnings = lintElevenLabsV3Usage(
-    's01b',
-    '[warmly] Dzień dobry.'
+  // Default omitted modelId falls back to eleven_v4 -> expressive tags are supported cleanly
+  assert.deepEqual(
+    lintElevenLabsV3Usage('s01b', '[warmly] Dzień dobry.'),
+    []
   );
-  assert.equal(defaultModelTagWarnings.length, 1);
-  assert.match(defaultModelTagWarnings[0]!, /\[v3-audio-tags\]/);
 
   // 2. Tag on eleven_v3 with discrete stability -> clean
   assert.deepEqual(
