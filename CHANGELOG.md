@@ -1,8 +1,29 @@
 # Changelog
 
-All notable changes to **`make.pictures`** (`create-make-pictures` and `@make-pictures/{core,kits,studio,cli}`) are documented in this file.
+All notable changes to **`make.pictures`** (`@make-pictures/remotion`, `@make-pictures/cli`, and `create-make-pictures`; previously `@make-pictures/{core,kits,studio,cli}`) are documented in this file.
 
 The project adheres to [Semantic Versioning](https://semver.org/) and is released under the [MIT License](./LICENSE).
+
+---
+
+## [3.0.0] — 2026-11-25
+
+### Breaking Changes
+- **Consolidated Runtime (`@make-pictures/remotion`):** Merged `@make-pictures/core` and `@make-pictures/kits` into a single tree-shakeable package (`sideEffects: false`, dual ESM/CJS, 23 subpath exports, zero-`three` root barrel, optional 3D peer dependencies). Removed the legacy `theme/` layer (replaced by `style/`; `VoiceoverCaptionBar` moved to `@make-pictures/remotion/audio`).
+- **Native Remotion Studio & Zero Lock-In:** Removed the custom Vite-based `@make-pictures/studio` (~20k LOC), `src/compositions/registry.ts`, `defineProduction`, and `*.props.json` sidecars. Compositions now register directly in standard `src/Root.tsx` with Zod schemas editable in native `npx remotion studio`. Renamed `production.json` manifests to lean `audio.json` manifests with optional `make-pictures.json` workspace overrides.
+- **Stack Upgrade:** Upgraded monorepo to **Remotion `^4.0.545`** (including `@remotion/studio-protocol` and `@remotion/zod-types`), **React 19** (`peerDependencies: "^18.0.0 || ^19.0.0"`), **Three.js `^0.187`**, **@react-three/fiber `^9`**, and **@react-three/drei `^10`**. See [`docs/MIGRATION-v3.md`](./docs/MIGRATION-v3.md) for step-by-step migration instructions.
+
+### Added
+- **Native `<StyleLabComposition />` (`@make-pictures/remotion/style-lab`):** Interactive Remotion composition with Zod props (`StyleLabSchema`, `DEFAULT_STYLE_LAB_PROPS`) for live 60 FPS previewing of all `2D / 2.5D / 3D` dimensional spaces and 10 built-in art-direction styles directly inside Remotion Studio (zero top-level `three` imports).
+- **Remotion Elements Catalog & `@remotion/studio-protocol` Exporter (`@make-pictures/remotion/elements`, `npx make-pictures elements build`):** Added 7 flagship standalone Remotion Elements (`editorial-media-card`, `floating-editorial-display`, `animated-bar-race`, `product-browser-frame`, `motion-diagram-stage`, `paper-cutout-3d`, `smart-music-bed`) with JSON payloads, HTML embeds, `index.json`, and `version: null` for `@remotion/*` dependencies.
+- **3-Mode Onboarding & Universal Remotion QA (`@make-pictures/cli`, `create-make-pictures`):** Updated `onboard` / `init` to detect empty directories (`create-make-pictures`), existing Remotion projects (in-place `init` without modifying `src/Root.tsx`), and existing apps (`--dir=videos`), installing tandem skills (`remotion-dev/skills` + 5 canonical `make.pictures` skills). Refactored `qa` to resolve compositions natively via `@remotion/renderer` `selectComposition()`, working cleanly on any standard Remotion project with or without `audio.json`.
+- **Dual-Path Hermetic E2E Pack Verification (`scripts/verify-npm-pack.ts`):** Verifies both fresh `create-make-pictures` scaffolds (including `new`, `audio --mock`, `qa StyleLab`, `elements build`, and short `remotion render`) and `make-pictures init` inside a bare Remotion repository.
+
+### Changed
+- **Single Source of Truth for AI Skills (`skills/`):** Consolidated 9 duplicated skills across `plugins/` and `.agents/` into 5 lean, non-overlapping skills (`make-pictures-director`, `art-direction-and-styles`, `sound-and-music-design`, `kits-2d`, `kits-3d-and-kinematics`) copied into `packages/cli/assets/skills/` only during `npm run build:packages`. Streamlined `AGENTS.md` and `CLAUDE.md` by ~60%.
+- **Flagship Examples Migrated (`examples/`, `src/Root.tsx`):** Migrated `StyleLab`, `StarterStory`, `StarterStoryVertical`, `ProductPromo`, `PaperDioramaDemo`, `IsometricDialogueDemo`, and `Tactile3DShowcase` to pure `@make-pictures/remotion/*` imports and direct `<Composition>` registration in `src/Root.tsx`.
+
+🔗 [GitHub Release `v3.0.0`](https://github.com/make-pictures/make-pictures-studio/releases/tag/v3.0.0)
 
 ---
 

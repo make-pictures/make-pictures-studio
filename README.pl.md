@@ -1,37 +1,46 @@
 <p align="center">
-  <a href="https://make.pictures"><img src="./public/brand/make-pictures-logo.svg" alt="make.pictures — Twórz animacje z agentem AI" width="480" /></a>
+  <a href="https://make.pictures"><img src="./public/brand/make-pictures-logo.svg" alt="make.pictures — Warstwa produkcyjna i Audio/QA dla Remotion + Agentów AI" width="480" /></a>
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/create-make-pictures"><img src="https://img.shields.io/badge/npm-v2.5.0-2563EB?style=for-the-badge&labelColor=0F172A" alt="npm v2.5.0" /></a>
-  <img src="https://img.shields.io/badge/Agenci-Antigravity_%26_Claude_Code-0096C7?style=for-the-badge&labelColor=0F172A" alt="Antigravity & Claude Code" />
-  <img src="https://img.shields.io/badge/Audio-ElevenLabs_Głos_•_Muzyka_•_SFX-7209B7?style=for-the-badge&labelColor=0F172A" alt="ElevenLabs Audio" />
+  <a href="https://www.npmjs.com/package/@make-pictures/remotion"><img src="https://img.shields.io/badge/npm-v3.0.0-2563EB?style=for-the-badge&labelColor=0F172A" alt="npm v3.0.0" /></a>
+  <img src="https://img.shields.io/badge/Remotion-4.0.545%2B_•_React_19-0096C7?style=for-the-badge&labelColor=0F172A" alt="Remotion 4 + React 19" />
+  <img src="https://img.shields.io/badge/Audio-ElevenLabs_v4_•_-14_LUFS-7209B7?style=for-the-badge&labelColor=0F172A" alt="ElevenLabs v4 i -14 LUFS" />
   <a href="./LICENSE"><img src="https://img.shields.io/badge/Licencja-MIT-FF2A85?style=for-the-badge&labelColor=0F172A" alt="Licencja MIT" /></a>
 </p>
 
-<h3 align="center">Twórz animacje rozmawiając z agentem AI — i dopracuj każdy kadr wizualnie.</h3>
+<h3 align="center">Warstwa produkcyjna, zestawy wizualne 2D/2.5D/3D, audio ElevenLabs i bramka QA dla Remotion + Agentów AI.</h3>
 
 <p align="center">
   <a href="https://make.pictures">🌐 make.pictures</a> •
   <a href="https://www.youtube.com/@makepicturespl">📺 YouTube (PL)</a> •
   <a href="https://www.youtube.com/@makepicturestv">📺 YouTube (EN)</a> •
+  <a href="./docs/MIGRATION-v3.md">🔄 Przewodnik migracji v3</a> •
   <a href="./CHANGELOG.md">📋 Changelog</a> •
   <a href="./README.md">🇬🇧 English version</a>
 </p>
 
 ---
 
+> **Remotion jest silnikiem i studiem montażowym** (`npx remotion studio`, `remotion render`, `@remotion/player`).
+> **`make.pictures` jest warstwą produkcyjną i reżyserskim harnessem dla agentów AI:** gotowe światy `2D / 2.5D / 3D`, 10 stylów kierownictwa artystycznego, pipeline audio ElevenLabs `eleven_v4` + mastering `-14 LUFS`, Remotion Elements i twarda bramka QA — przy **zerowym lock-in**.
+
 ## ⚡ Start jednym promptem
 
-`1. Wklej w Antigravity lub Claude Code` → `2. Opisz pomysł i wybierz styl` → `3. Dopracuj i wyeksportuj MP4 w Studio Web`
+`1. Wklej w Antigravity, Claude Code, Cursor lub Codex` → `2. Wybierz przestrzeń i styl w StyleLab` → `3. Podglądaj i renderuj w natywnym Remotion Studio`
 
 ```text
-Przygotuj dla mnie studio filmowe make.pictures: uruchom `npx -y @make-pictures/cli@latest onboard --lang=pl` i wykonaj wszystkie kroki aż do uruchomienia podglądu Studio Web.
+Przygotuj dla mnie środowisko filmowe make.pictures: uruchom `npx -y @make-pictures/cli@latest onboard --lang=pl` i wykonaj wszystkie kroki aż do uruchomienia podglądu w Remotion Studio.
 ```
+
+Działa w **trzech trybach**:
+1. **Pusty katalog** → tworzy czysty projekt Remotion 4 + React 19 (`create-make-pictures`) z gotową kompozycją `StyleLab` w `src/Root.tsx`.
+2. **Istniejący projekt Remotion** (`npx create-video@latest`) → uruchamia `npx make-pictures init` w miejscu, nie ruszając Twojego `src/Root.tsx`.
+3. **Istniejąca aplikacja WWW / SaaS** (Next.js, Vite itp.) → inicjalizuje izolowany podkatalog `--dir=videos`.
 
 ---
 
-## 🖥️ Studio Web i 🎨 Style Lab (`v2.5.0`)
+## 🎨 Natywne Remotion Studio + `StyleLab` i zestawy wizualne (`v3.0.0`)
 
 <p align="center">
   <a href="https://make.pictures"><img src="./docs/showcase/showreel-preview.gif" alt="make.pictures Showreel 49 s — Jedna kartka, pięć światów: Tactile 3D, przepływ produktu 2D, wycinanki 2.5D, dialog Soft-Clay 3D i panorama redakcyjna" width="760" /></a>
@@ -40,15 +49,9 @@ Przygotuj dla mnie studio filmowe make.pictures: uruchom `npx -y @make-pictures/
 </p>
 
 <p align="center">
-  <img src="./docs/showcase/studio-web-liquid-glass.png" alt="make.pictures Studio Web — scena Liquid Glass, oś reżyserska, transkrypt i 3-zakładkowy inspektor" width="920" />
+  <img src="./docs/showcase/style-lab-grid.png" alt="make.pictures Style Lab — podgląd 10 stylów wizualnych w przestrzeniach 2D, 2.5D i 3D bezpośrednio w Remotion Studio" width="920" />
   <br />
-  <sub><strong>Studio Web</strong> (<code>127.0.0.1:3000</code>) — podgląd na żywo, oś kamery/lektora/SFX/muzyki, transkrypcja słowo po słowie, 3-zakładkowy Inspektor (<code>⌘I</code>) i eksport MP4 jednym kliknięciem.</sub>
-</p>
-
-<p align="center">
-  <img src="./docs/showcase/style-lab-grid.png" alt="make.pictures Style Lab — podgląd i edycja 10 stylów wizualnych w przestrzeniach 2D, 2.5D i 3D" width="920" />
-  <br />
-  <sub><strong>🎨 Style Lab</strong> (<code>?view=styles</code>) — przełączaj przestrzenie <strong>2D / 2.5D / 3D</strong> oraz <strong>10 wbudowanych stylów kierownictwa artystycznego</strong> (w tym <em>Soft-Clay 3D</em>, <em>Retro-PC</em> i <em>Glass Studio</em>) albo zapisz własny styl marki <code>styles/*.style.json</code> na żywo.</sub>
+  <sub><strong>🎨 Natywna kompozycja <code>StyleLab</code></strong> (<code>@make-pictures/remotion/style-lab</code>) — przełączaj przestrzenie <strong>2D / 2.5D / 3D</strong> oraz <strong>10 wbudowanych stylów</strong> bezpośrednio w panelu Props Remotion Studio przy 60 FPS.</sub>
 </p>
 
 ---
@@ -63,7 +66,7 @@ Przygotuj dla mnie studio filmowe make.pictures: uruchom `npx -y @make-pictures/
 | **Wycinanki i dioramy 2.5D (`paper-diorama-3d`)** | **Soft-Clay 3D i Text-to-Dialogue (`isometric-3d`)** |
 | <img src="./docs/showcase/kit-paper-diorama-3d-pl.png" alt="Kosmiczna papierowa makieta 2.5D z rakietą i rozkładanym księżycem" width="440" /> | <img src="./docs/showcase/kit-isometric-dialogue-3d-pl.png" alt="Studio Soft-Clay 3D z ekspresyjnym wieloosobowym dialogiem Text-to-Dialogue" width="440" /> |
 
-<sub>Uporządkowane w przestrzeniach **`2D` / `2.5D` / `3D`** (`--space=2d|2.5d|3d`) z gotowymi zestawami **Editorial Collage**, **Vector Scene 2D**, **Kinetic Typography**, **Data Storytelling** (wyścigi słupków i osie czasu), **Retro-PC**, **Soft-Clay 3D** (offline `<Lightformer>` IBL), **Glass Studio** i **VFX** — w poziomym `16:9` oraz pionowym `9:16` (`Golden Safe Box`).</sub>
+<sub>10 odizolowanych zestawów w `@make-pictures/remotion/kits/*` dla przestrzeni **`2D` / `2.5D` / `3D`** (`editorial-collage`, `vector-scene-2d`, `motion-diagrams-2d`, `kinetic-typography`, `data-storytelling`, `product-frames`, `vfx`, `paper-diorama-3d`, `isometric-3d`, `tactile-3d`) — z opcjonalnymi zależnościami 3D, dzięki czemu projekty 2D nie wymagają Three.js.</sub>
 
 ---
 
@@ -76,55 +79,59 @@ Przygotuj dla mnie studio filmowe make.pictures: uruchom `npx -y @make-pictures/
 <p align="center">
   <a href="https://www.youtube.com/watch?v=4t-hVA3OxSY"><img src="./docs/showcase/thumbnail-pl-1280x720.png" alt="Obejrzyj pełny film przykładowy na YouTube" width="640" /></a>
   <br />
-  <sub>▶ <a href="https://www.youtube.com/watch?v=4t-hVA3OxSY"><strong>Zobacz gotowy film 2:42 na YouTube</strong></a> — głos, muzyka, efekty dźwiękowe i każdy ruch kamery powstały w <code>make.pictures</code>.</sub>
+  <sub>▶ <a href="https://www.youtube.com/watch?v=4t-hVA3OxSY"><strong>Zobacz gotowy film 2:42 na YouTube</strong></a> — głos, muzyka, efekty dźwiękowe i każdy ruch kamery powstały w <code>make.pictures</code> + Remotion.</sub>
 </p>
 
 ---
 
-## 🛠️ Dla developerów — 4 sposoby użycia
+## 🛠️ Dla developerów — 5 sposobów użycia
 
 ```bash
-# 1. Osobny projekt studia wideo
-npx create-make-pictures@latest moje-filmy --lang=pl && cd moje-filmy && npx make-pictures studio
+# 1. Świeży projekt Remotion 4 + React 19
+npx create-make-pictures@latest moje-filmy --lang=pl && cd moje-filmy && npx remotion studio
 
-# 2. Wewnątrz istniejącej aplikacji Next.js / Vite / SaaS (użyj własnych komponentów React lub nagrań .mp4)
-npm i -D @make-pictures/cli @make-pictures/studio @make-pictures/core @make-pictures/kits
-npx make-pictures init --dir=videos --lang=pl && npx make-pictures studio --dir=videos
+# 2. Dodatek do DOWOLNEGO istniejącego projektu Remotion (zero lock-in, nie nadpisuje src/Root.tsx)
+npm i @make-pictures/remotion && npm i -D @make-pictures/cli
+npx make-pictures init --lang=pl
 
-# 3. Interaktywne osadzenie na stronie WWW (żywy React / WebGL przez @remotion/player bez kodowania MP4)
-npm i @make-pictures/core @make-pictures/kits @remotion/player remotion zod lucide-react
+# 3. Wewnątrz istniejącej aplikacji Next.js / Vite / SaaS
+npx make-pictures init --dir=videos --lang=pl
 
-# 4. Instalacja samych skilli agenta AI (skills.sh — Claude Code, Cursor, Antigravity)
+# 4. Instalacja tandemowych skilli agenta AI (oficjalne API Remotion + 5 skilli produkcyjnych make.pictures)
+npx remotion skills add
 npx skills add make-pictures/make-pictures-studio
+
+# 5. Eksport samodzielnych komponentów Remotion Elements (@remotion/studio-protocol)
+npx make-pictures elements build --out=dist/elements
 ```
 
 <details>
-<summary><strong>📦 Pakiety npm i ściąga komend CLI (<code>v2.5.0</code>)</strong></summary>
+<summary><strong>📦 Pakiety npm i ściąga komend CLI (<code>v3.0.0</code>)</strong></summary>
 
 <br />
 
 | Pakiet | Rola |
 | :--- | :--- |
-| `create-make-pictures` | Szybki kreator projektu (`npx create-make-pictures@latest <katalog> [--space=2d\|2.5d\|3d]`) |
-| `@make-pictures/core` | Silnik `60 FPS`, matryca `2D / 2.5D / 3D` × 10 stylów `StylePreset`, `ContinuousSceneFlow`, `DirectorCamera3D/2D`, `SmartMusicBed`, `SoundCue` |
-| `@make-pictures/kits` | 7 zestawów scenicznych (`Soft-Clay 3D`, `Retro-PC`, `Glass Studio`, wycinanki 2.5D, redakcja i wykresy) + `product-frames` + optyczne `vfx` |
-| `@make-pictures/studio` | Lokalny warsztat **Studio Web** i **🎨 Style Lab** (`[ 2D ] [ 2.5D ] [ 3D ]`, interfejs `Liquid Glass`, oś czasu, inspektor) |
-| `@make-pictures/cli` | Narzędzie `make-pictures` + 9 automatycznie wykrywanych skilli `SKILL.md` dla Antigravity i Claude Code |
+| `@make-pictures/remotion` | Jedyna biblioteka runtime `60 FPS`: 10 kitów wizualnych, 10 stylów `StylePreset`, `ContinuousSceneFlow`, kamery Shot DSL, kinematyka Disneya + 15-osiowy audyt kolizji 3D SAT, `SmartMusicBed`, `SoundCue`, `<StyleLabComposition />` i 7 Remotion Elements (`sideEffects: false`, zero `three` w root) |
+| `@make-pictures/cli` | Uniwersalne CLI dla Remotion: `onboard`, `init`, `new`, `audio` (`eleven_v4` TTS / Text-to-Dialogue / Music / SFX), `voices`, `image`, `cutout`, `assets`, natywne `qa` (`selectComposition`), `render` `-14 LUFS`, `elements build` oraz 5 spakowanych skilli `SKILL.md` |
+| `create-make-pictures` | Ultracienki scaffolder świeżych projektów Remotion 4 + React 19 z natywnym `StyleLab` |
 
 | Komenda | Działanie |
 | :--- | :--- |
-| `npx make-pictures onboard` | Logowanie do ElevenLabs w przeglądarce i konfiguracja studia |
-| `npx make-pictures studio` | Uruchomienie **Studio Web** i **🎨 Style Lab** na `http://127.0.0.1:3000` |
-| `npx make-pictures new <slug>` | Nowa kapsuła filmu (`--space=2d\|2.5d\|3d`, `--kit=...`, `--style=...`, `--lang=pl\|en`) |
-| `npx make-pictures styles` | Lista 10 wbudowanych i własnych stylów `styles/*.style.json` (`--space=2d\|2.5d\|3d`, `style new <slug>` tworzy nowy) |
-| `npx make-pictures audio` | Generowanie lektora `eleven_v4` z czasami słów, dialogów wieloosobowych Text-to-Dialogue, muzyki z auto-duckingiem i SFX |
-| `npx make-pictures qa <Id>` | Twarda bramka reżyserska i styk 12 klatek kontrolnych PNG (`out/qa-<Id>.png`) z ramkami `9:16` |
-| `npx make-pictures render <Id>` | Eksport filmu MP4 `60 FPS` zmasterowanego do `-14 LUFS` |
+| `npx make-pictures onboard` | 3-trybowy onboarding + tandem skilli + opcjonalne podpięcie ElevenLabs (`.env.local`) |
+| `npx make-pictures init` | Dodanie toolkitu do istniejącego projektu Remotion (lub `--dir=videos` w aplikacji SaaS) |
+| `npx make-pictures studio` | Uruchomienie natywnego **`npx remotion studio`** |
+| `npx make-pictures new <slug>` | Szkielet `src/videos/<slug>/` (`audio.json` + komponent) i rejestracja `<Composition>` w `src/Root.tsx` |
+| `npx make-pictures styles` | Lista 10 wbudowanych i własnych stylów `styles/*.style.json` (`style new <slug>` tworzy nowy) |
+| `npx make-pictures audio [slug]` | Generowanie lektora `eleven_v4` z czasami słów, dialogów Text-to-Dialogue, muzyki i SFX (`--mock` offline) |
+| `npx make-pictures qa <Id>` | Natywna bramka QA (`selectComposition`) i styk klatek kontrolnych PNG (`out/qa-<Id>.png`) z ramkami `9:16` |
+| `npx make-pictures render <Id>` | Eksport MP4 `60 FPS` (automatyczne `--gl=angle` dla 3D) zmasterowanego do `-14 LUFS` |
+| `npx make-pictures elements build` | Budowanie payloadów `@remotion/studio-protocol` dla 7 flagowych komponentów Remotion Elements |
 
 </details>
 
 ---
 
 <p align="center">
-  Licencja MIT • <a href="https://make.pictures">make.pictures</a> • <a href="https://buycoffee.to/makepictures">☕ Postaw mi kawę</a>
+  Licencja MIT • <a href="https://make.pictures">make.pictures</a> • <a href="./docs/MIGRATION-v3.md">Migracja v2 → v3</a> • <a href="https://buycoffee.to/makepictures">☕ Postaw mi kawę</a>
 </p>

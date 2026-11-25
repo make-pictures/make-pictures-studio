@@ -1,16 +1,16 @@
 <p align="center">
-  <a href="https://make.pictures"><img src="https://make.pictures/brand/make-pictures-logo.svg" alt="make.pictures — Open-source 60 FPS Video-as-Code Studio" width="420" /></a>
+  <a href="https://make.pictures"><img src="https://make.pictures/brand/make-pictures-logo.svg" alt="make.pictures — Production & Audio/QA Toolkit for Remotion" width="420" /></a>
 </p>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/create-make-pictures"><img src="https://img.shields.io/npm/v/create-make-pictures?style=for-the-badge&labelColor=0F172A&color=FF2A85&label=create-make-pictures" alt="create-make-pictures on npm" /></a>
-  <img src="https://img.shields.io/badge/npx_create--make--pictures-FF5E00?style=for-the-badge&labelColor=0F172A" alt="npx create--make--pictures" />
-  <a href="https://make.pictures"><img src="https://img.shields.io/badge/make.pictures-Studio-2563EB?style=for-the-badge&labelColor=0F172A" alt="make.pictures Studio" /></a>
+  <img src="https://img.shields.io/badge/Remotion_4-React_19-FF5E00?style=for-the-badge&labelColor=0F172A" alt="Remotion 4 and React 19" />
+  <a href="https://make.pictures"><img src="https://img.shields.io/badge/make.pictures-Toolkit-2563EB?style=for-the-badge&labelColor=0F172A" alt="make.pictures Toolkit" /></a>
 </p>
 
 # `create-make-pictures`
 
-Scaffold a clean `60 FPS` Video-as-Code Studio repository powered by **make.pictures** (`@make-pictures/core`, `@make-pictures/kits`, `@make-pictures/studio`, `@make-pictures/cli`) and **ElevenLabs** (TTS + Music + SFX).
+Ultra-thin scaffolder that creates a standard **Remotion 4 + React 19** video project pre-wired with `@make-pictures/remotion`, `@make-pictures/cli`, a native `StyleLab` composition in `src/Root.tsx`, and ElevenLabs AI Audio scripts.
 
 ## Quickstart
 
@@ -18,19 +18,18 @@ Scaffold a clean `60 FPS` Video-as-Code Studio repository powered by **make.pict
 npx create-make-pictures@latest my-films
 cd my-films
 
-# Connect ElevenLabs API key via browser OAuth (.env.local)
+# Connect ElevenLabs (.env.local) & sync AI agent skills
 npm run onboard
 
-# Launch local 60 FPS Studio Web workstation (http://127.0.0.1:3000)
+# Launch native Remotion Studio (includes interactive StyleLab composition)
 npm run studio
 ```
 
 ## Options
 
 ```bash
-npx create-make-pictures@latest my-films --space=3d --lang=pl
-npx create-make-pictures@latest my-films --space=2d --style=retro-pc
-npx create-make-pictures@latest my-films --space=2.5d --style=tactile-craft --no-install
+npx create-make-pictures@latest my-films --lang=pl
+npx create-make-pictures@latest my-films --lang=en --no-install
 ```
 
 ## Links
