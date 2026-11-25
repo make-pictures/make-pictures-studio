@@ -1,6 +1,11 @@
 import React from 'react';
 import { Composition } from 'remotion';
 import {
+  DEFAULT_STYLE_LAB_PROPS,
+  StyleLabComposition,
+  StyleLabSchema,
+} from '@make-pictures/remotion/style-lab';
+import {
   StarterStory,
   StarterStoryVertical,
   starterStorySchema,
@@ -54,6 +59,16 @@ import {
 export const RemotionRoot: React.FC = () => {
   return (
     <>
+      <Composition
+        id="StyleLab"
+        component={StyleLabComposition}
+        schema={StyleLabSchema}
+        defaultProps={DEFAULT_STYLE_LAB_PROPS}
+        durationInFrames={360}
+        fps={60}
+        width={1920}
+        height={1080}
+      />
       <Composition
         id="StarterStory"
         component={StarterStory}
@@ -114,7 +129,6 @@ export const RemotionRoot: React.FC = () => {
         width={TACTILE_3D_SHOWCASE_WIDTH}
         height={TACTILE_3D_SHOWCASE_HEIGHT}
       />
-      {/* [WAVE3] register StyleLab from @make-pictures/remotion/style-lab */}
     </>
   );
 };

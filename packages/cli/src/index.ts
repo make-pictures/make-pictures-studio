@@ -22,6 +22,7 @@ import {
 } from './commands/audio';
 import { runCutoutCommand } from './commands/cutout';
 import { runDoctorCommand } from './commands/doctor';
+import { runElementsBuildCommand } from './commands/elements';
 import { runGenerateImageCommand } from './commands/generate-image';
 import { runInitCommand } from './commands/init';
 import {
@@ -522,10 +523,34 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
     }
 
     case 'elements': {
-      // [WAVE3] wire elements build command from ./commands/elements
-      throw new Error(
-        'Remotion Elements exporter is being wired in Wave 3. Usage: make-pictures elements build [--out=dist/elements]'
+      const subcommand = positionals[1]?.toLowerCase();
+      if (subcommand !== 'build') {
+        throw new Error(
+          `Unknown elements subcommand "${positionals[1] ?? ''}". Usage: make-pictures elements build [--out=dist/elements] [--base-url=https://make.pictures/elements]`
+        );
+      }
+      const baseDir = path.resolve(cwd || process.cwd());
+      const rawOut = getStringFlag(flags, 'out') || 'dist/elements';
+      const outDir = path.isAbsolute(rawOut)
+        ? rawOut
+        : path.resolve(baseDir, rawOut);
+      const slugsRaw = getStringFlag(flags, 'slugs');
+      const slugs = slugsRaw
+        ? slugsRaw
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean)
+        : undefined;
+      const result = await runElementsBuildCommand({
+        outDir,
+        baseUrl: getStringFlag(flags, 'base-url'),
+        siteName: getStringFlag(flags, 'site-name'),
+        slugs,
+      });
+      console.log(
+        `✅ Built ${result.count} Remotion Elements → ${path.relative(baseDir, result.outDir) || result.outDir} (index: ${path.basename(result.indexFile)})`
       );
+      return;
     }
 
     case 'image': {
@@ -644,6 +669,7 @@ export * from './commands/assets';
 export * from './commands/audio';
 export * from './commands/cutout';
 export * from './commands/doctor';
+export * from './commands/elements';
 export * from './commands/generate-image';
 export * from './commands/init';
 export * from './commands/new-production';

@@ -136,7 +136,20 @@ test('ArtWorldSchema, BUILT_IN_STYLES artWorld mapping, fallbacks, and 7-section
     for (const child of Object.values(shape)) visit(child);
     return seen;
   };
-  assert.deepEqual(collectSections(StylePresetSchema.shape as Record<string, never>), [
+  assert.deepEqual(
+    collectSections(
+      StylePresetSchema.shape as unknown as Record<
+        string,
+        {
+          _def?: {
+            description?: string;
+            innerType?: unknown;
+            shape?: () => Record<string, unknown>;
+          };
+        }
+      >
+    ),
+    [
     'Informacje',
     'Paleta kolorów',
     'Typografia',
