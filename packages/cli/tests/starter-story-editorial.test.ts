@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { ProductionManifest } from '@make-pictures/core';
+import type { AudioManifestFile } from '@make-pictures/remotion';
 import { lintManifestVoiceovers } from '../src/audio/phonetics-lint';
 import {
   ANATOMY_IMAGE_META,
@@ -26,18 +26,18 @@ import {
 } from '../../../examples/starter-story/generated/audio-manifest';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PRODUCTION_JSON_PATH = path.resolve(
+const AUDIO_JSON_PATH = path.resolve(
   __dirname,
-  '../../../examples/starter-story/production.json'
+  '../../../examples/starter-story/audio.json'
 );
 
 const FORBIDDEN_JARGON =
   /60\s*fps|-14\s*lufs|0\s*collisions|webgl|pbr|gpu|shader|bezier|remotion|three\.?js|zod|react/i;
 
-test('StarterStory production.json uses eleven_v4 EN manifest with 5 scenes, 3-section score (name key), 4 SFX, 0 linter warnings, and zero tech jargon', () => {
+test('StarterStory audio.json uses eleven_v4 EN manifest with 5 scenes, 3-section score (name key), 4 SFX, 0 linter warnings, and zero tech jargon', () => {
   const manifest = JSON.parse(
-    fs.readFileSync(PRODUCTION_JSON_PATH, 'utf8')
-  ) as ProductionManifest;
+    fs.readFileSync(AUDIO_JSON_PATH, 'utf8')
+  ) as AudioManifestFile;
 
   assert.equal(manifest.fps, STARTER_STORY_FPS);
   assert.equal(manifest.modelId, 'eleven_v4');

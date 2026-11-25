@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { auditSceneCollisions3D, type ProductionManifest } from '@make-pictures/core';
+import { auditSceneCollisions3D, type AudioManifestFile } from '@make-pictures/remotion';
 import { lintManifestVoiceovers } from '../src/audio/phonetics-lint';
 import {
   PAPER_DIORAMA_DURATION_FRAMES,
@@ -21,15 +21,15 @@ import {
 } from '../../../examples/paper-diorama/generated/audio-manifest';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PRODUCTION_JSON_PATH = path.resolve(
+const AUDIO_JSON_PATH = path.resolve(
   __dirname,
-  '../../../examples/paper-diorama/production.json'
+  '../../../examples/paper-diorama/audio.json'
 );
 
-test('PaperDioramaDemo production.json uses eleven_v4 EN manifest with 0 linter warnings and zero tech jargon', () => {
+test('PaperDioramaDemo audio.json uses eleven_v4 EN manifest with 0 linter warnings and zero tech jargon', () => {
   const manifest = JSON.parse(
-    fs.readFileSync(PRODUCTION_JSON_PATH, 'utf8')
-  ) as ProductionManifest;
+    fs.readFileSync(AUDIO_JSON_PATH, 'utf8')
+  ) as AudioManifestFile;
 
   assert.equal(manifest.fps, PAPER_DIORAMA_FPS);
   assert.equal(manifest.modelId, 'eleven_v4');

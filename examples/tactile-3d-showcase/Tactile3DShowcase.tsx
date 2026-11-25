@@ -9,26 +9,28 @@ import {
 import { ThreeCanvas } from '@remotion/three';
 import * as THREE from 'three';
 import {
-  DirectorCamera3D,
   StyleProvider,
   computeGlassLightingBlend,
   disneyEase,
   evaluateAnticipation,
   evaluateArc3D,
-  evaluateDirectorCamera3D,
   evaluateSecondaryCascade,
   evaluateSurfaceImpact,
   evaluateVelocityStretch,
   projectScreenGlassPose,
   useStudioStyle,
-  type CameraImpulse,
   type DeformedSheetBoundsInput,
   type OrientedBox3D,
   type SheetDeformParams,
+  type Vec3,
+} from '@make-pictures/remotion';
+import {
+  DirectorCamera3D,
+  evaluateDirectorCamera3D,
+  type CameraImpulse,
   type ShotSpec3D,
   type StageAnchor3D,
-  type Vec3,
-} from '@make-pictures/core';
+} from '@make-pictures/remotion/camera';
 import {
   DaylightArcRig3D,
   DeformableSheet3D,
@@ -36,12 +38,15 @@ import {
   computeScreenGlassTransform,
   evaluateTimeOfDayLighting,
   getProceduralPbrMaps,
-} from '@make-pictures/kits/tactile-3d';
+} from '@make-pictures/remotion/kits/tactile-3d';
 import {
   FloatingEditorialDisplay,
   PaperRibbonTimeline,
   type PaperTimelineMilestone,
-} from '@make-pictures/kits/editorial-collage';
+} from '@make-pictures/remotion/kits/editorial-collage';
+
+export const TACTILE_3D_SHOWCASE_FPS = 60 as const;
+export const TACTILE_3D_SHOWCASE_DURATION_FRAMES = 360 as const;
 
 export const tactile3dShowcaseSchema = z.object({
   styleId: z.string().describe('Kolory & Styl :: Styl bazowy (Style ID)'),
@@ -50,6 +55,12 @@ export const tactile3dShowcaseSchema = z.object({
 });
 
 export type Tactile3DShowcaseProps = z.infer<typeof tactile3dShowcaseSchema>;
+
+export const tactile3dShowcaseDefaultProps: Tactile3DShowcaseProps = {
+  styleId: 'tactile-craft',
+  title: 'Tactile 3D Core',
+  subtitle: 'GPU-bent sheets, Disney arcs & Frame-1 HDR',
+};
 
 const ANCHORS: Record<string, StageAnchor3D> = {
   stack: { position: [0, -0.02, 0.22], height: 0.72, radius: 0.72 },

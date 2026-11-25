@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { auditSceneCollisions3D, type ProductionManifest } from '@make-pictures/core';
+import { auditSceneCollisions3D, type AudioManifestFile } from '@make-pictures/remotion';
 import { lintManifestVoiceovers } from '../src/audio/phonetics-lint';
 import {
   DEFAULT_ISOMETRIC_DIALOGUE_TIMELINE,
@@ -19,15 +19,15 @@ import {
 } from '../../../examples/isometric-dialogue/generated/audio-manifest';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PRODUCTION_JSON_PATH = path.resolve(
+const AUDIO_JSON_PATH = path.resolve(
   __dirname,
-  '../../../examples/isometric-dialogue/production.json'
+  '../../../examples/isometric-dialogue/audio.json'
 );
 
-test('IsometricDialogueDemo production.json uses eleven_v4 Text-to-Dialogue (6 turns), 3-section score, 5 SFX, 0 jargon & 0 linter warnings', () => {
+test('IsometricDialogueDemo audio.json uses eleven_v4 Text-to-Dialogue (6 turns), 3-section score, 5 SFX, 0 jargon & 0 linter warnings', () => {
   const manifest = JSON.parse(
-    fs.readFileSync(PRODUCTION_JSON_PATH, 'utf8')
-  ) as ProductionManifest;
+    fs.readFileSync(AUDIO_JSON_PATH, 'utf8')
+  ) as AudioManifestFile;
 
   assert.equal(manifest.fps, ISOMETRIC_DIALOGUE_FPS);
   assert.equal(manifest.modelId, 'eleven_v4');

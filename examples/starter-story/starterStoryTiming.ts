@@ -4,19 +4,19 @@ import {
   type ProductionCameraCut,
   type ProductionSfxCue,
   type SceneVoiceoverData,
-} from '@make-pictures/core';
+} from '@make-pictures/remotion';
 import type {
   EditorialPanoramaItem,
   PaperTimelineMilestone,
-} from '@make-pictures/kits/editorial-collage';
+} from '@make-pictures/remotion/kits/editorial-collage';
 import type {
   BarRaceItem,
   BarRaceKeyframe,
-} from '@make-pictures/kits/data-storytelling';
+} from '@make-pictures/remotion/kits/data-storytelling';
 import type {
   HorizontalFeatureItem,
   MediaPinSpec,
-} from '@make-pictures/kits/vector-scene-2d';
+} from '@make-pictures/remotion/kits/vector-scene-2d';
 import { VOICEOVER_MANIFEST } from './generated/audio-manifest';
 
 export const STARTER_STORY_FPS = 60 as const;

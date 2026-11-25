@@ -4,15 +4,15 @@ import {
   type ProductionCameraCut,
   type ProductionSfxCue,
   type SceneVoiceoverData,
-} from '@make-pictures/core';
-import type { PaperTimelineMilestone } from '@make-pictures/kits/editorial-collage';
+} from '@make-pictures/remotion';
+import type { PaperTimelineMilestone } from '@make-pictures/remotion/kits/editorial-collage';
 import {
   portLeft,
   portRight,
   type NodeBox,
   type Point2D,
-} from '@make-pictures/kits/motion-diagrams-2d';
-import type { HorizontalFeatureItem } from '@make-pictures/kits/vector-scene-2d';
+} from '@make-pictures/remotion/kits/motion-diagrams-2d';
+import type { HorizontalFeatureItem } from '@make-pictures/remotion/kits/vector-scene-2d';
 import { VOICEOVER_MANIFEST } from './generated/audio-manifest';
 
 export const PROMO_FPS = 60 as const;

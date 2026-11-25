@@ -14,27 +14,27 @@ import { RoundedBox } from '@react-three/drei';
 import * as THREE from 'three';
 import { z } from 'zod';
 import {
-  DirectorCamera3D,
   SmartMusicBed,
   SoundCue,
   StyleProvider,
   VoiceoverTrack,
   useStudioStyle,
   type DialogueDuckingSegment,
-} from '@make-pictures/core';
+} from '@make-pictures/remotion';
+import { DirectorCamera3D } from '@make-pictures/remotion/camera';
 import {
   ClayCharacter3D,
   PodcastStudioSet3D,
-} from '@make-pictures/kits/isometric-3d';
+} from '@make-pictures/remotion/kits/isometric-3d';
 import {
   DaylightArcRig3D,
   getProceduralPbrMaps,
   usePreloadedTextures3D,
-} from '@make-pictures/kits/tactile-3d';
+} from '@make-pictures/remotion/kits/tactile-3d';
 import {
   FloatingEditorialDisplay,
   PaperRibbonTimeline,
-} from '@make-pictures/kits/editorial-collage';
+} from '@make-pictures/remotion/kits/editorial-collage';
 import {
   DEFAULT_ISOMETRIC_DIALOGUE_TIMELINE,
   ISOMETRIC_DIALOGUE_DURATION_FRAMES,
@@ -47,7 +47,6 @@ import {
   SFX_MANIFEST,
   VOICEOVER_MANIFEST,
 } from './generated/audio-manifest';
-import isometricDefaults from './IsometricDialogueDemo.props.json';
 
 export type IsometricDialogueLang = 'en' | 'pl';
 
@@ -103,6 +102,23 @@ export const isometricDialogueSchema = z.object({
 export type IsometricDialogueDemoProps = z.infer<
   typeof isometricDialogueSchema
 >;
+
+export const isometricDialogueDefaultProps: IsometricDialogueDemoProps = {
+  styleId: 'soft-clay',
+  lang: 'en',
+  headline: 'Five Seconds to Air',
+  subline: 'Comedic banter, live lighting, and camera cues.',
+  mayaName: 'Maya',
+  mayaColor: '#D96B4F',
+  leoName: 'Leo',
+  leoColor: '#2E5278',
+  cameraZoom: 114,
+  voiceoverVolume: 1,
+  musicVolume: 0.25,
+  sfxVolume: 0.22,
+};
+
+const isometricDefaults = isometricDialogueDefaultProps;
 
 // ============================================================================
 // Module-Scope Static Constants & Audio Descriptors (Zero 60 Hz Allocations)

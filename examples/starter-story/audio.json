@@ -1,14 +1,12 @@
 {
   "id": "starter-story",
-  "title": "How a Bullet Train Never Spills a Cup",
-  "fps": 60,
   "lang": "en",
+  "fps": 60,
   "modelId": "eleven_v4",
   "scenes": [
     {
       "id": "opener-en",
       "title": "Act 1 — Editorial Opener",
-      "component": "StarterStory",
       "durationInFrames": 360,
       "durationInSeconds": 6.0,
       "modelId": "eleven_v4",
@@ -28,7 +26,6 @@
     {
       "id": "panorama-en",
       "title": "Act 2 — Rail Evolution Panorama",
-      "component": "StarterStory",
       "durationInFrames": 480,
       "durationInSeconds": 8.0,
       "modelId": "eleven_v4",
@@ -48,7 +45,6 @@
     {
       "id": "anatomy-en",
       "title": "Act 3 — Sculpted Anatomy",
-      "component": "StarterStory",
       "durationInFrames": 480,
       "durationInSeconds": 8.0,
       "modelId": "eleven_v4",
@@ -68,7 +64,6 @@
     {
       "id": "speed-en",
       "title": "Act 4 — Six Decades of Speed",
-      "component": "StarterStory",
       "durationInFrames": 510,
       "durationInSeconds": 8.5,
       "modelId": "eleven_v4",
@@ -88,7 +83,6 @@
     {
       "id": "secrets-en",
       "title": "Act 5 — Four Quiet Secrets",
-      "component": "StarterStory",
       "durationInFrames": 450,
       "durationInSeconds": 7.5,
       "modelId": "eleven_v4",
