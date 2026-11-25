@@ -17,9 +17,7 @@
       "@make-pictures/core": ["packages/core/src/index.ts"],
       "@make-pictures/core/*": ["packages/core/src/*"],
       "@make-pictures/kits": ["packages/kits/src/index.ts"],
-      "@make-pictures/kits/*": ["packages/kits/src/*"],
-      "@make-pictures/studio": ["packages/studio/src/index.ts"],
-      "@make-pictures/studio/*": ["packages/studio/src/*"]
+      "@make-pictures/kits/*": ["packages/kits/src/*"]
     }
   },
   "include": [
@@ -28,9 +26,7 @@
     "productions",
     "src",
     "scripts",
-    "remotion.config.ts",
-    "vite.config.ts",
-    "scenes.json"
+    "remotion.config.ts"
   ],
   "exclude": [
     "node_modules",
