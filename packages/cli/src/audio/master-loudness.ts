@@ -37,7 +37,23 @@ function hasAudioStream(filePath: string): boolean {
     );
     return out.trim().length > 0;
   } catch {
-    return true;
+    // Fallback when `ffprobe` is unavailable: inspect `ffmpeg -i` stream summary via stderr
+    try {
+      execFileSync('ffmpeg', ['-hide_banner', '-i', filePath], {
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      return false;
+    } catch (ffmpegErr: unknown) {
+      const stderr =
+        ffmpegErr &&
+        typeof ffmpegErr === 'object' &&
+        'stderr' in ffmpegErr &&
+        typeof (ffmpegErr as { stderr?: unknown }).stderr === 'string'
+          ? (ffmpegErr as { stderr: string }).stderr
+          : '';
+      return /Stream\s+#\d+:\d+(?:\([^)]*\))?:\s*Audio:/i.test(stderr);
+    }
   }
 }
 

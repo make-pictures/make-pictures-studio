@@ -156,14 +156,14 @@ Commands:
   init [--dir=videos] [--space=2d|2.5d|3d] [--kit=vector-scene-2d] [--style=minimal-product] [--lang=en|pl] [--force]
       Add @make-pictures/remotion, tandem AI skills, and optional starter composition to an existing repo
 
-  onboard [init|connect|wait|check|status] [--json|--human] [--no-browser]
+  onboard [init|connect|wait|check|status] [--lang=pl|en] [--mode=standalone|saas] [--target=<dir>] [--dir=<subdir>] [--json|--human] [--no-browser]
       3-mode Remotion-first onboarding (empty dir, existing Remotion repo, or existing app)
 
   doctor [--setup] [--dir=<subdir>]
       Verify Node.js, FFmpeg, ElevenLabs connectivity, audio.json manifests, and Remotion
 
   styles [--space=2d|2.5d|3d] [--json] [--dir=<subdir>]
-      List all 10 built-in Art Direction styles, custom styles/*.style.json, and 7 visual kits
+      List all 10 built-in Art Direction styles, custom styles/*.style.json, and 7 starter scaffold kits (10 runtime visual kits)
 
   style new <slug> [--from=minimal-product] [--force] [--dir=<subdir>]
       Create a reusable custom Art Direction preset in styles/<slug>.style.json
@@ -177,11 +177,11 @@ Commands:
   voices [--lang=pl|en|all] [--gender=female|male] [--query="..."] [--mine] [--limit=12] [--json] [--audition="Sample text" --voice=<voiceId> [--model=<modelId>] [--out=<file.mp3>]]
       Discover native ElevenLabs voices or audition 1 short sentence
 
-  music [prompt] [--production=<slug>] [--mood=ambient-tech] [--duration=16] [--mock] [--force]
-      Generate or refresh background score track
+  music [prompt] [--production=<slug>] [--mood=ambient-tech] [--duration=16] [--mock] [--force] [--dir=<subdir>]
+      Generate or refresh background score track for a video slug or standalone music library
 
-  sfx [prompt] [--production=<slug>] [--id=whoosh] [--preset=whoosh] [--loop] [--mock] [--force]
-      Generate or refresh Foley / SFX asset
+  sfx [prompt] [--production=<slug>] [--id=whoosh] [--preset=whoosh] [--duration=<sec>] [--loop] [--mock] [--force] [--dir=<subdir>]
+      Generate or refresh Foley / SFX asset for a video slug or standalone SFX library
 
   qa <CompositionId> [--grid=auto|4x3] [--audio=<path>] [--out=out/qa-<id>.png] [--duration=<frames>] [--allow-fast-cuts] [--gl-angle] [--dir=<subdir>]
       Run native Remotion selectComposition + Hard Director QA Gate + Contact-Sheet PNG
@@ -253,11 +253,7 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
 
   switch (command) {
     case 'studio': {
-      const portStr = getStringFlag(flags, 'port');
-      const port = portStr ? Number(portStr) : undefined;
-      if (port !== undefined && (!Number.isFinite(port) || port <= 0)) {
-        throw new Error(`Invalid --port value: "${portStr}"`);
-      }
+      const port = parseFiniteFlag(flags, 'port', { min: 1, max: 65535 });
       await runStudioCommand({
         cwd,
         dir,
@@ -278,11 +274,17 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
         spaceDefaults?.kit;
       const style = getStringFlag(flags, 'style') ?? spaceDefaults?.styleId;
       const voice = getStringFlag(flags, 'voice');
-      const langRaw = getStringFlag(flags, 'lang');
-      const lang = langRaw === 'pl' ? 'pl' : 'en';
+      const langRaw = getStringFlag(flags, 'lang')?.toLowerCase();
+      if (langRaw !== undefined && langRaw !== 'pl' && langRaw !== 'en') {
+        throw new Error(
+          `Invalid --lang value "${langRaw}". Expected "pl" or "en".`
+        );
+      }
+      const lang = langRaw === 'pl' ? 'pl' : langRaw === 'en' ? 'en' : undefined;
       await runInitCommand({
         cwd,
         dir,
+        space,
         kit,
         style,
         voice,
@@ -405,8 +407,13 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
       const kit = getStringFlag(flags, 'kit') as ScaffoldKitId | undefined;
       const style = getStringFlag(flags, 'style');
       const voice = getStringFlag(flags, 'voice');
-      const langRaw = getStringFlag(flags, 'lang');
-      const lang = langRaw === 'pl' ? 'pl' : 'en';
+      const langRaw = getStringFlag(flags, 'lang')?.toLowerCase();
+      if (langRaw !== undefined && langRaw !== 'pl' && langRaw !== 'en') {
+        throw new Error(
+          `Invalid --lang value "${langRaw}". Expected "pl" or "en".`
+        );
+      }
+      const lang = langRaw === 'pl' ? 'pl' : langRaw === 'en' ? 'en' : undefined;
       await runNewProductionCommand({
         cwd,
         dir,
@@ -436,7 +443,7 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
     }
 
     case 'music': {
-      const durStr = getStringFlag(flags, 'duration');
+      const durationSeconds = parseFiniteFlag(flags, 'duration', { min: 1 });
       await runMusicShortcutCommand({
         cwd,
         dir,
@@ -445,7 +452,7 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
         prompt: getStringFlag(flags, 'prompt') || positionals[1],
         moodPreset: getStringFlag(flags, 'mood') as MusicMoodPreset | undefined,
         mode: getStringFlag(flags, 'mode') as MusicScoreSpec['mode'] | undefined,
-        durationSeconds: durStr ? Number(durStr) : undefined,
+        durationSeconds,
         mock: Boolean(flags.mock),
         force: Boolean(flags.force),
       });
@@ -453,7 +460,7 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
     }
 
     case 'sfx': {
-      const durStr = getStringFlag(flags, 'duration');
+      const durationSeconds = parseFiniteFlag(flags, 'duration', { min: 0.05 });
       await runSfxShortcutCommand({
         cwd,
         dir,
@@ -463,7 +470,7 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
         fallbackPreset: getStringFlag(flags, 'preset') as
           | SfxFallbackPreset
           | undefined,
-        durationSeconds: durStr ? Number(durStr) : undefined,
+        durationSeconds,
         loop: Boolean(flags.loop),
         mock: Boolean(flags.mock),
         force: Boolean(flags.force),
@@ -479,7 +486,7 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
           'Missing <CompositionId>. Usage: make-pictures qa <CompositionId> [--grid=auto|4x3] [--audio=<path>] [--out=out/qa-id.png]'
         );
       }
-      const durStr = getStringFlag(flags, 'duration');
+      const durationOverride = parseFiniteFlag(flags, 'duration', { min: 1 });
       await runQaContactSheetCommand({
         cwd,
         dir,
@@ -488,7 +495,7 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
         grid: getStringFlag(flags, 'grid'),
         outPath: getStringFlag(flags, 'out'),
         audioManifestPath: getStringFlag(flags, 'audio'),
-        durationOverride: durStr ? Number(durStr) : undefined,
+        durationOverride,
         glAngle:
           flags['gl-angle'] === true || flags.gl === 'angle' ? true : undefined,
         allowFastCuts: Boolean(flags['allow-fast-cuts']),
@@ -505,7 +512,7 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
         );
       }
       const outPath = positionals[2] || getStringFlag(flags, 'out');
-      const timeoutStr = getStringFlag(flags, 'timeout');
+      const timeoutMs = parseFiniteFlag(flags, 'timeout', { min: 1000 });
       await runRenderCommand({
         cwd,
         dir,
@@ -517,7 +524,7 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
         glAngle:
           flags['gl-angle'] === true || flags.gl === 'angle' ? true : undefined,
         concurrency: getStringFlag(flags, 'concurrency'),
-        timeoutMs: timeoutStr ? Number(timeoutStr) : undefined,
+        timeoutMs,
       });
       return;
     }

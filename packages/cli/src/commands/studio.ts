@@ -14,6 +14,9 @@ export interface StudioCommandOptions {
   host?: string;
 }
 
+const VALID_HOST_RE = /^[A-Za-z0-9.:-]+$/;
+const UNSAFE_SHELL_CHARS_RE = /[\0\r\n&|;<>^%!$`"']/;
+
 /**
  * Thin passthrough launching native `remotion studio <entryPoint>`
  * after verifying that Remotion and a valid entry point exist.
@@ -36,13 +39,24 @@ export async function runStudioCommand(
     explicitEntry: options.entryPoint,
   });
   const relEntry = path.relative(rootDir, entryPoint) || entryPoint;
+  if (UNSAFE_SHELL_CHARS_RE.test(relEntry)) {
+    throw new Error(
+      `Invalid Remotion entry path "${relEntry}": contains unsafe shell characters.`
+    );
+  }
 
   const args = ['studio', relEntry];
   if (typeof options.port === 'number' && Number.isFinite(options.port)) {
     args.push(`--port=${Math.round(options.port)}`);
   }
-  if (options.host && options.host.trim().length > 0) {
-    args.push(`--host=${options.host.trim()}`);
+  if (options.host !== undefined && options.host.trim().length > 0) {
+    const cleanHost = options.host.trim();
+    if (!VALID_HOST_RE.test(cleanHost)) {
+      throw new Error(
+        `Invalid --host value "${options.host}". Expected a hostname or IP address (e.g. 127.0.0.1, localhost, 0.0.0.0).`
+      );
+    }
+    args.push(`--host=${cleanHost}`);
   }
 
   console.log('==============================================================');

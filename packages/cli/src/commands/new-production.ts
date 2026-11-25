@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {
+  BUILT_IN_STYLE_IDS,
   BUILT_IN_STYLES,
   DimensionalSpaceSchema,
   isBuiltInStyleId,
@@ -30,6 +31,10 @@ import {
   loadMakePicturesConfig,
   resolveWorkspaceContext,
 } from './workspace-paths';
+import {
+  blankCommentsPreservingNewlines,
+  readJsxOpeningTagEnd,
+} from '../utils/jsx-source-scan';
 
 export const SCENES_KIT_IDS = [
   'editorial-collage',
@@ -145,7 +150,10 @@ export function resolveScaffoldStyle(
   studioDir: string,
   styleId?: string
 ): StylePreset {
-  const requested = (styleId ?? 'minimal-product').trim();
+  if (!styleId || !styleId.trim()) {
+    return BUILT_IN_STYLES['minimal-product'];
+  }
+  const requested = styleId.trim();
   const { styles: customStyles } = loadWorkspaceCustomStyles(studioDir);
   const matchedCustom = customStyles.find((s) => s.id === requested);
   if (matchedCustom) {
@@ -154,7 +162,13 @@ export function resolveScaffoldStyle(
   if (isBuiltInStyleId(requested)) {
     return BUILT_IN_STYLES[requested];
   }
-  return BUILT_IN_STYLES['minimal-product'];
+  const available = [
+    ...BUILT_IN_STYLE_IDS,
+    ...customStyles.map((s) => s.id),
+  ].join(', ');
+  throw new Error(
+    `Unknown style "${requested}". Available styles: ${available}. Run \`npx make-pictures styles\` to list all styles.`
+  );
 }
 
 export function buildScaffoldProductionManifest(
@@ -262,18 +276,20 @@ export function buildScaffoldDefaultProps(
 
 function buildSchemaBlock(
   pascalName: string,
-  defaultPropsObj: Record<string, unknown>
+  defaultPropsObj: Record<string, unknown>,
+  lang: 'pl' | 'en' = 'pl'
 ): string {
+  const isPl = lang === 'pl';
   return `export const ${pascalName}Schema = z.object({
-  styleId: z.string().describe('Kolory & Styl :: Styl bazowy (Style ID)'),
-  headline: z.string().describe('Teksty & Napisy :: Nagłówek'),
-  subheadline: z.string().describe('Teksty & Napisy :: Podtytuł'),
-  badgeLabel: z.string().describe('Teksty & Napisy :: Etykieta rozdziału'),
-  accentColor: z.string().describe('Kolory & Styl :: Akcent główny'),
-  secondaryColor: z.string().describe('Kolory & Styl :: Akcent drugi'),
-  voiceoverVolume: z.number().min(0).max(1.5).describe('Audio :: Głośność lektora'),
-  musicVolume: z.number().min(0).max(1).describe('Audio :: Głośność muzyki'),
-  sfxVolume: z.number().min(0).max(1).describe('Audio :: Głośność SFX'),
+  styleId: z.string().describe('${isPl ? 'Kolory & Styl :: Styl bazowy (Style ID)' : 'Color & Style :: Base Style ID'}'),
+  headline: z.string().describe('${isPl ? 'Teksty & Napisy :: Nagłówek' : 'Copy :: Headline'}'),
+  subheadline: z.string().describe('${isPl ? 'Teksty & Napisy :: Podtytuł' : 'Copy :: Subheadline'}'),
+  badgeLabel: z.string().describe('${isPl ? 'Teksty & Napisy :: Etykieta rozdziału' : 'Copy :: Chapter Badge'}'),
+  accentColor: z.string().describe('${isPl ? 'Kolory & Styl :: Akcent główny' : 'Color & Style :: Primary Accent'}'),
+  secondaryColor: z.string().describe('${isPl ? 'Kolory & Styl :: Akcent drugi' : 'Color & Style :: Secondary Accent'}'),
+  voiceoverVolume: z.number().min(0).max(1.5).describe('${isPl ? 'Audio :: Głośność lektora' : 'Audio :: Voiceover Volume'}'),
+  musicVolume: z.number().min(0).max(1).describe('${isPl ? 'Audio :: Głośność muzyki' : 'Audio :: Music Volume'}'),
+  sfxVolume: z.number().min(0).max(1).describe('${isPl ? 'Audio :: Głośność SFX' : 'Audio :: SFX Volume'}'),
 });
 
 export type ${pascalName}Props = z.infer<typeof ${pascalName}Schema>;
@@ -353,7 +369,7 @@ export function buildScaffoldCompositionTsx(params: {
   if (styleId && !params.style) {
     defaultPropsObj.styleId = styleId;
   }
-  const schemaBlock = buildSchemaBlock(pascalName, defaultPropsObj);
+  const schemaBlock = buildSchemaBlock(pascalName, defaultPropsObj, lang);
   const audioBlock = buildAudioJsxBlock();
 
   switch (kit) {
@@ -655,24 +671,24 @@ const IntroDataScene: React.FC<${pascalName}Props> = (props) => {
         <AnimatedBarRace
           title={props.headline}
           subtitle={props.subheadline}
-          valueSuffix=" pkt"
+          valueSuffix="${isPl ? ' pkt' : ' pts'}"
           startFrame={2}
           items={[
             {
               id: 'clarity',
-              label: 'Czytelność narracji',
+              label: '${isPl ? 'Czytelność narracji' : 'Narrative clarity'}',
               value: 96,
               color: props.accentColor,
             },
             {
               id: 'harmony',
-              label: 'Spójność światła i barwy',
+              label: '${isPl ? 'Spójność światła i barwy' : 'Light and color harmony'}',
               value: 91,
               color: props.secondaryColor,
             },
             {
               id: 'pacing',
-              label: 'Spokojny rytm ujęć',
+              label: '${isPl ? 'Spokojny rytm ujęć' : 'Calm shot pacing'}',
               value: 88,
             },
           ]}
@@ -700,20 +716,20 @@ const PayoffDataScene: React.FC<${pascalName}Props> = (props) => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
           <MetricComparisonCard
             title={props.headline}
-            beforeLabel="Statyczny slajd"
+            beforeLabel="${isPl ? 'Statyczny slajd' : 'Static slide'}"
             beforeValue={31}
-            afterLabel="Żywy obraz"
+            afterLabel="${isPl ? 'Żywy obraz' : 'Living frame'}"
             afterValue={94}
-            unit=" pkt"
+            unit="${isPl ? ' pkt' : ' pts'}"
             afterColor={props.accentColor}
             startFrame={2}
           />
           <TimelineTrack
             startFrame={24}
             milestones={[
-              { id: 'e1', era: '01', label: 'Pomysł', fromFrame: 24 },
-              { id: 'e2', era: '02', label: 'Świat sztuki', fromFrame: 120 },
-              { id: 'e3', era: '03', label: 'Gotowy film', fromFrame: 216 },
+              { id: 'e1', era: '01', label: '${isPl ? 'Pomysł' : 'Concept'}', fromFrame: 24 },
+              { id: 'e2', era: '02', label: '${isPl ? 'Świat sztuki' : 'Art world'}', fromFrame: 120 },
+              { id: 'e3', era: '03', label: '${isPl ? 'Gotowy film' : 'Finished film'}', fromFrame: 216 },
             ]}
           />
         </div>
@@ -1010,16 +1026,16 @@ const IntroDiagramScene: React.FC<${pascalName}Props> = (props) => {
         drawStartFrame={8}
         flowStartFrame={24}
         flowEndFrame={352}
-        label="Światło i rytm"
+        label="${isPl ? 'Światło i rytm' : 'Light and rhythm'}"
       />
 
       <SystemNode
         id="first"
         badge={props.badgeLabel}
         title={props.headline}
-        subtitle="Pomysł i narracja sceny"
-        statusText="Spokojne otwarcie"
-        activeStatusText="Przepływ aktywny"
+        subtitle="${isPl ? 'Pomysł i narracja sceny' : 'Scene idea and narrative'}"
+        statusText="${isPl ? 'Spokojne otwarcie' : 'Calm opening'}"
+        activeStatusText="${isPl ? 'Przepływ aktywny' : 'Flow active'}"
         x={nodes.first.cx}
         y={nodes.first.cy}
         width={nodes.first.w}
@@ -1031,10 +1047,10 @@ const IntroDiagramScene: React.FC<${pascalName}Props> = (props) => {
 
       <SystemNode
         id="second"
-        title="Kierunek sztuki"
+        title="${isPl ? 'Kierunek sztuki' : 'Art direction'}"
         subtitle={props.subheadline}
-        statusText="Oczekiwanie"
-        activeStatusText="Kompozycja gotowa"
+        statusText="${isPl ? 'Oczekiwanie' : 'Standing by'}"
+        activeStatusText="${isPl ? 'Kompozycja gotowa' : 'Composition ready'}"
         x={nodes.second.cx}
         y={nodes.second.cy}
         width={nodes.second.w}
@@ -1084,15 +1100,15 @@ const PayoffDiagramScene: React.FC<${pascalName}Props> = (props) => {
         drawStartFrame={6}
         flowStartFrame={22}
         flowEndFrame={352}
-        label="Płynny obraz"
+        label="${isPl ? 'Płynny obraz' : 'Fluid motion'}"
       />
 
       <SystemNode
         id="first"
-        title="Kierunek sztuki"
-        subtitle="Spójna paleta i typografia"
-        statusText="Zharmonizowany"
-        activeStatusText="Prowadzenie ostrości"
+        title="${isPl ? 'Kierunek sztuki' : 'Art direction'}"
+        subtitle="${isPl ? 'Spójna paleta i typografia' : 'Cohesive palette and typography'}"
+        statusText="${isPl ? 'Zharmonizowany' : 'Harmonized'}"
+        activeStatusText="${isPl ? 'Prowadzenie ostrości' : 'Focus guidance'}"
         x={nodes.first.cx}
         y={nodes.first.cy}
         width={nodes.first.w}
@@ -1104,10 +1120,10 @@ const PayoffDiagramScene: React.FC<${pascalName}Props> = (props) => {
 
       <SystemNode
         id="second"
-        title="Gotowy film"
+        title="${isPl ? 'Gotowy film' : 'Finished film'}"
         subtitle={props.subheadline}
-        statusText="Przygotowanie"
-        activeStatusText="Czysty dźwięk i obraz"
+        statusText="${isPl ? 'Przygotowanie' : 'Preparing'}"
+        activeStatusText="${isPl ? 'Czysty dźwięk i obraz' : 'Clean sound and picture'}"
         x={nodes.second.cx}
         y={nodes.second.cy}
         width={nodes.second.w}
@@ -1747,7 +1763,7 @@ const IntroVectorScene: React.FC<${pascalName}Props> = (props) => {
         <AnnotatedCallout2D
           target={isVertical ? [360, 650] : [960, 560]}
           labelPosition={isVertical ? [590, 860] : [1180, 790]}
-          label="Punkt skupienia"
+          label="${isPl ? 'Punkt skupienia' : 'Focal point'}"
           startFrame={24}
           accentColor={props.secondaryColor}
         />
@@ -1781,14 +1797,14 @@ const PayoffVectorScene: React.FC<${pascalName}Props> = (props) => (
       startFrame={2}
       focusShiftFrame={150}
       left={{
-        tag: 'Punkt wyjścia',
+        tag: '${isPl ? 'Punkt wyjścia' : 'Starting point'}',
         title: props.headline,
         detail: props.subheadline,
       }}
       right={{
-        tag: 'Kierunek sztuki',
+        tag: '${isPl ? 'Kierunek sztuki' : 'Art direction'}',
         title: props.styleId,
-        detail: 'Spójne światło, faktura i płynny ruch',
+        detail: '${isPl ? 'Spójne światło, faktura i płynny ruch' : 'Cohesive light, texture, and fluid motion'}',
       }}
     />
   </VectorSceneStage2D>
@@ -1917,10 +1933,24 @@ export function buildPrepopulatedVoiceovers(
   return records;
 }
 
+function findLastTopLevelImportEnd(source: string): number {
+  const cleaned = blankCommentsPreservingNewlines(source);
+  // Matches both `import ... from '...'` (single or multiline) and side-effect `import '...'`, with or without trailing `;`
+  const importStmtRe =
+    /^[ \t]*import\s+(?:(?:type\s+)?[\s\S]*?\bfrom\s+['"][^'"]+['"]|['"][^'"]+['"])[ \t]*;?[ \t]*$/gm;
+  let lastEnd = -1;
+  let m: RegExpExecArray | null;
+  while ((m = importStmtRe.exec(cleaned)) !== null) {
+    lastEnd = m.index + m[0].length;
+  }
+  return lastEnd;
+}
+
 /**
  * Registers a newly scaffolded composition inside `<studioDir>/src/Root.tsx` using standard
  * Remotion `<Composition id=... component=... schema=... defaultProps=... />` syntax.
- * Creates a clean `src/Root.tsx` if none exists yet, and is idempotent if `id` is already present.
+ * Creates a clean `src/Root.tsx` if none exists yet, handles semicolon-less (`semi: false`) imports
+ * and single-element `<Composition />` roots cleanly, and is idempotent if `id` is already present.
  */
 export function registerCompositionInRootTsx(params: {
   rootTsxPath: string;
@@ -1930,7 +1960,7 @@ export function registerCompositionInRootTsx(params: {
   fps?: number;
   width?: number;
   height?: number;
-}): { updated: boolean; created: boolean } {
+}): { updated: boolean; created: boolean; warning?: string } {
   const {
     rootTsxPath,
     compositionId,
@@ -1981,11 +2011,9 @@ ${compElement}
   }
 
   let next = existing;
-  const importMatches = [...next.matchAll(/^import\s[\s\S]*?;\s*$/gm)];
-  if (importMatches.length > 0) {
-    const lastMatch = importMatches[importMatches.length - 1]!;
-    const insertAt = (lastMatch.index ?? 0) + lastMatch[0].length;
-    next = `${next.slice(0, insertAt)}\n${importLine}${next.slice(insertAt)}`;
+  const lastImportEnd = findLastTopLevelImportEnd(next);
+  if (lastImportEnd !== -1) {
+    next = `${next.slice(0, lastImportEnd)}\n${importLine}${next.slice(lastImportEnd)}`;
   } else {
     next = `${importLine}\n${next}`;
   }
@@ -2001,7 +2029,42 @@ ${compElement}
     return { updated: true, created: false };
   }
 
-  return { updated: false, created: false };
+  // Fallback for single-element Root.tsx without a `<>...</>` fragment: wrap the existing <Composition ... /> in a fragment
+  const cleanedNext = blankCommentsPreservingNewlines(next);
+  const compRe = /<Composition(?=[\s>/])/g;
+  let lastCompStart = -1;
+  let lastCompEnd = -1;
+  let cm: RegExpExecArray | null;
+  while ((cm = compRe.exec(cleanedNext)) !== null) {
+    const tagEnd = readJsxOpeningTagEnd(cleanedNext, cm.index);
+    if (tagEnd === -1) continue;
+    const isSelfClosing = cleanedNext.slice(cm.index, tagEnd + 1).trimEnd().endsWith('/>');
+    if (isSelfClosing) {
+      lastCompStart = cm.index;
+      lastCompEnd = tagEnd + 1;
+    } else {
+      const closeIdx = cleanedNext.indexOf('</Composition>', tagEnd + 1);
+      if (closeIdx !== -1) {
+        lastCompStart = cm.index;
+        lastCompEnd = closeIdx + '</Composition>'.length;
+      }
+    }
+    compRe.lastIndex = tagEnd + 1;
+  }
+
+  if (lastCompStart !== -1 && lastCompEnd !== -1) {
+    const existingElement = next.slice(lastCompStart, lastCompEnd);
+    const wrapped = `<>\n      ${existingElement}\n${compElement}\n    </>`;
+    next = `${next.slice(0, lastCompStart)}${wrapped}${next.slice(lastCompEnd)}`;
+    fs.writeFileSync(rootTsxPath, next, 'utf8');
+    return { updated: true, created: false };
+  }
+
+  return {
+    updated: false,
+    created: false,
+    warning: `Could not auto-insert <Composition id="${compositionId}" /> into ${rootTsxPath}. Please register it manually in your RemotionRoot component.`,
+  };
 }
 
 /**
@@ -2016,7 +2079,7 @@ export async function runNewProductionCommand(
     cwd: options.cwd ?? options.rootDir,
     dir: options.dir,
   });
-  const config = loadMakePicturesConfig(studioDir);
+  const config = loadMakePicturesConfig(studioDir, rootDir);
 
   const slug = normalizeProductionSlug(options.slug);
   if (options.space !== undefined) {
@@ -2093,7 +2156,8 @@ export async function runNewProductionCommand(
     'utf8'
   );
 
-  const rootTsxPath = path.join(studioDir, 'src', 'Root.tsx');
+  const configuredEntryPath = path.resolve(studioDir, config.entryPoint);
+  const rootTsxPath = path.join(path.dirname(configuredEntryPath), 'Root.tsx');
   const rawRelImport = path.relative(
     path.dirname(rootTsxPath),
     path.join(productionDir, pascalName)
@@ -2129,6 +2193,8 @@ export async function runNewProductionCommand(
     console.log(
       `  • Registered:   ${path.relative(rootDir, rootTsxPath)} (<Composition id="${pascalName}" />)`
     );
+  } else if (regResult.warning) {
+    console.warn(`  ⚠️  ${regResult.warning}`);
   }
   console.log('\nNext steps:');
   console.log(`  1. npx make-pictures audio ${slug} --mock${dirFlagHint}`);

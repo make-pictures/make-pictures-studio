@@ -7,6 +7,7 @@ import type {
   MusicMoodPreset,
   MusicScoreSpec,
 } from '@make-pictures/remotion/types';
+import { assertSafeIdSegment } from '../utils/cli-helpers';
 
 export interface GeneratedMusicMetadata {
   id: string;
@@ -23,7 +24,7 @@ export interface GeneratedMusicMetadata {
 
 export interface GenerateMusicOptions {
   outputDir: string;
-  /** Public-relative prefix before `<id>.mp3`, e.g. `_productions/my-film/music` or `music` */
+  /** Public-relative prefix before `<id>.mp3`, e.g. `audio/<slug>/music` or `music` */
   publicRelPrefix: string;
   useLiveApi: boolean;
   force?: boolean;
@@ -154,14 +155,17 @@ export async function generateMusicScore(
   score: MusicScoreSpec,
   options: GenerateMusicOptions
 ): Promise<GeneratedMusicMetadata> {
+  const safeScoreId = assertSafeIdSegment(score.id, 'score.id');
   fs.mkdirSync(options.outputDir, { recursive: true });
 
   const moodPreset: MusicMoodPreset = score.moodPreset ?? 'ambient-tech';
   const specHash = computeMusicSpecHash(score);
-  const mp3Path = path.join(options.outputDir, `${score.id}.mp3`);
-  const jsonPath = path.join(options.outputDir, `${score.id}.json`);
+  const mp3Path = path.join(options.outputDir, `${safeScoreId}.mp3`);
+  const jsonPath = path.join(options.outputDir, `${safeScoreId}.json`);
   const relPrefix = options.publicRelPrefix.replace(/^\/+|\/+$/g, '');
-  const audioFile = relPrefix ? `${relPrefix}/${score.id}.mp3` : `${score.id}.mp3`;
+  const audioFile = relPrefix
+    ? `${relPrefix}/${safeScoreId}.mp3`
+    : `${safeScoreId}.mp3`;
 
   const sectionTotalSec =
     score.sections && score.sections.length > 0

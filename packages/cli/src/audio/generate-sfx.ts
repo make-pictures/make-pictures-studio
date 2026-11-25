@@ -7,6 +7,7 @@ import type {
   SfxAssetSpec,
   SfxFallbackPreset,
 } from '@make-pictures/remotion/types';
+import { assertSafeIdSegment } from '../utils/cli-helpers';
 
 export interface GeneratedSfxMetadata {
   id: string;
@@ -21,7 +22,7 @@ export interface GeneratedSfxMetadata {
 
 export interface GenerateSfxOptions {
   outputDir: string;
-  /** Public-relative prefix before `<id>.mp3`, e.g. `_productions/my-film/sfx` or `sfx` */
+  /** Public-relative prefix before `<id>.mp3`, e.g. `audio/<slug>/sfx` or `sfx` */
   publicRelPrefix: string;
   useLiveApi: boolean;
   force?: boolean;
@@ -69,8 +70,8 @@ const PROCEDURAL_SFX_PRESETS: Record<
 };
 
 /**
- * All 13 baseline SFX assets in `public/sfx/` + `public/recordings/sample-ui.mp4`
- * required by built-in example scenes (`StarterStory`, `PaperDioramaDemo`, `ProductPromo`, etc.).
+ * Procedural baseline SFX presets lazily synthesized into `public/sfx/` + `public/recordings/sample-ui.mp4`
+ * when invoking bare `make-pictures sfx` without a prompt or `--production`.
  */
 const BASELINE_STUDIO_SFX: Array<{
   file: string;
@@ -254,13 +255,16 @@ export async function generateSfxAsset(
   spec: SfxAssetSpec,
   options: GenerateSfxOptions
 ): Promise<GeneratedSfxMetadata> {
+  const safeSpecId = assertSafeIdSegment(spec.id, 'spec.id');
   fs.mkdirSync(options.outputDir, { recursive: true });
 
   const specHash = computeSfxSpecHash(spec);
-  const mp3Path = path.join(options.outputDir, `${spec.id}.mp3`);
-  const jsonPath = path.join(options.outputDir, `${spec.id}.json`);
+  const mp3Path = path.join(options.outputDir, `${safeSpecId}.mp3`);
+  const jsonPath = path.join(options.outputDir, `${safeSpecId}.json`);
   const relPrefix = options.publicRelPrefix.replace(/^\/+|\/+$/g, '');
-  const audioFile = relPrefix ? `${relPrefix}/${spec.id}.mp3` : `${spec.id}.mp3`;
+  const audioFile = relPrefix
+    ? `${relPrefix}/${safeSpecId}.mp3`
+    : `${safeSpecId}.mp3`;
 
   // SHA-256 Cache Check
   if (!options.force && fs.existsSync(mp3Path) && fs.existsSync(jsonPath)) {
@@ -309,27 +313,36 @@ export async function generateSfxAsset(
       const rawTmpPath = `${mp3Path}.raw.mp3`;
       fs.writeFileSync(rawTmpPath, rawBuffer);
 
-      const postFilter = spec.loop
-        ? 'alimiter=limit=0.95'
-        : 'alimiter=limit=0.95,apad=pad_dur=0.06';
+      try {
+        const postFilter = spec.loop
+          ? 'alimiter=limit=0.95'
+          : 'alimiter=limit=0.95,apad=pad_dur=0.06';
 
-      execFileSync(
-        'ffmpeg',
-        [
-          '-y',
-          '-i',
-          rawTmpPath,
-          '-af',
-          postFilter,
-          '-c:a',
-          'libmp3lame',
-          '-q:a',
-          '2',
-          mp3Path,
-        ],
-        { stdio: 'ignore' }
-      );
-      fs.unlinkSync(rawTmpPath);
+        execFileSync(
+          'ffmpeg',
+          [
+            '-y',
+            '-i',
+            rawTmpPath,
+            '-af',
+            postFilter,
+            '-c:a',
+            'libmp3lame',
+            '-q:a',
+            '2',
+            mp3Path,
+          ],
+          { stdio: 'ignore' }
+        );
+      } finally {
+        if (fs.existsSync(rawTmpPath)) {
+          try {
+            fs.unlinkSync(rawTmpPath);
+          } catch {
+            // ignore cleanup error
+          }
+        }
+      }
 
       const metadata: GeneratedSfxMetadata = {
         id: spec.id,

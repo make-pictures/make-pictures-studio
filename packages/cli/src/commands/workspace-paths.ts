@@ -57,13 +57,29 @@ export function resolveWorkspaceContext(
 }
 
 /**
- * Reads optional `make-pictures.json` from `rootDir` and merges with standard Remotion defaults.
+ * Reads optional `make-pictures.json` from `studioDir` (or `fallbackRootDir` when `--dir` is used)
+ * and merges with standard Remotion defaults. Validates declared fields with clear errors.
  * Zero lock-in: works cleanly when no `make-pictures.json` file exists.
  */
-export function loadMakePicturesConfig(rootDir: string): MakePicturesConfig {
-  const configPath = path.join(rootDir, 'make-pictures.json');
+export function loadMakePicturesConfig(
+  studioDir: string,
+  fallbackRootDir?: string
+): MakePicturesConfig {
+  let configPath = path.join(studioDir, 'make-pictures.json');
   if (!fs.existsSync(configPath)) {
-    return { ...DEFAULT_MAKE_PICTURES_CONFIG };
+    if (
+      fallbackRootDir &&
+      path.resolve(fallbackRootDir) !== path.resolve(studioDir)
+    ) {
+      const rootConfigPath = path.join(fallbackRootDir, 'make-pictures.json');
+      if (fs.existsSync(rootConfigPath)) {
+        configPath = rootConfigPath;
+      } else {
+        return { ...DEFAULT_MAKE_PICTURES_CONFIG };
+      }
+    } else {
+      return { ...DEFAULT_MAKE_PICTURES_CONFIG };
+    }
   }
 
   let raw: unknown;
@@ -82,20 +98,34 @@ export function loadMakePicturesConfig(rootDir: string): MakePicturesConfig {
   const obj = raw as Record<string, unknown>;
   const str = (key: keyof MakePicturesConfig, fallback: string): string => {
     const val = obj[key];
-    return typeof val === 'string' && val.trim().length > 0
-      ? val.trim()
-      : fallback;
+    if (val === undefined) return fallback;
+    if (typeof val !== 'string' || val.trim().length === 0) {
+      throw new Error(
+        `Invalid "${key}" in ${configPath}: expected a non-empty string.`
+      );
+    }
+    return val.trim();
   };
 
-  const langRaw = obj.lang;
-  const lang: 'pl' | 'en' =
-    langRaw === 'pl' ? 'pl' : langRaw === 'en' ? 'en' : DEFAULT_MAKE_PICTURES_CONFIG.lang;
+  let lang: 'pl' | 'en' = DEFAULT_MAKE_PICTURES_CONFIG.lang;
+  if (obj.lang !== undefined) {
+    if (obj.lang !== 'pl' && obj.lang !== 'en') {
+      throw new Error(
+        `Invalid "lang" (${JSON.stringify(obj.lang)}) in ${configPath}: expected "pl" or "en".`
+      );
+    }
+    lang = obj.lang;
+  }
 
-  const fpsRaw = obj.fps;
-  const fps =
-    typeof fpsRaw === 'number' && Number.isFinite(fpsRaw) && fpsRaw > 0
-      ? Math.round(fpsRaw)
-      : DEFAULT_MAKE_PICTURES_CONFIG.fps;
+  let fps = DEFAULT_MAKE_PICTURES_CONFIG.fps;
+  if (obj.fps !== undefined) {
+    if (typeof obj.fps !== 'number' || !Number.isFinite(obj.fps) || obj.fps <= 0) {
+      throw new Error(
+        `Invalid "fps" (${JSON.stringify(obj.fps)}) in ${configPath}: expected a positive finite number.`
+      );
+    }
+    fps = Math.round(obj.fps);
+  }
 
   return {
     entryPoint: str('entryPoint', DEFAULT_MAKE_PICTURES_CONFIG.entryPoint),

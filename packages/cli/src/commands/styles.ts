@@ -291,9 +291,16 @@ export async function runStyleNewCommand(options: {
   const fromId = (options.from ?? 'minimal-product').trim();
   const basePreset =
     existingCustom.find((s) => s.id === fromId) ??
-    (isBuiltInStyleId(fromId)
-      ? BUILT_IN_STYLES[fromId]
-      : BUILT_IN_STYLES['minimal-product']);
+    (isBuiltInStyleId(fromId) ? BUILT_IN_STYLES[fromId] : undefined);
+  if (!basePreset) {
+    const available = [
+      ...BUILT_IN_STYLE_IDS,
+      ...existingCustom.map((s) => s.id),
+    ].join(', ');
+    throw new Error(
+      `Unknown base style "${fromId}" for --from. Available styles: ${available}. Run \`npx make-pictures styles\` to inspect presets.`
+    );
+  }
 
   const humanName = cleanSlug
     .split('-')

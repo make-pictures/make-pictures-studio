@@ -49,6 +49,20 @@
     "@remotion/bundler": "^4.0.0",
     "@remotion/renderer": "^4.0.0"
   },
+  "peerDependenciesMeta": {
+    "remotion": {
+      "optional": true
+    },
+    "@remotion/cli": {
+      "optional": true
+    },
+    "@remotion/bundler": {
+      "optional": true
+    },
+    "@remotion/renderer": {
+      "optional": true
+    }
+  },
   "engines": {
     "node": ">=18.0.0"
   },

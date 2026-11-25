@@ -14,6 +14,7 @@ import {
   resolveWorkspaceContext,
   syncBundledSkillsToProject,
 } from './workspace-paths';
+import { getNpxCommand } from '../utils/cli-helpers';
 
 export interface InitCommandOptions {
   cwd?: string;
@@ -37,6 +38,7 @@ export const REQUIRED_RUNTIME_PACKAGES = [
   '@remotion/renderer',
   '@remotion/google-fonts',
   '@remotion/media-utils',
+  '@remotion/zod-types',
   'lucide-react',
   'zod',
 ] as const;
@@ -86,7 +88,7 @@ function findMissingPackages(rootDir: string): string[] {
 
 function defaultRunRemotionSkillsAdd(rootDir: string): boolean {
   try {
-    const res = spawnSync('npx', ['-y', 'remotion', 'skills', 'add'], {
+    const res = spawnSync(getNpxCommand(), ['-y', 'remotion', 'skills', 'add'], {
       cwd: rootDir,
       stdio: 'pipe',
       timeout: 15_000,

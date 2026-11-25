@@ -1,9 +1,15 @@
-import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import zlib from 'node:zlib';
-import { resolveWorkspaceContext } from './workspace-paths';
+import {
+  decodeBitmapToRgbaViaFfmpeg,
+  writeRgbaPngViaFfmpeg,
+} from '../utils/cli-helpers';
+import {
+  assertFfmpegInstalled,
+  resolveWorkspaceContext,
+} from './workspace-paths';
 
 export interface InteriorAlphaHoleReport {
   hasInteriorHoles: boolean;
@@ -317,106 +323,6 @@ export function renderDarkCheckerboardRgba(
     }
   }
   return out;
-}
-
-function execFfmpegChecked(
-  args: string[],
-  options: Parameters<typeof execFileSync>[2]
-): Buffer {
-  try {
-    return execFileSync('ffmpeg', args, options) as Buffer;
-  } catch (err: unknown) {
-    if (
-      err &&
-      typeof err === 'object' &&
-      'code' in err &&
-      (err as { code?: string }).code === 'ENOENT'
-    ) {
-      throw new Error(
-        'FFmpeg binary not found on PATH.\nInstall FFmpeg and retry:\n  • macOS:   brew install ffmpeg\n  • Ubuntu:  sudo apt install ffmpeg\n  • Windows: winget install Gyan.FFmpeg'
-      );
-    }
-    throw err;
-  }
-}
-
-function decodeBitmapToRgbaViaFfmpeg(filePath: string): {
-  rgba: Uint8ClampedArray;
-  width: number;
-  height: number;
-} {
-  const pamBuf = execFfmpegChecked(
-    [
-      '-v',
-      'error',
-      '-i',
-      filePath,
-      '-frames:v',
-      '1',
-      '-f',
-      'image2pipe',
-      '-vcodec',
-      'pam',
-      '-pix_fmt',
-      'rgba',
-      '-',
-    ],
-    { maxBuffer: 128 * 1024 * 1024 }
-  );
-
-  const endHdrMarker = Buffer.from('ENDHDR\n', 'ascii');
-  const hdrEndIdx = pamBuf.indexOf(endHdrMarker);
-  if (hdrEndIdx === -1) {
-    throw new Error(`Failed to decode PAM header from image: ${filePath}`);
-  }
-  const headerText = pamBuf.subarray(0, hdrEndIdx).toString('ascii');
-  const wMatch = headerText.match(/\bWIDTH\s+(\d+)/);
-  const hMatch = headerText.match(/\bHEIGHT\s+(\d+)/);
-  if (!wMatch || !hMatch) {
-    throw new Error(`Invalid PAM dimensions while decoding: ${filePath}`);
-  }
-  const width = Number(wMatch[1]);
-  const height = Number(hMatch[1]);
-  const pixelOffset = hdrEndIdx + endHdrMarker.length;
-  const expectedBytes = width * height * 4;
-  if (pamBuf.length < pixelOffset + expectedBytes) {
-    throw new Error(`Truncated RGBA buffer decoded from: ${filePath}`);
-  }
-  const rgba = new Uint8ClampedArray(expectedBytes);
-  rgba.set(pamBuf.subarray(pixelOffset, pixelOffset + expectedBytes));
-  return { rgba, width, height };
-}
-
-function writeRgbaPngViaFfmpeg(
-  outPath: string,
-  rgba: Uint8ClampedArray,
-  width: number,
-  height: number
-): void {
-  fs.mkdirSync(path.dirname(outPath), { recursive: true });
-  const header = Buffer.from(
-    `P7\nWIDTH ${width}\nHEIGHT ${height}\nDEPTH 4\nMAXVAL 255\nTUPLTYPE RGB_ALPHA\nENDHDR\n`,
-    'ascii'
-  );
-  const pamPayload = Buffer.concat([
-    header,
-    Buffer.from(rgba.buffer, rgba.byteOffset, rgba.byteLength),
-  ]);
-  execFfmpegChecked(
-    [
-      '-v',
-      'error',
-      '-y',
-      '-f',
-      'pam_pipe',
-      '-i',
-      'pipe:0',
-      '-frames:v',
-      '1',
-      outPath,
-    ],
-    { input: pamPayload, maxBuffer: 64 * 1024 * 1024 }
-  );
 }
 
 interface ParsedPdfObject {
@@ -788,6 +694,7 @@ export async function runCutoutCommand(
       `Cutout source file not found: ${path.relative(rootDir, resolvedInput)}`
     );
   }
+  assertFfmpegInstalled('cutout PNG encoding');
 
   const resolvedOut = path.resolve(rootDir, options.outPath);
   const outSlug = path

@@ -1,7 +1,14 @@
-import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { resolveWorkspaceContext } from './workspace-paths';
+import {
+  BITMAP_FONT_5X7,
+  decodeBitmapToRgbaViaFfmpeg,
+  writeRgbaPngViaFfmpeg,
+} from '../utils/cli-helpers';
+import {
+  assertFfmpegInstalled,
+  resolveWorkspaceContext,
+} from './workspace-paths';
 
 export interface CleanScanOptions {
   bleedPct?: number;
@@ -71,127 +78,6 @@ const ASSET_SHEET_MIN_TILE_PX = 64;
 const ASSET_SHEET_MAX_TILE_PX = 2048;
 const ASSET_SHEET_MAX_CANVAS_PIXELS = 64_000_000;
 const SUPPORTED_IMAGE_EXT_RE = /\.(png|jpe?g|webp)$/i;
-
-function execFfmpegChecked(
-  args: string[],
-  options: Parameters<typeof execFileSync>[2]
-): Buffer {
-  try {
-    return execFileSync('ffmpeg', args, options) as Buffer;
-  } catch (err: unknown) {
-    if (
-      err &&
-      typeof err === 'object' &&
-      'code' in err &&
-      (err as { code?: string }).code === 'ENOENT'
-    ) {
-      throw new Error(
-        'FFmpeg binary not found on PATH.\nInstall FFmpeg and retry:\n  • macOS:   brew install ffmpeg\n  • Ubuntu:  sudo apt install ffmpeg\n  • Windows: winget install Gyan.FFmpeg'
-      );
-    }
-    throw err;
-  }
-}
-
-function decodeBitmapToRgbaViaFfmpeg(filePath: string): {
-  rgba: Uint8ClampedArray;
-  width: number;
-  height: number;
-} {
-  const pamBuf = execFfmpegChecked(
-    [
-      '-v',
-      'error',
-      '-i',
-      filePath,
-      '-frames:v',
-      '1',
-      '-f',
-      'image2pipe',
-      '-vcodec',
-      'pam',
-      '-pix_fmt',
-      'rgba',
-      '-',
-    ],
-    { maxBuffer: 512 * 1024 * 1024 }
-  );
-
-  const endHdrMarker = Buffer.from('ENDHDR\n', 'ascii');
-  const hdrEndIdx = pamBuf.indexOf(endHdrMarker);
-  if (hdrEndIdx === -1) {
-    throw new Error(`Failed to decode PAM header from image: ${filePath}`);
-  }
-  const headerText = pamBuf.subarray(0, hdrEndIdx).toString('ascii');
-  const wMatch = headerText.match(/\bWIDTH\s+(\d+)/);
-  const hMatch = headerText.match(/\bHEIGHT\s+(\d+)/);
-  if (!wMatch || !hMatch) {
-    throw new Error(`Invalid PAM dimensions while decoding: ${filePath}`);
-  }
-  const width = Number(wMatch[1]);
-  const height = Number(hMatch[1]);
-  if (
-    !Number.isSafeInteger(width) ||
-    !Number.isSafeInteger(height) ||
-    width <= 0 ||
-    height <= 0
-  ) {
-    throw new Error(
-      `Invalid PAM dimensions (${width}x${height}) while decoding: ${filePath}`
-    );
-  }
-  const pixelOffset = hdrEndIdx + endHdrMarker.length;
-  const expectedBytes = width * height * 4;
-  if (!Number.isSafeInteger(expectedBytes) || expectedBytes <= 0) {
-    throw new Error(
-      `Decoded image dimensions overflow RGBA buffer (${width}x${height}): ${filePath}`
-    );
-  }
-  if (pamBuf.length < pixelOffset + expectedBytes) {
-    throw new Error(`Truncated RGBA buffer decoded from: ${filePath}`);
-  }
-  const rgba = new Uint8ClampedArray(expectedBytes);
-  rgba.set(pamBuf.subarray(pixelOffset, pixelOffset + expectedBytes));
-  if (rgba.length < expectedBytes) {
-    throw new Error(`Truncated RGBA buffer allocated for: ${filePath}`);
-  }
-  return { rgba, width, height };
-}
-
-function writeRgbaPngViaFfmpeg(
-  outPath: string,
-  rgba: Uint8ClampedArray,
-  width: number,
-  height: number
-): void {
-  fs.mkdirSync(path.dirname(outPath), { recursive: true });
-  execFfmpegChecked(
-    [
-      '-v',
-      'error',
-      '-y',
-      '-f',
-      'rawvideo',
-      '-pix_fmt',
-      'rgba',
-      '-s',
-      `${width}x${height}`,
-      '-i',
-      'pipe:0',
-      '-frames:v',
-      '1',
-      '-f',
-      'image2',
-      '-c:v',
-      'png',
-      outPath,
-    ],
-    {
-      input: Buffer.from(rgba.buffer, rgba.byteOffset, rgba.byteLength),
-      maxBuffer: 128 * 1024 * 1024,
-    }
-  );
-}
 
 function medianOfSorted(vals: number[]): number {
   if (vals.length === 0) return 248;
@@ -523,6 +409,7 @@ export function runAssetsCleanScanCommand(
       `Scan source path is not a file: ${path.relative(baseDir, resolvedInput) || options.inputPath}`
     );
   }
+  assertFfmpegInstalled('assets clean-scan');
 
   const resolvedOut = path.resolve(baseDir, options.outPath);
   const decoded = decodeBitmapToRgbaViaFfmpeg(resolvedInput);
@@ -628,62 +515,6 @@ export function computeAssetSheetGrid(
   };
 }
 
-// Built-in 5x7 uppercase bitmap font (zero external font / ffmpeg drawtext dependency)
-const BITMAP_FONT_5X7: Record<string, readonly string[]> = {
-  A: ['.###.', '#...#', '#...#', '#####', '#...#', '#...#', '#...#'],
-  B: ['####.', '#...#', '#...#', '####.', '#...#', '#...#', '####.'],
-  C: ['.####', '#....', '#....', '#....', '#....', '#....', '.####'],
-  D: ['####.', '#...#', '#...#', '#...#', '#...#', '#...#', '####.'],
-  E: ['#####', '#....', '#....', '####.', '#....', '#....', '#####'],
-  F: ['#####', '#....', '#....', '####.', '#....', '#....', '#....'],
-  G: ['.####', '#....', '#....', '#.###', '#...#', '#...#', '.####'],
-  H: ['#...#', '#...#', '#...#', '#####', '#...#', '#...#', '#...#'],
-  I: ['.###.', '..#..', '..#..', '..#..', '..#..', '..#..', '.###.'],
-  J: ['..###', '...#.', '...#.', '...#.', '#..#.', '#..#.', '.##..'],
-  K: ['#...#', '#..#.', '#.#..', '##...', '#.#..', '#..#.', '#...#'],
-  L: ['#....', '#....', '#....', '#....', '#....', '#....', '#####'],
-  M: ['#...#', '##.##', '#.#.#', '#.#.#', '#...#', '#...#', '#...#'],
-  N: ['#...#', '##..#', '#.#.#', '#..##', '#...#', '#...#', '#...#'],
-  O: ['.###.', '#...#', '#...#', '#...#', '#...#', '#...#', '.###.'],
-  P: ['####.', '#...#', '#...#', '####.', '#....', '#....', '#....'],
-  Q: ['.###.', '#...#', '#...#', '#...#', '#.#.#', '#..#.', '.##.#'],
-  R: ['####.', '#...#', '#...#', '####.', '#.#..', '#..#.', '#...#'],
-  S: ['.####', '#....', '#....', '.###.', '....#', '....#', '####.'],
-  T: ['#####', '..#..', '..#..', '..#..', '..#..', '..#..', '..#..'],
-  U: ['#...#', '#...#', '#...#', '#...#', '#...#', '#...#', '.###.'],
-  V: ['#...#', '#...#', '#...#', '#...#', '#...#', '.#.#.', '..#..'],
-  W: ['#...#', '#...#', '#...#', '#.#.#', '#.#.#', '##.##', '#...#'],
-  X: ['#...#', '#...#', '.#.#.', '..#..', '.#.#.', '#...#', '#...#'],
-  Y: ['#...#', '#...#', '.#.#.', '..#..', '..#..', '..#..', '..#..'],
-  Z: ['#####', '....#', '...#.', '..#..', '.#...', '#....', '#####'],
-  '0': ['.###.', '#..##', '#.#.#', '#.#.#', '##..#', '#...#', '.###.'],
-  '1': ['..#..', '.##..', '..#..', '..#..', '..#..', '..#..', '.###.'],
-  '2': ['.###.', '#...#', '....#', '..##.', '.#...', '#....', '#####'],
-  '3': ['####.', '....#', '....#', '.###.', '....#', '....#', '####.'],
-  '4': ['#...#', '#...#', '#...#', '#####', '....#', '....#', '....#'],
-  '5': ['#####', '#....', '####.', '....#', '....#', '#...#', '.###.'],
-  '6': ['.###.', '#....', '####.', '#...#', '#...#', '#...#', '.###.'],
-  '7': ['#####', '....#', '...#.', '..#..', '.#...', '.#...', '.#...'],
-  '8': ['.###.', '#...#', '#...#', '.###.', '#...#', '#...#', '.###.'],
-  '9': ['.###.', '#...#', '#...#', '.####', '....#', '....#', '.###.'],
-  ' ': ['.....', '.....', '.....', '.....', '.....', '.....', '.....'],
-  '.': ['.....', '.....', '.....', '.....', '.....', '.##..', '.##..'],
-  '-': ['.....', '.....', '.....', '#####', '.....', '.....', '.....'],
-  '_': ['.....', '.....', '.....', '.....', '.....', '.....', '#####'],
-  '(': ['...#.', '..#..', '.#...', '.#...', '.#...', '..#..', '...#.'],
-  ')': ['.#...', '..#..', '...#.', '...#.', '...#.', '..#..', '.#...'],
-  '[': ['.###.', '.#...', '.#...', '.#...', '.#...', '.#...', '.###.'],
-  ']': ['.###.', '...#.', '...#.', '...#.', '...#.', '...#.', '.###.'],
-  '@': ['.###.', '#...#', '#.###', '#.#.#', '#.###', '#....', '.###.'],
-  ',': ['.....', '.....', '.....', '.....', '..##.', '..#..', '.#...'],
-  '/': ['....#', '...#.', '...#.', '..#..', '.#...', '.#...', '#....'],
-  ':': ['.....', '..#..', '..#..', '.....', '..#..', '..#..', '.....'],
-  '|': ['..#..', '..#..', '..#..', '..#..', '..#..', '..#..', '..#..'],
-  '+': ['.....', '..#..', '..#..', '#####', '..#..', '..#..', '.....'],
-  '#': ['.#.#.', '#####', '.#.#.', '.#.#.', '#####', '.#.#.', '.....'],
-  '?': ['.###.', '#...#', '....#', '..##.', '..#..', '.....', '..#..'],
-};
-
 function fillRectRgba(
   canvas: Uint8ClampedArray,
   canvasW: number,
@@ -745,7 +576,7 @@ export function drawBitmapText5x7(
     for (let gy = 0; gy < 7; gy++) {
       const row = glyph[gy]!;
       for (let gx = 0; gx < 5; gx++) {
-        if (row[gx] !== '#') continue;
+        if (row[gx] !== '1') continue;
         fillRectRgba(
           canvas,
           canvasW,
@@ -901,6 +732,7 @@ export function runAssetsSheetCommand(
       `No image assets (.png, .jpg, .jpeg, .webp) found in: ${path.relative(baseDir, resolvedDir) || '.'}`
     );
   }
+  assertFfmpegInstalled('assets sheet');
 
   const rawTileWidth = options.tileWidth ?? 420;
   const rawTileHeight = options.tileHeight ?? 300;
