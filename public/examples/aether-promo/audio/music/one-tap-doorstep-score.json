@@ -1,0 +1,12 @@
+{
+  "id": "one-tap-doorstep-score",
+  "mode": "composition-plan",
+  "provider": "elevenlabs-music",
+  "specHash": "4b12b6b2cd046cfb852f9cb20aa19cb498cd9c8b8a91e06a357ba92f7450acbb",
+  "audioFile": "examples/aether-promo/audio/music/one-tap-doorstep-score.mp3",
+  "durationInSeconds": 36,
+  "moodPreset": "upbeat-launch",
+  "generatedAt": "2026-11-24T20:22:15.428Z",
+  "songTitle": null,
+  "genres": []
+}

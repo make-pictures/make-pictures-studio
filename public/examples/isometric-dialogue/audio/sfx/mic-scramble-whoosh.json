@@ -1,0 +1,10 @@
+{
+  "id": "mic-scramble-whoosh",
+  "prompt": "Quick playful podcast studio boom microphone arm swivel spring bounce and lighthearted chair scramble foley",
+  "provider": "elevenlabs-sfx",
+  "specHash": "237feec49f7e013ad26127cc4a9faeda5489318e5eb0b5addd0a4c1030345ede",
+  "audioFile": "examples/isometric-dialogue/audio/sfx/mic-scramble-whoosh.mp3",
+  "durationSeconds": 1.1,
+  "loop": false,
+  "generatedAt": "2026-11-24T15:59:01.873Z"
+}

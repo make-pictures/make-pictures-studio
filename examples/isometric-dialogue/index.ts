@@ -1,57 +1,44 @@
-import { defineProduction } from '@make-pictures/core';
+import { defineProduction, type ProductionManifest } from '@make-pictures/core';
+import productionJson from './production.json';
 import {
   IsometricDialogueDemo,
   isometricDialogueSchema,
 } from './IsometricDialogueDemo';
 import isometricDefaults from './IsometricDialogueDemo.props.json';
+import {
+  DEFAULT_ISOMETRIC_DIALOGUE_TIMELINE,
+  ISOMETRIC_DIALOGUE_DURATION_FRAMES,
+  ISOMETRIC_DIALOGUE_FPS,
+} from './isometricDialogueKinematics';
+import { VOICEOVER_MANIFEST } from './generated/audio-manifest';
 
 export * from './IsometricDialogueDemo';
 
+const manifest = productionJson as unknown as ProductionManifest;
+
 export default defineProduction({
   id: 'isometric-dialogue',
+  title: 'Five Seconds to Air (Soft-Clay 3D Studio Dialogue)',
   origin: 'example',
+  manifest,
+  voiceoverManifest: VOICEOVER_MANIFEST,
   compositions: [
     {
       id: 'IsometricDialogueDemo',
-      title: 'Isometric 3D Dialogue',
-      subtitle: 'Isometric Studio • 2-Character 3D Dialogue',
+      title: 'Five Seconds to Air',
+      subtitle: 'Soft-Clay 3D Studio • Comedic Two-Host Dialogue',
       group: 'Visual Kits (3D & 2.5D)',
       kit: 'isometric-3d',
-      fps: 60,
+      fps: ISOMETRIC_DIALOGUE_FPS,
       width: 1920,
       height: 1080,
-      durationInFrames: 910,
+      durationInFrames: ISOMETRIC_DIALOGUE_DURATION_FRAMES,
       usesThree: true,
+      hasMusicScore: true,
       propsFile: 'examples/isometric-dialogue/IsometricDialogueDemo.props.json',
-      sceneTimeline: [
-        {
-          sceneId: 'iso-line-1',
-          fromFrame: 36,
-          durationInFrames: 246,
-          label: 'Alex (Line 1)',
-        },
-        {
-          sceneId: 'iso-line-2',
-          fromFrame: 296,
-          durationInFrames: 240,
-          label: 'Max (Line 2)',
-        },
-        {
-          sceneId: 'iso-line-3',
-          fromFrame: 548,
-          durationInFrames: 330,
-          label: 'Alex (Line 3)',
-        },
-      ],
-      cameraTimeline: [
-        { shotLabel: 'OTS Left • Alex', fromFrame: 0, durationInFrames: 281 },
-        { shotLabel: 'Reverse Right • Max', fromFrame: 281, durationInFrames: 252 },
-        { shotLabel: 'Two-Shot Finale', fromFrame: 533, durationInFrames: 377 },
-      ],
-      sfxTimeline: [
-        { sfxId: 'whoosh', fromFrame: 327, label: '3D Morph Whoosh', volume: 0.32 },
-        { sfxId: 'pop', fromFrame: 753, label: '60 FPS Pop', volume: 0.38 },
-      ],
+      sceneTimeline: [...DEFAULT_ISOMETRIC_DIALOGUE_TIMELINE.voTimeline],
+      cameraTimeline: [...DEFAULT_ISOMETRIC_DIALOGUE_TIMELINE.cameraTimeline],
+      sfxTimeline: [...DEFAULT_ISOMETRIC_DIALOGUE_TIMELINE.sfxTimeline],
       component: IsometricDialogueDemo,
       schema: isometricDialogueSchema,
       defaultProps: { ...isometricDefaults },

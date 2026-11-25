@@ -1,4 +1,5 @@
-import { defineProduction, getWordTriggerFrame } from '@make-pictures/core';
+import { defineProduction, type ProductionManifest } from '@make-pictures/core';
+import productionJson from './production.json';
 import {
   StarterStory,
   starterStorySchema,
@@ -7,91 +8,61 @@ import {
 } from './StarterStory';
 import starterStoryDefaults from './StarterStory.props.json';
 import starterStoryVerticalDefaults from './StarterStoryVertical.props.json';
+import {
+  DEFAULT_STARTER_STORY_TIMING,
+  STARTER_STORY_DURATION_FRAMES,
+  STARTER_STORY_FPS,
+} from './starterStoryTiming';
+import { VOICEOVER_MANIFEST } from './generated/audio-manifest';
 
-const kitsTrigger = getWordTriggerFrame('starter-story', 'selects', 388);
-const renderTrigger = getWordTriggerFrame('starter-story', 'renders', 509);
-const overviewTrigger = getWordTriggerFrame('starter-story', 'Create', 704);
-
-const sharedCameraCuts = [
-  {
-    shotLabel: 'Shot 1 • Prompt & Voice',
-    fromFrame: 0,
-    durationInFrames: Math.max(60, kitsTrigger - 15),
-  },
-  {
-    shotLabel: 'Shot 2 • Visual Kits',
-    fromFrame: Math.max(60, kitsTrigger - 15),
-    durationInFrames: Math.max(60, overviewTrigger - 24 - (kitsTrigger - 15)),
-  },
-  {
-    shotLabel: 'Shot 3 • Wide Overview',
-    fromFrame: Math.max(120, overviewTrigger - 24),
-    durationInFrames: Math.max(60, 870 - (overviewTrigger - 24)),
-  },
-];
-
-const sharedSfxCues = [
-  { sfxId: 'pop', fromFrame: 4, label: 'Card Pop' },
-  { sfxId: 'whoosh', fromFrame: Math.max(0, kitsTrigger - 12), label: 'Camera Pan' },
-  { sfxId: 'pop', fromFrame: renderTrigger, label: 'Render Ready' },
-];
+const manifest = productionJson as unknown as ProductionManifest;
 
 export const starterStoryProduction = defineProduction({
   id: 'starter-story',
-  title: 'Starter Story',
+  title: 'How a Bullet Train Never Spills a Cup',
   origin: 'example',
+  manifest,
+  voiceoverManifest: VOICEOVER_MANIFEST,
   compositions: [
     {
       id: 'StarterStory',
-      title: 'Starter Story',
-      subtitle: '16:9 Template • One-Shot 2D Camera & Ports',
+      title: 'How a Bullet Train Never Spills a Cup',
+      subtitle: 'Editorial Story 16:9 • Panorama, Anatomy & Speed Race',
       group: 'Starter Story (16:9 & Shorts 9:16)',
-      kit: 'motion-diagrams-2d',
-      fps: 60,
+      kit: 'editorial-collage',
+      fps: STARTER_STORY_FPS,
       width: 1920,
       height: 1080,
-      durationInFrames: 870,
+      durationInFrames: STARTER_STORY_DURATION_FRAMES,
       usesThree: false,
+      hasMusicScore: true,
       propsFile: 'examples/starter-story/StarterStory.props.json',
-      sceneTimeline: [
-        {
-          sceneId: 'starter-story',
-          fromFrame: 0,
-          durationInFrames: 870,
-          label: 'Narrator',
-        },
-      ],
-      cameraTimeline: sharedCameraCuts,
-      sfxTimeline: sharedSfxCues,
+      sceneTimeline: [...DEFAULT_STARTER_STORY_TIMING.voTimeline],
+      cameraTimeline: [...DEFAULT_STARTER_STORY_TIMING.cameraTimeline],
+      sfxTimeline: [...DEFAULT_STARTER_STORY_TIMING.sfxTimeline],
       component: StarterStory,
       schema: starterStorySchema,
-      defaultProps: starterStoryDefaults,
+      defaultProps: { ...starterStoryDefaults },
     },
     {
       id: 'StarterStoryVertical',
-      title: 'Starter Story Shorts',
-      subtitle: 'Dedicated 9:16 • YouTube Shorts & Reels',
+      title: 'How a Bullet Train Never Spills a Cup (Shorts)',
+      subtitle: 'Dedicated 9:16 Vertical • Editorial, Anatomy & Speed Race',
       group: 'Starter Story (16:9 & Shorts 9:16)',
-      kit: 'motion-diagrams-2d',
-      fps: 60,
+      kit: 'editorial-collage',
+      fps: STARTER_STORY_FPS,
       width: 1080,
       height: 1920,
-      durationInFrames: 870,
+      durationInFrames: STARTER_STORY_DURATION_FRAMES,
       usesThree: false,
+      hasMusicScore: true,
       propsFile: 'examples/starter-story/StarterStoryVertical.props.json',
-      sceneTimeline: [
-        {
-          sceneId: 'starter-story',
-          fromFrame: 0,
-          durationInFrames: 870,
-          label: 'Narrator',
-        },
-      ],
-      cameraTimeline: sharedCameraCuts,
-      sfxTimeline: sharedSfxCues,
+      sceneTimeline: [...DEFAULT_STARTER_STORY_TIMING.voTimeline],
+      cameraTimeline: [...DEFAULT_STARTER_STORY_TIMING.cameraTimeline],
+      sfxTimeline: [...DEFAULT_STARTER_STORY_TIMING.sfxTimeline],
       component: StarterStoryVertical,
       schema: starterStoryVerticalSchema,
-      defaultProps: starterStoryVerticalDefaults,
+      defaultProps: { ...starterStoryVerticalDefaults },
     },
   ],
 });

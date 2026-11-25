@@ -1,0 +1,150 @@
+{
+  "id": "isometric-dialogue",
+  "title": "Five Seconds to Air (Soft-Clay Studio Comedy)",
+  "fps": 60,
+  "lang": "en",
+  "modelId": "eleven_v4",
+  "scenes": [
+    {
+      "id": "five-seconds-to-air",
+      "title": "Five Seconds to Air — Maya & Leo Studio Banter",
+      "component": "IsometricDialogueDemo",
+      "durationInFrames": 1152,
+      "durationInSeconds": 19.2,
+      "modelId": "eleven_v4",
+      "languageCode": "en",
+      "voiceId": "TX3LPaxmHKxFdv7VOQHJ",
+      "speaker": "Leo & Maya",
+      "voiceEffect": "clean",
+      "voiceSettings": {
+        "stability": 0.5,
+        "similarityBoost": 0.8,
+        "style": 0.36,
+        "speed": 0.99,
+        "useSpeakerBoost": true
+      },
+      "text": "[warmly] Relax, Maya — we still have five whole minutes before the red light comes on. [playful] Uh, Leo? That clock says five seconds — not five minutes! [excited] Wait — FIVE?! My mic isn't even straight, hold the camera! [chuckles] Three, two, one — smile! [warmly] Good evening, everyone — welcome back to the calmest show in town. [playful] Totally planned every single second.",
+      "dialogueInputs": [
+        {
+          "speaker": "Leo",
+          "voiceId": "TX3LPaxmHKxFdv7VOQHJ",
+          "text": "[warmly] Relax, Maya — we still have five whole minutes before the red light comes on."
+        },
+        {
+          "speaker": "Maya",
+          "voiceId": "EXAVITQu4vr4xnSDxMaL",
+          "text": "[playful] Uh, Leo? That clock says five seconds — not five minutes!"
+        },
+        {
+          "speaker": "Leo",
+          "voiceId": "TX3LPaxmHKxFdv7VOQHJ",
+          "text": "[excited] Wait — FIVE?! My mic isn't even straight, hold the camera!"
+        },
+        {
+          "speaker": "Maya",
+          "voiceId": "EXAVITQu4vr4xnSDxMaL",
+          "text": "[chuckles] Three, two, one — smile!"
+        },
+        {
+          "speaker": "Leo",
+          "voiceId": "TX3LPaxmHKxFdv7VOQHJ",
+          "text": "[warmly] Good evening, everyone — welcome back to the calmest show in town."
+        },
+        {
+          "speaker": "Maya",
+          "voiceId": "EXAVITQu4vr4xnSDxMaL",
+          "text": "[playful] Totally planned every single second."
+        }
+      ]
+    }
+  ],
+  "score": {
+    "id": "five-seconds-to-air-score",
+    "mode": "composition-plan",
+    "prompt": "Playful comedic late-night podcast studio jazz-funk score: lazy morning Rhodes piano and warm upright bass, bursting into a tip-toe comedic funk scramble at 124 BPM with pizzicato bass and crisp woodblock hits, then snapping seamlessly into a smooth velvet golden-hour broadcast jazz-funk groove with warm electric piano resolve fading cleanly to silence, instrumental only",
+    "moodPreset": "upbeat-launch",
+    "forceInstrumental": true,
+    "durationSeconds": 22,
+    "baseVolume": 0.25,
+    "duckedVolume": 0.085,
+    "fadeOutSeconds": 1.4,
+    "positiveGlobalStyles": [
+      "playful acoustic studio jazz-funk",
+      "warm Rhodes electric piano and walking upright bass",
+      "comedic Pixar-style timing shifts",
+      "crisp brushed drums and clean broadcast polish",
+      "instrumental only"
+    ],
+    "negativeGlobalStyles": [
+      "vocals",
+      "singing",
+      "harsh distortion",
+      "heavy EDM drop",
+      "sad minor drone"
+    ],
+    "sections": [
+      {
+        "name": "Lazy Morning Rhodes & Upright Bass",
+        "durationMs": 7000,
+        "positiveLocalStyles": [
+          "relaxed sunny morning lounge Rhodes chords",
+          "warm plucked upright bass",
+          "light brushed snare shuffle"
+        ],
+        "negativeLocalStyles": ["frantic drums", "brass stabs", "vocals"]
+      },
+      {
+        "name": "Playful Tip-Toe Funk Scramble at 124 BPM",
+        "durationMs": 8000,
+        "positiveLocalStyles": [
+          "bouncy comedic 124 BPM tip-toe funk groove",
+          "playful pizzicato strings and snappy clavinet",
+          "rising playful tension build into crisp pause"
+        ],
+        "negativeLocalStyles": ["heavy metal", "dark horror", "vocals"]
+      },
+      {
+        "name": "Smooth Velvet Late-Night Jazz-Funk ON AIR Resolve",
+        "durationMs": 7000,
+        "positiveLocalStyles": [
+          "smooth charismatic golden-hour late-night show jazz-funk",
+          "warm silky Rhodes electric piano and subtle horn pad",
+          "clean cheerful major-ninth broadcast outro fade to silence"
+        ],
+        "negativeLocalStyles": ["abrupt cutoff", "distortion", "vocals"]
+      }
+    ]
+  },
+  "sfx": [
+    {
+      "id": "countdown-beep",
+      "prompt": "Single gentle warm mellow sine-wave and soft woodblock television broadcast studio cue tone pip, clean polite control room beep, zero screech or high-pitched hiss",
+      "durationSeconds": 0.6,
+      "promptInfluence": 0.72
+    },
+    {
+      "id": "mug-hop-clink",
+      "prompt": "Playful ceramic coffee mug popping off a wooden desk and landing cleanly back on a cork coaster with a crisp comedic ceramic clink",
+      "durationSeconds": 1.0,
+      "promptInfluence": 0.68
+    },
+    {
+      "id": "mic-scramble-whoosh",
+      "prompt": "Quick playful podcast studio boom microphone arm swivel spring bounce and lighthearted chair scramble foley",
+      "durationSeconds": 1.1,
+      "promptInfluence": 0.65
+    },
+    {
+      "id": "on-air-click-chime",
+      "prompt": "Crisp tactile broadcast studio ON AIR toggle switch click followed by a warm glowing golden chime bell, joyful live show start",
+      "durationSeconds": 1.5,
+      "promptInfluence": 0.72
+    },
+    {
+      "id": "studio-outro-chord",
+      "prompt": "Playful warm Rhodes electric piano major-ninth sparkle chord with light jazz brush shimmer, charming comedy show sign-off",
+      "durationSeconds": 2.0,
+      "promptInfluence": 0.68
+    }
+  ]
+}

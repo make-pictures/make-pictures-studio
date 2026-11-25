@@ -1,0 +1,12 @@
+{
+  "id": "bullet-train-editorial-score",
+  "mode": "composition-plan",
+  "provider": "elevenlabs-music",
+  "specHash": "24d9d8aeee8e4ed61a5cd793e78bfa65b4956a9a39dc484a8138282708841193",
+  "audioFile": "examples/starter-story/audio/music/bullet-train-editorial-score.mp3",
+  "durationInSeconds": 52,
+  "moodPreset": "upbeat-launch",
+  "generatedAt": "2026-11-24T18:57:09.435Z",
+  "songTitle": null,
+  "genres": []
+}

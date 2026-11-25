@@ -1,45 +1,46 @@
-import { defineProduction } from '@make-pictures/core';
+import { defineProduction, type ProductionManifest } from '@make-pictures/core';
+import productionJson from './production.json';
 import {
   PaperDioramaDemo,
   paperDioramaDemoSchema,
 } from './PaperDioramaDemo';
 import paperDioramaDefaults from './PaperDioramaDemo.props.json';
+import {
+  PAPER_DIORAMA_CAMERA_TIMELINE,
+  PAPER_DIORAMA_DURATION_FRAMES,
+  PAPER_DIORAMA_FPS,
+  PAPER_DIORAMA_SFX_TIMELINE,
+  PAPER_DIORAMA_VO_TIMELINE,
+} from './paperDioramaKinematics';
+import { VOICEOVER_MANIFEST } from './generated/audio-manifest';
 
 export * from './PaperDioramaDemo';
 
+const manifest = productionJson as ProductionManifest;
+
 export default defineProduction({
   id: 'paper-diorama',
+  title: 'Skyward: Paper Rocket Ascent (Paper Diorama 2.5D)',
   origin: 'example',
+  manifest,
+  voiceoverManifest: VOICEOVER_MANIFEST,
   compositions: [
     {
       id: 'PaperDioramaDemo',
-      title: 'Paper Diorama 3D',
-      subtitle: '2.5D Pop-Up Book • Cutouts & WebGL Shadows',
+      title: 'Skyward: Paper Rocket Ascent',
+      subtitle: 'Paper Diorama 2.5D • Meadow Launch to Outer Space',
       group: 'Visual Kits (3D & 2.5D)',
       kit: 'paper-diorama-3d',
-      fps: 60,
+      fps: PAPER_DIORAMA_FPS,
       width: 1920,
       height: 1080,
-      durationInFrames: 870,
+      durationInFrames: PAPER_DIORAMA_DURATION_FRAMES,
       usesThree: true,
+      hasMusicScore: true,
       propsFile: 'examples/paper-diorama/PaperDioramaDemo.props.json',
-      sceneTimeline: [
-        {
-          sceneId: 'starter-story',
-          fromFrame: 0,
-          durationInFrames: 870,
-          label: 'Narrator',
-        },
-      ],
-      cameraTimeline: [
-        { shotLabel: 'Spread 1 • Mountain Valley', fromFrame: 0, durationInFrames: 382 },
-        { shotLabel: 'Pop-Up Page Turn', fromFrame: 382, durationInFrames: 48 },
-        { shotLabel: 'Spread 2 • Sunburst Arch', fromFrame: 430, durationInFrames: 440 },
-      ],
-      sfxTimeline: [
-        { sfxId: 'paper-rip-wind', fromFrame: 382, label: 'Page Turn Wind', volume: 0.28 },
-        { sfxId: 'harp-strings', fromFrame: 430, label: 'Spread Unfold Harp', volume: 0.24 },
-      ],
+      sceneTimeline: [...PAPER_DIORAMA_VO_TIMELINE],
+      cameraTimeline: [...PAPER_DIORAMA_CAMERA_TIMELINE],
+      sfxTimeline: [...PAPER_DIORAMA_SFX_TIMELINE],
       component: PaperDioramaDemo,
       schema: paperDioramaDemoSchema,
       defaultProps: paperDioramaDefaults,

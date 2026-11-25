@@ -34,9 +34,9 @@ Set up make.pictures video studio for me: run `npx -y @make-pictures/cli@latest 
 ## 🖥️ Studio Web & 🎨 Style Lab (`v2.4.1`)
 
 <p align="center">
-  <a href="https://make.pictures"><img src="./docs/showcase/showreel-preview.gif" alt="make.pictures 39s Showreel — 3 prompts to 2D Retro-PC, 2.5D Apollo 11 cutouts & 3D Soft-Clay animations" width="760" /></a>
+  <a href="https://make.pictures"><img src="./docs/showcase/showreel-preview.gif" alt="make.pictures 49s Showreel — One Page, Five Worlds: Tactile 3D, 2D Product Flow, 2.5D Paper Cutouts, Soft-Clay 3D Dialogue &amp; Editorial Panorama" width="760" /></a>
   <br />
-  <sub>▶ <strong>39s Showreel</strong> — prompt → <strong>2D Retro-PC • 2.5D Cutouts • 3D Soft-Clay</strong> (watch with voice &amp; music at <a href="https://make.pictures">make.pictures</a>).</sub>
+  <sub>▶ <strong>49s Showreel — One Page, Five Worlds</strong> — <strong>Tactile 3D • 2D Product Flow • 2.5D Paper Cutouts • Soft-Clay 3D Dialogue • Editorial Panorama</strong> (watch with voice &amp; music at <a href="https://make.pictures">make.pictures</a>).</sub>
 </p>
 
 <p align="center">
@@ -55,11 +55,13 @@ Set up make.pictures video studio for me: run `npx -y @make-pictures/cli@latest 
 
 ## 🎬 What you can make in minutes
 
-| Product &amp; SaaS Demos (`product-frames`) | System &amp; Retro-PC Flows (`motion-diagrams-2d`) |
+| Product Launch &amp; Live Sync (`product-frames`) | 2D Systems Choreography (`motion-diagrams-2d`) |
 | :---: | :---: |
-| <img src="./docs/showcase/kit-product-promo.png" alt="SaaS UI product demo frame" width="440" /> | <img src="./docs/showcase/kit-architecture-2d.png" alt="2D system architecture and Retro-PC packet flow" width="440" /> |
-| **2.5D Pop-Up &amp; Cosmic Cutouts (`paper-diorama-3d`)** | **Soft-Clay 3D Podcasts &amp; Dialogues (`isometric-3d`)** |
-| <img src="./docs/showcase/kit-paper-diorama-3d.png" alt="2.5D paper pop-up book diorama" width="440" /> | <img src="./docs/showcase/kit-isometric-dialogue-3d.png" alt="Soft-Clay 3D and Isometric 3D character dialogue" width="440" /> |
+| <img src="./docs/showcase/kit-product-promo.png" alt="Product launch frame with side-by-side live dispatch map and synced mobile tracker" width="440" /> | <img src="./docs/showcase/kit-architecture-2d.png" alt="2D systems choreography with staggered nodes and luminous Bézier flow" width="440" /> |
+| **Editorial Panorama &amp; Pinned Media (`editorial-collage`)** | **Data Storytelling &amp; Bar Races (`data-storytelling`)** |
+| <img src="./docs/showcase/kit-editorial-data-2d.png" alt="Editorial collage panorama and museum-matted pinned media story" width="440" /> | <img src="./docs/showcase/kit-data-storytelling-2d.png" alt="Animated bar race and data storytelling visualization" width="440" /> |
+| **2.5D Paper Cutouts &amp; Dioramas (`paper-diorama-3d`)** | **Soft-Clay 3D &amp; Text-to-Dialogue (`isometric-3d`)** |
+| <img src="./docs/showcase/kit-paper-diorama-3d.png" alt="2.5D paper cutout cosmic diorama with pop-up moon and rocket" width="440" /> | <img src="./docs/showcase/kit-isometric-dialogue-3d.png" alt="Soft-Clay 3D studio scene with expressive multi-speaker Text-to-Dialogue" width="440" /> |
 
 <sub>Organized across **`2D` / `2.5D` / `3D`** dimensional spaces (`--space=2d|2.5d|3d`) with built-in kits for **Editorial Collage**, **Vector Scene 2D**, **Kinetic Typography**, **Data Storytelling** (bar races &amp; timelines), **Retro-PC**, **Soft-Clay 3D** (offline `<Lightformer>` IBL), **Glass Studio**, and **Optical VFX** — in both `16:9` and `9:16` Shorts (`Golden Safe Box`).</sub>
 
@@ -115,7 +117,7 @@ npx skills add make-pictures/make-pictures-studio
 | `npx make-pictures studio` | Launch **Studio Web** &amp; **🎨 Style Lab** at `http://127.0.0.1:3000` |
 | `npx make-pictures new <slug>` | Create a new video capsule (`--space=2d\|2.5d\|3d`, `--kit=...`, `--style=...`, `--lang=en\|pl`) |
 | `npx make-pictures styles` | List 10 built-in &amp; custom `styles/*.style.json` presets (`--space=2d\|2.5d\|3d`, `style new <slug>` to fork) |
-| `npx make-pictures audio` | Generate word-aligned voiceovers, sidechain-ducked music &amp; SFX |
+| `npx make-pictures audio` | Generate word-aligned `eleven_v4` voiceovers, multi-speaker Text-to-Dialogue, sidechain-ducked music &amp; SFX |
 | `npx make-pictures qa <Id>` | Run hard Director QA gate &amp; render a 12-frame Contact-Sheet PNG (`out/qa-<Id>.png`) with `9:16` safe zones |
 | `npx make-pictures render <Id>` | Export `60 FPS` MP4 mastered to `-14 LUFS` |
 

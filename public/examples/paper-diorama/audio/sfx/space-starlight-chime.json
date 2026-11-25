@@ -1,0 +1,10 @@
+{
+  "id": "space-starlight-chime",
+  "prompt": "Playful crisp spinning cardboard coin flip whirring swiftly into a warm slingshot thruster whoosh blooming into a shimmering celesta starlight chord decaying cleanly to silence, tactile studio animation foley, zero noise",
+  "provider": "elevenlabs-sfx",
+  "specHash": "182625068847f08f403bf6878f225c62043c41cf2030b81967d17832e7f75ddd",
+  "audioFile": "examples/paper-diorama/audio/sfx/space-starlight-chime.mp3",
+  "durationSeconds": 1.9,
+  "loop": false,
+  "generatedAt": "2026-11-24T14:10:28.181Z"
+}

@@ -1,0 +1,10 @@
+{
+  "id": "birds-cloud-flutter",
+  "prompt": "Delicate airy fluttering of paper bird wings brushing swiftly through crisp cotton clouds, light cheerful foley, silent background",
+  "provider": "elevenlabs-sfx",
+  "specHash": "ccbfb835784b6abcf2869b9c5f4877c84ef451f6b4526bfad4b81069e6175d71",
+  "audioFile": "examples/paper-diorama/audio/sfx/birds-cloud-flutter.mp3",
+  "durationSeconds": 1.1,
+  "loop": false,
+  "generatedAt": "2026-11-24T14:10:22.312Z"
+}

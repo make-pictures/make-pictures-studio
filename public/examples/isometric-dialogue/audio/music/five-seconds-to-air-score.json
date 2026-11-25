@@ -1,0 +1,12 @@
+{
+  "id": "five-seconds-to-air-score",
+  "mode": "composition-plan",
+  "provider": "elevenlabs-music",
+  "specHash": "de43b3e5afcdb26294cd1828c12103fb135d0ae84f7da0908899a4d0553a184a",
+  "audioFile": "examples/isometric-dialogue/audio/music/five-seconds-to-air-score.mp3",
+  "durationInSeconds": 22,
+  "moodPreset": "upbeat-launch",
+  "generatedAt": "2026-11-24T15:58:56.619Z",
+  "songTitle": null,
+  "genres": []
+}

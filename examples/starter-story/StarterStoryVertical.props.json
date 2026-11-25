@@ -1,14 +1,11 @@
 {
-  "promptTitle": "JSON Scene Script",
-  "promptSubtitle": "Antigravity + Claude Code",
-  "voiceTitle": "ElevenLabs Voice",
-  "outputTitle": "60 FPS Final Video",
-  "outputSubtitle": "Landscape 16:9 & Shorts 9:16",
-  "primaryAccent": "#2563EB",
-  "secondaryAccent": "#FF2A85",
-  "outputAccent": "#0096C7",
+  "styleId": "editorial-press",
+  "chapterLabel": "FEATURE ESSAY  •  HIGH-SPEED RAIL",
+  "headline": "How a Bullet Train Never Spills a Cup",
+  "subline": "Three hundred kilometers an hour — and a full cup of green tea barely ripples.",
+  "closingHeadline": "Four Quiet Secrets",
+  "closingSubline": "When thoughtful engineering disappears, blistering speed feels like a sunlit library.",
   "voiceoverVolume": 1,
-  "sfxVolume": 0.35,
-  "overviewZoom": 0.58,
-  "cameraOffsetY": 0
+  "musicVolume": 0.24,
+  "sfxVolume": 0.2
 }

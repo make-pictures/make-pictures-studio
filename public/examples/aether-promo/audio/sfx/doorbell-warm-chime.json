@@ -1,0 +1,10 @@
+{
+  "id": "doorbell-warm-chime",
+  "prompt": "Inviting warm two-tone wooden marimba doorstep chime decaying cleanly to silence, cozy morning hospitality",
+  "provider": "elevenlabs-sfx",
+  "specHash": "722645d987a22373c5d151f5b49521d74803955a1beddc49ba1537aa3a67a0c3",
+  "audioFile": "examples/aether-promo/audio/sfx/doorbell-warm-chime.mp3",
+  "durationSeconds": 1.2,
+  "loop": false,
+  "generatedAt": "2026-11-24T20:22:24.410Z"
+}

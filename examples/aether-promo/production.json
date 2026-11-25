@@ -1,0 +1,174 @@
+{
+  "id": "aether-promo",
+  "title": "One Tap to Your Door",
+  "fps": 60,
+  "lang": "en",
+  "modelId": "eleven_v4",
+  "scenes": [
+    {
+      "id": "tap-en",
+      "title": "Act 1 — One Tap Order",
+      "component": "ProductPromo",
+      "durationInFrames": 360,
+      "durationInSeconds": 6.0,
+      "modelId": "eleven_v4",
+      "languageCode": "en",
+      "voiceId": "TX3LPaxmHKxFdv7VOQHJ",
+      "speaker": "Liam",
+      "voiceEffect": "clean",
+      "voiceSettings": {
+        "stability": 0.5,
+        "similarityBoost": 0.8,
+        "style": 0.32,
+        "speed": 1.0,
+        "useSpeakerBoost": true
+      },
+      "text": "[playful] One tap on your phone, and a whole neighborhood springs into motion."
+    },
+    {
+      "id": "flow-en",
+      "title": "Act 2 — Four-Step Choreography",
+      "component": "ProductPromo",
+      "durationInFrames": 480,
+      "durationInSeconds": 8.0,
+      "modelId": "eleven_v4",
+      "languageCode": "en",
+      "voiceId": "TX3LPaxmHKxFdv7VOQHJ",
+      "speaker": "Liam",
+      "voiceEffect": "clean",
+      "voiceSettings": {
+        "stability": 0.5,
+        "similarityBoost": 0.8,
+        "style": 0.32,
+        "speed": 1.0,
+        "useSpeakerBoost": true
+      },
+      "text": "[warmly] Your order wakes the corner bakery, pairs with the nearest bike rider, and picks the quickest sunlit route."
+    },
+    {
+      "id": "live-sync-en",
+      "title": "Act 3 — Live Sync Tracker",
+      "component": "ProductPromo",
+      "durationInFrames": 480,
+      "durationInSeconds": 8.0,
+      "modelId": "eleven_v4",
+      "languageCode": "en",
+      "voiceId": "TX3LPaxmHKxFdv7VOQHJ",
+      "speaker": "Liam",
+      "voiceEffect": "clean",
+      "voiceSettings": {
+        "stability": 0.5,
+        "similarityBoost": 0.8,
+        "style": 0.32,
+        "speed": 1.0,
+        "useSpeakerBoost": true
+      },
+      "text": "[excited] Watch the bakery board and your pocket screen stay perfectly in step — right up to the doorbell."
+    },
+    {
+      "id": "doorstep-en",
+      "title": "Act 4 — Warm Morning Finale",
+      "component": "ProductPromo",
+      "durationInFrames": 450,
+      "durationInSeconds": 7.5,
+      "modelId": "eleven_v4",
+      "languageCode": "en",
+      "voiceId": "TX3LPaxmHKxFdv7VOQHJ",
+      "speaker": "Liam",
+      "voiceEffect": "clean",
+      "voiceSettings": {
+        "stability": 0.5,
+        "similarityBoost": 0.8,
+        "style": 0.32,
+        "speed": 1.0,
+        "useSpeakerBoost": true
+      },
+      "text": "[warmly] That is how thoughtful choreography turns one simple tap into a warm morning at your door."
+    }
+  ],
+  "score": {
+    "id": "one-tap-doorstep-score",
+    "mode": "composition-plan",
+    "prompt": "Sunny modern indie-pop product groove at 118 BPM with warm acoustic Rhodes electric piano, crisp finger snaps, bouncy bassline, lifting into joyful xylophone and light strings momentum before resolving warmly to silence, instrumental only",
+    "moodPreset": "upbeat-launch",
+    "forceInstrumental": true,
+    "durationSeconds": 36,
+    "baseVolume": 0.24,
+    "duckedVolume": 0.08,
+    "positiveGlobalStyles": [
+      "sunny modern indie-pop product groove at 118 BPM",
+      "warm acoustic Rhodes electric piano and crisp finger snaps",
+      "joyful xylophone and bright chamber strings",
+      "clean modern studio polish",
+      "instrumental only"
+    ],
+    "negativeGlobalStyles": [
+      "vocals",
+      "singing",
+      "heavy distortion",
+      "aggressive club drop",
+      "dark suspense drone"
+    ],
+    "sections": [
+      {
+        "name": "Morning Tap & Acoustic Rhodes Groove",
+        "durationMs": 10000,
+        "positiveLocalStyles": [
+          "warm Rhodes chords and crisp finger snaps at 118 BPM",
+          "friendly upbeat bass pluck",
+          "bright sunlit coffee-shop energy"
+        ],
+        "negativeLocalStyles": ["heavy brass", "percussion crash", "vocals"]
+      },
+      {
+        "name": "Joyful Xylophone & Strings Momentum",
+        "durationMs": 15000,
+        "positiveLocalStyles": [
+          "bouncy joyful xylophone melody and sunlit pizzicato strings",
+          "crisp forward-moving bicycle rhythm at 118 BPM",
+          "cheerful optimistic harmonic lift"
+        ],
+        "negativeLocalStyles": ["sirens", "distortion", "vocals"]
+      },
+      {
+        "name": "Warm Morning Doorstep Resolve",
+        "durationMs": 11000,
+        "positiveLocalStyles": [
+          "warm Rhodes electric piano and gentle acoustic guitar",
+          "inviting major-ninth sunrise chord fading cleanly to silence"
+        ],
+        "negativeLocalStyles": ["abrupt cutoff", "harsh cymbals", "vocals"]
+      }
+    ]
+  },
+  "sfx": [
+    {
+      "id": "phone-tap-confirm",
+      "prompt": "Warm tactile touchscreen tap blooming into a cheerful soft two-note confirmation pop, clean studio product foley",
+      "durationSeconds": 0.7,
+      "fallbackPreset": "click",
+      "promptInfluence": 0.65
+    },
+    {
+      "id": "flow-hop-whoosh",
+      "prompt": "Light clean airy swoosh for parcel flow gliding smoothly between system cards, restrained modern UI foley",
+      "durationSeconds": 1.0,
+      "fallbackPreset": "whoosh",
+      "promptInfluence": 0.65
+    },
+    {
+      "id": "bike-bell-ring",
+      "prompt": "Friendly bright brass bicycle bell single double-ding on a sunny morning street, clean studio foley",
+      "durationSeconds": 0.9,
+      "fallbackPreset": "chime",
+      "promptInfluence": 0.68
+    },
+    {
+      "id": "doorbell-warm-chime",
+      "prompt": "Inviting warm two-tone wooden marimba doorstep chime decaying cleanly to silence, cozy morning hospitality",
+      "durationSeconds": 1.2,
+      "fallbackPreset": "chime",
+      "promptInfluence": 0.68
+    }
+  ]
+}

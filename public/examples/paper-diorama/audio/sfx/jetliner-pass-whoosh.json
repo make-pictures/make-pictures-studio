@@ -1,0 +1,10 @@
+{
+  "id": "jetliner-pass-whoosh",
+  "prompt": "Clean breezy high-altitude airliner flyby whoosh with a soft warm Doppler breeze, refined animation studio foley, zero static",
+  "provider": "elevenlabs-sfx",
+  "specHash": "c9d3b8bd353cfeb679ca0bd24153e208daddf41e92005a3f2a08dad28bf83370",
+  "audioFile": "examples/paper-diorama/audio/sfx/jetliner-pass-whoosh.mp3",
+  "durationSeconds": 1.3,
+  "loop": false,
+  "generatedAt": "2026-11-24T14:10:24.323Z"
+}

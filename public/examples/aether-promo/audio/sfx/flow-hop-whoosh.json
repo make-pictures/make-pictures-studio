@@ -1,0 +1,10 @@
+{
+  "id": "flow-hop-whoosh",
+  "prompt": "Light clean airy swoosh for parcel flow gliding smoothly between system cards, restrained modern UI foley",
+  "provider": "elevenlabs-sfx",
+  "specHash": "da326f96ea900663e0bece91b6183e45a8614ddb5e3c3a4cda79712e19773a5a",
+  "audioFile": "examples/aether-promo/audio/sfx/flow-hop-whoosh.mp3",
+  "durationSeconds": 1,
+  "loop": false,
+  "generatedAt": "2026-11-24T20:22:19.911Z"
+}

@@ -1,8 +1,11 @@
 {
-  "heroTitle": "Aether Engine",
-  "outroHeadline": "Ready for production.",
-  "primaryGlowColor": "#00F0FF",
-  "secondaryGlowColor": "#8B5CF6",
-  "showCaptions": false,
-  "voiceoverVolume": 1
+  "styleId": "minimal-product",
+  "brandName": "Sunbeam Bakery",
+  "heroTitle": "One Tap to Your Door",
+  "heroSubtitle": "Order warm morning pastries in a single tap — and watch them glide straight to your doorstep.",
+  "closingHeadline": "Effortless From Tap to Table",
+  "closingSubline": "Thoughtful choreography turns one simple tap into a warm morning at your door.",
+  "voiceoverVolume": 1,
+  "musicVolume": 0.24,
+  "sfxVolume": 0.2
 }

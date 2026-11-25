@@ -1,0 +1,10 @@
+{
+  "id": "rocket-ignition-whoosh",
+  "prompt": "Playful tactile paper-craft rocket ignition puff blooming into a warm clean rising air-jet whoosh, joyful studio animation foley, zero harsh noise",
+  "provider": "elevenlabs-sfx",
+  "specHash": "5ab85f155d21f194413f8ee83fc2c6d2c33bd1318e66013b168e9fcc251689b8",
+  "audioFile": "examples/paper-diorama/audio/sfx/rocket-ignition-whoosh.mp3",
+  "durationSeconds": 1.6,
+  "loop": false,
+  "generatedAt": "2026-11-24T14:10:20.245Z"
+}

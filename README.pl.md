@@ -34,9 +34,9 @@ Przygotuj dla mnie studio filmowe make.pictures: uruchom `npx -y @make-pictures/
 ## 🖥️ Studio Web i 🎨 Style Lab (`v2.4.1`)
 
 <p align="center">
-  <a href="https://make.pictures"><img src="./docs/showcase/showreel-preview.gif" alt="make.pictures Showreel 39 s — 3 prompty do animacji 2D Retro-PC, wycinanki 2.5D Apollo 11 i modeliny 3D" width="760" /></a>
+  <a href="https://make.pictures"><img src="./docs/showcase/showreel-preview.gif" alt="make.pictures Showreel 49 s — Jedna kartka, pięć światów: Tactile 3D, przepływ produktu 2D, wycinanki 2.5D, dialog Soft-Clay 3D i panorama redakcyjna" width="760" /></a>
   <br />
-  <sub>▶ <strong>Showreel 39 s</strong> — prompt → <strong>2D Retro-PC • Wycinanka 2.5D • Modelina 3D</strong> (obejrzyj z głosem i muzyką na <a href="https://make.pictures">make.pictures</a>).</sub>
+  <sub>▶ <strong>Showreel 49 s — Jedna kartka, pięć światów</strong> — <strong>Tactile 3D • Przepływ produktu 2D • Wycinanki 2.5D • Dialog Soft-Clay 3D • Panorama redakcyjna</strong> (obejrzyj z głosem i muzyką na <a href="https://make.pictures">make.pictures</a>).</sub>
 </p>
 
 <p align="center">
@@ -55,11 +55,13 @@ Przygotuj dla mnie studio filmowe make.pictures: uruchom `npx -y @make-pictures/
 
 ## 🎬 Co stworzysz w kilkanaście minut
 
-| Dema produktów i SaaS (`product-frames`) | Przepływy systemowe i Retro-PC (`motion-diagrams-2d`) |
+| Premiera produktu i Live Sync (`product-frames`) | Choreografia systemów 2D (`motion-diagrams-2d`) |
 | :---: | :---: |
-| <img src="./docs/showcase/kit-product-promo.png" alt="Prezentacja interfejsu aplikacji SaaS" width="440" /> | <img src="./docs/showcase/kit-architecture-2d.png" alt="Animowany diagram przepływu danych 2D i Retro-PC" width="440" /> |
-| **Opowieści i dioramy 2.5D (`paper-diorama-3d`)** | **Podcasty Soft-Clay 3D i dialogi (`isometric-3d`)** |
-| <img src="./docs/showcase/kit-paper-diorama-3d.png" alt="Rozkładana papierowa makieta 2.5D" width="440" /> | <img src="./docs/showcase/kit-isometric-dialogue-3d.png" alt="Rozmowa postaci Soft-Clay 3D i Isometric 3D" width="440" /> |
+| <img src="./docs/showcase/kit-product-promo.png" alt="Prezentacja produktu z mapą dostawy na żywo i zsynchronizowanym podglądem mobilnym" width="440" /> | <img src="./docs/showcase/kit-architecture-2d.png" alt="Animowana choreografia systemów 2D z przepływem po krzywych Béziera" width="440" /> |
+| **Panorama redakcyjna i Pinned Media (`editorial-collage`)** | **Wizualizacja danych i wyścigi słupków (`data-storytelling`)** |
+| <img src="./docs/showcase/kit-editorial-data-2d.png" alt="Panorama redakcyjna i dokumentalna karta z precyzyjnie zakotwiczonymi adnotacjami" width="440" /> | <img src="./docs/showcase/kit-data-storytelling-2d.png" alt="Animowany wyścig słupków i opowieść oparta na danych" width="440" /> |
+| **Wycinanki i dioramy 2.5D (`paper-diorama-3d`)** | **Soft-Clay 3D i Text-to-Dialogue (`isometric-3d`)** |
+| <img src="./docs/showcase/kit-paper-diorama-3d.png" alt="Kosmiczna papierowa makieta 2.5D z rakietą i rozkładanym księżycem" width="440" /> | <img src="./docs/showcase/kit-isometric-dialogue-3d.png" alt="Studio Soft-Clay 3D z ekspresyjnym wieloosobowym dialogiem Text-to-Dialogue" width="440" /> |
 
 <sub>Uporządkowane w przestrzeniach **`2D` / `2.5D` / `3D`** (`--space=2d|2.5d|3d`) z gotowymi zestawami **Editorial Collage**, **Vector Scene 2D**, **Kinetic Typography**, **Data Storytelling** (wyścigi słupków i osie czasu), **Retro-PC**, **Soft-Clay 3D** (offline `<Lightformer>` IBL), **Glass Studio** i **VFX** — w poziomym `16:9` oraz pionowym `9:16` (`Golden Safe Box`).</sub>
 
@@ -115,7 +117,7 @@ npx skills add make-pictures/make-pictures-studio
 | `npx make-pictures studio` | Uruchomienie **Studio Web** i **🎨 Style Lab** na `http://127.0.0.1:3000` |
 | `npx make-pictures new <slug>` | Nowa kapsuła filmu (`--space=2d\|2.5d\|3d`, `--kit=...`, `--style=...`, `--lang=pl\|en`) |
 | `npx make-pictures styles` | Lista 10 wbudowanych i własnych stylów `styles/*.style.json` (`--space=2d\|2.5d\|3d`, `style new <slug>` tworzy nowy) |
-| `npx make-pictures audio` | Generowanie lektora z czasami słów, muzyki z auto-duckingiem i efektów SFX |
+| `npx make-pictures audio` | Generowanie lektora `eleven_v4` z czasami słów, dialogów wieloosobowych Text-to-Dialogue, muzyki z auto-duckingiem i SFX |
 | `npx make-pictures qa <Id>` | Twarda bramka reżyserska i styk 12 klatek kontrolnych PNG (`out/qa-<Id>.png`) z ramkami `9:16` |
 | `npx make-pictures render <Id>` | Eksport filmu MP4 `60 FPS` zmasterowanego do `-14 LUFS` |
 

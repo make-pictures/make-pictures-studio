@@ -1,0 +1,190 @@
+{
+  "id": "starter-story",
+  "title": "How a Bullet Train Never Spills a Cup",
+  "fps": 60,
+  "lang": "en",
+  "modelId": "eleven_v4",
+  "scenes": [
+    {
+      "id": "opener-en",
+      "title": "Act 1 — Editorial Opener",
+      "component": "StarterStory",
+      "durationInFrames": 360,
+      "durationInSeconds": 6.0,
+      "modelId": "eleven_v4",
+      "languageCode": "en",
+      "voiceId": "EXAVITQu4vr4xnSDxMaL",
+      "speaker": "Sarah",
+      "voiceEffect": "clean",
+      "voiceSettings": {
+        "stability": 0.5,
+        "similarityBoost": 0.8,
+        "style": 0.34,
+        "speed": 1.0,
+        "useSpeakerBoost": true
+      },
+      "text": "[warmly] Three hundred kilometers an hour — and a full cup of green tea barely ripples."
+    },
+    {
+      "id": "panorama-en",
+      "title": "Act 2 — Rail Evolution Panorama",
+      "component": "StarterStory",
+      "durationInFrames": 480,
+      "durationInSeconds": 8.0,
+      "modelId": "eleven_v4",
+      "languageCode": "en",
+      "voiceId": "EXAVITQu4vr4xnSDxMaL",
+      "speaker": "Sarah",
+      "voiceEffect": "clean",
+      "voiceSettings": {
+        "stability": 0.5,
+        "similarityBoost": 0.8,
+        "style": 0.34,
+        "speed": 1.0,
+        "useSpeakerBoost": true
+      },
+      "text": "[curious] From roaring steam engines to a nose shaped like a diving kingfisher, rail travel learned to glide in silence."
+    },
+    {
+      "id": "anatomy-en",
+      "title": "Act 3 — Sculpted Anatomy",
+      "component": "StarterStory",
+      "durationInFrames": 480,
+      "durationInSeconds": 8.0,
+      "modelId": "eleven_v4",
+      "languageCode": "en",
+      "voiceId": "EXAVITQu4vr4xnSDxMaL",
+      "speaker": "Sarah",
+      "voiceEffect": "clean",
+      "voiceSettings": {
+        "stability": 0.5,
+        "similarityBoost": 0.8,
+        "style": 0.34,
+        "speed": 1.0,
+        "useSpeakerBoost": true
+      },
+      "text": "[thoughtful] A sculpted nose silences tunnels, continuous rails erase the clatter, and active dampers cushion every bend."
+    },
+    {
+      "id": "speed-en",
+      "title": "Act 4 — Six Decades of Speed",
+      "component": "StarterStory",
+      "durationInFrames": 510,
+      "durationInSeconds": 8.5,
+      "modelId": "eleven_v4",
+      "languageCode": "en",
+      "voiceId": "EXAVITQu4vr4xnSDxMaL",
+      "speaker": "Sarah",
+      "voiceEffect": "clean",
+      "voiceSettings": {
+        "stability": 0.5,
+        "similarityBoost": 0.8,
+        "style": 0.34,
+        "speed": 1.0,
+        "useSpeakerBoost": true
+      },
+      "text": "[excited] Watch six decades of rail speed overtake each other — from classic steam all the way to three hundred fifty kilometers an hour."
+    },
+    {
+      "id": "secrets-en",
+      "title": "Act 5 — Four Quiet Secrets",
+      "component": "StarterStory",
+      "durationInFrames": 450,
+      "durationInSeconds": 7.5,
+      "modelId": "eleven_v4",
+      "languageCode": "en",
+      "voiceId": "EXAVITQu4vr4xnSDxMaL",
+      "speaker": "Sarah",
+      "voiceEffect": "clean",
+      "voiceSettings": {
+        "stability": 0.5,
+        "similarityBoost": 0.8,
+        "style": 0.34,
+        "speed": 1.0,
+        "useSpeakerBoost": true
+      },
+      "text": "[warmly] Four quiet engineering choices turn blistering speed into the calmest seat on earth."
+    }
+  ],
+  "score": {
+    "id": "bullet-train-editorial-score",
+    "mode": "composition-plan",
+    "prompt": "Sunlit brisk editorial travel groove at 116 BPM: crisp brushed acoustic rhythm, warm upright bass, playful marimba and pizzicato train-pulse motion through the middle, resolving into gentle celesta sparkles and warm sunlit strings fading cleanly to silence, instrumental only",
+    "moodPreset": "upbeat-launch",
+    "forceInstrumental": true,
+    "durationSeconds": 34,
+    "baseVolume": 0.24,
+    "duckedVolume": 0.08,
+    "positiveGlobalStyles": [
+      "sunlit editorial travel groove at 116 BPM",
+      "brushed acoustic rhythm and warm upright bass",
+      "playful marimba and pizzicato train pulse",
+      "gentle celesta and warm chamber strings",
+      "instrumental only"
+    ],
+    "negativeGlobalStyles": [
+      "vocals",
+      "singing",
+      "heavy distortion",
+      "aggressive EDM drop",
+      "dark suspense drone"
+    ],
+    "sections": [
+      {
+        "name": "Sunlit Morning Departure & Brushed Acoustic Rhythm",
+        "durationMs": 10000,
+        "positiveLocalStyles": [
+          "warm upright bass and light brushed snare",
+          "sunny acoustic guitar and soft marimba motif",
+          "relaxed editorial documentary pulse"
+        ],
+        "negativeLocalStyles": ["heavy brass", "percussion crash", "vocals"]
+      },
+      {
+        "name": "Playful Marimba & Pizzicato Train Pulse",
+        "durationMs": 14000,
+        "positiveLocalStyles": [
+          "brisk gliding 116 BPM marimba and pizzicato strings",
+          "forward-moving rhythmic rail travel energy",
+          "bright uplifting harmonic momentum"
+        ],
+        "negativeLocalStyles": ["sirens", "distortion", "vocals"]
+      },
+      {
+        "name": "Gentle Celesta & Warm Strings Resolve",
+        "durationMs": 10000,
+        "positiveLocalStyles": [
+          "warm chamber strings and sparkling celesta",
+          "serene sunlit closing chord fading cleanly to silence"
+        ],
+        "negativeLocalStyles": ["abrupt cutoff", "harsh cymbals", "vocals"]
+      }
+    ]
+  },
+  "sfx": [
+    {
+      "id": "page-turn-chime",
+      "prompt": "Crisp archival magazine paper page turn blended with a soft warm celesta harmonic chime, clean quiet editorial studio foley",
+      "durationSeconds": 1.0,
+      "promptInfluence": 0.65
+    },
+    {
+      "id": "panorama-glide-whoosh",
+      "prompt": "Silky smooth gentle wind-tunnel air glide whoosh like a sleek high-speed train gliding softly past in a valley, restrained studio mix",
+      "durationSeconds": 1.2,
+      "promptInfluence": 0.65
+    },
+    {
+      "id": "pin-click-soft",
+      "prompt": "Delicate tactile brass drafting-compass and linen paper pin click, crisp clean minimalist editorial accent",
+      "durationSeconds": 0.7,
+      "promptInfluence": 0.65
+    },
+    {
+      "id": "bar-race-lift",
+      "prompt": "Playful ascending wooden marimba ripple glissando with soft warm shimmer signaling a rising chart overtake",
+      "durationSeconds": 1.3,
+      "promptInfluence": 0.68
+    }
+  ]
+}

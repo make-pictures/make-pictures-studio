@@ -1,0 +1,10 @@
+{
+  "id": "bike-bell-ring",
+  "prompt": "Friendly bright brass bicycle bell single double-ding on a sunny morning street, clean studio foley",
+  "provider": "elevenlabs-sfx",
+  "specHash": "2d9d81b2a1af63eec36a2bbd1a37d481fb97efa9fd7b62eb3027a2ab284ed3d6",
+  "audioFile": "examples/aether-promo/audio/sfx/bike-bell-ring.mp3",
+  "durationSeconds": 0.9,
+  "loop": false,
+  "generatedAt": "2026-11-24T20:22:22.352Z"
+}

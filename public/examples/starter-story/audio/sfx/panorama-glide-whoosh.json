@@ -1,0 +1,10 @@
+{
+  "id": "panorama-glide-whoosh",
+  "prompt": "Silky smooth gentle wind-tunnel air glide whoosh like a sleek high-speed train gliding softly past in a valley, restrained studio mix",
+  "provider": "elevenlabs-sfx",
+  "specHash": "b2daffaaa2b31403dc4a36cec8a1c4009ef5c8f025fdf68a8a01d0d3d5c6f689",
+  "audioFile": "examples/starter-story/audio/sfx/panorama-glide-whoosh.mp3",
+  "durationSeconds": 1.2,
+  "loop": false,
+  "generatedAt": "2026-11-24T18:57:13.509Z"
+}

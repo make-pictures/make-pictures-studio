@@ -1,15 +1,8 @@
 {
-  "bannerTitle": "2.5D PAPER DIORAMA KIT",
-  "bannerSubtitle": "Pop-Up Cutouts & Real 3D Shadows",
-  "skyBackground": "#FAFAFA",
-  "leftCloudTint": "#FCE7F3",
-  "rightCloudTint": "#E0F2FE",
-  "bannerBorderColor": "#78350F",
-  "lightingPreset": "daylight",
-  "initialFloorTheme": "mint-plains",
-  "nextFloorTheme": "checkerboard-tile",
-  "cameraFov": 32.5,
-  "cameraDistanceZ": 10.2,
-  "cameraHeightY": 4.25,
-  "voiceoverVolume": 1
+  "styleId": "tactile-craft",
+  "headline": "Skyward: Paper Rocket Ascent",
+  "subline": "From a sunlit meadow past birds, airliners, and satellites into quiet starlight.",
+  "voiceoverVolume": 1,
+  "musicVolume": 0.25,
+  "sfxVolume": 0.22
 }

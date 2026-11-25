@@ -1,0 +1,10 @@
+{
+  "id": "page-turn-chime",
+  "prompt": "Crisp archival magazine paper page turn blended with a soft warm celesta harmonic chime, clean quiet editorial studio foley",
+  "provider": "elevenlabs-sfx",
+  "specHash": "dfbf2c67a7494bfc6f138abda890fb807d5eb59840a17a36e352d2bd15c321c7",
+  "audioFile": "examples/starter-story/audio/sfx/page-turn-chime.mp3",
+  "durationSeconds": 1,
+  "loop": false,
+  "generatedAt": "2026-11-24T18:57:11.202Z"
+}

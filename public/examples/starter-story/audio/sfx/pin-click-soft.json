@@ -1,0 +1,10 @@
+{
+  "id": "pin-click-soft",
+  "prompt": "Delicate tactile brass drafting-compass and linen paper pin click, crisp clean minimalist editorial accent",
+  "provider": "elevenlabs-sfx",
+  "specHash": "286958fdca2fa10d37c42859304cb9586e4d62d5891274ef40a5428de52ad6ef",
+  "audioFile": "examples/starter-story/audio/sfx/pin-click-soft.mp3",
+  "durationSeconds": 0.7,
+  "loop": false,
+  "generatedAt": "2026-11-24T18:57:15.614Z"
+}

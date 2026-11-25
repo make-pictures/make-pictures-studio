@@ -1,13 +1,13 @@
 {
-  "alexName": "Alex",
-  "alexRole": "VOICE 1 • CREATOR",
-  "alexColor": "#2563EB",
-  "maxName": "Max",
-  "maxRole": "VOICE 2 • 3D ARCHITECT",
-  "maxColor": "#059669",
-  "showHudCards": true,
+  "styleId": "soft-clay",
+  "headline": "Five Seconds to Air",
+  "subline": "Comedic banter, live lighting, and camera cues.",
+  "mayaName": "Maya",
+  "mayaColor": "#D96B4F",
+  "leoName": "Leo",
+  "leoColor": "#2E5278",
   "cameraZoom": 114,
-  "cameraHeightOffset": 0.36,
   "voiceoverVolume": 1,
-  "sfxVolume": 0.35
+  "musicVolume": 0.25,
+  "sfxVolume": 0.22
 }

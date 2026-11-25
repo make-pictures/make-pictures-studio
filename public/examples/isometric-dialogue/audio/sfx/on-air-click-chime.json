@@ -1,0 +1,10 @@
+{
+  "id": "on-air-click-chime",
+  "prompt": "Crisp tactile broadcast studio ON AIR toggle switch click followed by a warm glowing golden chime bell, joyful live show start",
+  "provider": "elevenlabs-sfx",
+  "specHash": "2697039b036e24299b35165c0242594b9b6f3a0205260eabd84be98bf581e2af",
+  "audioFile": "examples/isometric-dialogue/audio/sfx/on-air-click-chime.mp3",
+  "durationSeconds": 1.5,
+  "loop": false,
+  "generatedAt": "2026-11-24T15:59:03.761Z"
+}

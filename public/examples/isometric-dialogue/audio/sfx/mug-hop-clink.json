@@ -1,0 +1,10 @@
+{
+  "id": "mug-hop-clink",
+  "prompt": "Playful ceramic coffee mug popping off a wooden desk and landing cleanly back on a cork coaster with a crisp comedic ceramic clink",
+  "provider": "elevenlabs-sfx",
+  "specHash": "ccc2e8a39e7985999f83e1256712d22975fad42e86e915bd094a4340b56a3ecc",
+  "audioFile": "examples/isometric-dialogue/audio/sfx/mug-hop-clink.mp3",
+  "durationSeconds": 1,
+  "loop": false,
+  "generatedAt": "2026-11-24T15:59:00.168Z"
+}

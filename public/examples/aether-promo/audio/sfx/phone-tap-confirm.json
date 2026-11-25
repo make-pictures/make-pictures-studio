@@ -1,0 +1,10 @@
+{
+  "id": "phone-tap-confirm",
+  "prompt": "Warm tactile touchscreen tap blooming into a cheerful soft two-note confirmation pop, clean studio product foley",
+  "provider": "elevenlabs-sfx",
+  "specHash": "642d86d697e4639f411ff2203761a5e35fca63157dcbfd1442dd37bf3fc89da1",
+  "audioFile": "examples/aether-promo/audio/sfx/phone-tap-confirm.mp3",
+  "durationSeconds": 0.7,
+  "loop": false,
+  "generatedAt": "2026-11-24T20:22:17.979Z"
+}

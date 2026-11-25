@@ -1,0 +1,12 @@
+{
+  "id": "skyward-paper-ascent-score",
+  "mode": "composition-plan",
+  "provider": "elevenlabs-music",
+  "specHash": "6fe9641328fcf15eb6f90d718a31ee11323e0a1532726a8701ed7231b46a8824",
+  "audioFile": "examples/paper-diorama/audio/music/skyward-paper-ascent-score.mp3",
+  "durationInSeconds": 20,
+  "moodPreset": "upbeat-launch",
+  "generatedAt": "2026-11-24T14:10:18.056Z",
+  "songTitle": null,
+  "genres": []
+}

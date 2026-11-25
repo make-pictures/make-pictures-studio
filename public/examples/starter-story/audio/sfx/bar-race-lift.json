@@ -1,0 +1,10 @@
+{
+  "id": "bar-race-lift",
+  "prompt": "Playful ascending wooden marimba ripple glissando with soft warm shimmer signaling a rising chart overtake",
+  "provider": "elevenlabs-sfx",
+  "specHash": "1483886b5480882c184d0e8f7e35d38b2237787fa3835e267e9ae05d488e33b3",
+  "audioFile": "examples/starter-story/audio/sfx/bar-race-lift.mp3",
+  "durationSeconds": 1.3,
+  "loop": false,
+  "generatedAt": "2026-11-24T18:57:17.219Z"
+}

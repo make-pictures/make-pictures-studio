@@ -1,0 +1,10 @@
+{
+  "id": "studio-outro-chord",
+  "prompt": "Playful warm Rhodes electric piano major-ninth sparkle chord with light jazz brush shimmer, charming comedy show sign-off",
+  "provider": "elevenlabs-sfx",
+  "specHash": "165ce38e9ab9b32d9486cf9df739455c70977bac2f7ce8eddf76fc00aa4eebd6",
+  "audioFile": "examples/isometric-dialogue/audio/sfx/studio-outro-chord.mp3",
+  "durationSeconds": 2,
+  "loop": false,
+  "generatedAt": "2026-11-24T15:59:05.995Z"
+}

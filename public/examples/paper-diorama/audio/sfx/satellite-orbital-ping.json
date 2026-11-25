@@ -1,0 +1,10 @@
+{
+  "id": "satellite-orbital-ping",
+  "prompt": "Gentle warm crystal-glass and retro brass orbital satellite telemetry chime ping echoing softly in quiet space, clean and delicate",
+  "provider": "elevenlabs-sfx",
+  "specHash": "7b3860450a56b0ae263c796e77e8b7ffe846a26dce7aa23f03805d3d9ad8f3af",
+  "audioFile": "examples/paper-diorama/audio/sfx/satellite-orbital-ping.mp3",
+  "durationSeconds": 1,
+  "loop": false,
+  "generatedAt": "2026-11-24T14:10:26.095Z"
+}

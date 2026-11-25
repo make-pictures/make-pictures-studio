@@ -1,15 +1,24 @@
 import React from 'react';
-import { defineProduction } from '@make-pictures/core';
+import { defineProduction, type ProductionManifest } from '@make-pictures/core';
 import {
   ArchitectureDemoScene,
   architectureDemoSchema,
   type ArchitectureDemoSceneProps,
 } from '../../src/scenes/ArchitectureDemoScene';
 import architectureDefaults from './ArchitectureDemo.props.json';
+import productionJson from './production.json';
 import { ProductPromo, productPromoSchema } from './ProductPromo';
 import productPromoDefaults from './ProductPromo.props.json';
+import {
+  DEFAULT_PRODUCT_PROMO_TIMING,
+  PRODUCT_PROMO_DURATION_FRAMES,
+  PROMO_FPS,
+} from './productPromoTiming';
+import { VOICEOVER_MANIFEST } from './generated/audio-manifest';
 
 export * from './ProductPromo';
+
+const manifest = productionJson as unknown as ProductionManifest;
 
 export const ArchitectureDemoStandalone: React.FC<
   ArchitectureDemoSceneProps
@@ -19,6 +28,8 @@ export const ArchitectureDemoStandalone: React.FC<
 export default defineProduction({
   id: 'aether-promo',
   origin: 'example',
+  manifest,
+  voiceoverManifest: VOICEOVER_MANIFEST,
   compositions: [
     {
       id: 'ArchitectureDemo',
@@ -57,57 +68,23 @@ export default defineProduction({
     },
     {
       id: 'ProductPromo',
-      title: 'Product Promo (Full)',
-      subtitle: 'Full 4-Scene Episode (Intro → UI → Arch → Outro)',
+      title: 'One Tap to Your Door',
+      subtitle: '4-Act Product Launch • Phone, Flow Diagram & Live Sync',
       group: 'Systems & Multi-Scene Promo',
       kit: 'motion-diagrams-2d',
-      fps: 60,
+      fps: PROMO_FPS,
       width: 1920,
       height: 1080,
-      durationInFrames: 1728,
+      durationInFrames: PRODUCT_PROMO_DURATION_FRAMES,
       usesThree: false,
+      hasMusicScore: true,
       propsFile: 'examples/aether-promo/ProductPromo.props.json',
-      sceneTimeline: [
-        {
-          sceneId: 'intro',
-          fromFrame: 0,
-          durationInFrames: 372,
-          label: '1. Intro',
-        },
-        {
-          sceneId: 'ui-showcase',
-          fromFrame: 372,
-          durationInFrames: 372,
-          label: '2. UI Showcase',
-        },
-        {
-          sceneId: 'architecture-demo',
-          fromFrame: 744,
-          durationInFrames: 648,
-          label: '3. Architecture',
-        },
-        {
-          sceneId: 'outro',
-          fromFrame: 1392,
-          durationInFrames: 336,
-          label: '4. Outro',
-        },
-      ],
-      cameraTimeline: [
-        { shotLabel: 'Scene 1 • Hero Reveal', fromFrame: 0, durationInFrames: 372 },
-        { shotLabel: 'Scene 2 • UI Telemetry', fromFrame: 372, durationInFrames: 372 },
-        { shotLabel: 'Scene 3 • Architecture Flow', fromFrame: 744, durationInFrames: 648 },
-        { shotLabel: 'Scene 4 • Closing CTA', fromFrame: 1392, durationInFrames: 336 },
-      ],
-      sfxTimeline: [
-        { sfxId: 'whoosh', fromFrame: 790, label: 'Payload Dispatch', volume: 0.35 },
-        { sfxId: 'pop', fromFrame: 886, label: 'Agent Arrival', volume: 0.44 },
-        { sfxId: 'whoosh', fromFrame: 1053, label: 'SQL Stream', volume: 0.35 },
-        { sfxId: 'pop', fromFrame: 1149, label: 'ACID Commit', volume: 0.44 },
-      ],
+      sceneTimeline: [...DEFAULT_PRODUCT_PROMO_TIMING.voTimeline],
+      cameraTimeline: [...DEFAULT_PRODUCT_PROMO_TIMING.cameraTimeline],
+      sfxTimeline: [...DEFAULT_PRODUCT_PROMO_TIMING.sfxTimeline],
       component: ProductPromo,
       schema: productPromoSchema,
-      defaultProps: productPromoDefaults,
+      defaultProps: { ...productPromoDefaults },
     },
   ],
 });

@@ -1,0 +1,181 @@
+{
+  "id": "paper-diorama",
+  "title": "Skyward: Paper Rocket Ascent (Paper Diorama 2.5D)",
+  "fps": 60,
+  "lang": "en",
+  "modelId": "eleven_v4",
+  "scenes": [
+    {
+      "id": "launch-en",
+      "title": "0 km — Sunlit Meadow Liftoff",
+      "component": "PaperDioramaDemo",
+      "durationInFrames": 175,
+      "durationInSeconds": 2.6,
+      "modelId": "eleven_v4",
+      "languageCode": "en",
+      "voiceId": "EXAVITQu4vr4xnSDxMaL",
+      "speaker": "Sarah",
+      "voiceEffect": "clean",
+      "voiceSettings": {
+        "stability": 0.5,
+        "similarityBoost": 0.8,
+        "style": 0.35,
+        "speed": 1.0,
+        "useSpeakerBoost": true
+      },
+      "text": "[playful] Ready for liftoff? Watch this paper rocket fly!"
+    },
+    {
+      "id": "birds-en",
+      "title": "3 km — Sunlit Clouds & Soaring Birds",
+      "component": "PaperDioramaDemo",
+      "durationInFrames": 165,
+      "durationInSeconds": 2.6,
+      "modelId": "eleven_v4",
+      "languageCode": "en",
+      "voiceId": "EXAVITQu4vr4xnSDxMaL",
+      "speaker": "Sarah",
+      "voiceEffect": "clean",
+      "voiceSettings": {
+        "stability": 0.5,
+        "similarityBoost": 0.8,
+        "style": 0.32,
+        "speed": 1.0,
+        "useSpeakerBoost": true
+      },
+      "text": "[warmly] Racing past clouds and soaring swallows."
+    },
+    {
+      "id": "stratosphere-en",
+      "title": "12 km — Stratosphere Airliner",
+      "component": "PaperDioramaDemo",
+      "durationInFrames": 180,
+      "durationInSeconds": 2.9,
+      "modelId": "eleven_v4",
+      "languageCode": "en",
+      "voiceId": "EXAVITQu4vr4xnSDxMaL",
+      "speaker": "Sarah",
+      "voiceEffect": "clean",
+      "voiceSettings": {
+        "stability": 0.5,
+        "similarityBoost": 0.8,
+        "style": 0.34,
+        "speed": 1.0,
+        "useSpeakerBoost": true
+      },
+      "text": "[amazed] Past the silver airliner as Earth curves below."
+    },
+    {
+      "id": "space-en",
+      "title": "Outer Space — Lunar Slingshot Boost",
+      "component": "PaperDioramaDemo",
+      "durationInFrames": 480,
+      "durationInSeconds": 4.2,
+      "modelId": "eleven_v4",
+      "languageCode": "en",
+      "voiceId": "EXAVITQu4vr4xnSDxMaL",
+      "speaker": "Sarah",
+      "voiceEffect": "clean",
+      "voiceSettings": {
+        "stability": 0.5,
+        "similarityBoost": 0.8,
+        "style": 0.36,
+        "speed": 1.0,
+        "useSpeakerBoost": true
+      },
+      "text": "[excited] Whipping around the Moon like a spinning coin — full boost into the stars!"
+    }
+  ],
+  "score": {
+    "id": "skyward-paper-ascent-score",
+    "mode": "composition-plan",
+    "prompt": "Joyful fast-paced adventure soundtrack opening with playful acoustic marimba and plucked pizzicato strings at 122 BPM, lifting into soaring cinematic strings and warm uplifting analog synth through the clouds, culminating in a thrilling gravity-assist crescendo and shimmering starlight celesta resolving cleanly to silence, instrumental only",
+    "moodPreset": "upbeat-launch",
+    "forceInstrumental": true,
+    "durationSeconds": 20,
+    "baseVolume": 0.25,
+    "duckedVolume": 0.085,
+    "sections": [
+      {
+        "name": "Playful Meadow Marimba Launch",
+        "durationMs": 5000,
+        "positiveLocalStyles": [
+          "playful acoustic marimba",
+          "buoyant plucked pizzicato strings",
+          "sunny joyful adventure kickoff",
+          "122 bpm"
+        ],
+        "negativeLocalStyles": [
+          "vocals",
+          "singing",
+          "heavy drums",
+          "harsh distortion"
+        ]
+      },
+      {
+        "name": "Soaring Skyward Flight",
+        "durationMs": 8000,
+        "positiveLocalStyles": [
+          "soaring uplifting strings and warm analog synth",
+          "light crisp percussion momentum",
+          "exhilarating flight above the clouds",
+          "122 bpm"
+        ],
+        "negativeLocalStyles": [
+          "vocals",
+          "singing",
+          "aggressive EDM drop",
+          "harsh distortion"
+        ]
+      },
+      {
+        "name": "Lunar Slingshot & Starlight Resolve",
+        "durationMs": 7000,
+        "positiveLocalStyles": [
+          "thrilling uplifting orchestral slingshot lift into shimmering celesta",
+          "triumphant cosmic major ninth sparkle",
+          "clean natural fade to silence",
+          "122 bpm"
+        ],
+        "negativeLocalStyles": [
+          "vocals",
+          "singing",
+          "abrupt cut",
+          "harsh distortion"
+        ]
+      }
+    ]
+  },
+  "sfx": [
+    {
+      "id": "rocket-ignition-whoosh",
+      "prompt": "Playful tactile paper-craft rocket ignition puff blooming into a warm clean rising air-jet whoosh, joyful studio animation foley, zero harsh noise",
+      "durationSeconds": 1.6,
+      "fallbackPreset": "whoosh"
+    },
+    {
+      "id": "birds-cloud-flutter",
+      "prompt": "Delicate airy fluttering of paper bird wings brushing swiftly through crisp cotton clouds, light cheerful foley, silent background",
+      "durationSeconds": 1.1,
+      "fallbackPreset": "wind"
+    },
+    {
+      "id": "jetliner-pass-whoosh",
+      "prompt": "Clean breezy high-altitude airliner flyby whoosh with a soft warm Doppler breeze, refined animation studio foley, zero static",
+      "durationSeconds": 1.3,
+      "fallbackPreset": "whoosh"
+    },
+    {
+      "id": "satellite-orbital-ping",
+      "prompt": "Gentle warm crystal-glass and retro brass orbital satellite telemetry chime ping echoing softly in quiet space, clean and delicate",
+      "durationSeconds": 1.0,
+      "fallbackPreset": "chime"
+    },
+    {
+      "id": "space-starlight-chime",
+      "prompt": "Playful crisp spinning cardboard coin flip whirring swiftly into a warm slingshot thruster whoosh blooming into a shimmering celesta starlight chord decaying cleanly to silence, tactile studio animation foley, zero noise",
+      "durationSeconds": 1.9,
+      "fallbackPreset": "chime"
+    }
+  ]
+}

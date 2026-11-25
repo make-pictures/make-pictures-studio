@@ -1,0 +1,10 @@
+{
+  "id": "countdown-beep",
+  "prompt": "Single gentle warm mellow sine-wave and soft woodblock television broadcast studio cue tone pip, clean polite control room beep, zero screech or high-pitched hiss",
+  "provider": "elevenlabs-sfx",
+  "specHash": "79058ccf2387f4da2e57b399284e7f6e71f57b97e6cc55e3894e83b3d01ef89e",
+  "audioFile": "examples/isometric-dialogue/audio/sfx/countdown-beep.mp3",
+  "durationSeconds": 0.6,
+  "loop": false,
+  "generatedAt": "2026-11-24T16:00:23.106Z"
+}
