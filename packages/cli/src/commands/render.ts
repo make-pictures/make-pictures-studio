@@ -3,6 +3,12 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { masterMp4Loudness } from '../audio/master-loudness';
+import { toKebabSlug } from '../utils/cli-helpers';
+import {
+  collectRelativeImportedFiles,
+  resolveCompositionSourceFromRoot,
+} from '../utils/composition-resolver';
+import { blankCommentsPreservingNewlines } from '../utils/jsx-source-scan';
 import {
   assertFfmpegInstalled,
   assertRemotionInstalled,
@@ -25,35 +31,14 @@ export interface RenderCommandOptions {
   timeoutMs?: number;
 }
 
-function toKebabSlug(compId: string): string {
-  return compId
-    .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
-    .replace(/[^A-Za-z0-9-]+/g, '-')
-    .toLowerCase();
-}
-
 const THREE_USAGE_RE =
   /from\s+['"](?:three|@remotion\/three|@react-three\/(?:fiber|drei)|@make-pictures\/remotion\/kits\/(?:paper-diorama-3d|isometric-3d|tactile-3d))['"]|<ThreeCanvas\b|<DirectorCamera3D\b/;
-
-function resolveTsFileCandidate(basePath: string): string | null {
-  const candidates = [
-    basePath,
-    `${basePath}.tsx`,
-    `${basePath}.ts`,
-    path.join(basePath, 'index.tsx'),
-    path.join(basePath, 'index.ts'),
-  ];
-  for (const candidate of candidates) {
-    if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
-      return candidate;
-    }
-  }
-  return null;
-}
 
 /**
  * Lightweight source/import scan to detect whether a composition uses Three.js / WebGL 3D
  * (so `--gl=angle` is automatically enabled without requiring any legacy registry).
+ * Chases `export * from` / `export { X } from` barrels, local relative imports, and
+ * sibling `.tsx`/`.ts` files inside the resolved composition directory.
  */
 export function detectCompositionUsesThree(
   studioDir: string,
@@ -69,58 +54,56 @@ export function detectCompositionUsesThree(
   const rootFile = rootCandidates.find((p) => fs.existsSync(p));
   const filesToScan = new Set<string>();
 
+  let resolvedSourceFile: string | null = null;
   if (rootFile) {
-    const rootSrc = fs.readFileSync(rootFile, 'utf8');
-    const escapedId = compositionId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const compTagRe = new RegExp(
-      `<Composition\\b[^>]*\\bid\\s*=\\s*["']${escapedId}["'][^>]*>`,
-      's'
+    resolvedSourceFile = resolveCompositionSourceFromRoot(
+      rootFile,
+      compositionId
     );
-    const compMatch = compTagRe.exec(rootSrc);
-    const identMatch = compMatch?.[0].match(
-      /\bcomponent\s*=\s*\{\s*([A-Za-z_$][A-Za-z0-9_$]*)\s*\}/
-    );
-    const componentIdent = identMatch?.[1];
+    if (resolvedSourceFile) {
+      for (const importedFile of collectRelativeImportedFiles(
+        resolvedSourceFile,
+        2
+      )) {
+        filesToScan.add(importedFile);
+      }
 
-    if (componentIdent) {
-      const importRe =
-        /import\s+(?:type\s+)?([\s\S]*?)\s+from\s+['"]([^'"]+)['"]/g;
-      let im: RegExpExecArray | null;
-      while ((im = importRe.exec(rootSrc)) !== null) {
-        const clause = im[1] ?? '';
-        const spec = im[2] ?? '';
-        if (
-          spec.startsWith('.') &&
-          new RegExp(`\\b${componentIdent}\\b`).test(clause)
-        ) {
-          const resolved = resolveTsFileCandidate(
-            path.resolve(path.dirname(rootFile), spec)
-          );
-          if (resolved) {
-            filesToScan.add(resolved);
+      const compDir = path.dirname(resolvedSourceFile);
+      const rootDirOfRootFile = path.dirname(path.resolve(rootFile));
+      // Scan sibling `.tsx`/`.ts` files when the composition lives in its own subdirectory
+      if (compDir !== rootDirOfRootFile && fs.existsSync(compDir)) {
+        for (const entry of fs.readdirSync(compDir, { withFileTypes: true })) {
+          if (entry.isFile() && /\.(?:tsx|ts)$/.test(entry.name)) {
+            filesToScan.add(path.join(compDir, entry.name));
           }
         }
       }
     }
   }
 
-  const config = loadMakePicturesConfig(studioDir);
-  const slug = toKebabSlug(compositionId);
-  for (const dirCandidate of [
-    path.resolve(studioDir, config.videosDir, slug),
-    path.join(studioDir, 'examples', slug),
-  ]) {
-    if (!fs.existsSync(dirCandidate)) continue;
-    for (const entry of fs.readdirSync(dirCandidate, { withFileTypes: true })) {
-      if (entry.isFile() && /\.(?:tsx|ts)$/.test(entry.name)) {
-        filesToScan.add(path.join(dirCandidate, entry.name));
+  if (!resolvedSourceFile) {
+    const config = loadMakePicturesConfig(studioDir);
+    const slug = toKebabSlug(compositionId);
+    for (const dirCandidate of [
+      path.resolve(studioDir, config.videosDir, slug),
+      path.join(studioDir, 'examples', slug),
+    ]) {
+      if (!fs.existsSync(dirCandidate)) continue;
+      for (const entry of fs.readdirSync(dirCandidate, {
+        withFileTypes: true,
+      })) {
+        if (entry.isFile() && /\.(?:tsx|ts)$/.test(entry.name)) {
+          filesToScan.add(path.join(dirCandidate, entry.name));
+        }
       }
     }
   }
 
   for (const filePath of filesToScan) {
     try {
-      const src = fs.readFileSync(filePath, 'utf8');
+      const src = blankCommentsPreservingNewlines(
+        fs.readFileSync(filePath, 'utf8')
+      );
       if (THREE_USAGE_RE.test(src)) {
         return true;
       }
@@ -144,7 +127,7 @@ export async function runRenderCommand(
     cwd: options.cwd ?? options.rootDir,
     dir: options.dir,
   });
-  const config = loadMakePicturesConfig(studioDir);
+  const config = loadMakePicturesConfig(studioDir, rootDir);
   const { compositionId } = options;
 
   const remotionBin = assertRemotionInstalled(rootDir, [

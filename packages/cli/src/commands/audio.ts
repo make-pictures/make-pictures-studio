@@ -44,6 +44,7 @@ import {
   loadMakePicturesConfig,
   resolveWorkspaceContext,
 } from './workspace-paths';
+import { assertSafeIdSegment } from '../utils/cli-helpers';
 
 const CLI_VOICE_ACOUSTIC_FILTERS: Record<VoiceAcousticPreset, string> = {
   clean: 'apad=pad_dur=0.25',
@@ -132,11 +133,16 @@ export function resolveEffectiveDialogueModelId(
 
 export function computeSceneCacheHash(
   scene: AudioSceneSpec,
-  options?: { effectiveLanguageCode?: string }
+  options?: {
+    effectiveLanguageCode?: string;
+    effectiveVoiceSettings?: VoiceSettingsConfig;
+  }
 ): string {
-  const baseKey = scene.voiceSettings
-    ? `${scene.text}|${JSON.stringify(scene.voiceSettings)}`
-    : scene.text;
+  const mergedVoiceSettings =
+    options?.effectiveVoiceSettings ?? scene.voiceSettings;
+  const baseKey = mergedVoiceSettings
+    ? `${scene.text ?? ''}|${JSON.stringify(mergedVoiceSettings)}`
+    : (scene.text ?? '');
 
   const extraParts: string[] = [];
   if (isDialogueScene(scene)) {
@@ -651,6 +657,7 @@ async function processSceneVoiceover(params: {
   defaultVoiceId: string;
   modelId: string;
   defaultLanguageCode?: string;
+  defaultVoiceSettings?: VoiceSettingsConfig;
   force: boolean;
   useLiveApi: boolean;
 }): Promise<SceneVoiceoverData> {
@@ -662,10 +669,12 @@ async function processSceneVoiceover(params: {
     defaultVoiceId,
     modelId,
     defaultLanguageCode,
+    defaultVoiceSettings,
     force,
     useLiveApi,
   } = params;
 
+  const safeSceneId = assertSafeIdSegment(scene.id, 'scene.id');
   fs.mkdirSync(voiceoversDir, { recursive: true });
 
   const isDialogue = isDialogueScene(scene);
@@ -684,6 +693,10 @@ async function processSceneVoiceover(params: {
   const effectiveLanguageCode =
     rawLangCode && supportsLanguageCodeParam(effectiveModelId)
       ? rawLangCode.toLowerCase()
+      : undefined;
+  const effectiveVoiceSettings: VoiceSettingsConfig | undefined =
+    defaultVoiceSettings || scene.voiceSettings
+      ? { ...defaultVoiceSettings, ...scene.voiceSettings }
       : undefined;
   const spokenWordCount = stripElevenLabsV3Tags(
     isDialogue
@@ -707,11 +720,14 @@ async function processSceneVoiceover(params: {
             ).toFixed(2)
           )
         );
-  const textHash = computeSceneCacheHash(scene, { effectiveLanguageCode });
-  const mp3Path = path.join(voiceoversDir, `${scene.id}.mp3`);
-  const jsonPath = path.join(voiceoversDir, `${scene.id}.json`);
+  const textHash = computeSceneCacheHash(scene, {
+    effectiveLanguageCode,
+    effectiveVoiceSettings,
+  });
+  const mp3Path = path.join(voiceoversDir, `${safeSceneId}.mp3`);
+  const jsonPath = path.join(voiceoversDir, `${safeSceneId}.json`);
   const cleanPrefix = audioFileRelPrefix.replace(/^\/+|\/+$/g, '');
-  const audioFile = `${cleanPrefix}/${scene.id}.mp3`;
+  const audioFile = `${cleanPrefix}/${safeSceneId}.mp3`;
 
   // SHA-256 Cache Check
   if (!force && fs.existsSync(jsonPath) && fs.existsSync(mp3Path)) {
@@ -756,7 +772,7 @@ async function processSceneVoiceover(params: {
       dialogueInputs: scene.dialogueInputs,
       modelId: effectiveModelId,
       languageCode: effectiveLanguageCode,
-      voiceSettings: scene.voiceSettings,
+      voiceSettings: effectiveVoiceSettings,
       previousText: scene.previousText,
       nextText: scene.nextText,
     });
@@ -765,14 +781,23 @@ async function processSceneVoiceover(params: {
     const rawMp3Path = `${mp3Path}.raw.mp3`;
     fs.writeFileSync(rawMp3Path, audioBuffer);
 
-    const acousticPreset = scene.acousticPreset ?? scene.voiceEffect;
-    const acousticFilter = getVoiceAcousticFilter(acousticPreset);
-    execFileSync(
-      'ffmpeg',
-      ['-y', '-i', rawMp3Path, '-af', acousticFilter, mp3Path],
-      { stdio: 'ignore' }
-    );
-    fs.unlinkSync(rawMp3Path);
+    try {
+      const acousticPreset = scene.acousticPreset ?? scene.voiceEffect;
+      const acousticFilter = getVoiceAcousticFilter(acousticPreset);
+      execFileSync(
+        'ffmpeg',
+        ['-y', '-i', rawMp3Path, '-af', acousticFilter, mp3Path],
+        { stdio: 'ignore' }
+      );
+    } finally {
+      if (fs.existsSync(rawMp3Path)) {
+        try {
+          fs.unlinkSync(rawMp3Path);
+        } catch {
+          // ignore cleanup error
+        }
+      }
+    }
 
     const alignment = result.alignment;
     const segmentStartIndices = result.voiceSegments
@@ -828,7 +853,7 @@ async function processSceneVoiceover(params: {
       modelId: effectiveModelId,
       languageCode: effectiveLanguageCode,
       text: effectiveText,
-      voiceSettings: scene.voiceSettings,
+      voiceSettings: effectiveVoiceSettings,
       previousText: scene.previousText,
       nextText: scene.nextText,
     });
@@ -837,14 +862,23 @@ async function processSceneVoiceover(params: {
     const rawMp3Path = `${mp3Path}.raw.mp3`;
     fs.writeFileSync(rawMp3Path, audioBuffer);
 
-    const acousticPreset = scene.acousticPreset ?? scene.voiceEffect;
-    const acousticFilter = getVoiceAcousticFilter(acousticPreset);
-    execFileSync(
-      'ffmpeg',
-      ['-y', '-i', rawMp3Path, '-af', acousticFilter, mp3Path],
-      { stdio: 'ignore' }
-    );
-    fs.unlinkSync(rawMp3Path);
+    try {
+      const acousticPreset = scene.acousticPreset ?? scene.voiceEffect;
+      const acousticFilter = getVoiceAcousticFilter(acousticPreset);
+      execFileSync(
+        'ffmpeg',
+        ['-y', '-i', rawMp3Path, '-af', acousticFilter, mp3Path],
+        { stdio: 'ignore' }
+      );
+    } finally {
+      if (fs.existsSync(rawMp3Path)) {
+        try {
+          fs.unlinkSync(rawMp3Path);
+        } catch {
+          // ignore cleanup error
+        }
+      }
+    }
 
     const alignment = result.alignment;
     const words = alignment
@@ -1010,20 +1044,155 @@ interface DiscoveredAudioManifest {
   manifestPath: string;
 }
 
+function getAudioManifestSearchRoots(
+  studioDir: string,
+  videosDirRel: string
+): string[] {
+  return [
+    path.resolve(studioDir, videosDirRel),
+    path.join(studioDir, 'examples'),
+    path.join(studioDir, 'productions'),
+  ];
+}
+
+function parseAndValidateAudioManifest(
+  manifestPath: string,
+  displayPath: string
+): AudioManifestFile {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  } catch (err) {
+    throw new Error(
+      `Invalid JSON in ${displayPath}: ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
+
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new Error(
+      `Invalid audio manifest at ${displayPath}: expected a JSON object.`
+    );
+  }
+
+  const obj = raw as Record<string, unknown>;
+  if (obj.id !== undefined) {
+    if (typeof obj.id !== 'string') {
+      throw new Error(
+        `Invalid "id" in ${displayPath}: expected a non-empty string.`
+      );
+    }
+    assertSafeIdSegment(obj.id, 'manifest.id');
+  }
+
+  if (!Array.isArray(obj.scenes)) {
+    throw new Error(
+      `Invalid audio manifest at ${displayPath}: expected "scenes" to be an array.`
+    );
+  }
+
+  for (let i = 0; i < obj.scenes.length; i++) {
+    const scene = obj.scenes[i];
+    if (!scene || typeof scene !== 'object' || Array.isArray(scene)) {
+      throw new Error(
+        `Invalid scene at scenes[${i}] in ${displayPath}: expected an object.`
+      );
+    }
+    const s = scene as Record<string, unknown>;
+    if (typeof s.id !== 'string') {
+      throw new Error(
+        `Invalid scene at scenes[${i}] in ${displayPath}: missing string "id".`
+      );
+    }
+    assertSafeIdSegment(s.id, `scenes[${i}].id`);
+
+    const hasDialogue =
+      Array.isArray(s.dialogueInputs) && s.dialogueInputs.length >= 2;
+    if (hasDialogue) {
+      for (let t = 0; t < (s.dialogueInputs as unknown[]).length; t++) {
+        const turn = (s.dialogueInputs as unknown[])[t];
+        if (!turn || typeof turn !== 'object' || Array.isArray(turn)) {
+          throw new Error(
+            `Invalid dialogue turn scenes[${i}].dialogueInputs[${t}] in ${displayPath}: expected an object.`
+          );
+        }
+        const turnObj = turn as Record<string, unknown>;
+        if (typeof turnObj.text !== 'string' || !turnObj.text.trim()) {
+          throw new Error(
+            `Invalid dialogue turn scenes[${i}].dialogueInputs[${t}] in ${displayPath}: missing non-empty "text".`
+          );
+        }
+        if (typeof turnObj.voiceId !== 'string' || !turnObj.voiceId.trim()) {
+          throw new Error(
+            `Invalid dialogue turn scenes[${i}].dialogueInputs[${t}] in ${displayPath}: missing non-empty "voiceId".`
+          );
+        }
+      }
+    } else if (typeof s.text !== 'string' || !s.text.trim()) {
+      throw new Error(
+        `Invalid scene "${s.id}" in ${displayPath}: expected non-empty "text" (or "dialogueInputs" with >= 2 turns).`
+      );
+    }
+  }
+
+  if (obj.score !== undefined) {
+    if (!obj.score || typeof obj.score !== 'object' || Array.isArray(obj.score)) {
+      throw new Error(
+        `Invalid "score" in ${displayPath}: expected an object.`
+      );
+    }
+    const scoreObj = obj.score as Record<string, unknown>;
+    if (typeof scoreObj.id !== 'string') {
+      throw new Error(
+        `Invalid "score.id" in ${displayPath}: expected a non-empty string.`
+      );
+    }
+    assertSafeIdSegment(scoreObj.id, 'score.id');
+  }
+
+  if (obj.sfx !== undefined) {
+    if (!Array.isArray(obj.sfx)) {
+      throw new Error(
+        `Invalid "sfx" in ${displayPath}: expected an array.`
+      );
+    }
+    for (let i = 0; i < obj.sfx.length; i++) {
+      const item = obj.sfx[i];
+      if (!item || typeof item !== 'object' || Array.isArray(item)) {
+        throw new Error(
+          `Invalid sfx[${i}] in ${displayPath}: expected an object.`
+        );
+      }
+      const sfxObj = item as Record<string, unknown>;
+      if (typeof sfxObj.id !== 'string') {
+        throw new Error(
+          `Invalid sfx[${i}].id in ${displayPath}: expected a non-empty string.`
+        );
+      }
+      assertSafeIdSegment(sfxObj.id, `sfx[${i}].id`);
+      if (typeof sfxObj.prompt !== 'string') {
+        throw new Error(
+          `Invalid sfx[${i}].prompt in ${displayPath}: expected a string.`
+        );
+      }
+    }
+  }
+
+  return obj as unknown as AudioManifestFile;
+}
+
 function resolveAudioManifestForSlug(
   studioDir: string,
   videosDirRel: string,
   slug: string
 ): DiscoveredAudioManifest | null {
-  const candidates = [
-    path.resolve(studioDir, videosDirRel, slug, 'audio.json'),
-    path.join(studioDir, 'examples', slug, 'audio.json'),
-    path.join(studioDir, 'productions', slug, 'audio.json'),
-  ];
+  const safeSlug = assertSafeIdSegment(slug, 'production slug');
+  const candidates = getAudioManifestSearchRoots(studioDir, videosDirRel).map(
+    (root) => path.join(root, safeSlug, 'audio.json')
+  );
   for (const manifestPath of candidates) {
     if (fs.existsSync(manifestPath)) {
       return {
-        slug,
+        slug: safeSlug,
         videoDir: path.dirname(manifestPath),
         manifestPath,
       };
@@ -1038,10 +1207,7 @@ export function discoverAudioManifests(
 ): DiscoveredAudioManifest[] {
   const config = loadMakePicturesConfig(studioDir);
   const effectiveVideosDir = videosDirRel ?? config.videosDir;
-  const searchRoots = [
-    path.resolve(studioDir, effectiveVideosDir),
-    path.join(studioDir, 'productions'),
-  ];
+  const searchRoots = getAudioManifestSearchRoots(studioDir, effectiveVideosDir);
 
   const found: DiscoveredAudioManifest[] = [];
   const seenDirs = new Set<string>();
@@ -1096,27 +1262,17 @@ async function processAudioManifest(params: {
     useLiveApi,
   } = params;
 
+  const relManifest = path.relative(rootDir, manifestPath) || manifestPath;
   if (!fs.existsSync(manifestPath)) {
-    throw new Error(
-      `Audio manifest not found at ${path.relative(rootDir, manifestPath)}`
-    );
+    throw new Error(`Audio manifest not found at ${relManifest}`);
   }
 
-  let manifest: AudioManifestFile;
-  try {
-    manifest = JSON.parse(
-      fs.readFileSync(manifestPath, 'utf8')
-    ) as AudioManifestFile;
-  } catch (err) {
-    throw new Error(
-      `Invalid JSON in ${path.relative(rootDir, manifestPath)}: ${err instanceof Error ? err.message : String(err)}`
-    );
-  }
-
-  const effectiveSlug = manifest.id?.trim() || slug;
-  console.log(
-    `\n🎬 Audio Manifest: "${effectiveSlug}" (${path.relative(rootDir, manifestPath)})`
+  const manifest = parseAndValidateAudioManifest(manifestPath, relManifest);
+  const effectiveSlug = assertSafeIdSegment(
+    manifest.id?.trim() || slug,
+    'manifest.id'
   );
+  console.log(`\n🎬 Audio Manifest: "${effectiveSlug}" (${relManifest})`);
 
   const fps = manifest.fps || 60;
   const hasExplicitEnvVoice = Boolean(process.env.ELEVENLABS_VOICE_ID?.trim());
@@ -1159,6 +1315,7 @@ async function processAudioManifest(params: {
       defaultVoiceId: defaultManifestVoiceId,
       modelId: manifestModelId,
       defaultLanguageCode: manifestLanguageCode,
+      defaultVoiceSettings: manifest.voiceSettings,
       force,
       useLiveApi,
     });
@@ -1212,7 +1369,7 @@ export async function runAudioCommand(
     cwd: options.cwd ?? options.rootDir,
     dir: options.dir,
   });
-  const config = loadMakePicturesConfig(studioDir);
+  const config = loadMakePicturesConfig(studioDir, rootDir);
 
   dotenv.config({ path: path.join(rootDir, '.env.local') });
   dotenv.config({ path: path.join(rootDir, '.env') });
@@ -1335,7 +1492,7 @@ export async function runMusicShortcutCommand(params: {
     cwd: params.cwd ?? params.rootDir,
     dir: params.dir,
   });
-  const config = loadMakePicturesConfig(studioDir);
+  const config = loadMakePicturesConfig(studioDir, rootDir);
   dotenv.config({ path: path.join(rootDir, '.env.local') });
   dotenv.config({ path: path.join(rootDir, '.env') });
 
@@ -1350,30 +1507,39 @@ export async function runMusicShortcutCommand(params: {
       config.videosDir,
       params.productionSlug
     );
-    if (target) {
-      const manifest = JSON.parse(
-        fs.readFileSync(target.manifestPath, 'utf8')
-      ) as AudioManifestFile;
-      const slug = manifest.id?.trim() || target.slug;
-      const spec: MusicScoreSpec = manifest.score ?? {
-        id: params.id || 'main-score',
-        mode: params.mode ?? 'prompt',
-        prompt: params.prompt,
-        moodPreset: params.moodPreset ?? 'ambient-tech',
-        durationSeconds: params.durationSeconds ?? 16,
-        forceInstrumental: true,
-      };
-      await generateMusicScore(spec, {
-        outputDir: path.resolve(studioDir, config.publicDir, 'audio', slug, 'music'),
-        publicRelPrefix: `audio/${slug}/music`,
-        useLiveApi,
-        force: params.force,
-      });
-      return;
+    if (!target) {
+      throw new Error(
+        `Audio manifest not found for "${params.productionSlug}". Expected ${path.join(config.videosDir, params.productionSlug, 'audio.json')}.`
+      );
     }
+    const relManifest =
+      path.relative(rootDir, target.manifestPath) || target.manifestPath;
+    const manifest = parseAndValidateAudioManifest(
+      target.manifestPath,
+      relManifest
+    );
+    const slug = assertSafeIdSegment(
+      manifest.id?.trim() || target.slug,
+      'manifest.id'
+    );
+    const spec: MusicScoreSpec = manifest.score ?? {
+      id: assertSafeIdSegment(params.id || 'main-score', 'score.id'),
+      mode: params.mode ?? 'prompt',
+      prompt: params.prompt,
+      moodPreset: params.moodPreset ?? 'ambient-tech',
+      durationSeconds: params.durationSeconds ?? 16,
+      forceInstrumental: true,
+    };
+    await generateMusicScore(spec, {
+      outputDir: path.resolve(studioDir, config.publicDir, 'audio', slug, 'music'),
+      publicRelPrefix: `audio/${slug}/music`,
+      useLiveApi,
+      force: params.force,
+    });
+    return;
   }
 
-  const scoreId = params.id || 'studio-score';
+  const scoreId = assertSafeIdSegment(params.id || 'studio-score', 'score.id');
   await generateMusicScore(
     {
       id: scoreId,
@@ -1409,7 +1575,7 @@ export async function runSfxShortcutCommand(params: {
     cwd: params.cwd ?? params.rootDir,
     dir: params.dir,
   });
-  const config = loadMakePicturesConfig(studioDir);
+  const config = loadMakePicturesConfig(studioDir, rootDir);
   dotenv.config({ path: path.join(rootDir, '.env.local') });
   dotenv.config({ path: path.join(rootDir, '.env') });
 
@@ -1424,21 +1590,30 @@ export async function runSfxShortcutCommand(params: {
       config.videosDir,
       params.productionSlug
     );
-    if (target) {
-      const manifest = JSON.parse(
-        fs.readFileSync(target.manifestPath, 'utf8')
-      ) as AudioManifestFile;
-      const slug = manifest.id?.trim() || target.slug;
-      for (const spec of manifest.sfx ?? []) {
-        await generateSfxAsset(spec, {
-          outputDir: path.resolve(studioDir, config.publicDir, 'audio', slug, 'sfx'),
-          publicRelPrefix: `audio/${slug}/sfx`,
-          useLiveApi,
-          force: params.force,
-        });
-      }
-      return;
+    if (!target) {
+      throw new Error(
+        `Audio manifest not found for "${params.productionSlug}". Expected ${path.join(config.videosDir, params.productionSlug, 'audio.json')}.`
+      );
     }
+    const relManifest =
+      path.relative(rootDir, target.manifestPath) || target.manifestPath;
+    const manifest = parseAndValidateAudioManifest(
+      target.manifestPath,
+      relManifest
+    );
+    const slug = assertSafeIdSegment(
+      manifest.id?.trim() || target.slug,
+      'manifest.id'
+    );
+    for (const spec of manifest.sfx ?? []) {
+      await generateSfxAsset(spec, {
+        outputDir: path.resolve(studioDir, config.publicDir, 'audio', slug, 'sfx'),
+        publicRelPrefix: `audio/${slug}/sfx`,
+        useLiveApi,
+        force: params.force,
+      });
+    }
+    return;
   }
 
   if (!params.prompt && !params.fallbackPreset) {
@@ -1446,8 +1621,14 @@ export async function runSfxShortcutCommand(params: {
     return;
   }
 
+  const safeProdSlug = params.productionSlug
+    ? assertSafeIdSegment(params.productionSlug, 'production slug')
+    : undefined;
   const spec: SfxAssetSpec = {
-    id: params.id || params.fallbackPreset || 'custom-sfx',
+    id: assertSafeIdSegment(
+      params.id || params.fallbackPreset || 'custom-sfx',
+      'spec.id'
+    ),
     prompt:
       params.prompt || `Clean studio ${params.fallbackPreset ?? 'pop'} sound effect`,
     durationSeconds: params.durationSeconds,
@@ -1455,18 +1636,16 @@ export async function runSfxShortcutCommand(params: {
     fallbackPreset: params.fallbackPreset,
   };
 
-  const outDir = params.productionSlug
+  const outDir = safeProdSlug
     ? path.resolve(
         studioDir,
         config.publicDir,
         'audio',
-        params.productionSlug,
+        safeProdSlug,
         'sfx'
       )
     : path.resolve(studioDir, config.publicDir, 'sfx');
-  const relPrefix = params.productionSlug
-    ? `audio/${params.productionSlug}/sfx`
-    : 'sfx';
+  const relPrefix = safeProdSlug ? `audio/${safeProdSlug}/sfx` : 'sfx';
 
   await generateSfxAsset(spec, {
     outputDir: outDir,

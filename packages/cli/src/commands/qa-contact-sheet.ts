@@ -1,16 +1,22 @@
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
-import type { openBrowser as OpenBrowserFn } from '@remotion/renderer';
+import { pathToFileURL } from 'node:url';
+import type * as RemotionBundlerMod from '@remotion/bundler';
+import type * as RemotionRendererMod from '@remotion/renderer';
 import { auditStudioAudioLifetimes } from '../audio/audit-audio-tags';
 import {
   DirectorAuditError,
   auditCompositionDirection,
+  readBalancedBraceEnd,
   verifyCleanFrameZeroImage,
   type AuditVoiceoverEntry,
   type DirectorAuditViolation,
 } from '../director/audit-direction';
+import { BITMAP_FONT_5X7, toKebabSlug } from '../utils/cli-helpers';
+import { resolveCompositionSourceFromRoot } from '../utils/composition-resolver';
 import { detectCompositionUsesThree } from './render';
 import {
   assertFfmpegInstalled,
@@ -19,10 +25,8 @@ import {
   resolveRemotionEntryPoint,
   resolveWorkspaceContext,
 } from './workspace-paths';
-import {
-  blankCommentsPreservingNewlines,
-  readJsxOpeningTagEnd,
-} from '../utils/jsx-source-scan';
+
+export { resolveCompositionSourceFromRoot, toKebabSlug };
 
 export interface QaContactSheetOptions {
   rootDir?: string;
@@ -65,13 +69,6 @@ export interface QaTimelineSegmentHint {
 export interface QaSamplePoint {
   frame: number;
   tag?: string;
-}
-
-export function toKebabSlug(compId: string): string {
-  return compId
-    .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
-    .replace(/[^A-Za-z0-9-]+/g, '-')
-    .toLowerCase();
 }
 
 /**
@@ -634,64 +631,6 @@ export function auditRenderedFrameDomInPage(
   return issues;
 }
 
-/**
- * Compact 5x7 pixel font for crisp, zero-dependency RGBA PAM overlays
- * (works identically even when local `ffmpeg` lacks `libfreetype` / `drawtext`).
- */
-const BITMAP_FONT_5X7: Record<string, string[]> = {
-  '0': ['01110', '10001', '10011', '10101', '11001', '10001', '01110'],
-  '1': ['00100', '01100', '00100', '00100', '00100', '00100', '01110'],
-  '2': ['01110', '10001', '00001', '00110', '01000', '10000', '11111'],
-  '3': ['11110', '00001', '00001', '01110', '00001', '00001', '11110'],
-  '4': ['00010', '00110', '01010', '10010', '11111', '00010', '00010'],
-  '5': ['11111', '10000', '11110', '00001', '00001', '10001', '01110'],
-  '6': ['00110', '01000', '10000', '11110', '10001', '10001', '01110'],
-  '7': ['11111', '00001', '00010', '00100', '01000', '01000', '01000'],
-  '8': ['01110', '10001', '10001', '01110', '10001', '10001', '01110'],
-  '9': ['01110', '10001', '10001', '01111', '00001', '00010', '01100'],
-  A: ['01110', '10001', '10001', '11111', '10001', '10001', '10001'],
-  B: ['11110', '10001', '10001', '11110', '10001', '10001', '11110'],
-  C: ['01111', '10000', '10000', '10000', '10000', '10000', '01111'],
-  D: ['11110', '10001', '10001', '10001', '10001', '10001', '11110'],
-  E: ['11111', '10000', '10000', '11110', '10000', '10000', '11111'],
-  F: ['11111', '10000', '10000', '11110', '10000', '10000', '10000'],
-  G: ['01111', '10000', '10000', '10011', '10001', '10001', '01111'],
-  H: ['10001', '10001', '10001', '11111', '10001', '10001', '10001'],
-  I: ['01110', '00100', '00100', '00100', '00100', '00100', '01110'],
-  J: ['00111', '00010', '00010', '00010', '10010', '10010', '01100'],
-  K: ['10001', '10010', '10100', '11000', '10100', '10010', '10001'],
-  L: ['10000', '10000', '10000', '10000', '10000', '10000', '11111'],
-  M: ['10001', '11011', '10101', '10101', '10001', '10001', '10001'],
-  N: ['10001', '11001', '10101', '10011', '10001', '10001', '10001'],
-  O: ['01110', '10001', '10001', '10001', '10001', '10001', '01110'],
-  P: ['11110', '10001', '10001', '11110', '10000', '10000', '10000'],
-  Q: ['01110', '10001', '10001', '10001', '10101', '10010', '01101'],
-  R: ['11110', '10001', '10001', '11110', '10100', '10010', '10001'],
-  S: ['01111', '10000', '10000', '01110', '00001', '00001', '11110'],
-  T: ['11111', '00100', '00100', '00100', '00100', '00100', '00100'],
-  U: ['10001', '10001', '10001', '10001', '10001', '10001', '01110'],
-  V: ['10001', '10001', '10001', '10001', '10001', '01010', '00100'],
-  W: ['10001', '10001', '10001', '10101', '10101', '11011', '10001'],
-  X: ['10001', '10001', '01010', '00100', '01010', '10001', '10001'],
-  Y: ['10001', '10001', '01010', '00100', '00100', '00100', '00100'],
-  Z: ['11111', '00001', '00010', '00100', '01000', '10000', '11111'],
-  f: ['00110', '01000', '11110', '01000', '01000', '01000', '01000'],
-  s: ['00000', '01111', '10000', '01110', '00001', '11110', '00000'],
-  x: ['00000', '00000', '10001', '01010', '00100', '01010', '10001'],
-  '=': ['00000', '00000', '11111', '00000', '11111', '00000', '00000'],
-  '.': ['00000', '00000', '00000', '00000', '00000', '01100', '01100'],
-  ':': ['00000', '01100', '01100', '00000', '01100', '01100', '00000'],
-  '-': ['00000', '00000', '00000', '11111', '00000', '00000', '00000'],
-  '_': ['00000', '00000', '00000', '00000', '00000', '00000', '11111'],
-  '/': ['00001', '00010', '00100', '00100', '01000', '10000', '00000'],
-  '|': ['00100', '00100', '00100', '00100', '00100', '00100', '00100'],
-  '@': ['01110', '10001', '10111', '10101', '10110', '10000', '01111'],
-  '(': ['00010', '00100', '01000', '01000', '01000', '00100', '00010'],
-  ')': ['01000', '00100', '00010', '00010', '00010', '00100', '01000'],
-  '•': ['00000', '00100', '01110', '01110', '00100', '00000', '00000'],
-  ' ': ['00000', '00000', '00000', '00000', '00000', '00000', '00000'],
-};
-
 function writeRgbaPamBadge(params: {
   filePath: string;
   text: string;
@@ -769,163 +708,6 @@ function writeRgbaPamBadge(params: {
   fs.writeFileSync(params.filePath, Buffer.concat([header, pixels]));
 }
 
-function resolveRelativeTsSourceFile(basePath: string): string | null {
-  const candidates = [
-    basePath,
-    `${basePath}.tsx`,
-    `${basePath}.ts`,
-    `${basePath}.jsx`,
-    `${basePath}.js`,
-    path.join(basePath, 'index.tsx'),
-    path.join(basePath, 'index.ts'),
-  ];
-  for (const candidate of candidates) {
-    if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
-      return candidate;
-    }
-  }
-  return null;
-}
-
-function parseImportedModuleMap(
-  cleanedSource: string
-): Map<string, string> {
-  const map = new Map<string, string>();
-  const importRe =
-    /\bimport\s+(?:type\s+)?([\s\S]*?)\s+from\s+['"]([^'"]+)['"]/g;
-  let match: RegExpExecArray | null;
-
-  while ((match = importRe.exec(cleanedSource)) !== null) {
-    const clause = (match[1] ?? '').trim();
-    const specifier = (match[2] ?? '').trim();
-    if (!specifier.startsWith('.')) continue;
-
-    // Namespace import: `import * as ns from './foo'`
-    const nsMatch = clause.match(/^\*\s+as\s+([A-Za-z_$][A-Za-z0-9_$]*)$/);
-    if (nsMatch) {
-      map.set(nsMatch[1]!, specifier);
-      continue;
-    }
-
-    // Named imports: `{ Foo, Bar as Baz }` (optionally preceded by default import)
-    const braceStart = clause.indexOf('{');
-    const braceEnd = clause.lastIndexOf('}');
-    if (braceStart !== -1 && braceEnd > braceStart) {
-      const beforeBrace = clause
-        .slice(0, braceStart)
-        .replace(/,\s*$/, '')
-        .trim();
-      if (/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(beforeBrace)) {
-        map.set(beforeBrace, specifier);
-      }
-      const namedPart = clause.slice(braceStart + 1, braceEnd);
-      for (const rawItem of namedPart.split(',')) {
-        const cleanedItem = rawItem.replace(/^type\s+/, '').trim();
-        if (!cleanedItem) continue;
-        const asMatch = cleanedItem.match(
-          /^([A-Za-z_$][A-Za-z0-9_$]*)\s+as\s+([A-Za-z_$][A-Za-z0-9_$]*)$/
-        );
-        if (asMatch) {
-          map.set(asMatch[2]!, specifier);
-        } else if (/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(cleanedItem)) {
-          map.set(cleanedItem, specifier);
-        }
-      }
-      continue;
-    }
-
-    // Default import: `import Foo from './Foo'`
-    if (/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(clause)) {
-      map.set(clause, specifier);
-    }
-  }
-
-  return map;
-}
-
-/**
- * Locates the source `.tsx`/`.ts` file of a Remotion `<Composition id="..." component={Ident} />`
- * by statically parsing `rootFilePath` (typically `src/Root.tsx`) and resolving the import of `Ident`.
- */
-export function resolveCompositionSourceFromRoot(
-  rootFilePath: string,
-  compositionId: string
-): string | null {
-  if (!fs.existsSync(rootFilePath) || !fs.statSync(rootFilePath).isFile()) {
-    return null;
-  }
-
-  const raw = fs.readFileSync(rootFilePath, 'utf8');
-  const cleaned = blankCommentsPreservingNewlines(raw);
-  const escapedId = compositionId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const idAttrRe = new RegExp(`\\bid\\s*=\\s*(?:["']${escapedId}["']|\\{\\s*["']${escapedId}["']\\s*\\})`);
-
-  const compOpenRe = /<Composition(?=[\s>/])/g;
-  let match: RegExpExecArray | null;
-  let componentIdent: string | null = null;
-
-  while ((match = compOpenRe.exec(cleaned)) !== null) {
-    const tagEnd = readJsxOpeningTagEnd(cleaned, match.index);
-    if (tagEnd === -1) continue;
-    const tagText = cleaned.slice(match.index, tagEnd + 1);
-    compOpenRe.lastIndex = tagEnd + 1;
-
-    if (!idAttrRe.test(tagText)) continue;
-
-    const compAttr = tagText.match(
-      /\bcomponent\s*=\s*\{\s*([A-Za-z_$][A-Za-z0-9_$]*)(?:\.[A-Za-z_$][A-Za-z0-9_$]*)?\s*\}/
-    );
-    if (compAttr) {
-      componentIdent = compAttr[1]!;
-      break;
-    }
-  }
-
-  if (!componentIdent) {
-    return null;
-  }
-
-  const imports = parseImportedModuleMap(cleaned);
-  const relSpec = imports.get(componentIdent);
-  if (!relSpec) {
-    // Component may be declared directly in Root.tsx
-    const localDeclRe = new RegExp(
-      `\\b(?:const|function|class)\\s+${componentIdent}\\b`
-    );
-    return localDeclRe.test(cleaned) ? path.resolve(rootFilePath) : null;
-  }
-
-  const resolved = resolveRelativeTsSourceFile(
-    path.resolve(path.dirname(rootFilePath), relSpec)
-  );
-  if (!resolved) {
-    return null;
-  }
-
-  // If resolved to a barrel `index.ts`, try chasing a direct re-export of `componentIdent`
-  if (path.basename(resolved) === 'index.ts') {
-    try {
-      const barrelSrc = blankCommentsPreservingNewlines(
-        fs.readFileSync(resolved, 'utf8')
-      );
-      const barrelImports = parseImportedModuleMap(barrelSrc);
-      const innerSpec = barrelImports.get(componentIdent);
-      if (innerSpec) {
-        const innerResolved = resolveRelativeTsSourceFile(
-          path.resolve(path.dirname(resolved), innerSpec)
-        );
-        if (innerResolved) {
-          return innerResolved;
-        }
-      }
-    } catch {
-      // Keep barrel path
-    }
-  }
-
-  return resolved;
-}
-
 /**
  * Discovers a neighboring `generated/audio-manifest.ts` or `audio.json` next to a composition
  * source file (or its parent directory). Returns `null` for standard Remotion compositions without audio specs.
@@ -965,30 +747,18 @@ interface DerivedAudioTimeline {
   voiceoverManifest?: Record<string, AuditVoiceoverEntry | undefined>;
 }
 
-function readVoiceoverManifestLiteral(
+export function readVoiceoverManifestLiteral(
   tsFilePath: string
 ): Record<string, AuditVoiceoverEntry | undefined> | undefined {
   if (!fs.existsSync(tsFilePath)) return undefined;
   try {
     const raw = fs.readFileSync(tsFilePath, 'utf8');
-    const marker = /export\s+const\s+VOICEOVER_MANIFEST(?:\s*:[^=]+)?=\s*\{/.exec(
+    const marker = /export\s+const\s+VOICEOVER_MANIFEST(?:\s*:[^=]+)?\s*=\s*\{/.exec(
       raw
     );
     if (!marker || marker.index === undefined) return undefined;
     const startIdx = marker.index + marker[0].lastIndexOf('{');
-    let depth = 0;
-    let endIdx = -1;
-    for (let i = startIdx; i < raw.length; i++) {
-      const ch = raw[i];
-      if (ch === '{') depth += 1;
-      else if (ch === '}') {
-        depth -= 1;
-        if (depth === 0) {
-          endIdx = i;
-          break;
-        }
-      }
-    }
+    const endIdx = readBalancedBraceEnd(raw, startIdx);
     if (endIdx === -1) return undefined;
     const parsed = JSON.parse(raw.slice(startIdx, endIdx + 1));
     return parsed && typeof parsed === 'object'
@@ -1112,7 +882,7 @@ export async function runQaContactSheetCommand(
     cwd: options.cwd ?? options.rootDir,
     dir: options.dir,
   });
-  const config = loadMakePicturesConfig(studioDir);
+  const config = loadMakePicturesConfig(studioDir, rootDir);
 
   const { compositionId } = options;
   const isAutoGrid =
@@ -1220,14 +990,21 @@ export async function runQaContactSheetCommand(
     path.join(os.tmpdir(), 'make-pictures-qa-')
   );
   let bundleDir: string | null = null;
-  let browser: Awaited<ReturnType<typeof OpenBrowserFn>> | null = null;
+  let browser: Awaited<ReturnType<typeof RemotionRendererMod.openBrowser>> | null = null;
 
   try {
+    const workspaceRequire = createRequire(path.join(rootDir, 'package.json'));
+    const bundlerUrl = pathToFileURL(
+      workspaceRequire.resolve('@remotion/bundler')
+    ).href;
+    const rendererUrl = pathToFileURL(
+      workspaceRequire.resolve('@remotion/renderer')
+    ).href;
     const [{ bundle }, { openBrowser, renderStill, selectComposition }] =
-      await Promise.all([
-        import('@remotion/bundler'),
-        import('@remotion/renderer'),
-      ]);
+      (await Promise.all([import(bundlerUrl), import(rendererUrl)])) as [
+        typeof RemotionBundlerMod,
+        typeof RemotionRendererMod,
+      ];
 
     console.log(
       `  [1/3] Bundling Remotion entry (${path.relative(rootDir, entryPoint)})…`

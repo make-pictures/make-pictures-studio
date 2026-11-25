@@ -44,7 +44,7 @@ export async function runDoctorCommand(
     cwd: options.cwd,
     dir: options.dir,
   });
-  const config = loadMakePicturesConfig(studioDir);
+  const config = loadMakePicturesConfig(studioDir, rootDir);
 
   const envLocalPath = path.join(rootDir, '.env.local');
   const envExamplePath = path.join(rootDir, '.env.example');
@@ -98,6 +98,11 @@ export async function runDoctorCommand(
   if (!fs.existsSync(envLocalPath) && options.setup) {
     if (fs.existsSync(envExamplePath)) {
       fs.copyFileSync(envExamplePath, envLocalPath);
+      try {
+        fs.chmodSync(envLocalPath, 0o600);
+      } catch {
+        // Ignore chmod failures on filesystems that do not support POSIX modes
+      }
     } else {
       const defaultVoice = getDefaultVoiceIdForLang(config.lang);
       fs.writeFileSync(

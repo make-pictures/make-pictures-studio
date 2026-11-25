@@ -1,4 +1,4 @@
-import { execSync, spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { BUILT_IN_STYLE_IDS } from '@make-pictures/remotion/style/presets';
@@ -8,6 +8,11 @@ import {
 } from '@make-pictures/remotion/audio/voices';
 import { SCENES_KIT_IDS } from './new-production';
 import { resolveWorkspaceContext } from './workspace-paths';
+import {
+  getNpmCommand,
+  getNpxCommand,
+  shellQuoteArg,
+} from '../utils/cli-helpers';
 
 export type OnboardStep = 'init' | 'connect' | 'wait' | 'check' | 'status';
 
@@ -334,10 +339,14 @@ function getCommandRunners(
   const hasSetupScript = Boolean(scripts.setup);
 
   const dirRel = options?.dir && options.dir !== '.' ? options.dir : undefined;
-  const dirFlag = dirRel ? ` --dir=${dirRel}` : '';
+  const dirFlag = dirRel
+    ? ` ${shellQuoteArg(`--dir=${dirRel}`, '--dir')}`
+    : '';
   const langFlag = options?.explicitLang ? ` --lang=${options.explicitLang}` : '';
   const jsonSuffix = options?.preserveJsonFlag ? ' --json' : '';
-  const cwdFlag = options?.resumedSubdir ? ` --cwd=${options.resumedSubdir}` : '';
+  const cwdFlag = options?.resumedSubdir
+    ? ` ${shellQuoteArg(`--cwd=${options.resumedSubdir}`, '--cwd')}`
+    : '';
 
   return {
     onboardCmd: (step: string) => {
@@ -389,7 +398,7 @@ function hasNodeModules(rootDir: string): boolean {
 
 function defaultHasFfmpeg(): boolean {
   try {
-    execSync('ffmpeg -version', { stdio: 'ignore' });
+    execFileSync('ffmpeg', ['-version'], { stdio: 'ignore' });
     return true;
   } catch {
     return false;
@@ -397,7 +406,7 @@ function defaultHasFfmpeg(): boolean {
 }
 
 function defaultInstallDeps(rootDir: string): boolean {
-  const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+  const npmCmd = getNpmCommand();
   const res = spawnSync(npmCmd, ['install'], {
     cwd: rootDir,
     stdio: 'inherit',
@@ -447,9 +456,42 @@ function ensureEnvLocalTemplate(
   envExamplePath: string,
   lang: 'pl' | 'en' = 'en'
 ): void {
-  if (fs.existsSync(envLocalPath)) return;
+  if (fs.existsSync(envLocalPath)) {
+    // Preserve any existing .env.local secrets and append ELEVENLABS_API_KEY placeholder only if missing
+    const existing = fs.readFileSync(envLocalPath, 'utf8');
+    const hasKeyLine = existing
+      .split(/\r?\n/)
+      .some((raw) => raw.trim().startsWith('ELEVENLABS_API_KEY='));
+    if (!hasKeyLine) {
+      const defaultVoiceId = getDefaultVoiceIdForLang(lang);
+      const additions: string[] = ['ELEVENLABS_API_KEY=your_elevenlabs_api_key_here'];
+      if (!existing.includes('ELEVENLABS_VOICE_ID=')) {
+        additions.push(`ELEVENLABS_VOICE_ID=${defaultVoiceId}`);
+      }
+      if (!existing.includes('ELEVENLABS_MODEL_ID=')) {
+        additions.push(`ELEVENLABS_MODEL_ID=${DEFAULT_ELEVENLABS_MODEL_ID}`);
+      }
+      const prefix = existing.length === 0 || existing.endsWith('\n') ? '' : '\n';
+      fs.writeFileSync(
+        envLocalPath,
+        `${existing}${prefix}${additions.join('\n')}\n`,
+        { mode: 0o600 }
+      );
+      try {
+        fs.chmodSync(envLocalPath, 0o600);
+      } catch {
+        // Ignore chmod errors on non-POSIX filesystems
+      }
+    }
+    return;
+  }
   if (fs.existsSync(envExamplePath)) {
     fs.copyFileSync(envExamplePath, envLocalPath);
+    try {
+      fs.chmodSync(envLocalPath, 0o600);
+    } catch {
+      // Ignore chmod errors on non-POSIX filesystems
+    }
   } else {
     const defaultVoiceId = getDefaultVoiceIdForLang(lang);
     fs.writeFileSync(
@@ -457,6 +499,59 @@ function ensureEnvLocalTemplate(
       `ELEVENLABS_API_KEY=your_elevenlabs_api_key_here\nELEVENLABS_VOICE_ID=${defaultVoiceId}\nELEVENLABS_MODEL_ID=${DEFAULT_ELEVENLABS_MODEL_ID}\n`,
       { mode: 0o600 }
     );
+  }
+}
+
+/**
+ * Non-destructively strips only placeholder `ELEVENLABS_API_KEY=...` lines from an existing
+ * `.env.local` while preserving all other user secrets (`DATABASE_URL`, `GEMINI_API_KEY`, etc.).
+ * Never deletes `.env.local`.
+ */
+function stripPlaceholderElevenLabsKeyInPlace(envLocalPath: string): void {
+  if (!fs.existsSync(envLocalPath)) return;
+  const content = fs.readFileSync(envLocalPath, 'utf8');
+  const lines = content.split(/\r?\n/);
+  let changed = false;
+  const kept: string[] = [];
+
+  for (const rawLine of lines) {
+    const trimmed = rawLine.trim();
+    if (trimmed && !trimmed.startsWith('#')) {
+      const eqIdx = trimmed.indexOf('=');
+      if (eqIdx !== -1) {
+        const key = trimmed.slice(0, eqIdx).trim();
+        const val = trimmed
+          .slice(eqIdx + 1)
+          .trim()
+          .replace(/^['"]|['"]$/g, '');
+        if (
+          key === 'ELEVENLABS_API_KEY' &&
+          (!val ||
+            val === 'your_elevenlabs_api_key_here' ||
+            val === 'twoj_klucz_api_elevenlabs')
+        ) {
+          changed = true;
+          continue;
+        }
+      }
+    }
+    kept.push(rawLine);
+  }
+
+  if (changed) {
+    const nextContent = kept.join('\n').replace(/^\n+/, '');
+    fs.writeFileSync(
+      envLocalPath,
+      nextContent.length > 0 && !nextContent.endsWith('\n')
+        ? `${nextContent}\n`
+        : nextContent,
+      { mode: 0o600 }
+    );
+    try {
+      fs.chmodSync(envLocalPath, 0o600);
+    } catch {
+      // Ignore chmod errors on non-POSIX filesystems
+    }
   }
 }
 
@@ -488,7 +583,7 @@ function defaultRunElevenLabsOnboard(
   subcommandArgs: string[]
 ): OnboardReply | null {
   const res = spawnSync(
-    'npx',
+    getNpxCommand(),
     [
       '-y',
       '@elevenlabs/cli@latest',
@@ -657,12 +752,14 @@ export async function runOnboardCommand(
 
     if (bootstrap.state === 'general_non_empty') {
       const sub = bootstrap.targetSubdir;
+      const qSub = shellQuoteArg(sub, 'target directory');
+      const qCwdSub = shellQuoteArg(`--cwd=${sub}`, '--cwd');
       emit({
         next: 'run',
         say: isPl
           ? `Tworzę nowy projekt Remotion 4 + make.pictures v3 w podfolderze \`${sub}/\` i instaluję skille AI w tandemie.`
           : `I'll create a new Remotion 4 + make.pictures v3 project in \`${sub}/\` and install tandem AI skills.`,
-        run: `npx -y create-make-pictures@latest ${sub} ${langFlag} && npx -y @make-pictures/cli@latest init --cwd=${sub} ${langFlag} && (cd ${sub} && npx -y remotion skills add) && npx -y @make-pictures/cli@latest onboard init --cwd=${sub} ${langFlag}${jsonSuffix}`,
+        run: `npx -y create-make-pictures@latest ${qSub} ${langFlag} && npx -y @make-pictures/cli@latest init ${qCwdSub} ${langFlag} && (cd ${qSub} && npx -y remotion skills add) && npx -y @make-pictures/cli@latest onboard init ${qCwdSub} ${langFlag}${jsonSuffix}`,
         details: {
           workspace_dir: sub,
           remotion_skills_command: 'npx remotion skills add',
@@ -673,9 +770,19 @@ export async function runOnboardCommand(
 
     // bootstrap.state === 'existing_app'
     const saasDir = options.dir?.trim() || 'videos';
+    const qSaasDirFlag = shellQuoteArg(`--dir=${saasDir}`, '--dir');
     const standaloneTarget = findAvailableSubdir(
       initialRootDir,
       options.target?.trim() || 'my-films'
+    );
+    const qStandaloneTarget = shellQuoteArg(standaloneTarget, 'target directory');
+    const qStandaloneCwdFlag = shellQuoteArg(
+      `--cwd=${standaloneTarget}`,
+      '--cwd'
+    );
+    const qStandaloneTargetFlag = shellQuoteArg(
+      `--target=${standaloneTarget}`,
+      '--target'
     );
 
     if (options.mode === 'saas') {
@@ -684,7 +791,7 @@ export async function runOnboardCommand(
         say: isPl
           ? `Dodaję Remotion + make.pictures v3 w podfolderze \`${saasDir}/\` Twojej aplikacji i instaluję skille w tandemie.`
           : `I'll add Remotion + make.pictures v3 inside \`${saasDir}/\` of your existing app and install tandem skills.`,
-        run: `npm install -D @make-pictures/remotion@latest @make-pictures/cli@latest remotion @remotion/cli @remotion/bundler @remotion/renderer @remotion/google-fonts @remotion/media-utils lucide-react zod && npx make-pictures init --dir=${saasDir} ${langFlag} && npx -y remotion skills add && npx make-pictures onboard init --dir=${saasDir} ${langFlag}${jsonSuffix}`,
+        run: `npm install -D @make-pictures/remotion@latest @make-pictures/cli@latest remotion @remotion/cli @remotion/bundler @remotion/renderer @remotion/google-fonts @remotion/media-utils @remotion/zod-types lucide-react zod && npx make-pictures init ${qSaasDirFlag} ${langFlag} && npx -y remotion skills add && npx make-pictures onboard init ${qSaasDirFlag} ${langFlag}${jsonSuffix}`,
         details: {
           mode: 'saas',
           dir: saasDir,
@@ -700,7 +807,7 @@ export async function runOnboardCommand(
         say: isPl
           ? `Tworzę osobny projekt Remotion 4 + make.pictures v3 w podfolderze \`${standaloneTarget}/\`.`
           : `I'll create a separate standalone Remotion 4 + make.pictures v3 project in \`${standaloneTarget}/\`.`,
-        run: `npx -y create-make-pictures@latest ${standaloneTarget} ${langFlag} && npx -y @make-pictures/cli@latest init --cwd=${standaloneTarget} ${langFlag} && (cd ${standaloneTarget} && npx -y remotion skills add) && npx -y @make-pictures/cli@latest onboard init --cwd=${standaloneTarget} ${langFlag}${jsonSuffix}`,
+        run: `npx -y create-make-pictures@latest ${qStandaloneTarget} ${langFlag} && npx -y @make-pictures/cli@latest init ${qStandaloneCwdFlag} ${langFlag} && (cd ${qStandaloneTarget} && npx -y remotion skills add) && npx -y @make-pictures/cli@latest onboard init ${qStandaloneCwdFlag} ${langFlag}${jsonSuffix}`,
         details: {
           mode: 'standalone',
           workspace_dir: standaloneTarget,
@@ -710,8 +817,8 @@ export async function runOnboardCommand(
       return;
     }
 
-    const saasChoiceCmd = `npx -y @make-pictures/cli@latest onboard --mode=saas --dir=${saasDir} ${langFlag}${jsonSuffix}`;
-    const standaloneChoiceCmd = `npx -y @make-pictures/cli@latest onboard --mode=standalone --target=${standaloneTarget} ${langFlag}${jsonSuffix}`;
+    const saasChoiceCmd = `npx -y @make-pictures/cli@latest onboard --mode=saas ${qSaasDirFlag} ${langFlag}${jsonSuffix}`;
+    const standaloneChoiceCmd = `npx -y @make-pictures/cli@latest onboard --mode=standalone ${qStandaloneTargetFlag} ${langFlag}${jsonSuffix}`;
 
     emit({
       next: 'ask_choice',
@@ -848,7 +955,7 @@ export async function runOnboardCommand(
     }
 
     if (fs.existsSync(envLocalPath) && !readApiKeyFromEnvLocal(envLocalPath)) {
-      fs.unlinkSync(envLocalPath);
+      stripPlaceholderElevenLabsKeyInPlace(envLocalPath);
     }
 
     writeLine('\n🔑 Connecting ElevenLabs (Optional — Voiceovers, AI Music & SFX)...');
@@ -948,8 +1055,12 @@ export async function runOnboardCommand(
     workspaceDirRel !== '.'
       ? `${workspaceDirRel}/.agents/skills/`
       : '.agents/skills/';
+  const qWorkspaceDirRel =
+    workspaceDirRel !== '.'
+      ? shellQuoteArg(workspaceDirRel, 'workspace directory')
+      : '.';
   const studioLaunchCmd =
-    workspaceDirRel !== '.' ? `cd ${workspaceDirRel} && ${studioCmd}` : studioCmd;
+    workspaceDirRel !== '.' ? `cd ${qWorkspaceDirRel} && ${studioCmd}` : studioCmd;
 
   const rules = [
     `Never open, print or cat .env.local; run \`${onboardCmd('check')}\` or \`${doctorCmd}\` to verify it.`,
@@ -1018,7 +1129,7 @@ export async function runOnboardCommand(
     if (!hasNodeModules(rootDir)) {
       const installPrefix =
         workspaceDirRel !== '.'
-          ? `cd ${workspaceDirRel} && npm install`
+          ? `cd ${qWorkspaceDirRel} && npm install`
           : 'npm install';
       emit({
         next: 'run',
@@ -1055,7 +1166,7 @@ export async function runOnboardCommand(
     }
 
     if (fs.existsSync(envLocalPath) && !readApiKeyFromEnvLocal(envLocalPath)) {
-      fs.unlinkSync(envLocalPath);
+      stripPlaceholderElevenLabsKeyInPlace(envLocalPath);
     }
 
     emit({

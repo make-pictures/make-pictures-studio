@@ -11,6 +11,7 @@ import {
   lineNumberAtOffset,
   readJsxOpeningTagEnd,
 } from '../utils/jsx-source-scan';
+import { toKebabSlug } from '../utils/cli-helpers';
 
 export type DirectorAuditRuleCode =
   | 'MIN_SCENE_SPAN'
@@ -146,14 +147,7 @@ export class DirectorAuditError extends Error {
   }
 }
 
-function toKebabSlug(compId: string): string {
-  return compId
-    .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
-    .replace(/[^A-Za-z0-9-]+/g, '-')
-    .toLowerCase();
-}
-
-function readBalancedBraceEnd(
+export function readBalancedBraceEnd(
   cleaned: string,
   openBraceOffset: number
 ): number {
