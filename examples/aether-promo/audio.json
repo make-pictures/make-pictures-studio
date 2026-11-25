@@ -1,14 +1,12 @@
 {
   "id": "aether-promo",
-  "title": "One Tap to Your Door",
-  "fps": 60,
   "lang": "en",
+  "fps": 60,
   "modelId": "eleven_v4",
   "scenes": [
     {
       "id": "tap-en",
       "title": "Act 1 — One Tap Order",
-      "component": "ProductPromo",
       "durationInFrames": 360,
       "durationInSeconds": 6.0,
       "modelId": "eleven_v4",
@@ -28,7 +26,6 @@
     {
       "id": "flow-en",
       "title": "Act 2 — Four-Step Choreography",
-      "component": "ProductPromo",
       "durationInFrames": 480,
       "durationInSeconds": 8.0,
       "modelId": "eleven_v4",
@@ -48,7 +45,6 @@
     {
       "id": "live-sync-en",
       "title": "Act 3 — Live Sync Tracker",
-      "component": "ProductPromo",
       "durationInFrames": 480,
       "durationInSeconds": 8.0,
       "modelId": "eleven_v4",
@@ -68,7 +64,6 @@
     {
       "id": "doorstep-en",
       "title": "Act 4 — Warm Morning Finale",
-      "component": "ProductPromo",
       "durationInFrames": 450,
       "durationInSeconds": 7.5,
       "modelId": "eleven_v4",

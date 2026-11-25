@@ -1,14 +1,12 @@
 {
   "id": "paper-diorama",
-  "title": "Skyward: Paper Rocket Ascent (Paper Diorama 2.5D)",
-  "fps": 60,
   "lang": "en",
+  "fps": 60,
   "modelId": "eleven_v4",
   "scenes": [
     {
       "id": "launch-en",
       "title": "0 km — Sunlit Meadow Liftoff",
-      "component": "PaperDioramaDemo",
       "durationInFrames": 175,
       "durationInSeconds": 2.6,
       "modelId": "eleven_v4",
@@ -28,7 +26,6 @@
     {
       "id": "birds-en",
       "title": "3 km — Sunlit Clouds & Soaring Birds",
-      "component": "PaperDioramaDemo",
       "durationInFrames": 165,
       "durationInSeconds": 2.6,
       "modelId": "eleven_v4",
@@ -48,7 +45,6 @@
     {
       "id": "stratosphere-en",
       "title": "12 km — Stratosphere Airliner",
-      "component": "PaperDioramaDemo",
       "durationInFrames": 180,
       "durationInSeconds": 2.9,
       "modelId": "eleven_v4",
@@ -68,7 +64,6 @@
     {
       "id": "space-en",
       "title": "Outer Space — Lunar Slingshot Boost",
-      "component": "PaperDioramaDemo",
       "durationInFrames": 480,
       "durationInSeconds": 4.2,
       "modelId": "eleven_v4",

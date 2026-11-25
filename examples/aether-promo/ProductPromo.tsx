@@ -28,12 +28,12 @@ import {
   type ContinuousSceneSpec,
   type DialogueDuckingSegment,
   type ShotSpec2D,
-} from '@make-pictures/core';
+} from '@make-pictures/remotion';
 import {
   FloatingEditorialDisplay,
   PaperRibbonTimeline,
   type PaperTimelineMilestone,
-} from '@make-pictures/kits/editorial-collage';
+} from '@make-pictures/remotion/kits/editorial-collage';
 import {
   DataFlowEdge,
   MotionDiagramStage2D,
@@ -41,13 +41,13 @@ import {
   portLeft,
   portRight,
   type NodeBox,
-} from '@make-pictures/kits/motion-diagrams-2d';
+} from '@make-pictures/remotion/kits/motion-diagrams-2d';
 import {
   BrowserFrame,
   PhoneFrame,
   ScreenSpotlightOverlay,
-} from '@make-pictures/kits/product-frames';
-import { VectorSceneStage2D } from '@make-pictures/kits/vector-scene-2d';
+} from '@make-pictures/remotion/kits/product-frames';
+import { VectorSceneStage2D } from '@make-pictures/remotion/kits/vector-scene-2d';
 import {
   MUSIC_MANIFEST,
   SFX_MANIFEST,
@@ -70,7 +70,6 @@ import {
   resolveDispatchEtaStatus,
   type FlowNodeId,
 } from './productPromoTiming';
-import productPromoDefaults from './ProductPromo.props.json';
 
 export type ProductPromoLang = 'en' | 'pl';
 
@@ -102,6 +101,23 @@ export const productPromoSchema = z.object({
 });
 
 export type ProductPromoProps = z.infer<typeof productPromoSchema>;
+
+export const productPromoDefaultProps: ProductPromoProps = {
+  styleId: 'minimal-product',
+  lang: 'en',
+  brandName: 'Sunbeam Bakery',
+  heroTitle: 'One Tap to Your Door',
+  heroSubtitle:
+    'Order warm morning pastries in a single tap — and watch them glide straight to your doorstep.',
+  closingHeadline: 'Effortless From Tap to Table',
+  closingSubline:
+    'Thoughtful choreography turns one simple tap into a warm morning at your door.',
+  voiceoverVolume: 1,
+  musicVolume: 0.24,
+  sfxVolume: 0.2,
+};
+
+const productPromoDefaults = productPromoDefaultProps;
 
 // ============================================================================
 // Module-level hoisted constants (zero per-frame allocations at 60 FPS)

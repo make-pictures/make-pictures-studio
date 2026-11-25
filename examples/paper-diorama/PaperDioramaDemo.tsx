@@ -20,22 +20,22 @@ import {
   useStudioStyle,
   type DialogueDuckingSegment,
   type Vec3,
-} from '@make-pictures/core';
+} from '@make-pictures/remotion';
 import {
   ImageCutout3D,
   PaperCutout3D,
   PopUpHinge3D,
-} from '@make-pictures/kits/paper-diorama-3d';
+} from '@make-pictures/remotion/kits/paper-diorama-3d';
 import {
   DEFAULT_STUDIO_IBL_PANELS,
   SyncStudioIbl3D,
   getProceduralPbrMaps,
   usePreloadedTextures3D,
-} from '@make-pictures/kits/tactile-3d';
+} from '@make-pictures/remotion/kits/tactile-3d';
 import {
   FloatingEditorialDisplay,
   PaperRibbonTimeline,
-} from '@make-pictures/kits/editorial-collage';
+} from '@make-pictures/remotion/kits/editorial-collage';
 import {
   PAPER_DIORAMA_DURATION_FRAMES,
   PAPER_DIORAMA_MILESTONES,
@@ -51,7 +51,6 @@ import {
   SFX_MANIFEST,
   VOICEOVER_MANIFEST,
 } from './generated/audio-manifest';
-import paperDioramaDefaults from './PaperDioramaDemo.props.json';
 
 export type PaperDioramaLang = 'en' | 'pl';
 
@@ -88,6 +87,19 @@ export const paperDioramaDemoSchema = z.object({
 });
 
 export type PaperDioramaDemoProps = z.infer<typeof paperDioramaDemoSchema>;
+
+export const paperDioramaDefaultProps: PaperDioramaDemoProps = {
+  styleId: 'tactile-craft',
+  lang: 'en',
+  headline: 'Skyward: Paper Rocket Ascent',
+  subline:
+    'From a sunlit meadow past birds, airliners, and satellites into quiet starlight.',
+  voiceoverVolume: 1,
+  musicVolume: 0.25,
+  sfxVolume: 0.22,
+};
+
+const paperDioramaDefaults = paperDioramaDefaultProps;
 
 // Module-scope static asset URLs (zero per-frame string churn)
 const ROCKET_URL = staticFile('examples/paper-diorama/images/rocket-cutout.png');

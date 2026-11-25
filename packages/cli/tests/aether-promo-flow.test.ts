@@ -3,11 +3,11 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { ProductionManifest } from '@make-pictures/core';
+import type { AudioManifestFile } from '@make-pictures/remotion';
 import {
   buildCubicBezierPath,
   evaluateCubicBezier,
-} from '../../kits/src/motion-diagrams-2d/bezierGeometry';
+} from '@make-pictures/remotion/kits/motion-diagrams-2d';
 import { lintManifestVoiceovers } from '../src/audio/phonetics-lint';
 import {
   DEFAULT_PRODUCT_PROMO_TIMING,
@@ -34,9 +34,9 @@ import {
 } from '../../../examples/aether-promo/generated/audio-manifest';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PRODUCTION_JSON_PATH = path.resolve(
+const AUDIO_JSON_PATH = path.resolve(
   __dirname,
-  '../../../examples/aether-promo/production.json'
+  '../../../examples/aether-promo/audio.json'
 );
 
 const FORBIDDEN_JARGON =
@@ -60,10 +60,10 @@ function assertMinClearance(a: Box2D, b: Box2D, minGapPx: number): void {
   );
 }
 
-test('ProductPromo production.json uses eleven_v4 EN Liam manifest (4 acts), 3-section score (name key), 4 SFX, 0 linter warnings, and zero tech jargon', () => {
+test('ProductPromo audio.json uses eleven_v4 EN Liam manifest (4 acts), 3-section score (name key), 4 SFX, 0 linter warnings, and zero tech jargon', () => {
   const manifest = JSON.parse(
-    fs.readFileSync(PRODUCTION_JSON_PATH, 'utf8')
-  ) as ProductionManifest;
+    fs.readFileSync(AUDIO_JSON_PATH, 'utf8')
+  ) as AudioManifestFile;
 
   assert.equal(manifest.fps, PROMO_FPS);
   assert.equal(manifest.modelId, 'eleven_v4');

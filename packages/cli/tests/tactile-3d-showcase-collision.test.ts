@@ -9,8 +9,8 @@ import {
   auditSceneCollisions3D,
   computeDeformedSheetAabb3D,
   computeSurfaceClearanceY,
-} from '../../core/src/kinematics';
-import { SCREEN_GLASS_SHADOW_OFFSET_Z } from '../../kits/src/tactile-3d/ScreenGlassLayer3D';
+} from '@make-pictures/remotion/kinematics';
+import { SCREEN_GLASS_SHADOW_OFFSET_Z } from '@make-pictures/remotion/kits/tactile-3d';
 import { evaluateTactileShowcaseFrame } from '../../../examples/tactile-3d-showcase/Tactile3DShowcase';
 
 const __filename = fileURLToPath(import.meta.url);

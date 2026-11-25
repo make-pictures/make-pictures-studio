@@ -20,7 +20,7 @@ import {
   useStudioStyle,
   type ContinuousSceneSpec,
   type DialogueDuckingSegment,
-} from '@make-pictures/core';
+} from '@make-pictures/remotion';
 import {
   ChapterTitleCard,
   EditorialDeskStage,
@@ -29,17 +29,17 @@ import {
   PaperRibbonTimeline,
   type EditorialPanoramaItem,
   type PaperTimelineMilestone,
-} from '@make-pictures/kits/editorial-collage';
+} from '@make-pictures/remotion/kits/editorial-collage';
 import {
   HorizontalFeatureGrid2x2,
   PinnedMediaStage,
   VectorSceneStage2D,
   type HorizontalFeatureItem,
-} from '@make-pictures/kits/vector-scene-2d';
+} from '@make-pictures/remotion/kits/vector-scene-2d';
 import {
   AnimatedBarRace,
   DataStoryStage2D,
-} from '@make-pictures/kits/data-storytelling';
+} from '@make-pictures/remotion/kits/data-storytelling';
 import {
   MUSIC_MANIFEST,
   SFX_MANIFEST,
@@ -55,8 +55,6 @@ import {
   buildRailSpeedBarRaceItems,
   resolveRailSpeedEraAtLocalFrame,
 } from './starterStoryTiming';
-import starterStoryDefaults from './StarterStory.props.json';
-import starterStoryVerticalDefaults from './StarterStoryVertical.props.json';
 
 export type StarterStoryLang = 'en' | 'pl';
 
@@ -95,6 +93,28 @@ export type StarterStoryProps = z.infer<typeof starterStorySchema>;
 
 export const starterStoryVerticalSchema = starterStorySchema;
 export type StarterStoryVerticalProps = StarterStoryProps;
+
+export const starterStoryDefaultProps: StarterStoryProps = {
+  styleId: 'editorial-press',
+  lang: 'en',
+  chapterLabel: 'FEATURE ESSAY  •  HIGH-SPEED RAIL',
+  headline: 'How a Bullet Train Never Spills a Cup',
+  subline:
+    'Three hundred kilometers an hour — and a full cup of green tea barely ripples.',
+  closingHeadline: 'Four Quiet Secrets',
+  closingSubline:
+    'When thoughtful engineering disappears, blistering speed feels like a sunlit library.',
+  voiceoverVolume: 1,
+  musicVolume: 0.24,
+  sfxVolume: 0.2,
+};
+
+export const starterStoryVerticalDefaultProps: StarterStoryVerticalProps = {
+  ...starterStoryDefaultProps,
+};
+
+const starterStoryDefaults = starterStoryDefaultProps;
+const starterStoryVerticalDefaults = starterStoryVerticalDefaultProps;
 
 // ============================================================================
 // Module-level hoisted constants (zero per-frame allocations at 60 FPS)

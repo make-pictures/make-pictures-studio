@@ -9,8 +9,8 @@ import {
   type ProductionCameraCut,
   type ProductionSfxCue,
   type Vec3,
-} from '@make-pictures/core';
-import type { PaperTimelineMilestone } from '@make-pictures/kits/editorial-collage';
+} from '@make-pictures/remotion';
+import type { PaperTimelineMilestone } from '@make-pictures/remotion/kits/editorial-collage';
 
 export const PAPER_DIORAMA_FPS = 60 as const;
 export const PAPER_DIORAMA_DURATION_FRAMES = 1110 as const; // 18.5 s @ 60 FPS (crisp Keplerian slingshot finale!)

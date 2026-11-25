@@ -3,23 +3,25 @@ import {
   computeSceneTimingFromVoiceover,
   evaluateAnticipation,
   evaluateArc3D,
-  evaluateDirectorCamera3D,
-  type CameraImpulse,
   type CompositionSceneSegment,
   type OrientedBox3D,
   type ProductionCameraCut,
   type ProductionSfxCue,
-  type ResolvedCameraPose3D,
   type SceneVoiceoverData,
+  type Vec3,
+} from '@make-pictures/remotion';
+import {
+  evaluateDirectorCamera3D,
+  type CameraImpulse,
+  type ResolvedCameraPose3D,
   type ShotSpec3D,
   type StageAnchor3D,
-  type Vec3,
-} from '@make-pictures/core';
-import type { PaperTimelineMilestone } from '@make-pictures/kits/editorial-collage';
+} from '@make-pictures/remotion/camera';
+import type { PaperTimelineMilestone } from '@make-pictures/remotion/kits/editorial-collage';
 import {
   computePodcastStudioLayout,
   type PodcastStudioLayout,
-} from '@make-pictures/kits/isometric-3d';
+} from '@make-pictures/remotion/kits/isometric-3d';
 import { VOICEOVER_MANIFEST } from './generated/audio-manifest';
 
 export const ISOMETRIC_DIALOGUE_FPS = 60 as const;

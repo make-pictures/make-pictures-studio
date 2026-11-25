@@ -1,14 +1,12 @@
 {
   "id": "isometric-dialogue",
-  "title": "Five Seconds to Air (Soft-Clay Studio Comedy)",
-  "fps": 60,
   "lang": "en",
+  "fps": 60,
   "modelId": "eleven_v4",
   "scenes": [
     {
       "id": "five-seconds-to-air",
       "title": "Five Seconds to Air — Maya & Leo Studio Banter",
-      "component": "IsometricDialogueDemo",
       "durationInFrames": 1152,
       "durationInSeconds": 19.2,
       "modelId": "eleven_v4",
