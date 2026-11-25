@@ -58,10 +58,17 @@ import {
 import starterStoryDefaults from './StarterStory.props.json';
 import starterStoryVerticalDefaults from './StarterStoryVertical.props.json';
 
+export type StarterStoryLang = 'en' | 'pl';
+
 export const starterStorySchema = z.object({
   styleId: z
     .string()
     .describe('Colors & Style :: Editorial Theme (Style ID)'),
+  lang: z
+    .enum(['en', 'pl'])
+    .optional()
+    .default('en')
+    .describe('Text & Labels :: Display Language'),
   chapterLabel: z
     .string()
     .describe('Text & Labels :: Opener Chapter Kicker'),
@@ -260,6 +267,166 @@ const QUIET_SECRETS_WITH_ICONS: ReadonlyArray<HorizontalFeatureItem> =
     icon: <SecretIconSvg id={item.id} color={item.accentColor ?? '#C25934'} />,
   }));
 
+const PL_MILESTONE_LABELS: Record<string, string> = {
+  'opener-en': 'Filiżanka',
+  'panorama-en': 'Panorama',
+  'anatomy-en': 'Budowa',
+  'speed-en': 'Wyścig prędkości',
+  'secrets-en': 'Cztery sekrety',
+};
+
+const PL_PANORAMA_PLATE_TEXT: Record<
+  string,
+  { title: string; sourceTag: string; sentence: string }
+> = {
+  'plate-steam-era': {
+    title: 'Para i grom',
+    sourceTag: '1938 • ERA PARY',
+    sentence: 'Żelazne tłoki wstrząsały każdym wagonem na łączonych szynach.',
+  },
+  'plate-1964-shinkansen': {
+    title: 'Przełom 1964',
+    sourceTag: '1964 • LINIA TOKAIDO',
+    sentence: 'Japonia wypuściła smukłe pociągi elektryczne u stóp góry Fudżi.',
+  },
+  'plate-kingfisher-nose': {
+    title: 'Cichy dziób zimorodka',
+    sourceTag: 'NATURA • AERODYNAMIKA',
+    sentence: 'Zimorodki nurkują czysto do rzeki bez rozbryzgu wody.',
+  },
+  'plate-teacup-window': {
+    title: 'Spokój przy pełnej prędkości',
+    sourceTag: 'DZIŚ • CICHA KABINA',
+    sentence: 'Krajobraz mknie za oknem, a gorąca herbata nawet nie drgnie.',
+  },
+};
+
+const PANORAMA_PLATES_PL: ReadonlyArray<EditorialPanoramaItem> =
+  PANORAMA_PLATES_RESOLVED.map((plate) => {
+    const localized = PL_PANORAMA_PLATE_TEXT[plate.id];
+    return localized ? { ...plate, ...localized } : plate;
+  });
+
+const PL_ANATOMY_PIN_LABELS: Record<string, string> = {
+  suspension: 'Aktywne tłumiki • łagodny przechył',
+  cabin: 'Spawane szyny • spokojna taca',
+  nose: 'Dziób zimorodka • ciche powietrze',
+};
+
+const ANATOMY_PINS_PL = ANATOMY_PINS.map((pin) => ({
+  ...pin,
+  label: PL_ANATOMY_PIN_LABELS[pin.id] ?? pin.label,
+}));
+
+const RAIL_SPEED_ITEMS_PL = RAIL_SPEED_ITEMS_DEFAULT.map((item) =>
+  item.id === 'steam' ? { ...item, label: 'Klasyczny parowóz' } : item
+);
+
+const PL_QUIET_SECRETS_TEXT: Record<
+  string,
+  { title: string; sentence: string }
+> = {
+  'sculpted-nose': {
+    title: 'Smukły dziób',
+    sentence: 'Rozcina powietrze w tunelach bez głośnego uderzenia ciśnienia.',
+  },
+  'welded-steel': {
+    title: 'Spawane szyny',
+    sentence: 'Bezstykowe tory usuwają rytmiczny stukot połączeń.',
+  },
+  'active-tilt': {
+    title: 'Aktywny przechył',
+    sentence: 'Hydrauliczne amortyzatory łagodnie pochylają pudło na łukach.',
+  },
+  'still-teacup': {
+    title: 'Nieruchoma filiżanka',
+    sentence: 'Zawrotna prędkość przypomina pobyt w cichej bibliotece.',
+  },
+};
+
+const QUIET_SECRETS_PL: ReadonlyArray<HorizontalFeatureItem> =
+  QUIET_SECRETS_WITH_ICONS.map((item) => {
+    const localized = PL_QUIET_SECRETS_TEXT[item.id];
+    return localized ? { ...item, ...localized } : item;
+  });
+
+export function getStarterStoryCopy(lang: StarterStoryLang) {
+  if (lang === 'pl') {
+    return {
+      defaultChapterLabel: 'ESEJ SPECJALNY  •  KOLEJ DUŻYCH PRĘDKOŚCI',
+      defaultHeadline: 'Jak szybki pociąg nie rozlewa ani kropli',
+      defaultSubline:
+        'Trzysta kilometrów na godzinę — a pełna filiżanka zielonej herbaty ledwie drgnie.',
+      defaultClosingHeadline: 'Cztery ciche sekrety',
+      defaultClosingSubline:
+        'Gdy mądra inżynieria staje się niewidoczna, zawrotna prędkość przypomina cichą bibliotekę.',
+      milestones: DEFAULT_STARTER_STORY_TIMING.milestones.map((m) => ({
+        ...m,
+        label: PL_MILESTONE_LABELS[m.id] ?? m.label,
+      })),
+      panoramaPlates: PANORAMA_PLATES_PL,
+      anatomy: {
+        eyebrow: '03  •  PRECYZYJNA ANATOMIA',
+        headline: 'Zbudowany, by sunąć w ciszy',
+        subline:
+          'Każda krzywizna, amortyzator i spaw służą jednej spokojnej podróży.',
+        pins: ANATOMY_PINS_PL,
+      },
+      speed: {
+        eyebrow: '04  •  SZEŚĆ DEKAD PRĘDKOŚCI',
+        headline: 'Ponad 350 km/h',
+        subline: 'Najszybsze pasażerskie koleje świata od 1964 roku do dziś.',
+        chartTitle: 'Prędkość kolei pasażerskiej',
+        chartSubtitleSuffix: 'Regularny ruch pasażerski',
+        eraPrefix: 'ERA',
+        eraLabels: {
+          '1964': '1964',
+          '1995': '1995',
+          Today: 'Dziś',
+        } as const,
+        items: RAIL_SPEED_ITEMS_PL,
+      },
+      secrets: {
+        eyebrow: '05  •  CZTERY CICHE SEKRETY',
+        items: QUIET_SECRETS_PL,
+      },
+    };
+  }
+  return {
+    defaultChapterLabel: starterStoryDefaults.chapterLabel,
+    defaultHeadline: starterStoryDefaults.headline,
+    defaultSubline: starterStoryDefaults.subline,
+    defaultClosingHeadline: starterStoryDefaults.closingHeadline,
+    defaultClosingSubline: starterStoryDefaults.closingSubline,
+    milestones: DEFAULT_STARTER_STORY_TIMING.milestones,
+    panoramaPlates: PANORAMA_PLATES_RESOLVED,
+    anatomy: {
+      eyebrow: '03  •  SCULPTED ANATOMY',
+      headline: 'Built to Glide in Silence',
+      subline: 'Every curve, damper, and welded joint serves one calm ride.',
+      pins: ANATOMY_PINS,
+    },
+    speed: {
+      eyebrow: '04  •  SIX DECADES OF SPEED',
+      headline: 'Racing Past 350 km/h',
+      subline: 'Commercial passenger rail leaders from 1964 to today.',
+      chartTitle: 'Commercial Rail Speed',
+      chartSubtitleSuffix: 'Regular Passenger Service',
+      eraPrefix: 'ERA',
+      eraLabels: {
+        '1964': '1964',
+        '1995': '1995',
+        Today: 'Today',
+      } as const,
+      items: RAIL_SPEED_ITEMS_DEFAULT,
+    },
+    secrets: {
+      eyebrow: '05  •  FOUR QUIET SECRETS',
+      items: QUIET_SECRETS_WITH_ICONS,
+    },
+  };
+}
+
 /**
  * Isolates Clean Frame 0 (`RGB variance 0.00`) so the root stage and audio bed
  * never re-render at 60 Hz or unmount/remount across frame 0 -> 1.
@@ -338,7 +505,8 @@ const Act2RailPanorama: React.FC<{
   durationInFrames: number;
   isVertical: boolean;
   milestones: ReadonlyArray<PaperTimelineMilestone>;
-}> = memo(({ durationInFrames, isVertical, milestones }) => (
+  items: ReadonlyArray<EditorialPanoramaItem>;
+}> = memo(({ durationInFrames, isVertical, milestones, items }) => (
   <AbsoluteFill style={{ boxSizing: 'border-box' }}>
     <EditorialDeskStage renderBaseFill={false} seed={2102}>
       <AbsoluteFill
@@ -351,7 +519,7 @@ const Act2RailPanorama: React.FC<{
         }}
       >
         <EditorialPanoramaTrack
-          items={PANORAMA_PLATES_RESOLVED}
+          items={items}
           startFrame={4}
           durationInFrames={durationInFrames}
           showScenicBackdrop={false}
@@ -377,7 +545,8 @@ Act2RailPanorama.displayName = 'Act2RailPanorama';
 const Act3BulletAnatomy: React.FC<{
   isVertical: boolean;
   milestones: ReadonlyArray<PaperTimelineMilestone>;
-}> = memo(({ isVertical, milestones }) => {
+  copy: ReturnType<typeof getStarterStoryCopy>['anatomy'];
+}> = memo(({ isVertical, milestones, copy }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const style = useStudioStyle();
@@ -430,7 +599,7 @@ const Act3BulletAnatomy: React.FC<{
               maxWidth={720}
               maxHeight={490}
               startFrame={6}
-              pins={ANATOMY_PINS}
+              pins={copy.pins}
             />
           </AbsoluteFill>
         ) : (
@@ -464,7 +633,7 @@ const Act3BulletAnatomy: React.FC<{
                 maxWidth={1134}
                 maxHeight={761}
                 startFrame={6}
-                pins={ANATOMY_PINS}
+                pins={copy.pins}
               />
             </div>
           </AbsoluteFill>
@@ -472,9 +641,9 @@ const Act3BulletAnatomy: React.FC<{
       </VectorSceneStage2D>
 
       <FloatingEditorialDisplay
-        eyebrow="03  •  SCULPTED ANATOMY"
-        headline="Built to Glide in Silence"
-        subline="Every curve, damper, and welded joint serves one calm ride."
+        eyebrow={copy.eyebrow}
+        headline={copy.headline}
+        subline={copy.subline}
         align="left"
         position="top"
         tone="dark-on-light"
@@ -504,7 +673,8 @@ const Act4SpeedBarRace: React.FC<{
   durationInFrames: number;
   isVertical: boolean;
   milestones: ReadonlyArray<PaperTimelineMilestone>;
-}> = memo(({ durationInFrames, isVertical, milestones }) => {
+  copy: ReturnType<typeof getStarterStoryCopy>['speed'];
+}> = memo(({ durationInFrames, isVertical, milestones, copy }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   useStudioFontsReady();
@@ -515,6 +685,7 @@ const Act4SpeedBarRace: React.FC<{
     durationInFrames,
     36
   );
+  const localizedEra = copy.eraLabels[activeEra];
 
   const badgeEnter =
     frame < 6
@@ -552,9 +723,9 @@ const Act4SpeedBarRace: React.FC<{
           }}
         >
           <AnimatedBarRace
-            items={RAIL_SPEED_ITEMS_DEFAULT}
-            title="Commercial Rail Speed"
-            subtitle={`${activeEra}  •  Regular Passenger Service`}
+            items={copy.items}
+            title={copy.chartTitle}
+            subtitle={`${localizedEra}  •  ${copy.chartSubtitleSuffix}`}
             valueSuffix=" km/h"
             decimals={0}
             startFrame={8}
@@ -566,9 +737,9 @@ const Act4SpeedBarRace: React.FC<{
       </DataStoryStage2D>
 
       <FloatingEditorialDisplay
-        eyebrow="04  •  SIX DECADES OF SPEED"
-        headline="Racing Past 350 km/h"
-        subline="Commercial passenger rail leaders from 1964 to today."
+        eyebrow={copy.eyebrow}
+        headline={copy.headline}
+        subline={copy.subline}
         align="left"
         position="top"
         tone="dark-on-light"
@@ -620,7 +791,7 @@ const Act4SpeedBarRace: React.FC<{
             color: style.palette.textPrimary,
           }}
         >
-          ERA • {activeEra}
+          {copy.eraPrefix} • {localizedEra}
         </span>
       </div>
 
@@ -645,7 +816,8 @@ const Act5QuietSecrets: React.FC<{
   closingSubline: string;
   isVertical: boolean;
   milestones: ReadonlyArray<PaperTimelineMilestone>;
-}> = memo(({ closingHeadline, closingSubline, isVertical, milestones }) => (
+  copy: ReturnType<typeof getStarterStoryCopy>['secrets'];
+}> = memo(({ closingHeadline, closingSubline, isVertical, milestones, copy }) => (
   <AbsoluteFill style={{ boxSizing: 'border-box' }}>
     <VectorSceneStage2D renderBaseFill={false} seed={2105}>
       {isVertical ? (
@@ -657,7 +829,7 @@ const Act5QuietSecrets: React.FC<{
           }}
         >
           <HorizontalFeatureGrid2x2
-            items={QUIET_SECRETS_WITH_ICONS}
+            items={copy.items}
             startFrame={8}
             staggerFrames={10}
             maxWidth={790}
@@ -673,7 +845,7 @@ const Act5QuietSecrets: React.FC<{
           }}
         >
           <HorizontalFeatureGrid2x2
-            items={QUIET_SECRETS_WITH_ICONS}
+            items={copy.items}
             startFrame={8}
             staggerFrames={10}
             maxWidth={1520}
@@ -683,7 +855,7 @@ const Act5QuietSecrets: React.FC<{
     </VectorSceneStage2D>
 
     <FloatingEditorialDisplay
-      eyebrow="05  •  FOUR QUIET SECRETS"
+      eyebrow={copy.eyebrow}
       headline={closingHeadline}
       subline={closingSubline}
       align="left"
@@ -711,6 +883,7 @@ Act5QuietSecrets.displayName = 'Act5QuietSecrets';
 // Root Orchestrator (`ContinuousSceneFlow` + Audio Bed + Clean Frame 0)
 // ============================================================================
 interface StarterStoryStageInnerProps {
+  lang: StarterStoryLang;
   chapterLabel: string;
   headline: string;
   subline: string;
@@ -724,6 +897,7 @@ interface StarterStoryStageInnerProps {
 
 const StarterStoryStageInner: React.FC<StarterStoryStageInnerProps> = memo(
   ({
+    lang,
     chapterLabel,
     headline,
     subline,
@@ -736,6 +910,7 @@ const StarterStoryStageInner: React.FC<StarterStoryStageInnerProps> = memo(
   }) => {
     const outerStyle = useStudioStyle();
     const timing = DEFAULT_STARTER_STORY_TIMING;
+    const copy = useMemo(() => getStarterStoryCopy(lang), [lang]);
 
     const scenes = useMemo<ContinuousSceneSpec[]>(() => {
       const s1 = timing.sceneById['opener-en'];
@@ -757,7 +932,7 @@ const StarterStoryStageInner: React.FC<StarterStoryStageInnerProps> = memo(
               headline={headline}
               subline={subline}
               isVertical={isVertical}
-              milestones={timing.milestones}
+              milestones={copy.milestones}
             />
           ),
         },
@@ -769,7 +944,8 @@ const StarterStoryStageInner: React.FC<StarterStoryStageInnerProps> = memo(
             <Act2RailPanorama
               durationInFrames={s2.durationInFrames}
               isVertical={isVertical}
-              milestones={timing.milestones}
+              milestones={copy.milestones}
+              items={copy.panoramaPlates}
             />
           ),
         },
@@ -780,7 +956,8 @@ const StarterStoryStageInner: React.FC<StarterStoryStageInnerProps> = memo(
           render: () => (
             <Act3BulletAnatomy
               isVertical={isVertical}
-              milestones={timing.milestones}
+              milestones={copy.milestones}
+              copy={copy.anatomy}
             />
           ),
         },
@@ -792,7 +969,8 @@ const StarterStoryStageInner: React.FC<StarterStoryStageInnerProps> = memo(
             <Act4SpeedBarRace
               durationInFrames={s4.durationInFrames}
               isVertical={isVertical}
-              milestones={timing.milestones}
+              milestones={copy.milestones}
+              copy={copy.speed}
             />
           ),
         },
@@ -805,7 +983,8 @@ const StarterStoryStageInner: React.FC<StarterStoryStageInnerProps> = memo(
               closingHeadline={closingHeadline}
               closingSubline={closingSubline}
               isVertical={isVertical}
-              milestones={timing.milestones}
+              milestones={copy.milestones}
+              copy={copy.secrets}
             />
           ),
         },
@@ -818,6 +997,7 @@ const StarterStoryStageInner: React.FC<StarterStoryStageInnerProps> = memo(
       closingSubline,
       isVertical,
       timing,
+      copy,
     ]);
 
     return (
@@ -883,15 +1063,42 @@ export const StarterStory: React.FC<Partial<StarterStoryProps>> = (
   const merged: StarterStoryProps = {
     ...(starterStoryDefaults as StarterStoryProps),
     ...rawProps,
+    lang: rawProps.lang ?? 'en',
   };
+  const copy = getStarterStoryCopy(merged.lang);
+  const resolvedChapterLabel =
+    merged.lang === 'pl' &&
+    merged.chapterLabel === starterStoryDefaults.chapterLabel
+      ? copy.defaultChapterLabel
+      : merged.chapterLabel;
+  const resolvedHeadline =
+    merged.lang === 'pl' && merged.headline === starterStoryDefaults.headline
+      ? copy.defaultHeadline
+      : merged.headline;
+  const resolvedSubline =
+    merged.lang === 'pl' && merged.subline === starterStoryDefaults.subline
+      ? copy.defaultSubline
+      : merged.subline;
+  const resolvedClosingHeadline =
+    merged.lang === 'pl' &&
+    merged.closingHeadline === starterStoryDefaults.closingHeadline
+      ? copy.defaultClosingHeadline
+      : merged.closingHeadline;
+  const resolvedClosingSubline =
+    merged.lang === 'pl' &&
+    merged.closingSubline === starterStoryDefaults.closingSubline
+      ? copy.defaultClosingSubline
+      : merged.closingSubline;
+
   return (
     <StyleProvider style={merged.styleId} renderBackdrop>
       <StarterStoryStageInner
-        chapterLabel={merged.chapterLabel}
-        headline={merged.headline}
-        subline={merged.subline}
-        closingHeadline={merged.closingHeadline}
-        closingSubline={merged.closingSubline}
+        lang={merged.lang}
+        chapterLabel={resolvedChapterLabel}
+        headline={resolvedHeadline}
+        subline={resolvedSubline}
+        closingHeadline={resolvedClosingHeadline}
+        closingSubline={resolvedClosingSubline}
         voiceoverVolume={merged.voiceoverVolume}
         musicVolume={merged.musicVolume}
         sfxVolume={merged.sfxVolume}
@@ -907,15 +1114,44 @@ export const StarterStoryVertical: React.FC<
   const merged: StarterStoryVerticalProps = {
     ...(starterStoryVerticalDefaults as StarterStoryVerticalProps),
     ...rawProps,
+    lang: rawProps.lang ?? 'en',
   };
+  const copy = getStarterStoryCopy(merged.lang);
+  const resolvedChapterLabel =
+    merged.lang === 'pl' &&
+    merged.chapterLabel === starterStoryVerticalDefaults.chapterLabel
+      ? copy.defaultChapterLabel
+      : merged.chapterLabel;
+  const resolvedHeadline =
+    merged.lang === 'pl' &&
+    merged.headline === starterStoryVerticalDefaults.headline
+      ? copy.defaultHeadline
+      : merged.headline;
+  const resolvedSubline =
+    merged.lang === 'pl' &&
+    merged.subline === starterStoryVerticalDefaults.subline
+      ? copy.defaultSubline
+      : merged.subline;
+  const resolvedClosingHeadline =
+    merged.lang === 'pl' &&
+    merged.closingHeadline === starterStoryVerticalDefaults.closingHeadline
+      ? copy.defaultClosingHeadline
+      : merged.closingHeadline;
+  const resolvedClosingSubline =
+    merged.lang === 'pl' &&
+    merged.closingSubline === starterStoryVerticalDefaults.closingSubline
+      ? copy.defaultClosingSubline
+      : merged.closingSubline;
+
   return (
     <StyleProvider style={merged.styleId} renderBackdrop>
       <StarterStoryStageInner
-        chapterLabel={merged.chapterLabel}
-        headline={merged.headline}
-        subline={merged.subline}
-        closingHeadline={merged.closingHeadline}
-        closingSubline={merged.closingSubline}
+        lang={merged.lang}
+        chapterLabel={resolvedChapterLabel}
+        headline={resolvedHeadline}
+        subline={resolvedSubline}
+        closingHeadline={resolvedClosingHeadline}
+        closingSubline={resolvedClosingSubline}
         voiceoverVolume={merged.voiceoverVolume}
         musicVolume={merged.musicVolume}
         sfxVolume={merged.sfxVolume}

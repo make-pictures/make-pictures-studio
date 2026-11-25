@@ -49,10 +49,17 @@ import {
 } from './generated/audio-manifest';
 import isometricDefaults from './IsometricDialogueDemo.props.json';
 
+export type IsometricDialogueLang = 'en' | 'pl';
+
 export const isometricDialogueSchema = z.object({
   styleId: z
     .string()
     .describe('Colors & Style :: Base Style (Style ID)'),
+  lang: z
+    .enum(['en', 'pl'])
+    .optional()
+    .default('en')
+    .describe('Story & Titles :: Display Language'),
   headline: z
     .string()
     .describe('Story & Titles :: Headline'),
@@ -838,15 +845,48 @@ const IsometricDialogueCanvasContent: React.FC<{
 // Frameless Editorial Chrome & Clean Frame 0 Cover
 // ============================================================================
 
+const ISOMETRIC_PL_MILESTONE_LABELS: Record<
+  string,
+  { era: string; label: string }
+> = {
+  chill: { era: '05s', label: 'Spokój' },
+  panic: { era: '04s', label: 'Panika!' },
+  scramble: { era: '02s', label: 'Bieg' },
+  ready: { era: '01s', label: 'Gotowi' },
+  'on-air': { era: '•', label: 'NA ŻYWO' },
+};
+
+export function getIsometricDialogueCopy(lang: IsometricDialogueLang) {
+  if (lang === 'pl') {
+    return {
+      onAirEyebrow: 'NA ANTENIE  •  STUDIO NA ŻYWO',
+      countdownSuffix: 'ODLICZANIE W STUDIU',
+      defaultHeadline: 'Pięć sekund do wejścia',
+      defaultSubline:
+        'Żywy dialog wieloosobowy, światło dzienne i płynne cięcia kamery.',
+      milestoneMap: ISOMETRIC_PL_MILESTONE_LABELS,
+    };
+  }
+  return {
+    onAirEyebrow: 'ON AIR  •  LIVE STUDIO',
+    countdownSuffix: 'STUDIO COUNTDOWN',
+    defaultHeadline: isometricDefaults.headline,
+    defaultSubline: isometricDefaults.subline,
+    milestoneMap: null,
+  };
+}
+
 const StudioEditorialChrome: React.FC<{
   headline: string;
   subline: string;
-}> = React.memo(({ headline, subline }) => {
+  lang: IsometricDialogueLang;
+}> = React.memo(({ headline, subline, lang }) => {
   const frame = useCurrentFrame();
   const { fps, width, height } = useVideoConfig();
 
   if (frame <= 0) return null;
 
+  const copy = getIsometricDialogueCopy(lang);
   const state = evaluateIsometricDialogueFrame(
     frame,
     VOICEOVER_MANIFEST,
@@ -865,16 +905,23 @@ const StudioEditorialChrome: React.FC<{
     config: JOYFUL_SPRING,
   });
 
-  let activeMilestoneId = state.milestones[0]?.id ?? 'chill';
-  for (const m of state.milestones) {
+  const milestones = copy.milestoneMap
+    ? state.milestones.map((m) => {
+        const localized = copy.milestoneMap?.[m.id];
+        return localized ? { ...m, ...localized } : m;
+      })
+    : state.milestones;
+
+  let activeMilestoneId = milestones[0]?.id ?? 'chill';
+  for (const m of milestones) {
     if (typeof m.fromFrame === 'number' && frame >= m.fromFrame) {
       activeMilestoneId = m.id;
     }
   }
 
   const eyebrowText = state.isOnAir
-    ? 'ON AIR  •  LIVE STUDIO'
-    : `${state.countdownLabel}  •  STUDIO COUNTDOWN`;
+    ? copy.onAirEyebrow
+    : `${state.countdownLabel}  •  ${copy.countdownSuffix}`;
 
   return (
     <AbsoluteFill style={{ pointerEvents: 'none', boxSizing: 'border-box' }}>
@@ -903,7 +950,7 @@ const StudioEditorialChrome: React.FC<{
         }}
       />
       <PaperRibbonTimeline
-        milestones={state.milestones}
+        milestones={milestones}
         activeId={activeMilestoneId}
         position="bottom"
         enterFrame={3}
@@ -931,6 +978,7 @@ const CleanFrameZeroCover: React.FC<{ color: string }> = React.memo(
 const IsometricDialogueDemoInner: React.FC<IsometricDialogueDemoProps> =
   React.memo(
     ({
+      lang,
       headline,
       subline,
       mayaColor,
@@ -961,7 +1009,11 @@ const IsometricDialogueDemoInner: React.FC<IsometricDialogueDemoProps> =
             </StyleProvider>
           </ThreeCanvas>
 
-          <StudioEditorialChrome headline={headline} subline={subline} />
+          <StudioEditorialChrome
+            headline={headline}
+            subline={subline}
+            lang={lang}
+          />
 
           {/* Data-driven eleven_v4 Text-to-Dialogue track (auto-activates when real MP3 lands) */}
           {DEFAULT_ISOMETRIC_DIALOGUE_TIMELINE.voTimeline.map((seg) => {
@@ -1029,11 +1081,25 @@ export const IsometricDialogueDemo: React.FC<
   const merged: IsometricDialogueDemoProps = {
     ...(isometricDefaults as IsometricDialogueDemoProps),
     ...incomingProps,
+    lang: incomingProps.lang ?? 'en',
   };
+  const copy = getIsometricDialogueCopy(merged.lang);
+  const resolvedHeadline =
+    merged.lang === 'pl' && merged.headline === isometricDefaults.headline
+      ? copy.defaultHeadline
+      : merged.headline;
+  const resolvedSubline =
+    merged.lang === 'pl' && merged.subline === isometricDefaults.subline
+      ? copy.defaultSubline
+      : merged.subline;
 
   return (
     <StyleProvider style={merged.styleId || 'soft-clay'} renderBackdrop>
-      <IsometricDialogueDemoInner {...merged} />
+      <IsometricDialogueDemoInner
+        {...merged}
+        headline={resolvedHeadline}
+        subline={resolvedSubline}
+      />
     </StyleProvider>
   );
 };

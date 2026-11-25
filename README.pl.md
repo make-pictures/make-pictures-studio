@@ -57,11 +57,11 @@ Przygotuj dla mnie studio filmowe make.pictures: uruchom `npx -y @make-pictures/
 
 | Premiera produktu i Live Sync (`product-frames`) | Choreografia systemów 2D (`motion-diagrams-2d`) |
 | :---: | :---: |
-| <img src="./docs/showcase/kit-product-promo.png" alt="Prezentacja produktu z mapą dostawy na żywo i zsynchronizowanym podglądem mobilnym" width="440" /> | <img src="./docs/showcase/kit-architecture-2d.png" alt="Animowana choreografia systemów 2D z przepływem po krzywych Béziera" width="440" /> |
+| <img src="./docs/showcase/kit-product-promo-pl.png" alt="Prezentacja produktu z mapą dostawy na żywo i zsynchronizowanym podglądem mobilnym" width="440" /> | <img src="./docs/showcase/kit-architecture-2d-pl.png" alt="Animowana choreografia systemów 2D z przepływem po krzywych Béziera" width="440" /> |
 | **Panorama redakcyjna i Pinned Media (`editorial-collage`)** | **Wizualizacja danych i wyścigi słupków (`data-storytelling`)** |
-| <img src="./docs/showcase/kit-editorial-data-2d.png" alt="Panorama redakcyjna i dokumentalna karta z precyzyjnie zakotwiczonymi adnotacjami" width="440" /> | <img src="./docs/showcase/kit-data-storytelling-2d.png" alt="Animowany wyścig słupków i opowieść oparta na danych" width="440" /> |
+| <img src="./docs/showcase/kit-editorial-data-2d-pl.png" alt="Panorama redakcyjna i dokumentalna karta z precyzyjnie zakotwiczonymi adnotacjami" width="440" /> | <img src="./docs/showcase/kit-data-storytelling-2d-pl.png" alt="Animowany wyścig słupków i opowieść oparta na danych" width="440" /> |
 | **Wycinanki i dioramy 2.5D (`paper-diorama-3d`)** | **Soft-Clay 3D i Text-to-Dialogue (`isometric-3d`)** |
-| <img src="./docs/showcase/kit-paper-diorama-3d.png" alt="Kosmiczna papierowa makieta 2.5D z rakietą i rozkładanym księżycem" width="440" /> | <img src="./docs/showcase/kit-isometric-dialogue-3d.png" alt="Studio Soft-Clay 3D z ekspresyjnym wieloosobowym dialogiem Text-to-Dialogue" width="440" /> |
+| <img src="./docs/showcase/kit-paper-diorama-3d-pl.png" alt="Kosmiczna papierowa makieta 2.5D z rakietą i rozkładanym księżycem" width="440" /> | <img src="./docs/showcase/kit-isometric-dialogue-3d-pl.png" alt="Studio Soft-Clay 3D z ekspresyjnym wieloosobowym dialogiem Text-to-Dialogue" width="440" /> |
 
 <sub>Uporządkowane w przestrzeniach **`2D` / `2.5D` / `3D`** (`--space=2d|2.5d|3d`) z gotowymi zestawami **Editorial Collage**, **Vector Scene 2D**, **Kinetic Typography**, **Data Storytelling** (wyścigi słupków i osie czasu), **Retro-PC**, **Soft-Clay 3D** (offline `<Lightformer>` IBL), **Glass Studio** i **VFX** — w poziomym `16:9` oraz pionowym `9:16` (`Golden Safe Box`).</sub>
 

@@ -53,10 +53,17 @@ import {
 } from './generated/audio-manifest';
 import paperDioramaDefaults from './PaperDioramaDemo.props.json';
 
+export type PaperDioramaLang = 'en' | 'pl';
+
 export const paperDioramaDemoSchema = z.object({
   styleId: z
     .string()
     .describe('Colors & Style :: Base Style (Style ID)'),
+  lang: z
+    .enum(['en', 'pl'])
+    .optional()
+    .default('en')
+    .describe('Story & Titles :: Display Language'),
   headline: z
     .string()
     .describe('Story & Titles :: Headline'),
@@ -162,6 +169,42 @@ const CHAPTER_LABELS: Record<PaperDioramaChapterId, string> = {
   satellites: 'ORBITAL EDGE',
   space: 'OUTER SPACE',
 };
+
+const CHAPTER_LABELS_PL: Record<PaperDioramaChapterId, string> = {
+  launch: 'SŁONECZNA ŁĄKA',
+  birds: 'CHMURY I JASKÓŁKI',
+  stratosphere: 'LOT W STRATOSFERZE',
+  satellites: 'SKRAJ ORBITY',
+  space: 'KOSMOS',
+};
+
+const PAPER_DIORAMA_MILESTONES_PL = [
+  { id: 'launch', era: '0 km', label: 'Start', fromFrame: 2 },
+  { id: 'birds', era: '3 km', label: 'Ptaki', fromFrame: 175 },
+  { id: 'stratosphere', era: '12 km', label: 'Stratosfera', fromFrame: 340 },
+  { id: 'satellites', era: '250 km', label: 'Satelity', fromFrame: 520 },
+  { id: 'space', era: '384 tys. km', label: 'Kosmos', fromFrame: 645 },
+] as const;
+
+export function getPaperDioramaCopy(lang: PaperDioramaLang) {
+  if (lang === 'pl') {
+    return {
+      chapterLabels: CHAPTER_LABELS_PL,
+      spacePrefix: 'ORBITA KSIĘŻYCA',
+      defaultHeadline: 'W górę: lot papierowej rakiety',
+      defaultSubline:
+        'Od słonecznej łąki, obok ptaków, samolotów i satelitów aż po ciszę gwiazd.',
+      milestones: PAPER_DIORAMA_MILESTONES_PL,
+    };
+  }
+  return {
+    chapterLabels: CHAPTER_LABELS,
+    spacePrefix: 'MOON ORBIT',
+    defaultHeadline: paperDioramaDefaults.headline,
+    defaultSubline: paperDioramaDefaults.subline,
+    milestones: PAPER_DIORAMA_MILESTONES,
+  };
+}
 
 // ============================================================================
 // Static Module-Scope PaperCutout3D Painters (compiled once, LRU cached)
@@ -1588,12 +1631,14 @@ const SkywardEditorialChrome: React.FC<{
   durationInFrames: number;
   headline: string;
   subline: string;
-}> = React.memo(({ durationInFrames, headline, subline }) => {
+  lang: PaperDioramaLang;
+}> = React.memo(({ durationInFrames, headline, subline, lang }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
   if (frame <= 0) return null;
 
+  const copy = getPaperDioramaCopy(lang);
   const state = evaluatePaperDioramaFrame(frame, durationInFrames);
   const headSpring = spring({
     frame: Math.max(0, frame - 2),
@@ -1608,8 +1653,8 @@ const SkywardEditorialChrome: React.FC<{
 
   const altTag =
     state.activeChapterId === 'space'
-      ? `MOON ORBIT  •  ${CHAPTER_LABELS[state.activeChapterId]}`
-      : `${state.altitudeKm} KM  •  ${CHAPTER_LABELS[state.activeChapterId]}`;
+      ? `${copy.spacePrefix}  •  ${copy.chapterLabels[state.activeChapterId]}`
+      : `${state.altitudeKm} KM  •  ${copy.chapterLabels[state.activeChapterId]}`;
 
   return (
     <AbsoluteFill style={{ pointerEvents: 'none', boxSizing: 'border-box' }}>
@@ -1629,7 +1674,7 @@ const SkywardEditorialChrome: React.FC<{
         }}
       />
       <PaperRibbonTimeline
-        milestones={PAPER_DIORAMA_MILESTONES}
+        milestones={copy.milestones}
         activeId={state.activeChapterId}
         position="bottom"
         enterFrame={3}
@@ -1655,7 +1700,7 @@ const CleanFrameZeroCover: React.FC<{ color: string }> = React.memo(
 );
 
 const PaperDioramaDemoInner: React.FC<PaperDioramaDemoProps> = React.memo(
-  ({ headline, subline, voiceoverVolume, musicVolume, sfxVolume }) => {
+  ({ lang, headline, subline, voiceoverVolume, musicVolume, sfxVolume }) => {
     const { width, height, durationInFrames } = useVideoConfig();
     const outerStyle = useStudioStyle();
     const { isRendering } = getRemotionEnvironment();
@@ -1681,6 +1726,7 @@ const PaperDioramaDemoInner: React.FC<PaperDioramaDemoProps> = React.memo(
           durationInFrames={durationInFrames}
           headline={headline}
           subline={subline}
+          lang={lang}
         />
 
         {/* Bounded eleven_v4 voiceover tracks (zero unbounded <Audio> pool leaks) */}
@@ -1749,11 +1795,25 @@ export const PaperDioramaDemo: React.FC<Partial<PaperDioramaDemoProps>> = (
   const merged: PaperDioramaDemoProps = {
     ...(paperDioramaDefaults as PaperDioramaDemoProps),
     ...incomingProps,
+    lang: incomingProps.lang ?? 'en',
   };
+  const copy = getPaperDioramaCopy(merged.lang);
+  const resolvedHeadline =
+    merged.lang === 'pl' && merged.headline === paperDioramaDefaults.headline
+      ? copy.defaultHeadline
+      : merged.headline;
+  const resolvedSubline =
+    merged.lang === 'pl' && merged.subline === paperDioramaDefaults.subline
+      ? copy.defaultSubline
+      : merged.subline;
 
   return (
     <StyleProvider style={merged.styleId} renderBackdrop>
-      <PaperDioramaDemoInner {...merged} />
+      <PaperDioramaDemoInner
+        {...merged}
+        headline={resolvedHeadline}
+        subline={resolvedSubline}
+      />
     </StyleProvider>
   );
 };

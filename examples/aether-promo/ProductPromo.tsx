@@ -38,6 +38,9 @@ import {
   DataFlowEdge,
   MotionDiagramStage2D,
   SystemNode,
+  portLeft,
+  portRight,
+  type NodeBox,
 } from '@make-pictures/kits/motion-diagrams-2d';
 import {
   BrowserFrame,
@@ -69,10 +72,17 @@ import {
 } from './productPromoTiming';
 import productPromoDefaults from './ProductPromo.props.json';
 
+export type ProductPromoLang = 'en' | 'pl';
+
 export const productPromoSchema = z.object({
   styleId: z
     .string()
     .describe('Colors & Style :: Product Theme (Style ID)'),
+  lang: z
+    .enum(['en', 'pl'])
+    .optional()
+    .default('en')
+    .describe('Text & Labels :: Display Language'),
   brandName: z.string().describe('Text & Labels :: Bakery Brand Name'),
   heroTitle: z.string().describe('Text & Labels :: Opener Headline'),
   heroSubtitle: z.string().describe('Text & Labels :: Opener Subline'),
@@ -156,6 +166,235 @@ const DOORSTEP_CARDS_WITH_SRCS = DOORSTEP_HIGHLIGHTS.map((card) => ({
   resolvedSrc: staticFile(card.imageSrc),
 }));
 
+const PL_MILESTONE_LABELS: Record<string, string> = {
+  'tap-en': 'Zamówienie',
+  'flow-en': 'Choreografia',
+  'live-sync-en': 'Na żywo',
+  'doorstep-en': 'Pod drzwiami',
+};
+
+const PL_FLOW_WORLD_NODES: Record<FlowNodeId, NodeBox> = {
+  phone: { cx: 200, cy: 596, w: 428, h: 192 },
+  bakery: { cx: 706, cy: 496, w: 428, h: 192 },
+  courier: { cx: 1214, cy: 596, w: 428, h: 192 },
+  doorstep: { cx: 1720, cy: 496, w: 428, h: 192 },
+};
+
+const PL_ACT2_SHOTS: ShotSpec2D[] = [
+  {
+    fromFrame: 0,
+    target: ['phone', 'bakery', 'courier', 'doorstep'],
+    transition: 'cut',
+    zoom: 0.91,
+    label: 'Cztery kroki choreografii',
+  },
+];
+
+const PL_FLOW_NODE_TEXT: Record<
+  FlowNodeId,
+  { stepTag: string; title: string; sentence: string }
+> = {
+  phone: {
+    stepTag: '01 • TWÓJ TELEFON',
+    title: 'Koszyk jednym kliknięciem',
+    sentence: 'Ciepłe wypieki wybrane jednym ruchem kciuka.',
+  },
+  bakery: {
+    stepTag: '02 • PIEKARNIA ZA ROGIEM',
+    title: 'Prosto z pieca',
+    sentence: 'Piekarze pakują pudełko, gdy lukier wciąż lśni.',
+  },
+  courier: {
+    stepTag: '03 • NAJBLIŻSZY KURIER',
+    title: 'Słoneczna trasa rowerowa',
+    sentence: 'Najbliższy rowerzysta rusza cichą aleją.',
+  },
+  doorstep: {
+    stepTag: '04 • TWOJE DRZWI',
+    title: 'Ciepła dostawa',
+    sentence: 'Świeże śniadanie dociera dokładnie na czas.',
+  },
+};
+
+const PL_FLOW_EDGE_LABELS: Record<string, string> = {
+  'edge-phone-bakery': 'Zamówienie wysłane',
+  'edge-bakery-courier': 'Zapakowane ciepłe',
+  'edge-courier-doorstep': '2 przecznice stąd',
+};
+
+const FLOW_NODE_COPY_PL = FLOW_NODE_COPY.map((node) => ({
+  ...node,
+  ...PL_FLOW_NODE_TEXT[node.id],
+}));
+
+const FLOW_EDGES_PL = FLOW_EDGES.map((edge) => ({
+  ...edge,
+  from: portRight(PL_FLOW_WORLD_NODES[edge.fromNodeId]),
+  to: portLeft(PL_FLOW_WORLD_NODES[edge.toNodeId]),
+  label: PL_FLOW_EDGE_LABELS[edge.id] ?? edge.label,
+  labelOffsetY: edge.curveOffsetY < 0 ? -114 : 114,
+}));
+
+const PL_DOORSTEP_CARDS_TEXT: Record<
+  string,
+  { title: string; sentence: string }
+> = {
+  'instant-handoff': {
+    title: 'Błyskawiczne przekazanie',
+    sentence: 'Piekarnia widzi Twój koszyk w sekundzie, gdy tylko klikniesz.',
+  },
+  'live-street-view': {
+    title: 'Podgląd trasy na żywo',
+    sentence: 'Śledź kuriera przecznica po przecznicy bez żadnych domysłów.',
+  },
+  'always-warm': {
+    title: 'Zawsze ciepłe',
+    sentence: 'Mądre zgranie czasu łączy gorący piec z najbliższym rowerzystą.',
+  },
+  'happy-mornings': {
+    title: 'Spokojne poranki',
+    sentence: 'Mniej wypatrywania przez okno, więcej kawy przy stole.',
+  },
+};
+
+const DOORSTEP_CARDS_PL = DOORSTEP_CARDS_WITH_SRCS.map((card) => {
+  const localized = PL_DOORSTEP_CARDS_TEXT[card.id];
+  return localized ? { ...card, ...localized } : card;
+});
+
+function resolveDispatchEtaStatusPl(progress01: number) {
+  const p = Math.max(0, Math.min(1, progress01));
+  if (p >= 0.94) {
+    return {
+      etaLabel: 'Pod drzwiami!',
+      stageLabel: 'Ciepła paczka dostarczona',
+      stepIndex: 2 as const,
+    };
+  }
+  if (p >= 0.52) {
+    return {
+      etaLabel: '4 min',
+      stageLabel: '2 przecznice stąd, ul. Klonowa',
+      stepIndex: 1 as const,
+    };
+  }
+  return {
+    etaLabel: '12 min',
+    stageLabel: 'Świeżo z piekarni za rogiem',
+    stepIndex: 0 as const,
+  };
+}
+
+export function getProductPromoCopy(lang: ProductPromoLang) {
+  if (lang === 'pl') {
+    return {
+      defaultBrandName: 'Piekarnia Słoneczna',
+      defaultHeroTitle: 'Jednym kliknięciem pod Twoje drzwi',
+      defaultHeroSubtitle:
+        'Zamów ciepłe poranne wypieki jednym dotknięciem — i patrz, jak jadą prosto pod Twoje drzwi.',
+      defaultClosingHeadline: 'Lekkość od kliknięcia do stołu',
+      defaultClosingSubline:
+        'Przemyślana choreografia zamienia jedno dotknięcie w ciepły poranek pod drzwiami.',
+      milestones: DEFAULT_PRODUCT_PROMO_TIMING.milestones.map((m) => ({
+        ...m,
+        label: PL_MILESTONE_LABELS[m.id] ?? m.label,
+      })),
+      act1: {
+        badgeSuffix: 'Poranna dostawa',
+        confirmed: 'Zamówienie potwierdzone ✓',
+        readyIn: 'Gotowe za 15 min',
+        openNow: 'Otwarte',
+        itemTitle: 'Poranny zestaw',
+        price: '54,00 zł',
+        itemDesc: 'Chleb na zakwasie i cynamonka',
+        ctaConfirmed: 'W piecu ✓',
+        ctaIdle: 'Zamów pod drzwi',
+      },
+      act2: {
+        eyebrow: '02  •  CHOREOGRAFIA',
+        headline: 'Cztery kroki, zero domysłów',
+        subline:
+          'Jedno kliknięcie budzi piekarnię, dobiera najbliższego kuriera i wyznacza trasę.',
+        worldNodes: PL_FLOW_WORLD_NODES,
+        shots: PL_ACT2_SHOTS,
+        nodes: FLOW_NODE_COPY_PL,
+        edges: FLOW_EDGES_PL,
+      },
+      act3: {
+        eyebrow: '03  •  ŚLEDZENIE NA ŻYWO',
+        headline: 'Dwa ekrany, jeden rytm',
+        subline:
+          'Tablica piekarni i Twój telefon działają w idealnej synchronizacji.',
+        browserUrl: 'sloneczna-piekarnia.przyklad/dostawa',
+        bakeryBadge: 'Piekarnia',
+        doorBadge: 'Twoje drzwi',
+        spotlightLabel: 'Kurier na żywo',
+        phoneHeader: 'Dostawa na żywo',
+        stepOven: 'Piec',
+        stepBike: 'Rower',
+        stepDoor: 'Drzwi',
+        itemTitle: 'Poranny zestaw',
+        itemSub: 'Ciepły i zamknięty',
+        resolveEta: resolveDispatchEtaStatusPl,
+      },
+      act4: {
+        eyebrow: '04  •  PORANNY FINAŁ',
+        cards: DOORSTEP_CARDS_PL,
+      },
+    };
+  }
+  return {
+    defaultBrandName: productPromoDefaults.brandName,
+    defaultHeroTitle: productPromoDefaults.heroTitle,
+    defaultHeroSubtitle: productPromoDefaults.heroSubtitle,
+    defaultClosingHeadline: productPromoDefaults.closingHeadline,
+    defaultClosingSubline: productPromoDefaults.closingSubline,
+    milestones: DEFAULT_PRODUCT_PROMO_TIMING.milestones,
+    act1: {
+      badgeSuffix: 'Morning Delivery',
+      confirmed: 'Order Confirmed ✓',
+      readyIn: 'Ready in 15 min',
+      openNow: 'Open Now',
+      itemTitle: 'Morning Box',
+      price: '$14.00',
+      itemDesc: 'Sourdough & Cinnamon Roll',
+      ctaConfirmed: 'Baking Now ✓',
+      ctaIdle: 'Send to My Door',
+    },
+      act2: {
+        eyebrow: '02  •  CHOREOGRAPHY',
+        headline: 'Four Steps, Zero Guesswork',
+        subline:
+          'Your tap wakes the kitchen, pairs the closest bike, and picks the sunny route.',
+        worldNodes: FLOW_WORLD_NODES,
+        shots: ACT2_SHOTS,
+        nodes: FLOW_NODE_COPY,
+        edges: FLOW_EDGES,
+      },
+    act3: {
+      eyebrow: '03  •  LIVE SYNC TRACKER',
+      headline: 'Two Screens, One Rhythm',
+      subline:
+        'The bakery board and your pocket screen stay perfectly in step.',
+      browserUrl: 'sunbeam-bakery.example/dispatch',
+      bakeryBadge: 'Bakery',
+      doorBadge: 'Your Door',
+      spotlightLabel: 'Live Rider Sync',
+      phoneHeader: 'Live Delivery',
+      stepOven: 'Oven',
+      stepBike: 'Bike',
+      stepDoor: 'Door',
+      itemTitle: 'Morning Box',
+      itemSub: 'Warm & sealed',
+      resolveEta: resolveDispatchEtaStatus,
+    },
+    act4: {
+      eyebrow: '04  •  WARM MORNING FINALE',
+      cards: DOORSTEP_CARDS_WITH_SRCS,
+    },
+  };
+}
+
 function toCrispTranslateY(enter: number, startOffsetPx: number): string {
   if (enter >= 0.999) return 'none';
   const dy = Math.round((1 - enter) * startOffsetPx);
@@ -191,7 +430,8 @@ const Act1OneTapOrder: React.FC<{
   heroTitle: string;
   heroSubtitle: string;
   milestones: ReadonlyArray<PaperTimelineMilestone>;
-}> = memo(({ brandName, heroTitle, heroSubtitle, milestones }) => {
+  copy: ReturnType<typeof getProductPromoCopy>['act1'];
+}> = memo(({ brandName, heroTitle, heroSubtitle, milestones, copy }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   useStudioFontsReady();
@@ -320,7 +560,7 @@ const Act1OneTapOrder: React.FC<{
                   color: style.palette.textPrimary,
                 }}
               >
-                {brandName} • Morning Delivery
+                {brandName} • {copy.badgeSuffix}
               </span>
             </div>
 
@@ -411,7 +651,7 @@ const Act1OneTapOrder: React.FC<{
                   color: isConfirmed ? '#0F766E' : style.palette.textPrimary,
                 }}
               >
-                {isConfirmed ? 'Order Confirmed ✓' : 'Ready in 15 min'}
+                {isConfirmed ? copy.confirmed : copy.readyIn}
               </span>
             </div>
           </div>
@@ -468,7 +708,7 @@ const Act1OneTapOrder: React.FC<{
                       borderRadius: 999,
                     }}
                   >
-                    Open Now
+                    {copy.openNow}
                   </div>
                 </div>
 
@@ -521,7 +761,7 @@ const Act1OneTapOrder: React.FC<{
                         lineHeight: 1.15,
                       }}
                     >
-                      Morning Box
+                      {copy.itemTitle}
                     </div>
                     <div
                       style={{
@@ -532,7 +772,7 @@ const Act1OneTapOrder: React.FC<{
                         color: '#EA580C',
                       }}
                     >
-                      $14.00
+                      {copy.price}
                     </div>
                   </div>
                   <div
@@ -544,7 +784,7 @@ const Act1OneTapOrder: React.FC<{
                       lineHeight: 1.35,
                     }}
                   >
-                    Sourdough &amp; Cinnamon Roll
+                    {copy.itemDesc}
                   </div>
                 </div>
 
@@ -583,7 +823,7 @@ const Act1OneTapOrder: React.FC<{
                         letterSpacing: '0.01em',
                       }}
                     >
-                      {isConfirmed ? 'Baking Now ✓' : 'Send to My Door'}
+                      {isConfirmed ? copy.ctaConfirmed : copy.ctaIdle}
                     </span>
                   </div>
 
@@ -632,16 +872,17 @@ Act1OneTapOrder.displayName = 'Act1OneTapOrder';
 const Act2FourStepFlow: React.FC<{
   durationInFrames: number;
   milestones: ReadonlyArray<PaperTimelineMilestone>;
-}> = memo(({ durationInFrames, milestones }) => (
+  copy: ReturnType<typeof getProductPromoCopy>['act2'];
+}> = memo(({ durationInFrames, milestones, copy }) => (
   <AbsoluteFill style={{ boxSizing: 'border-box' }}>
     <MotionDiagramStage2D
       renderBaseFill={false}
       seed={5102}
-      nodes={FLOW_WORLD_NODES}
-      shots={ACT2_SHOTS}
+      nodes={copy.worldNodes}
+      shots={copy.shots}
       handheldIntensity={0}
     >
-      {FLOW_EDGES.map((edge) => (
+      {copy.edges.map((edge) => (
         <DataFlowEdge
           key={edge.id}
           id={edge.id}
@@ -662,8 +903,8 @@ const Act2FourStepFlow: React.FC<{
         />
       ))}
 
-      {FLOW_NODE_COPY.map((node, idx) => {
-        const box = FLOW_WORLD_NODES[node.id];
+      {copy.nodes.map((node, idx) => {
+        const box = copy.worldNodes[node.id];
         return (
           <SystemNode
             key={node.id}
@@ -686,9 +927,9 @@ const Act2FourStepFlow: React.FC<{
     </MotionDiagramStage2D>
 
     <FloatingEditorialDisplay
-      eyebrow="02  •  CHOREOGRAPHY"
-      headline="Four Steps, Zero Guesswork"
-      subline="Your tap wakes the kitchen, pairs the closest bike, and picks the sunny route."
+      eyebrow={copy.eyebrow}
+      headline={copy.headline}
+      subline={copy.subline}
       align="left"
       position="top"
       tone="dark-on-light"
@@ -714,7 +955,8 @@ const Act3LiveSyncTracker: React.FC<{
   brandName: string;
   durationInFrames: number;
   milestones: ReadonlyArray<PaperTimelineMilestone>;
-}> = memo(({ brandName, durationInFrames, milestones }) => {
+  copy: ReturnType<typeof getProductPromoCopy>['act3'];
+}> = memo(({ brandName, durationInFrames, milestones, copy }) => {
   const frame = useCurrentFrame();
   useStudioFontsReady();
   const style = useStudioStyle();
@@ -741,7 +983,7 @@ const Act3LiveSyncTracker: React.FC<{
   });
 
   const riderPt = evaluateDispatchRouteAtProgress(routeProgress);
-  const liveStatus = resolveDispatchEtaStatus(routeProgress);
+  const liveStatus = copy.resolveEta(routeProgress);
   const isArrived = liveStatus.stepIndex === 2;
   const doorBadgeOpacity = interpolate(routeProgress, [0.88, 0.94], [1, 0], {
     extrapolateLeft: 'clamp',
@@ -773,7 +1015,7 @@ const Act3LiveSyncTracker: React.FC<{
         >
           {/* Left: Bakery Dispatch Board in BrowserFrame */}
           <BrowserFrame
-            url="sunbeam-bakery.example/dispatch"
+            url={copy.browserUrl}
             title={brandName}
             variant="macos"
             theme="light"
@@ -866,40 +1108,6 @@ const Act3LiveSyncTracker: React.FC<{
               }}
             >
               <Store size={18} color="#EA580C" strokeWidth={2.4} />
-              <span
-                style={{
-                  fontFamily: displayFont,
-                  fontSize: 18,
-                  fontWeight: 700,
-                  color: '#1C1917',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                Bakery
-              </span>
-            </div>
-
-            {/* Doorstep Courtyard Marker (fades cleanly before emerald arrival pill lands) */}
-            {doorBadgeOpacity > 0.01 && (
-              <div
-                style={{
-                  position: 'absolute',
-                  left: `${(DISPATCH_DOOR_BADGE_POS.x * 100).toFixed(2)}%`,
-                  top: `${(DISPATCH_DOOR_BADGE_POS.y * 100).toFixed(2)}%`,
-                  transform: 'translate(-50%, -50%)',
-                  opacity: Number(doorBadgeOpacity.toFixed(3)),
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '6px 14px',
-                  borderRadius: 999,
-                  backgroundColor: '#FFFDF8',
-                  border: '2px solid #2563EB',
-                  boxShadow: '0 6px 16px rgba(28, 25, 23, 0.16)',
-                  boxSizing: 'border-box',
-                }}
-              >
-                <Home size={18} color="#2563EB" strokeWidth={2.4} />
                 <span
                   style={{
                     fontFamily: displayFont,
@@ -909,344 +1117,379 @@ const Act3LiveSyncTracker: React.FC<{
                     whiteSpace: 'nowrap',
                   }}
                 >
-                  Your Door
+                  {copy.bakeryBadge}
                 </span>
               </div>
-            )}
 
-            {/* Live Gliding Bike Rider Pin */}
-            <div
-              style={{
-                position: 'absolute',
-                left: `${(riderPt.x * 100).toFixed(2)}%`,
-                top: `${(riderPt.y * 100).toFixed(2)}%`,
-                transform: 'translate(-50%, -50%)',
-                zIndex: 5,
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 8,
-                padding: '8px 14px',
-                borderRadius: 999,
-                backgroundColor: isArrived ? '#0F766E' : '#EA580C',
-                border: '2.5px solid #FFFFFF',
-                boxShadow: '0 10px 24px rgba(234, 88, 12, 0.35)',
-                boxSizing: 'border-box',
-              }}
-            >
-              <Bike size={20} color="#FFFFFF" strokeWidth={2.4} />
-              <span
-                style={{
-                  fontFamily: monoFont,
-                  fontSize: 18,
-                  fontWeight: 700,
-                  fontVariantNumeric: 'tabular-nums',
-                  color: '#FFFFFF',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {liveStatus.etaLabel}
-              </span>
-            </div>
+              {/* Doorstep Courtyard Marker (fades cleanly before emerald arrival pill lands) */}
+              {doorBadgeOpacity > 0.01 && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    left: `${(DISPATCH_DOOR_BADGE_POS.x * 100).toFixed(2)}%`,
+                    top: `${(DISPATCH_DOOR_BADGE_POS.y * 100).toFixed(2)}%`,
+                    transform: 'translate(-50%, -50%)',
+                    opacity: Number(doorBadgeOpacity.toFixed(3)),
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '6px 14px',
+                    borderRadius: 999,
+                    backgroundColor: '#FFFDF8',
+                    border: '2px solid #2563EB',
+                    boxShadow: '0 6px 16px rgba(28, 25, 23, 0.16)',
+                    boxSizing: 'border-box',
+                  }}
+                >
+                  <Home size={18} color="#2563EB" strokeWidth={2.4} />
+                  <span
+                    style={{
+                      fontFamily: displayFont,
+                      fontSize: 18,
+                      fontWeight: 700,
+                      color: '#1C1917',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {copy.doorBadge}
+                  </span>
+                </div>
+              )}
 
-            {/* Screen Spotlight highlighting active courier mid-ride */}
-            <ScreenSpotlightOverlay
-              x={spotX}
-              y={spotY}
-              width={18}
-              height={24}
-              startFrame={116}
-              endFrame={276}
-              label="Live Rider Sync"
-              accentColor="#EA580C"
-              dimOpacity={0.22}
-            />
-          </BrowserFrame>
-
-          {/* Right: Customer Pocket Live Tracker in PhoneFrame */}
-          <PhoneFrame
-            width={356}
-            height={664}
-            theme="light"
-            enterFrame={12}
-            style={{ flexShrink: 0 }}
-          >
-            <div
-              style={{
-                width: '100%',
-                height: '100%',
-                backgroundColor: '#FFFDF8',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'space-between',
-                padding: '50px 22px 28px 22px',
-                boxSizing: 'border-box',
-              }}
-            >
-              {/* Pocket Header */}
+              {/* Live Gliding Bike Rider Pin */}
               <div
                 style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 4,
+                  position: 'absolute',
+                  left: `${(riderPt.x * 100).toFixed(2)}%`,
+                  top: `${(riderPt.y * 100).toFixed(2)}%`,
+                  transform: 'translate(-50%, -50%)',
+                  zIndex: 5,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '8px 14px',
+                  borderRadius: 999,
+                  backgroundColor: isArrived ? '#0F766E' : '#EA580C',
+                  border: '2.5px solid #FFFFFF',
+                  boxShadow: '0 10px 24px rgba(234, 88, 12, 0.35)',
                   boxSizing: 'border-box',
                 }}
               >
-                <div
+                <Bike size={20} color="#FFFFFF" strokeWidth={2.4} />
+                <span
                   style={{
                     fontFamily: monoFont,
                     fontSize: 18,
                     fontWeight: 700,
-                    letterSpacing: '0.07em',
-                    textTransform: 'uppercase',
-                    color: '#EA580C',
-                  }}
-                >
-                  Live Delivery
-                </div>
-                <div
-                  style={{
-                    fontFamily: displayFont,
-                    fontSize: 22,
-                    fontWeight: 800,
-                    color: '#1C1917',
-                  }}
-                >
-                  {brandName}
-                </div>
-              </div>
-
-              {/* Big Synced ETA Display */}
-              <div
-                style={{
-                  padding: '22px 20px',
-                  borderRadius: 20,
-                  backgroundColor: isArrived ? '#ECFDF5' : '#FFF7ED',
-                  border: `2px solid ${isArrived ? '#0F766E' : '#FDBA74'}`,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 8,
-                  boxSizing: 'border-box',
-                }}
-              >
-                <div
-                  style={{
-                    fontFamily: displayFont,
-                    fontSize: isArrived ? 36 : 46,
-                    fontWeight: 800,
                     fontVariantNumeric: 'tabular-nums',
-                    lineHeight: 1.08,
-                    color: isArrived ? '#0F766E' : '#1C1917',
+                    color: '#FFFFFF',
+                    whiteSpace: 'nowrap',
                   }}
                 >
                   {liveStatus.etaLabel}
-                </div>
-                <div
-                  style={{
-                    fontFamily: bodyFont,
-                    fontSize: 19,
-                    fontWeight: 600,
-                    color: isArrived ? '#0F766E' : '#57534E',
-                    lineHeight: 1.32,
-                  }}
-                >
-                  {liveStatus.stageLabel}
-                </div>
+                </span>
               </div>
 
-              {/* Synced 3-Step Route Progress Bar */}
+              {/* Screen Spotlight highlighting active courier mid-ride */}
+              <ScreenSpotlightOverlay
+                x={spotX}
+                y={spotY}
+                width={18}
+                height={24}
+                startFrame={116}
+                endFrame={276}
+                label={copy.spotlightLabel}
+                accentColor="#EA580C"
+                dimOpacity={0.22}
+              />
+            </BrowserFrame>
+
+            {/* Right: Customer Pocket Live Tracker in PhoneFrame */}
+            <PhoneFrame
+              width={356}
+              height={664}
+              theme="light"
+              enterFrame={12}
+              style={{ flexShrink: 0 }}
+            >
               <div
                 style={{
+                  width: '100%',
+                  height: '100%',
+                  backgroundColor: '#FFFDF8',
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: 10,
+                  justifyContent: 'space-between',
+                  padding: '50px 22px 28px 22px',
                   boxSizing: 'border-box',
                 }}
               >
+                {/* Pocket Header */}
                 <div
                   style={{
-                    width: '100%',
-                    height: 12,
-                    borderRadius: 999,
-                    backgroundColor: '#EDE4D5',
-                    overflow: 'hidden',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 4,
                     boxSizing: 'border-box',
                   }}
                 >
                   <div
                     style={{
-                      width: `${Math.max(8, Math.round(routeProgress * 100))}%`,
-                      height: '100%',
-                      borderRadius: 999,
-                      backgroundColor: isArrived ? '#0F766E' : '#EA580C',
-                    }}
-                  />
-                </div>
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    fontFamily: bodyFont,
-                    fontSize: 18,
-                    fontWeight: 600,
-                    color: '#57534E',
-                  }}
-                >
-                  <span style={{ color: '#1C1917' }}>Oven</span>
-                  <span
-                    style={{
-                      color: liveStatus.stepIndex >= 1 ? '#1C1917' : '#94A3B8',
+                      fontFamily: monoFont,
+                      fontSize: 18,
+                      fontWeight: 700,
+                      letterSpacing: '0.07em',
+                      textTransform: 'uppercase',
+                      color: '#EA580C',
                     }}
                   >
-                    Bike
-                  </span>
-                  <span style={{ color: isArrived ? '#0F766E' : '#94A3B8' }}>
-                    Door
-                  </span>
-                </div>
-              </div>
-
-              {/* Mini Order Summary Card */}
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 14,
-                  padding: '12px 14px',
-                  borderRadius: 16,
-                  backgroundColor: '#F8F5EF',
-                  border: '1.5px solid #E7DEC8',
-                  boxSizing: 'border-box',
-                }}
-              >
-                <div
-                  style={{
-                    width: 78,
-                    height: 60,
-                    borderRadius: 12,
-                    overflow: 'hidden',
-                    flexShrink: 0,
-                    boxSizing: 'border-box',
-                  }}
-                >
-                  <Img
-                    src={BAKERY_BOX_SRC}
+                    {copy.phoneHeader}
+                  </div>
+                  <div
                     style={{
-                      width: '100%',
-                      height: '100%',
-                      objectFit: 'cover',
-                      display: 'block',
+                      fontFamily: displayFont,
+                      fontSize: 22,
+                      fontWeight: 800,
+                      color: '#1C1917',
                     }}
-                  />
+                  >
+                    {brandName}
+                  </div>
                 </div>
+
+                {/* Big Synced ETA Display */}
                 <div
                   style={{
+                    padding: '22px 20px',
+                    borderRadius: 20,
+                    backgroundColor: isArrived ? '#ECFDF5' : '#FFF7ED',
+                    border: `2px solid ${isArrived ? '#0F766E' : '#FDBA74'}`,
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: 2,
-                    minWidth: 0,
+                    gap: 8,
+                    boxSizing: 'border-box',
                   }}
                 >
                   <div
                     style={{
                       fontFamily: displayFont,
-                      fontSize: 20,
-                      fontWeight: 700,
-                      color: '#1C1917',
+                      fontSize: isArrived ? 36 : 46,
+                      fontWeight: 800,
+                      fontVariantNumeric: 'tabular-nums',
+                      lineHeight: 1.08,
+                      color: isArrived ? '#0F766E' : '#1C1917',
                     }}
                   >
-                    Morning Box
+                    {liveStatus.etaLabel}
                   </div>
                   <div
                     style={{
                       fontFamily: bodyFont,
+                      fontSize: 19,
+                      fontWeight: 600,
+                      color: isArrived ? '#0F766E' : '#57534E',
+                      lineHeight: 1.32,
+                    }}
+                  >
+                    {liveStatus.stageLabel}
+                  </div>
+                </div>
+
+                {/* Synced 3-Step Route Progress Bar */}
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 10,
+                    boxSizing: 'border-box',
+                  }}
+                >
+                  <div
+                    style={{
+                      width: '100%',
+                      height: 12,
+                      borderRadius: 999,
+                      backgroundColor: '#EDE4D5',
+                      overflow: 'hidden',
+                      boxSizing: 'border-box',
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: `${Math.max(8, Math.round(routeProgress * 100))}%`,
+                        height: '100%',
+                        borderRadius: 999,
+                        backgroundColor: isArrived ? '#0F766E' : '#EA580C',
+                      }}
+                    />
+                  </div>
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      fontFamily: bodyFont,
                       fontSize: 18,
-                      fontWeight: 500,
+                      fontWeight: 600,
                       color: '#57534E',
                     }}
                   >
-                    Warm &amp; sealed
+                    <span style={{ color: '#1C1917' }}>{copy.stepOven}</span>
+                    <span
+                      style={{
+                        color: liveStatus.stepIndex >= 1 ? '#1C1917' : '#94A3B8',
+                      }}
+                    >
+                      {copy.stepBike}
+                    </span>
+                    <span style={{ color: isArrived ? '#0F766E' : '#94A3B8' }}>
+                      {copy.stepDoor}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Mini Order Summary Card */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 14,
+                    padding: '12px 14px',
+                    borderRadius: 16,
+                    backgroundColor: '#F8F5EF',
+                    border: '1.5px solid #E7DEC8',
+                    boxSizing: 'border-box',
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 78,
+                      height: 60,
+                      borderRadius: 12,
+                      overflow: 'hidden',
+                      flexShrink: 0,
+                      boxSizing: 'border-box',
+                    }}
+                  >
+                    <Img
+                      src={BAKERY_BOX_SRC}
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                        display: 'block',
+                      }}
+                    />
+                  </div>
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 2,
+                      minWidth: 0,
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontFamily: displayFont,
+                        fontSize: 20,
+                        fontWeight: 700,
+                        color: '#1C1917',
+                      }}
+                    >
+                      {copy.itemTitle}
+                    </div>
+                    <div
+                      style={{
+                        fontFamily: bodyFont,
+                        fontSize: 18,
+                        fontWeight: 500,
+                        color: '#57534E',
+                      }}
+                    >
+                      {copy.itemSub}
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          </PhoneFrame>
-        </AbsoluteFill>
-      </VectorSceneStage2D>
+            </PhoneFrame>
+          </AbsoluteFill>
+        </VectorSceneStage2D>
 
-      <FloatingEditorialDisplay
-        eyebrow="03  •  LIVE SYNC TRACKER"
-        headline="Two Screens, One Rhythm"
-        subline="The bakery board and your pocket screen stay perfectly in step."
-        align="left"
-        position="top"
-        tone="dark-on-light"
-        headlinePx={46}
-        sublinePx={22}
-        enterFrame={4}
-      />
+        <FloatingEditorialDisplay
+          eyebrow={copy.eyebrow}
+          headline={copy.headline}
+          subline={copy.subline}
+          align="left"
+          position="top"
+          tone="dark-on-light"
+          headlinePx={46}
+          sublinePx={22}
+          enterFrame={4}
+        />
 
-      <PaperRibbonTimeline
-        milestones={milestones}
-        activeId="live-sync-en"
-        position="bottom"
-        enterFrame={6}
-      />
-    </AbsoluteFill>
-  );
-});
-Act3LiveSyncTracker.displayName = 'Act3LiveSyncTracker';
+        <PaperRibbonTimeline
+          milestones={milestones}
+          activeId="live-sync-en"
+          position="bottom"
+          enterFrame={6}
+        />
+      </AbsoluteFill>
+    );
+  });
+  Act3LiveSyncTracker.displayName = 'Act3LiveSyncTracker';
 
-// ============================================================================
-// Act 4 — Warm Morning Finale (`VectorSceneStage2D` + 2x2 Illustrated Editorial Cards)
-// ============================================================================
-const Act4MorningFinale: React.FC<{
-  closingHeadline: string;
-  closingSubline: string;
-  durationInFrames: number;
-  milestones: ReadonlyArray<PaperTimelineMilestone>;
-}> = memo(({ closingHeadline, closingSubline, durationInFrames, milestones }) => {
-  const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
-  useStudioFontsReady();
-  const style = useStudioStyle();
+  // ============================================================================
+  // Act 4 — Warm Morning Finale (`VectorSceneStage2D` + 2x2 Illustrated Editorial Cards)
+  // ============================================================================
+  const Act4MorningFinale: React.FC<{
+    closingHeadline: string;
+    closingSubline: string;
+    durationInFrames: number;
+    milestones: ReadonlyArray<PaperTimelineMilestone>;
+    copy: ReturnType<typeof getProductPromoCopy>['act4'];
+  }> = memo(({ closingHeadline, closingSubline, durationInFrames, milestones, copy }) => {
+    const frame = useCurrentFrame();
+    const { fps } = useVideoConfig();
+    useStudioFontsReady();
+    const style = useStudioStyle();
 
-  const displayFont = useMemo(
-    () => formatFontFamilyCss(style.typography.displayFont, 'display'),
-    [style.typography.displayFont]
-  );
-  const bodyFont = useMemo(
-    () => formatFontFamilyCss(style.typography.bodyFont, 'body'),
-    [style.typography.bodyFont]
-  );
+    const displayFont = useMemo(
+      () => formatFontFamilyCss(style.typography.displayFont, 'display'),
+      [style.typography.displayFont]
+    );
+    const bodyFont = useMemo(
+      () => formatFontFamilyCss(style.typography.bodyFont, 'body'),
+      [style.typography.bodyFont]
+    );
 
-  const effectiveStart = 8;
-  const staggerFrames = 10;
+    const effectiveStart = 8;
+    const staggerFrames = 10;
 
-  return (
-    <AbsoluteFill style={{ boxSizing: 'border-box' }}>
-      <VectorSceneStage2D renderBaseFill={false} seed={5104}>
-        <AbsoluteFill
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '204px 80px 112px 80px',
-            boxSizing: 'border-box',
-          }}
-        >
-          <div
-            data-illustrated-feature-grid-2x2="true"
+    return (
+      <AbsoluteFill style={{ boxSizing: 'border-box' }}>
+        <VectorSceneStage2D renderBaseFill={false} seed={5104}>
+          <AbsoluteFill
             style={{
-              width: '100%',
-              maxWidth: 1560,
-              display: 'grid',
-              gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-              alignItems: 'stretch',
-              gap: 28,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '204px 80px 112px 80px',
               boxSizing: 'border-box',
             }}
           >
-            {DOORSTEP_CARDS_WITH_SRCS.map((card, idx) => {
+            <div
+              data-illustrated-feature-grid-2x2="true"
+              style={{
+                width: '100%',
+                maxWidth: 1560,
+                display: 'grid',
+                gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                alignItems: 'stretch',
+                gap: 28,
+                boxSizing: 'border-box',
+              }}
+            >
+              {copy.cards.map((card, idx) => {
               const cardStart = effectiveStart + idx * staggerFrames;
               const enter =
                 frame < cardStart
@@ -1375,7 +1618,7 @@ const Act4MorningFinale: React.FC<{
       </VectorSceneStage2D>
 
       <FloatingEditorialDisplay
-        eyebrow="04  •  WARM MORNING FINALE"
+        eyebrow={copy.eyebrow}
         headline={closingHeadline}
         subline={closingSubline}
         align="left"
@@ -1401,6 +1644,7 @@ Act4MorningFinale.displayName = 'Act4MorningFinale';
 // Root Orchestrator (`ContinuousSceneFlow` + Audio Bed + Clean Frame 0)
 // ============================================================================
 interface ProductPromoStageInnerProps {
+  lang: ProductPromoLang;
   brandName: string;
   heroTitle: string;
   heroSubtitle: string;
@@ -1413,6 +1657,7 @@ interface ProductPromoStageInnerProps {
 
 const ProductPromoStageInner: React.FC<ProductPromoStageInnerProps> = memo(
   ({
+    lang,
     brandName,
     heroTitle,
     heroSubtitle,
@@ -1424,6 +1669,7 @@ const ProductPromoStageInner: React.FC<ProductPromoStageInnerProps> = memo(
   }) => {
     const outerStyle = useStudioStyle();
     const timing = DEFAULT_PRODUCT_PROMO_TIMING;
+    const copy = useMemo(() => getProductPromoCopy(lang), [lang]);
 
     const scenes = useMemo<ContinuousSceneSpec[]>(() => {
       const s1 = timing.sceneById['tap-en'];
@@ -1442,7 +1688,8 @@ const ProductPromoStageInner: React.FC<ProductPromoStageInnerProps> = memo(
               brandName={brandName}
               heroTitle={heroTitle}
               heroSubtitle={heroSubtitle}
-              milestones={timing.milestones}
+              milestones={copy.milestones}
+              copy={copy.act1}
             />
           ),
         },
@@ -1453,7 +1700,8 @@ const ProductPromoStageInner: React.FC<ProductPromoStageInnerProps> = memo(
           render: () => (
             <Act2FourStepFlow
               durationInFrames={s2.durationInFrames}
-              milestones={timing.milestones}
+              milestones={copy.milestones}
+              copy={copy.act2}
             />
           ),
         },
@@ -1465,7 +1713,8 @@ const ProductPromoStageInner: React.FC<ProductPromoStageInnerProps> = memo(
             <Act3LiveSyncTracker
               brandName={brandName}
               durationInFrames={s3.durationInFrames}
-              milestones={timing.milestones}
+              milestones={copy.milestones}
+              copy={copy.act3}
             />
           ),
         },
@@ -1478,7 +1727,8 @@ const ProductPromoStageInner: React.FC<ProductPromoStageInnerProps> = memo(
               closingHeadline={closingHeadline}
               closingSubline={closingSubline}
               durationInFrames={s4.durationInFrames}
-              milestones={timing.milestones}
+              milestones={copy.milestones}
+              copy={copy.act4}
             />
           ),
         },
@@ -1490,6 +1740,7 @@ const ProductPromoStageInner: React.FC<ProductPromoStageInnerProps> = memo(
       closingHeadline,
       closingSubline,
       timing,
+      copy,
     ]);
 
     return (
@@ -1555,15 +1806,42 @@ export const ProductPromo: React.FC<Partial<ProductPromoProps>> = (
   const merged: ProductPromoProps = {
     ...(productPromoDefaults as ProductPromoProps),
     ...rawProps,
+    lang: rawProps.lang ?? 'en',
   };
+  const copy = getProductPromoCopy(merged.lang);
+  const resolvedBrandName =
+    merged.lang === 'pl' && merged.brandName === productPromoDefaults.brandName
+      ? copy.defaultBrandName
+      : merged.brandName;
+  const resolvedHeroTitle =
+    merged.lang === 'pl' && merged.heroTitle === productPromoDefaults.heroTitle
+      ? copy.defaultHeroTitle
+      : merged.heroTitle;
+  const resolvedHeroSubtitle =
+    merged.lang === 'pl' &&
+    merged.heroSubtitle === productPromoDefaults.heroSubtitle
+      ? copy.defaultHeroSubtitle
+      : merged.heroSubtitle;
+  const resolvedClosingHeadline =
+    merged.lang === 'pl' &&
+    merged.closingHeadline === productPromoDefaults.closingHeadline
+      ? copy.defaultClosingHeadline
+      : merged.closingHeadline;
+  const resolvedClosingSubline =
+    merged.lang === 'pl' &&
+    merged.closingSubline === productPromoDefaults.closingSubline
+      ? copy.defaultClosingSubline
+      : merged.closingSubline;
+
   return (
     <StyleProvider style={merged.styleId} renderBackdrop>
       <ProductPromoStageInner
-        brandName={merged.brandName}
-        heroTitle={merged.heroTitle}
-        heroSubtitle={merged.heroSubtitle}
-        closingHeadline={merged.closingHeadline}
-        closingSubline={merged.closingSubline}
+        lang={merged.lang}
+        brandName={resolvedBrandName}
+        heroTitle={resolvedHeroTitle}
+        heroSubtitle={resolvedHeroSubtitle}
+        closingHeadline={resolvedClosingHeadline}
+        closingSubline={resolvedClosingSubline}
         voiceoverVolume={merged.voiceoverVolume}
         musicVolume={merged.musicVolume}
         sfxVolume={merged.sfxVolume}
