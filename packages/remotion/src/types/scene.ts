@@ -1,11 +1,17 @@
-export type BuiltinVisualKitId =
-  | 'editorial-collage'
-  | 'vector-scene-2d'
-  | 'motion-diagrams-2d'
-  | 'paper-diorama-3d'
-  | 'isometric-3d'
-  | 'kinetic-typography'
-  | 'data-storytelling';
+export const BUILTIN_VISUAL_KIT_IDS = [
+  'editorial-collage',
+  'vector-scene-2d',
+  'motion-diagrams-2d',
+  'kinetic-typography',
+  'data-storytelling',
+  'product-frames',
+  'vfx',
+  'paper-diorama-3d',
+  'isometric-3d',
+  'tactile-3d',
+] as const;
+
+export type BuiltinVisualKitId = (typeof BUILTIN_VISUAL_KIT_IDS)[number];
 
 export type VisualKitId = BuiltinVisualKitId | (string & {});
 

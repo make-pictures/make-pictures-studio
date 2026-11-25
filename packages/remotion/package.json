@@ -8,6 +8,10 @@
     "url": "git+https://github.com/make-pictures/make-pictures-studio.git",
     "directory": "packages/remotion"
   },
+  "bugs": {
+    "url": "https://github.com/make-pictures/make-pictures-studio/issues"
+  },
+  "author": "make.pictures <pawel@make.pictures>",
   "license": "MIT",
   "publishConfig": {
     "access": "public"
@@ -155,5 +159,17 @@
     "@remotion/three": { "optional": true },
     "@remotion/zod-types": { "optional": true },
     "three": { "optional": true }
-  }
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "make-pictures",
+    "remotion",
+    "video-as-code",
+    "motion-graphics",
+    "60fps",
+    "react",
+    "threejs"
+  ]
 }

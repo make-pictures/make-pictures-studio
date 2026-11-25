@@ -39,6 +39,8 @@ npm install three @react-three/fiber @react-three/drei @remotion/three
 | `@make-pictures/remotion/kinematics` | Zero-`three` Disney animation curves (`disneyEase`, `evaluateArc3D`) and 15-axis 3D OBB SAT collision auditing (`obbClearanceSat3D`, `auditSceneCollisions3D`) |
 | `@make-pictures/remotion/director` | `ContinuousSceneFlow`, `SceneSubViewDissolve`, `ClippedSurfaceChrome`, `ScenicBackdropLayers`, `computeSceneTimingFromVoiceover` |
 | `@make-pictures/remotion/optics` | `OpticalStage2D`, `StageLightingRig`, `getTactileSurfaceStyle` |
+| `@make-pictures/remotion/types` | Shared TypeScript types: `BuiltinVisualKitId`, `VisualKitId`, `AudioManifestFile`, `SceneVoiceoverData`, `WordTimestamp`, `CompositionSceneSegment` |
+| `@make-pictures/remotion/utils` | Deterministic PRNG (`createSeededRandom`) and voiceover timestamp/dialogue helpers (`getActiveWordAtFrame`, `getActiveSpeaker`) |
 | `@make-pictures/remotion/style-lab` | Native `<StyleLabComposition />`, `StyleLabSchema`, `DEFAULT_STYLE_LAB_PROPS` for Remotion Studio |
 | `@make-pictures/remotion/elements` | `REMOTION_ELEMENTS_CATALOG` — 7 flagship standalone Remotion Elements |
 | `@make-pictures/remotion/kits/<kit>` | 10 visual kits: `editorial-collage`, `vector-scene-2d`, `motion-diagrams-2d`, `kinetic-typography`, `data-storytelling`, `product-frames`, `vfx`, `paper-diorama-3d`, `isometric-3d`, `tactile-3d` |
