@@ -1,0 +1,348 @@
+import React from 'react';
+import {
+  interpolate,
+  spring,
+  useCurrentFrame,
+  useVideoConfig,
+} from 'remotion';
+import {
+  ClippedSurfaceChrome,
+  SPRING_PRESETS,
+  formatFontFamilyCss,
+  formatHeadingText,
+  getStyleSpringConfig,
+  getTactileSurfaceStyle,
+  resolveStyleOptics,
+  useStudioFontsReady,
+  useStudioStyle,
+  type StyleTypographyGrammar,
+} from "../..";
+
+export interface ImpactKeywordCardProps {
+  /** Primary bold statement (keep concise: 2–4 words per AGENTS.md) */
+  keyword: string;
+  /** Optional small category eyebrow above the keyword */
+  eyebrow?: string;
+  /** Optional concise 2–4 word takeaway sublabel */
+  sublabel?: string;
+  /** Optional technical index / stamp badge (e.g. `"60 FPS"`, `"-14 LUFS"`) */
+  badge?: string;
+  /** Optional custom typographic mark; defaults to `null` (no generic icon square) */
+  icon?: React.ReactNode;
+  /** Typographic grammar override (defaults to `studioStyle.optics.typographyGrammar`) */
+  grammar?: StyleTypographyGrammar;
+  /** Accent color (defaults to `studioStyle.palette.accentPrimary`) */
+  accentColor?: string;
+  /** Optional explicit surface mode override (`'dark'` | `'light'`); inherits active `StylePreset` when omitted */
+  variant?: 'dark' | 'light';
+  /** Entrance frame (default `2`, obeying Frame 0 clean board rule) */
+  enterFrame?: number;
+  /** Alias for `enterFrame` */
+  startFrame?: number;
+  /** Optional exit frame for smooth spring dismissal */
+  exitFrame?: number;
+  /** Constrain max width cleanly inside `9:16 Golden Safe Box` when vertical (default `true`) */
+  safeBox9x16?: boolean;
+  style?: React.CSSProperties;
+}
+
+/**
+ * Polymorphic 60 FPS Typographic Statement Card (`swiss-spatial`, `optical-gate`, `risograph-poster`).
+ */
+export const ImpactKeywordCard: React.FC<ImpactKeywordCardProps> = ({
+  keyword,
+  eyebrow,
+  sublabel,
+  badge,
+  icon = null,
+  grammar,
+  accentColor,
+  variant,
+  enterFrame,
+  startFrame,
+  exitFrame,
+  safeBox9x16 = true,
+  style,
+}) => {
+  const frame = useCurrentFrame();
+  const { fps, width, height } = useVideoConfig();
+  useStudioFontsReady();
+  const studioStyle = useStudioStyle();
+  const optics = resolveStyleOptics(studioStyle);
+  const resolvedGrammar = grammar ?? optics.typographyGrammar;
+
+  const resolvedAccent = accentColor ?? studioStyle.palette.accentPrimary;
+  const displayFontCss = formatFontFamilyCss(
+    studioStyle.typography.displayFont,
+    'display'
+  );
+  const bodyFontCss = formatFontFamilyCss(
+    studioStyle.typography.bodyFont,
+    'body'
+  );
+  const monoFontCss = formatFontFamilyCss(
+    studioStyle.typography.monoFont,
+    'mono'
+  );
+
+  const effectiveStart = Math.max(2, startFrame ?? enterFrame ?? 2);
+  if (frame < effectiveStart) {
+    return null;
+  }
+
+  const enter = spring({
+    frame: frame - effectiveStart,
+    fps,
+    config: getStyleSpringConfig(studioStyle, 'enter'),
+  });
+
+  const exit =
+    typeof exitFrame === 'number' && frame >= exitFrame
+      ? spring({
+          frame: frame - exitFrame,
+          fps,
+          config: SPRING_PRESETS.smooth,
+        })
+      : 0;
+
+  const visibility = Math.max(0, enter * (1 - exit));
+  if (visibility <= 0.005) {
+    return null;
+  }
+
+  const isVertical = height > width;
+  const hasExplicitVariant = variant !== undefined;
+  const isLight = variant === 'light';
+  const effectiveIsDark = hasExplicitVariant
+    ? !isLight
+    : studioStyle.surface.isDark;
+
+  const translateY = interpolate(enter, [0, 1], [22, 0]) - exit * 16;
+  const scale = interpolate(visibility, [0, 1], [0.96, 1]);
+  const accentRuleScale = spring({
+    frame: frame - effectiveStart - 3,
+    fps,
+    config: SPRING_PRESETS.smooth,
+  });
+
+  const textPrimary = hasExplicitVariant
+    ? isLight
+      ? '#0F172A'
+      : '#F8FAFC'
+    : studioStyle.palette.textPrimary;
+
+  const textSecondary = hasExplicitVariant
+    ? isLight
+      ? '#475569'
+      : '#94A3B8'
+    : studioStyle.palette.textSecondary;
+
+  const displayedKeyword = hasExplicitVariant
+    ? keyword
+    : formatHeadingText(keyword, studioStyle);
+
+  const baseSurface = hasExplicitVariant
+    ? {
+        backgroundColor: isLight
+          ? 'rgba(255, 255, 255, 0.88)'
+          : 'rgba(13, 15, 26, 0.9)',
+        border: isLight
+          ? '1.5px solid rgba(203, 213, 225, 0.55)'
+          : `1.5px solid ${resolvedAccent}55`,
+        boxShadow: isLight
+          ? '0 32px 64px -12px rgba(37, 99, 235, 0.16), 0 12px 28px -8px rgba(15, 23, 42, 0.08)'
+          : `0 0 20px ${resolvedAccent}44, 0 0 48px ${resolvedAccent}26, 0 20px 50px rgba(0, 0, 0, 0.75)`,
+      }
+    : getTactileSurfaceStyle(studioStyle, {
+        elevation: 'lifted',
+        tiltDeg: resolvedGrammar === 'risograph-poster' ? -0.7 : 0,
+      });
+
+  const cornerRadius =
+    resolvedGrammar === 'risograph-poster'
+      ? 0
+      : resolvedGrammar === 'optical-gate'
+        ? Math.max(0, Math.round(4 * studioStyle.surface.radiusScale))
+        : Math.max(0, Math.round(8 * studioStyle.surface.radiusScale));
+
+  return (
+    <div
+      data-card-grammar={resolvedGrammar}
+      style={{
+        position: 'relative',
+        display: 'inline-flex',
+        flexDirection: 'column',
+        gap: 12,
+        maxWidth: isVertical && safeBox9x16 ? 820 : 1080,
+        padding: isVertical ? '28px 34px' : '34px 44px',
+        boxSizing: 'border-box',
+        ...baseSurface,
+        borderRadius: cornerRadius,
+        ...(resolvedGrammar === 'risograph-poster'
+          ? {
+              border: `2.5px solid ${studioStyle.palette.inkBorder}`,
+              boxShadow: `6px 6px 0px ${studioStyle.palette.accentSecondary}`,
+            }
+          : {}),
+        opacity: visibility,
+        transform: `translate3d(0, ${translateY.toFixed(2)}px, 0) scale(${scale.toFixed(4)})${
+          resolvedGrammar === 'risograph-poster' ? ' rotate(-0.7deg)' : ''
+        }`,
+        ...style,
+      }}
+    >
+      <ClippedSurfaceChrome
+        topBarHeight={resolvedGrammar === 'risograph-poster' ? 6 : 3}
+        topBarColor={resolvedAccent}
+        specularRim={!effectiveIsDark}
+        tintGradient={
+          effectiveIsDark
+            ? 'linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, transparent 48%)'
+            : 'linear-gradient(180deg, rgba(255, 255, 255, 0.65) 0%, rgba(255, 255, 255, 0) 50%)'
+        }
+      />
+
+      {/* Top Swiss Register Rule */}
+      {resolvedGrammar === 'swiss-spatial' && (
+        <div
+          style={{
+            position: 'relative',
+            zIndex: 1,
+            width: '100%',
+            height: 2,
+            backgroundColor: studioStyle.palette.inkBorder,
+            marginBottom: 4,
+          }}
+        >
+          <div
+            style={{
+              width: `${Math.round(accentRuleScale * 38)}%`,
+              height: 3,
+              marginTop: -0.5,
+              backgroundColor: resolvedAccent,
+            }}
+          />
+        </div>
+      )}
+
+      {resolvedGrammar === 'optical-gate' && (
+        <div
+          style={{
+            position: 'relative',
+            zIndex: 1,
+            display: 'flex',
+            justifyContent: 'space-between',
+            fontFamily: monoFontCss,
+            fontSize: 18,
+            color: resolvedAccent,
+            opacity: 0.78,
+          }}
+        >
+          <span>+</span>
+          <span>+</span>
+        </div>
+      )}
+
+      {(eyebrow || badge || icon) && (
+        <div
+          style={{
+            position: 'relative',
+            zIndex: 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 16,
+            flexWrap: 'wrap',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {icon ? (
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  color: resolvedAccent,
+                }}
+              >
+                {icon}
+              </span>
+            ) : null}
+            {eyebrow ? (
+              <span
+                style={{
+                  fontFamily: monoFontCss,
+                  fontSize: 18,
+                  fontWeight: 700,
+                  letterSpacing: '0.1em',
+                  textTransform: 'uppercase',
+                  color: textSecondary,
+                }}
+              >
+                {eyebrow}
+              </span>
+            ) : null}
+          </div>
+
+          {badge ? (
+            <span
+              style={{
+                fontFamily: monoFontCss,
+                fontSize: 18,
+                fontWeight: 700,
+                letterSpacing: '0.08em',
+                padding: '3px 10px',
+                borderRadius: 0,
+                color:
+                  resolvedGrammar === 'risograph-poster'
+                    ? '#FFFFFF'
+                    : resolvedAccent,
+                backgroundColor:
+                  resolvedGrammar === 'risograph-poster'
+                    ? resolvedAccent
+                    : 'transparent',
+                border: `1.5px solid ${resolvedAccent}`,
+              }}
+            >
+              {badge}
+            </span>
+          ) : null}
+        </div>
+      )}
+
+      <div
+        style={{
+          position: 'relative',
+          zIndex: 1,
+          fontFamily: displayFontCss,
+          fontSize: isVertical ? 46 : 54,
+          fontWeight: 800,
+          lineHeight: 1.08,
+          letterSpacing: `${studioStyle.typography.displayTrackingEm}em`,
+          color: textPrimary,
+          textShadow:
+            resolvedGrammar === 'optical-gate' && optics.halation > 0.1
+              ? `0 0 ${Math.round(16 + optics.halation * 24)}px ${resolvedAccent}55`
+              : 'none',
+        }}
+      >
+        {displayedKeyword}
+      </div>
+
+      {sublabel ? (
+        <div
+          style={{
+            position: 'relative',
+            zIndex: 1,
+            fontFamily: bodyFontCss,
+            fontSize: isVertical ? 20 : 22,
+            fontWeight: 500,
+            lineHeight: 1.38,
+            color: textSecondary,
+          }}
+        >
+          {sublabel}
+        </div>
+      ) : null}
+    </div>
+  );
+};

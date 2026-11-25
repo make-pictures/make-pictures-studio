@@ -6,16 +6,16 @@ import { fileURLToPath } from 'node:url';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { Thumbnail } from '@remotion/player';
-import { StyleProvider } from '../../core/src/index';
+import { StyleProvider } from '../../remotion/src/index';
 import { scanTsxForSmallFontSizes } from '../src/director/audit-direction';
-import * as editorialCollage from '../../kits/src/editorial-collage';
-import * as kitsRoot from '../../kits/src/index';
+import * as editorialCollage from '../../remotion/src/kits/editorial-collage';
+import * as kitsRoot from '../../remotion/src/kits/index';
 import {
   PaperRibbonTimeline,
   resolveActivePaperMilestoneId,
   type PaperTimelineMilestone,
-} from '../../kits/src/editorial-collage/PaperRibbonTimeline';
-import { FloatingEditorialDisplay } from '../../kits/src/editorial-collage/FloatingEditorialDisplay';
+} from '../../remotion/src/kits/editorial-collage/PaperRibbonTimeline';
+import { FloatingEditorialDisplay } from '../../remotion/src/kits/editorial-collage/FloatingEditorialDisplay';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -85,11 +85,11 @@ test('PaperRibbonTimeline, resolveActivePaperMilestoneId, and FloatingEditorialD
 test('PaperRibbonTimeline.tsx and FloatingEditorialDisplay.tsx pass typography floor (>= 18px & >= 19px), Clean Frame 0, border-box, zero Math.random(), and frameless invariants', () => {
   const ribbonPath = path.resolve(
     __dirname,
-    '../../kits/src/editorial-collage/PaperRibbonTimeline.tsx'
+    '../../remotion/src/kits/editorial-collage/PaperRibbonTimeline.tsx'
   );
   const displayPath = path.resolve(
     __dirname,
-    '../../kits/src/editorial-collage/FloatingEditorialDisplay.tsx'
+    '../../remotion/src/kits/editorial-collage/FloatingEditorialDisplay.tsx'
   );
 
   const ribbonSrc = fs.readFileSync(ribbonPath, 'utf8');

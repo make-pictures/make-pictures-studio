@@ -14,10 +14,8 @@
     "lib": ["DOM", "DOM.Iterable", "ES2022"],
     "baseUrl": ".",
     "paths": {
-      "@make-pictures/core": ["packages/core/src/index.ts"],
-      "@make-pictures/core/*": ["packages/core/src/*"],
-      "@make-pictures/kits": ["packages/kits/src/index.ts"],
-      "@make-pictures/kits/*": ["packages/kits/src/*"]
+      "@make-pictures/remotion": ["packages/remotion/src/index.ts"],
+      "@make-pictures/remotion/*": ["packages/remotion/src/*"]
     }
   },
   "include": [

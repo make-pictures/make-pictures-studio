@@ -18,8 +18,8 @@ import {
   computePlaneAtmosphericOpacity,
   evaluateOpticalCamera2D,
   getTactileSurfaceStyle,
-} from '../../core/src/index';
-import * as vfxExports from '../../kits/src/vfx/index';
+} from '../../remotion/src/index';
+import * as vfxExports from '../../remotion/src/kits/vfx/index';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -200,8 +200,8 @@ test('StageLightingRig, OpticalStage2D, and DepthPlane obey Clean Frame 0 and fi
     assert.match(frame36Html, /filter:none/);
   }
 
-  // Source audit: zero Math.random() and zero Three.js imports in packages/core/src/optics/
-  const opticsDir = path.resolve(__dirname, '../../core/src/optics');
+  // Source audit: zero Math.random() and zero Three.js imports in packages/remotion/src/optics/
+  const opticsDir = path.resolve(__dirname, '../../remotion/src/optics');
   for (const entry of fs.readdirSync(opticsDir)) {
     if (!entry.endsWith('.ts') && !entry.endsWith('.tsx')) continue;
     const src = fs.readFileSync(path.join(opticsDir, entry), 'utf8');

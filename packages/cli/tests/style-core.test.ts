@@ -34,7 +34,7 @@ import {
   resolveStyleOptics,
   resolveStyleSpaces,
   useStudioStyle,
-} from '../../core/src/index';
+} from '../../remotion/src/index';
 
 test('all 10 BUILT_IN_STYLES validate against StylePresetSchema and cover 2d, 2.5d, and 3d spaces', () => {
   assert.deepEqual(DIMENSIONAL_SPACES, ['2d', '2.5d', '3d']);

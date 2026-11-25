@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { Thumbnail } from '@remotion/player';
-import { BUILT_IN_STYLE_IDS, BUILT_IN_STYLES, StyleProvider } from '../../core/src/index';
+import { BUILT_IN_STYLE_IDS, BUILT_IN_STYLES, StyleProvider } from '../../remotion/src/index';
 import {
   AnimatedBarRace,
   DataStoryStage2D,
@@ -14,26 +14,26 @@ import {
   TimelineTrack,
   getSmoothedRanks,
   resolveTonalBarFill,
-} from '../../kits/src/data-storytelling';
-import * as kitsRoot from '../../kits/src/index';
+} from '../../remotion/src/kits/data-storytelling';
+import * as kitsRoot from '../../remotion/src/kits/index';
 import {
   DioramaStage3D,
   PaperCloudCutout3D,
   PaperMountainBackdrop3D,
   PaperPineTree3D,
-} from '../../kits/src/paper-diorama-3d';
+} from '../../remotion/src/kits/paper-diorama-3d';
 import {
   IsometricStage3D,
   IsometricStudioEnvironment,
-} from '../../kits/src/isometric-3d';
+} from '../../remotion/src/kits/isometric-3d';
 import {
   AnimatedMetricCounter,
   ImpactKeywordCard,
   WordByWordStage,
   formatTabularMetric,
   groupWordsIntoBeats,
-} from '../../kits/src/kinetic-typography';
-import { WorldBox } from '../../kits/src/motion-diagrams-2d/NodeBox';
+} from '../../remotion/src/kits/kinetic-typography';
+import { WorldBox } from '../../remotion/src/kits/motion-diagrams-2d/NodeBox';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -48,13 +48,13 @@ test('DioramaStage3D and IsometricStage3D are exported as neutral 3D stage compo
 
 test('Everest and demo-specific 3D props are marked @deprecated in JSDoc', () => {
   const popUpSrc = fs.readFileSync(
-    path.resolve(__dirname, '../../kits/src/paper-diorama-3d/PaperPopUpBook3D.tsx'),
+    path.resolve(__dirname, '../../remotion/src/kits/paper-diorama-3d/PaperPopUpBook3D.tsx'),
     'utf8'
   );
   const isoSrc = fs.readFileSync(
     path.resolve(
       __dirname,
-      '../../kits/src/isometric-3d/IsometricStudioEnvironment.tsx'
+      '../../remotion/src/kits/isometric-3d/IsometricStudioEnvironment.tsx'
     ),
     'utf8'
   );
@@ -83,7 +83,7 @@ test('all 13 2D kit components wire useStudioStyle() for theme-aware defaults an
 
   for (const rel of kitFiles) {
     const src = fs.readFileSync(
-      path.resolve(__dirname, '../../kits/src', rel),
+      path.resolve(__dirname, '../../remotion/src/kits', rel),
       'utf8'
     );
     assert.match(
@@ -103,7 +103,7 @@ test('all 13 2D kit components wire useStudioStyle() for theme-aware defaults an
     'isometric-3d/IsometricStage3D.tsx',
   ]) {
     const src = fs.readFileSync(
-      path.resolve(__dirname, '../../kits/src', stageRel),
+      path.resolve(__dirname, '../../remotion/src/kits', stageRel),
       'utf8'
     );
     assert.doesNotMatch(src, /Math\.random\s*\(/);
@@ -328,19 +328,19 @@ test('DataStoryStage2D, tonal AnimatedBarRace, vernier rack-focus TimelineTrack,
   assert.equal(kitsRoot.resolveTonalBarFill, resolveTonalBarFill);
 
   const stageSrc = fs.readFileSync(
-    path.resolve(__dirname, '../../kits/src/data-storytelling/DataStoryStage2D.tsx'),
+    path.resolve(__dirname, '../../remotion/src/kits/data-storytelling/DataStoryStage2D.tsx'),
     'utf8'
   );
   const barSrc = fs.readFileSync(
-    path.resolve(__dirname, '../../kits/src/data-storytelling/AnimatedBarRace.tsx'),
+    path.resolve(__dirname, '../../remotion/src/kits/data-storytelling/AnimatedBarRace.tsx'),
     'utf8'
   );
   const timelineSrc = fs.readFileSync(
-    path.resolve(__dirname, '../../kits/src/data-storytelling/TimelineTrack.tsx'),
+    path.resolve(__dirname, '../../remotion/src/kits/data-storytelling/TimelineTrack.tsx'),
     'utf8'
   );
   const metricSrc = fs.readFileSync(
-    path.resolve(__dirname, '../../kits/src/data-storytelling/MetricComparisonCard.tsx'),
+    path.resolve(__dirname, '../../remotion/src/kits/data-storytelling/MetricComparisonCard.tsx'),
     'utf8'
   );
 

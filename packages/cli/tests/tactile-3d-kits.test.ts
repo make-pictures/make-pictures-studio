@@ -4,61 +4,61 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as THREE from 'three';
-import { evaluateCameraKeyframes3D } from '../../core/src/camera';
+import { evaluateCameraKeyframes3D } from '../../remotion/src/camera';
 import {
   computeOrientedBoxAabb3D,
   obbClearanceSat3D,
   type EulerOrder3D,
-} from '../../core/src/kinematics';
-import * as tactile3d from '../../kits/src/tactile-3d';
-import * as kitsRoot from '../../kits/src';
+} from '../../remotion/src/kinematics';
+import * as tactile3d from '../../remotion/src/kits/tactile-3d';
+import * as kitsRoot from '../../remotion/src/kits';
 import {
   buildSheetGeometry,
   computeGridAtlasUvRect,
-} from '../../kits/src/tactile-3d/sheetGeometry';
+} from '../../remotion/src/kits/tactile-3d/sheetGeometry';
 import {
   attachSheetBendShader,
   createBentSheetDepthMaterial,
   createSheetBendUniforms,
   updateSheetBendUniforms,
-} from '../../kits/src/tactile-3d/sheetBendShader';
+} from '../../remotion/src/kits/tactile-3d/sheetBendShader';
 import {
   getCachedTexture3D,
   loadCachedTexture3D,
   makeTextureCacheKey3D,
   pruneTextureCache3D,
   scheduleCoalescedThreeAdvance,
-} from '../../kits/src/tactile-3d/textureLoader3D';
+} from '../../remotion/src/kits/tactile-3d/textureLoader3D';
 import {
   DeformableSheet3D,
   resolveDeformableSheetMaterialConfig,
   syncDeformableSheetMaterials,
-} from '../../kits/src/tactile-3d/DeformableSheet3D';
+} from '../../remotion/src/kits/tactile-3d/DeformableSheet3D';
 import {
   disposeProceduralPbrMaps,
   getProceduralPbrMaps,
   type ProceduralPbrMaterialKind,
-} from '../../kits/src/tactile-3d/proceduralPbrMaps';
+} from '../../remotion/src/kits/tactile-3d/proceduralPbrMaps';
 import {
   resolveSheetFinishProfile,
   SHEET_MATERIAL_FINISHES,
   type SheetMaterialFinish,
-} from '../../kits/src/tactile-3d/materialFinishes';
+} from '../../remotion/src/kits/tactile-3d/materialFinishes';
 import {
   DaylightArcRig3D,
   evaluateTimeOfDayLighting,
-} from '../../kits/src/tactile-3d/DaylightArcRig3D';
+} from '../../remotion/src/kits/tactile-3d/DaylightArcRig3D';
 import {
   SCREEN_GLASS_SHADOW_OFFSET_Z,
   computeScreenGlassTransform,
   getGlassContactShadowTexture,
   ScreenGlassLayer3D,
   ScreenGlassSlot,
-} from '../../kits/src/tactile-3d/ScreenGlassLayer3D';
+} from '../../remotion/src/kits/tactile-3d/ScreenGlassLayer3D';
 import {
   buildSyncIblEnvironmentScene,
   SyncStudioIbl3D,
-} from '../../kits/src/tactile-3d/SyncStudioIbl3D';
+} from '../../remotion/src/kits/tactile-3d/SyncStudioIbl3D';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -260,7 +260,7 @@ test('textureLoader3D cache lookup, prune, and coalesced advance behave determin
 test('DeformableSheet3D exports component and obeys disposal & determinism invariants', () => {
   assert.equal(typeof DeformableSheet3D, 'function');
   const src = fs.readFileSync(
-    path.resolve(__dirname, '../../kits/src/tactile-3d/DeformableSheet3D.tsx'),
+    path.resolve(__dirname, '../../remotion/src/kits/tactile-3d/DeformableSheet3D.tsx'),
     'utf8'
   );
   assert.doesNotMatch(src, /Math\.random\s*\(/);
@@ -355,7 +355,7 @@ test('SyncStudioIbl3D uses synchronous PMREMGenerator with zero remote HDR URLs 
   assert.equal(kitsRoot.ScreenGlassLayer3D, tactile3d.ScreenGlassLayer3D);
 
   const iblSrc = fs.readFileSync(
-    path.resolve(__dirname, '../../kits/src/tactile-3d/SyncStudioIbl3D.tsx'),
+    path.resolve(__dirname, '../../remotion/src/kits/tactile-3d/SyncStudioIbl3D.tsx'),
     'utf8'
   );
   assert.match(iblSrc, /PMREMGenerator/);
@@ -367,7 +367,7 @@ test('SyncStudioIbl3D uses synchronous PMREMGenerator with zero remote HDR URLs 
 });
 
 test('tactile-3d module maintains domain-agnostic naming and zero Math.random across all source files', () => {
-  const dir = path.resolve(__dirname, '../../kits/src/tactile-3d');
+  const dir = path.resolve(__dirname, '../../remotion/src/kits/tactile-3d');
   const files = fs.readdirSync(dir).filter((f) => f.endsWith('.ts') || f.endsWith('.tsx'));
   assert.ok(files.length >= 10);
   for (const file of files) {
@@ -579,7 +579,7 @@ test('DeformableSheet3D finish presets, explicit-prop precedence, and shared tex
 
   // Source-level VRAM hygiene: never dispose shared cached procedural textures on sheet unmount
   const sheetSrc = fs.readFileSync(
-    path.resolve(__dirname, '../../kits/src/tactile-3d/DeformableSheet3D.tsx'),
+    path.resolve(__dirname, '../../remotion/src/kits/tactile-3d/DeformableSheet3D.tsx'),
     'utf8'
   );
   assert.match(sheetSrc, /finish\?:\s*SheetMaterialFinish/);
@@ -657,7 +657,7 @@ test('DaylightArcRig3D and new tactile-3d exports obey Clean Frame 0, SyncStudio
   assert.equal(kitsRoot.resolveSheetFinishProfile, resolveSheetFinishProfile);
 
   const rigSrc = fs.readFileSync(
-    path.resolve(__dirname, '../../kits/src/tactile-3d/DaylightArcRig3D.tsx'),
+    path.resolve(__dirname, '../../remotion/src/kits/tactile-3d/DaylightArcRig3D.tsx'),
     'utf8'
   );
   assert.match(rigSrc, /<SyncStudioIbl3D\b/);
@@ -743,19 +743,19 @@ test('collision3d Euler basis matches THREE.Euler exact parity across XYZ, YXZ, 
 
 test('3D light rigs, ScreenGlassLayer3D, and SyncStudioIbl3D enforce zero per-frame light/geometry churn and clean GPU disposal', () => {
   const daylightSrc = fs.readFileSync(
-    path.resolve(__dirname, '../../kits/src/tactile-3d/DaylightArcRig3D.tsx'),
+    path.resolve(__dirname, '../../remotion/src/kits/tactile-3d/DaylightArcRig3D.tsx'),
     'utf8'
   );
   const studioHdrSrc = fs.readFileSync(
-    path.resolve(__dirname, '../../kits/src/isometric-3d/StudioHdrRig3D.tsx'),
+    path.resolve(__dirname, '../../remotion/src/kits/isometric-3d/StudioHdrRig3D.tsx'),
     'utf8'
   );
   const glassSrc = fs.readFileSync(
-    path.resolve(__dirname, '../../kits/src/tactile-3d/ScreenGlassLayer3D.tsx'),
+    path.resolve(__dirname, '../../remotion/src/kits/tactile-3d/ScreenGlassLayer3D.tsx'),
     'utf8'
   );
   const iblSrc = fs.readFileSync(
-    path.resolve(__dirname, '../../kits/src/tactile-3d/SyncStudioIbl3D.tsx'),
+    path.resolve(__dirname, '../../remotion/src/kits/tactile-3d/SyncStudioIbl3D.tsx'),
     'utf8'
   );
 
@@ -892,7 +892,7 @@ test('textureLoader3D recovers from synchronous loader.load throws without poiso
 
   // Source-level invariants: idempotent release in finally & cleanup, .catch(), advanceRef, texturesByKey
   const loaderSrc = fs.readFileSync(
-    path.resolve(__dirname, '../../kits/src/tactile-3d/textureLoader3D.ts'),
+    path.resolve(__dirname, '../../remotion/src/kits/tactile-3d/textureLoader3D.ts'),
     'utf8'
   );
   assert.match(loaderSrc, /let\s+released\s*=\s*false/);
@@ -903,7 +903,7 @@ test('textureLoader3D recovers from synchronous loader.load throws without poiso
 
 test('proceduralPbrMaps uses exact periodic integer harmonics across all materials for seamless RepeatWrapping', () => {
   const pbrSrc = fs.readFileSync(
-    path.resolve(__dirname, '../../kits/src/tactile-3d/proceduralPbrMaps.ts'),
+    path.resolve(__dirname, '../../remotion/src/kits/tactile-3d/proceduralPbrMaps.ts'),
     'utf8'
   );
   // None of the legacy non-periodic magic frequencies remain
@@ -1067,7 +1067,7 @@ test('DeformableSheet3D mutates scalar material props in place without rebuildin
 
   // Verify materialBundle useMemo dependency list excludes per-frame scalar props
   const sheetSrc = fs.readFileSync(
-    path.resolve(__dirname, '../../kits/src/tactile-3d/DeformableSheet3D.tsx'),
+    path.resolve(__dirname, '../../remotion/src/kits/tactile-3d/DeformableSheet3D.tsx'),
     'utf8'
   );
   const memoBlock = sheetSrc.match(

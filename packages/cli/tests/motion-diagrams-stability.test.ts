@@ -3,15 +3,15 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { evaluateDirectorCamera2D } from '../../core/src/camera/DirectorCamera2D';
+import { evaluateDirectorCamera2D } from '../../remotion/src/camera/DirectorCamera2D';
 import {
   buildElasticCordPath,
   computeLiveNodePort,
-} from '../../kits/src/motion-diagrams-2d/bezierGeometry';
+} from '../../remotion/src/kits/motion-diagrams-2d/bezierGeometry';
 import {
   buildElasticCordPath as kitsBuildElasticCordPath,
   computeLiveNodePort as kitsComputeLiveNodePort,
-} from '../../kits/src/index';
+} from '../../remotion/src/kits/index';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../../..');
@@ -171,11 +171,11 @@ test('buildElasticCordPath locks endpoints 1:1, tautens under stretch, and bows 
 
 test('DirectorCamera2D, SystemNode, DataFlowEdge, CodePayloadToast, and RetroPcWindowStage2D avoid persistent translate3d/willChange on settled transforms', () => {
   const checkedFiles = [
-    'packages/core/src/camera/DirectorCamera2D.tsx',
-    'packages/kits/src/motion-diagrams-2d/SystemNode.tsx',
-    'packages/kits/src/motion-diagrams-2d/DataFlowEdge.tsx',
-    'packages/kits/src/motion-diagrams-2d/CodePayloadToast.tsx',
-    'packages/kits/src/motion-diagrams-2d/RetroPcWindowStage2D.tsx',
+    'packages/remotion/src/camera/DirectorCamera2D.tsx',
+    'packages/remotion/src/kits/motion-diagrams-2d/SystemNode.tsx',
+    'packages/remotion/src/kits/motion-diagrams-2d/DataFlowEdge.tsx',
+    'packages/remotion/src/kits/motion-diagrams-2d/CodePayloadToast.tsx',
+    'packages/remotion/src/kits/motion-diagrams-2d/RetroPcWindowStage2D.tsx',
   ];
 
   for (const rel of checkedFiles) {
@@ -187,14 +187,14 @@ test('DirectorCamera2D, SystemNode, DataFlowEdge, CodePayloadToast, and RetroPcW
   }
 
   const camSrc = fs.readFileSync(
-    path.join(repoRoot, 'packages/core/src/camera/DirectorCamera2D.tsx'),
+    path.join(repoRoot, 'packages/remotion/src/camera/DirectorCamera2D.tsx'),
     'utf8'
   );
   assert.match(camSrc, /isUnitZoomCamera && isCameraSettled/);
   assert.match(camSrc, /isIdentityCamera \|\| isCameraSettled/);
 
   const sysNodeSrc = fs.readFileSync(
-    path.join(repoRoot, 'packages/kits/src/motion-diagrams-2d/SystemNode.tsx'),
+    path.join(repoRoot, 'packages/remotion/src/kits/motion-diagrams-2d/SystemNode.tsx'),
     'utf8'
   );
   assert.match(sysNodeSrc, /isTransformSettled\s*\?\s*'none'/);
@@ -206,13 +206,13 @@ test('DirectorCamera2D, SystemNode, DataFlowEdge, CodePayloadToast, and RetroPcW
   );
 
   const toastSrc = fs.readFileSync(
-    path.join(repoRoot, 'packages/kits/src/motion-diagrams-2d/CodePayloadToast.tsx'),
+    path.join(repoRoot, 'packages/remotion/src/kits/motion-diagrams-2d/CodePayloadToast.tsx'),
     'utf8'
   );
   assert.match(toastSrc, />=\s*0\.998\s*\?\s*1/);
 
   const edgeSrc = fs.readFileSync(
-    path.join(repoRoot, 'packages/kits/src/motion-diagrams-2d/DataFlowEdge.tsx'),
+    path.join(repoRoot, 'packages/remotion/src/kits/motion-diagrams-2d/DataFlowEdge.tsx'),
     'utf8'
   );
   assert.match(edgeSrc, /left:\s*Math\.round\(labelAnchor\.x \+ resolvedLabelOffsetX\)/);

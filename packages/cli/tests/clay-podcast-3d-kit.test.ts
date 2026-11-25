@@ -9,12 +9,12 @@ import { Thumbnail } from '@remotion/player';
 import {
   BUILT_IN_STYLES,
   StyleProvider,
-  evaluateDirectorCamera3D,
   resolveStyleMaterial3D,
   type StyleMaterial3DFinish,
   type StyleStudioHdrPreset,
-} from '../../core/src/index';
-import * as kitsRoot from '../../kits/src/index';
+} from '../../remotion/src/index';
+import { evaluateDirectorCamera3D } from '../../remotion/src/camera';
+import * as kitsRoot from '../../remotion/src/kits/index';
 import {
   ClayCharacter3D,
   PodcastStudioSet3D,
@@ -23,7 +23,7 @@ import {
   computePodcastStudioLayout,
   resolvePhysicalFinishProps,
   resolveStudioHdrRigSpec,
-} from '../../kits/src/isometric-3d';
+} from '../../remotion/src/kits/isometric-3d';
 import { projectPoint } from './_helpers/camera-projection';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -170,17 +170,17 @@ test('resolveStudioHdrRigSpec configures rich offline Lightformer panels for war
 
 test('StudioHdrRig3D, ClayCharacter3D, and PodcastStudioSet3D obey offline IBL, Clean Frame 0, RoundedBox, and determinism rules', () => {
   const hdrSrc = fs.readFileSync(
-    path.resolve(__dirname, '../../kits/src/isometric-3d/StudioHdrRig3D.tsx'),
+    path.resolve(__dirname, '../../remotion/src/kits/isometric-3d/StudioHdrRig3D.tsx'),
     'utf8'
   );
   const claySrc = fs.readFileSync(
-    path.resolve(__dirname, '../../kits/src/isometric-3d/ClayCharacter3D.tsx'),
+    path.resolve(__dirname, '../../remotion/src/kits/isometric-3d/ClayCharacter3D.tsx'),
     'utf8'
   );
   const studioSrc = fs.readFileSync(
     path.resolve(
       __dirname,
-      '../../kits/src/isometric-3d/PodcastStudioSet3D.tsx'
+      '../../remotion/src/kits/isometric-3d/PodcastStudioSet3D.tsx'
     ),
     'utf8'
   );

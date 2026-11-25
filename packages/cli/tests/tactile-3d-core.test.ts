@@ -19,14 +19,14 @@ import {
   evaluateSecondaryCascade,
   obbClearanceSat3D,
   obbIntersectsSat3D,
-} from '../../core/src/kinematics';
+} from '../../remotion/src/kinematics';
 import {
   computeCameraBasis3D,
   evaluateCameraKeyframes3D,
   projectScreenGlassPose,
   computeGlassLightingBlend,
   evaluateDirectorCamera3D,
-} from '../../core/src/camera';
+} from '../../remotion/src/camera';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -246,12 +246,12 @@ test('evaluateDirectorCamera3D supports macro shot and returns orthonormal forwa
 
 test('core kinematics and camera modules remain deterministic with zero three runtime imports', () => {
   const filesToAudit = [
-    path.resolve(__dirname, '../../core/src/kinematics/disney.ts'),
-    path.resolve(__dirname, '../../core/src/kinematics/collision3d.ts'),
-    path.resolve(__dirname, '../../core/src/kinematics/index.ts'),
-    path.resolve(__dirname, '../../core/src/camera/cameraBasis3D.ts'),
-    path.resolve(__dirname, '../../core/src/camera/shotTypes.ts'),
-    path.resolve(__dirname, '../../core/src/camera/DirectorCamera3D.tsx'),
+    path.resolve(__dirname, '../../remotion/src/kinematics/disney.ts'),
+    path.resolve(__dirname, '../../remotion/src/kinematics/collision3d.ts'),
+    path.resolve(__dirname, '../../remotion/src/kinematics/index.ts'),
+    path.resolve(__dirname, '../../remotion/src/camera/cameraBasis3D.ts'),
+    path.resolve(__dirname, '../../remotion/src/camera/shotTypes.ts'),
+    path.resolve(__dirname, '../../remotion/src/camera/DirectorCamera3D.tsx'),
   ];
   for (const filePath of filesToAudit) {
     const src = fs.readFileSync(filePath, 'utf8');
@@ -263,7 +263,7 @@ test('core kinematics and camera modules remain deterministic with zero three ru
     );
   }
   const directorCameraSrc = fs.readFileSync(
-    path.resolve(__dirname, '../../core/src/camera/DirectorCamera3D.tsx'),
+    path.resolve(__dirname, '../../remotion/src/camera/DirectorCamera3D.tsx'),
     'utf8'
   );
   assert.doesNotMatch(

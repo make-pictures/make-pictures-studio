@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { Thumbnail } from '@remotion/player';
-import { StyleProvider } from '../../core/src/index';
+import { StyleProvider } from '../../remotion/src/index';
 import {
   ChapterTitleCard,
   EditorialDeskStage,
@@ -16,7 +16,7 @@ import {
   SplitStoryLayout,
   computeSplitStoryVerticalBounds,
   resolveHighlightStartFrame,
-} from '../../kits/src/editorial-collage';
+} from '../../remotion/src/kits/editorial-collage';
 import {
   AnnotatedCallout2D,
   ComparisonSplit2D,
@@ -26,9 +26,9 @@ import {
   VectorSceneStage2D,
   computeHorizontalFeatureGridBounds,
   computeSafeSplitBounds,
-} from '../../kits/src/vector-scene-2d';
-import * as productFrames from '../../kits/src/product-frames';
-import * as kitsRoot from '../../kits/src/index';
+} from '../../remotion/src/kits/vector-scene-2d';
+import * as productFrames from '../../remotion/src/kits/product-frames';
+import * as kitsRoot from '../../remotion/src/kits/index';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -127,7 +127,7 @@ test('narrative kit source files enforce Clean Frame 0, zero Math.random(), and 
 
   for (const rel of files) {
     const src = fs.readFileSync(
-      path.resolve(__dirname, '../../kits/src', rel),
+      path.resolve(__dirname, '../../remotion/src/kits', rel),
       'utf8'
     );
     assert.doesNotMatch(
@@ -148,15 +148,15 @@ test('narrative kit source files enforce Clean Frame 0, zero Math.random(), and 
   }
 });
 
-test('packages/kits/package.json and scripts/build-packages.ts register both new kit subpaths', () => {
+test('packages/remotion/package.json and scripts/build-packages.ts register both new kit subpaths', () => {
   const pkgJson = JSON.parse(
     fs.readFileSync(
-      path.resolve(__dirname, '../../kits/package.json'),
+      path.resolve(__dirname, '../../remotion/package.json'),
       'utf8'
     )
   ) as { exports: Record<string, unknown> };
-  assert.ok(pkgJson.exports['./editorial-collage']);
-  assert.ok(pkgJson.exports['./vector-scene-2d']);
+  assert.ok(pkgJson.exports['./kits/editorial-collage']);
+  assert.ok(pkgJson.exports['./kits/vector-scene-2d']);
 
   const buildScript = fs.readFileSync(
     path.resolve(__dirname, '../../../scripts/build-packages.ts'),
@@ -168,7 +168,7 @@ test('packages/kits/package.json and scripts/build-packages.ts register both new
 
 test('EditorialDeskStage, baryta/slide EditorialMediaCard, ink-brush HighlightQuoteStage, and SplitStoryLayout rack focus render cleanly across styles and 9:16', () => {
   const deskStageSrc = fs.readFileSync(
-    path.resolve(__dirname, '../../kits/src/editorial-collage/EditorialDeskStage.tsx'),
+    path.resolve(__dirname, '../../remotion/src/kits/editorial-collage/EditorialDeskStage.tsx'),
     'utf8'
   );
   assert.doesNotMatch(
@@ -314,7 +314,7 @@ test('VectorSceneStage2D, engraved StoryCard2D medallion, elbow AnnotatedCallout
   assert.equal(kitsRoot.VectorSceneStage2D, VectorSceneStage2D);
 
   const stageSrc = fs.readFileSync(
-    path.resolve(__dirname, '../../kits/src/vector-scene-2d/VectorSceneStage2D.tsx'),
+    path.resolve(__dirname, '../../remotion/src/kits/vector-scene-2d/VectorSceneStage2D.tsx'),
     'utf8'
   );
   assert.doesNotMatch(stageSrc, /Math\.random\s*\(/);
@@ -322,7 +322,7 @@ test('VectorSceneStage2D, engraved StoryCard2D medallion, elbow AnnotatedCallout
   assert.match(stageSrc, /frame\s*<=\s*0/);
 
   const storyCardSrc = fs.readFileSync(
-    path.resolve(__dirname, '../../kits/src/vector-scene-2d/StoryCard2D.tsx'),
+    path.resolve(__dirname, '../../remotion/src/kits/vector-scene-2d/StoryCard2D.tsx'),
     'utf8'
   );
   assert.doesNotMatch(storyCardSrc, /999\s*\*/);

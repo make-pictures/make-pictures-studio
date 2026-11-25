@@ -10,7 +10,7 @@ import {
   BUILT_IN_STYLES,
   StyleProvider,
   resolveArtWorld,
-} from '../../core/src/index';
+} from '../../remotion/src/index';
 import { scanTsxForUnclippedCardBars } from '../src/director/audit-direction';
 import {
   CodePayloadToast,
@@ -24,25 +24,25 @@ import {
   portRight,
   portTop,
   type NodeBox,
-} from '../../kits/src/motion-diagrams-2d';
+} from '../../remotion/src/kits/motion-diagrams-2d';
 import {
   EditorialDeskStage,
   EditorialMediaCard,
-} from '../../kits/src/editorial-collage';
+} from '../../remotion/src/kits/editorial-collage';
 import {
   ComparisonSplit2D,
   StoryCard2D,
   VectorSceneStage2D,
-} from '../../kits/src/vector-scene-2d';
+} from '../../remotion/src/kits/vector-scene-2d';
 import {
   AnimatedBarRace,
   DataStoryStage2D,
   MetricComparisonCard,
-} from '../../kits/src/data-storytelling';
-import { ImpactKeywordCard } from '../../kits/src/kinetic-typography';
+} from '../../remotion/src/kits/data-storytelling';
+import { ImpactKeywordCard } from '../../remotion/src/kits/kinetic-typography';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const KITS_SRC_DIR = path.resolve(__dirname, '../../kits/src');
+const KITS_SRC_DIR = path.resolve(__dirname, '../../remotion/src/kits');
 
 test('1. ClippedSurfaceChrome wraps internal top bars & specular rims across all 2D rounded cards with zero unclipped bars and bespoke SystemNode medallions', () => {
   const cardRelFiles = [

@@ -11,8 +11,8 @@ import {
   BUILT_IN_STYLES,
   DirectorCamera2D,
   StyleProvider,
-} from '../../core/src/index';
-import * as kitsRoot from '../../kits/src/index';
+} from '../../remotion/src/index';
+import * as kitsRoot from '../../remotion/src/kits/index';
 import {
   CameraRig,
   CodePayloadToast,
@@ -31,19 +31,19 @@ import {
   type CubicBezierCurve2D,
   type NodeBox,
   type RetroPcHopSpec,
-} from '../../kits/src/motion-diagrams-2d';
-import { ScreenSpotlightOverlay } from '../../kits/src/product-frames';
+} from '../../remotion/src/kits/motion-diagrams-2d';
+import { ScreenSpotlightOverlay } from '../../remotion/src/kits/product-frames';
 import { scanTsxForUnclippedCardBars } from '../src/director/audit-direction';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 test('DirectorCamera2D and CameraRig enforce Clean Frame 0, inherit StyleProvider palette, and eliminate hardcoded cyan/indigo blobs', () => {
   const dirCamSrc = fs.readFileSync(
-    path.resolve(__dirname, '../../core/src/camera/DirectorCamera2D.tsx'),
+    path.resolve(__dirname, '../../remotion/src/camera/DirectorCamera2D.tsx'),
     'utf8'
   );
   const rigSrc = fs.readFileSync(
-    path.resolve(__dirname, '../../kits/src/motion-diagrams-2d/CameraRig.tsx'),
+    path.resolve(__dirname, '../../remotion/src/kits/motion-diagrams-2d/CameraRig.tsx'),
     'utf8'
   );
 
@@ -136,26 +136,26 @@ test('MotionDiagramStage2D, SystemNode, WorldBox, FlowCurve, DataFlowEdge, CodeP
   ] as const;
 
   for (const rel of filesToAudit) {
-    const src = fs.readFileSync(path.resolve(__dirname, '../../kits/src', rel), 'utf8');
+    const src = fs.readFileSync(path.resolve(__dirname, '../../remotion/src/kits', rel), 'utf8');
     assert.doesNotMatch(src, /Math\.random\s*\(/, `${rel} must not use Math.random`);
     assert.doesNotMatch(src, /useRef\b/, `${rel} must not use mutable useRef`);
     assert.doesNotMatch(src, /radii\.pill|9999/, `${rel} must not use pill radii`);
   }
 
   const toastSrc = fs.readFileSync(
-    path.resolve(__dirname, '../../kits/src/motion-diagrams-2d/CodePayloadToast.tsx'),
+    path.resolve(__dirname, '../../remotion/src/kits/motion-diagrams-2d/CodePayloadToast.tsx'),
     'utf8'
   );
   assert.doesNotMatch(toastSrc, /#93C5FD|#6EE7B7|#FCD34D|#1D4ED8|#059669|#B45309/);
 
   const edgeSrc = fs.readFileSync(
-    path.resolve(__dirname, '../../kits/src/motion-diagrams-2d/DataFlowEdge.tsx'),
+    path.resolve(__dirname, '../../remotion/src/kits/motion-diagrams-2d/DataFlowEdge.tsx'),
     'utf8'
   );
   assert.doesNotMatch(edgeSrc, /viewBox="0 0 1920 1080"/);
 
   const spotlightSrc = fs.readFileSync(
-    path.resolve(__dirname, '../../kits/src/product-frames/ScreenSpotlightOverlay.tsx'),
+    path.resolve(__dirname, '../../remotion/src/kits/product-frames/ScreenSpotlightOverlay.tsx'),
     'utf8'
   );
   assert.doesNotMatch(spotlightSrc, /borderRadius:\s*9999/);
@@ -360,7 +360,7 @@ test('RetroPcWindowStage2D enforces Clean Frame 0, offline symbolic safety, 16:9
   assert.equal(kitsRoot.RetroPcWindowStage2D, RetroPcWindowStage2D);
 
   const retroSrc = fs.readFileSync(
-    path.resolve(__dirname, '../../kits/src/motion-diagrams-2d/RetroPcWindowStage2D.tsx'),
+    path.resolve(__dirname, '../../remotion/src/kits/motion-diagrams-2d/RetroPcWindowStage2D.tsx'),
     'utf8'
   );
   assert.doesNotMatch(retroSrc, /Math\.random\s*\(/, 'RetroPcWindowStage2D must not use Math.random');

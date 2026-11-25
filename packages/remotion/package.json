@@ -1,0 +1,159 @@
+{
+  "name": "@make-pictures/remotion",
+  "version": "3.0.0",
+  "description": "Production & visual toolkit for Remotion: 2D/2.5D/3D kits, 10 art-direction styles, ElevenLabs audio sync, Shot DSL cameras, Disney kinematics, and 3D SAT collision auditing.",
+  "homepage": "https://make.pictures",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/make-pictures/make-pictures-studio.git",
+    "directory": "packages/remotion"
+  },
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "files": ["dist", "README.md", "LICENSE"],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs"
+    },
+    "./style": {
+      "types": "./dist/style/index.d.ts",
+      "import": "./dist/style/index.mjs",
+      "require": "./dist/style/index.cjs"
+    },
+    "./style/presets": {
+      "types": "./dist/style/presets.d.ts",
+      "import": "./dist/style/presets.mjs",
+      "require": "./dist/style/presets.cjs"
+    },
+    "./audio": {
+      "types": "./dist/audio/index.d.ts",
+      "import": "./dist/audio/index.mjs",
+      "require": "./dist/audio/index.cjs"
+    },
+    "./audio/voices": {
+      "types": "./dist/audio/voices.d.ts",
+      "import": "./dist/audio/voices.mjs",
+      "require": "./dist/audio/voices.cjs"
+    },
+    "./camera": {
+      "types": "./dist/camera/index.d.ts",
+      "import": "./dist/camera/index.mjs",
+      "require": "./dist/camera/index.cjs"
+    },
+    "./kinematics": {
+      "types": "./dist/kinematics/index.d.ts",
+      "import": "./dist/kinematics/index.mjs",
+      "require": "./dist/kinematics/index.cjs"
+    },
+    "./director": {
+      "types": "./dist/director/index.d.ts",
+      "import": "./dist/director/index.mjs",
+      "require": "./dist/director/index.cjs"
+    },
+    "./optics": {
+      "types": "./dist/optics/index.d.ts",
+      "import": "./dist/optics/index.mjs",
+      "require": "./dist/optics/index.cjs"
+    },
+    "./types": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/types/index.mjs",
+      "require": "./dist/types/index.cjs"
+    },
+    "./utils": {
+      "types": "./dist/utils/index.d.ts",
+      "import": "./dist/utils/index.mjs",
+      "require": "./dist/utils/index.cjs"
+    },
+    "./style-lab": {
+      "types": "./dist/style-lab/index.d.ts",
+      "import": "./dist/style-lab/index.mjs",
+      "require": "./dist/style-lab/index.cjs"
+    },
+    "./elements": {
+      "types": "./dist/elements/index.d.ts",
+      "import": "./dist/elements/index.mjs",
+      "require": "./dist/elements/index.cjs"
+    },
+    "./kits/editorial-collage": {
+      "types": "./dist/kits/editorial-collage/index.d.ts",
+      "import": "./dist/kits/editorial-collage/index.mjs",
+      "require": "./dist/kits/editorial-collage/index.cjs"
+    },
+    "./kits/vector-scene-2d": {
+      "types": "./dist/kits/vector-scene-2d/index.d.ts",
+      "import": "./dist/kits/vector-scene-2d/index.mjs",
+      "require": "./dist/kits/vector-scene-2d/index.cjs"
+    },
+    "./kits/motion-diagrams-2d": {
+      "types": "./dist/kits/motion-diagrams-2d/index.d.ts",
+      "import": "./dist/kits/motion-diagrams-2d/index.mjs",
+      "require": "./dist/kits/motion-diagrams-2d/index.cjs"
+    },
+    "./kits/kinetic-typography": {
+      "types": "./dist/kits/kinetic-typography/index.d.ts",
+      "import": "./dist/kits/kinetic-typography/index.mjs",
+      "require": "./dist/kits/kinetic-typography/index.cjs"
+    },
+    "./kits/data-storytelling": {
+      "types": "./dist/kits/data-storytelling/index.d.ts",
+      "import": "./dist/kits/data-storytelling/index.mjs",
+      "require": "./dist/kits/data-storytelling/index.cjs"
+    },
+    "./kits/product-frames": {
+      "types": "./dist/kits/product-frames/index.d.ts",
+      "import": "./dist/kits/product-frames/index.mjs",
+      "require": "./dist/kits/product-frames/index.cjs"
+    },
+    "./kits/vfx": {
+      "types": "./dist/kits/vfx/index.d.ts",
+      "import": "./dist/kits/vfx/index.mjs",
+      "require": "./dist/kits/vfx/index.cjs"
+    },
+    "./kits/paper-diorama-3d": {
+      "types": "./dist/kits/paper-diorama-3d/index.d.ts",
+      "import": "./dist/kits/paper-diorama-3d/index.mjs",
+      "require": "./dist/kits/paper-diorama-3d/index.cjs"
+    },
+    "./kits/isometric-3d": {
+      "types": "./dist/kits/isometric-3d/index.d.ts",
+      "import": "./dist/kits/isometric-3d/index.mjs",
+      "require": "./dist/kits/isometric-3d/index.cjs"
+    },
+    "./kits/tactile-3d": {
+      "types": "./dist/kits/tactile-3d/index.d.ts",
+      "import": "./dist/kits/tactile-3d/index.mjs",
+      "require": "./dist/kits/tactile-3d/index.cjs"
+    }
+  },
+  "peerDependencies": {
+    "@react-three/drei": "^9.0.0 || ^10.0.0",
+    "@react-three/fiber": "^8.0.0 || ^9.0.0",
+    "@remotion/google-fonts": "^4.0.0",
+    "@remotion/media-utils": "^4.0.0",
+    "@remotion/three": "^4.0.0",
+    "@remotion/zod-types": "^4.0.0",
+    "lucide-react": ">=0.300.0",
+    "react": "^18.0.0 || ^19.0.0",
+    "react-dom": "^18.0.0 || ^19.0.0",
+    "remotion": "^4.0.0",
+    "three": ">=0.160.0",
+    "zod": "^3.22.0"
+  },
+  "peerDependenciesMeta": {
+    "@react-three/drei": { "optional": true },
+    "@react-three/fiber": { "optional": true },
+    "@remotion/three": { "optional": true },
+    "@remotion/zod-types": { "optional": true },
+    "three": { "optional": true }
+  }
+}

@@ -10,9 +10,9 @@ import {
   BUILT_IN_STYLE_IDS,
   BUILT_IN_STYLES,
   StyleProvider,
-  evaluateDirectorCamera3D,
-} from '../../core/src/index';
-import * as kitsRoot from '../../kits/src/index';
+} from '../../remotion/src/index';
+import { evaluateDirectorCamera3D } from '../../remotion/src/camera';
+import * as kitsRoot from '../../remotion/src/kits/index';
 import {
   IsometricStage3D,
   IsometricStudioEnvironment,
@@ -24,7 +24,7 @@ import {
   resolveIsometricMaterialTokens,
   type IsometricMaterialMode,
   type IsometricMaterialPreset,
-} from '../../kits/src/isometric-3d';
+} from '../../remotion/src/kits/isometric-3d';
 import { projectPoint } from './_helpers/camera-projection';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -190,18 +190,18 @@ test('IsometricStage3D and Stylized3DCharacter enforce Clean Frame 0 at runtime 
   const matSrc = fs.readFileSync(
     path.resolve(
       __dirname,
-      '../../kits/src/isometric-3d/isometricMaterials.ts'
+      '../../remotion/src/kits/isometric-3d/isometricMaterials.ts'
     ),
     'utf8'
   );
   const stageSrc = fs.readFileSync(
-    path.resolve(__dirname, '../../kits/src/isometric-3d/IsometricStage3D.tsx'),
+    path.resolve(__dirname, '../../remotion/src/kits/isometric-3d/IsometricStage3D.tsx'),
     'utf8'
   );
   const charSrc = fs.readFileSync(
     path.resolve(
       __dirname,
-      '../../kits/src/isometric-3d/Stylized3DCharacter.tsx'
+      '../../remotion/src/kits/isometric-3d/Stylized3DCharacter.tsx'
     ),
     'utf8'
   );

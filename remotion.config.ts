@@ -13,8 +13,10 @@ Config.overrideWebpackConfig((currentConfiguration) => {
       ...currentConfiguration.resolve,
       alias: {
         ...(currentConfiguration.resolve?.alias ?? {}),
-        '@make-pictures/core': path.resolve(process.cwd(), 'packages/core/src'),
-        '@make-pictures/kits': path.resolve(process.cwd(), 'packages/kits/src'),
+        '@make-pictures/remotion': path.resolve(
+          process.cwd(),
+          'packages/remotion/src'
+        ),
       },
     },
   };

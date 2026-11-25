@@ -29,8 +29,7 @@ import {
   useFocalStagger,
   type ArtWorld,
   type ContinuousSceneSpec,
-} from '../../core/src/index';
-import { introspectZodObject } from '../../studio/src/client/index';
+} from '../../remotion/src/index';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -119,28 +118,41 @@ test('ArtWorldSchema, BUILT_IN_STYLES artWorld mapping, fallbacks, and 7-section
     'illustrative'
   );
 
-  // CRITICAL: Preserve exact 7 Polish section titles in StylePresetSchema
-  const sections = introspectZodObject(
-    StylePresetSchema,
-    BUILT_IN_STYLES['editorial-press'] as unknown as Record<string, unknown>
+  // CRITICAL: Preserve exact 7 Polish section titles in StylePresetSchema descriptions
+  const collectSections = (shape: Record<string, { _def?: { description?: string; innerType?: unknown; shape?: () => Record<string, unknown> } }>): string[] => {
+    const seen: string[] = [];
+    const visit = (node: unknown) => {
+      if (!node || typeof node !== 'object') return;
+      const def = (node as { _def?: { description?: string; innerType?: unknown; shape?: () => Record<string, unknown> } })._def;
+      if (def?.description && def.description.includes('::')) {
+        const sec = def.description.split('::')[0]!.trim();
+        if (!seen.includes(sec)) seen.push(sec);
+      }
+      if (def?.innerType) visit(def.innerType);
+      if (typeof def?.shape === 'function') {
+        for (const child of Object.values(def.shape())) visit(child);
+      }
+    };
+    for (const child of Object.values(shape)) visit(child);
+    return seen;
+  };
+  assert.deepEqual(collectSections(StylePresetSchema.shape as Record<string, never>), [
+    'Informacje',
+    'Paleta kolorów',
+    'Typografia',
+    'Powierzchnia & Tło',
+    'Fizyka ruchu',
+    'Optyka & Światło',
+    'Domyślne Audio',
+  ]);
+  assert.equal(
+    StylePresetSchema.shape.artWorld.description,
+    'Informacje :: Świat artystyczny'
   );
   assert.deepEqual(
-    sections.map((s) => s.title),
-    [
-      'Informacje',
-      'Paleta kolorów',
-      'Typografia',
-      'Powierzchnia & Tło',
-      'Fizyka ruchu',
-      'Optyka & Światło',
-      'Domyślne Audio',
-    ]
+    StylePresetSchema.shape.artWorld.unwrap().options,
+    ArtWorldSchema.options
   );
-  const infoFields = sections.find((s) => s.title === 'Informacje')?.fields ?? [];
-  const artWorldField = infoFields.find((f) => f.key === 'artWorld');
-  assert.ok(artWorldField, 'Expected artWorld field in Informacje section');
-  assert.equal(artWorldField.label, 'Świat artystyczny');
-  assert.equal(artWorldField.kind, 'enum');
 });
 
 test('interpolateStylePresets smoothly morphs palette, surface, motion & optics at 60 FPS and switches discrete enums at t >= 0.5', () => {
@@ -719,8 +731,8 @@ test('ScenicBackdropLayers, ClippedSurfaceChrome, tactileSurface, and StageLight
   // Multi-layer ambient-occlusion + contact + cast shadow (>= 3 layers besides inset)
   assert.ok(String(lightSurface.boxShadow).split('rgba(').length >= 4);
 
-  // 4. Determinism & Three.js isolation source audit in packages/core/src/director/ & interpolate.ts
-  const directorDir = path.resolve(__dirname, '../../core/src/director');
+  // 4. Determinism & Three.js isolation source audit in packages/remotion/src/director/ & interpolate.ts
+  const directorDir = path.resolve(__dirname, '../../remotion/src/director');
   for (const entry of fs.readdirSync(directorDir)) {
     if (!entry.endsWith('.ts') && !entry.endsWith('.tsx')) continue;
     const src = fs.readFileSync(path.join(directorDir, entry), 'utf8');
@@ -732,7 +744,7 @@ test('ScenicBackdropLayers, ClippedSurfaceChrome, tactileSurface, and StageLight
     );
   }
   const interpSrc = fs.readFileSync(
-    path.resolve(__dirname, '../../core/src/style/interpolate.ts'),
+    path.resolve(__dirname, '../../remotion/src/style/interpolate.ts'),
     'utf8'
   );
   assert.doesNotMatch(interpSrc, /Math\.random\s*\(/);

@@ -11,8 +11,8 @@ import {
   BUILT_IN_STYLES,
   StyleProvider,
   resolveArtWorld,
-} from '../../core/src/index';
-import * as kitsRoot from '../../kits/src/index';
+} from '../../remotion/src/index';
+import * as kitsRoot from '../../remotion/src/kits/index';
 import {
   AtelierDeskCutout3D,
   CloudCanopyCutout3D,
@@ -27,12 +27,12 @@ import {
   drawSunburstArchMotif,
   getPaperTextureCacheStats,
   resolveScenicCutoutPalette,
-} from '../../kits/src/paper-diorama-3d';
+} from '../../remotion/src/kits/paper-diorama-3d';
 import {
   IsometricScenicSet3D,
   IsometricStage3D,
   computeScenicRoomTokens,
-} from '../../kits/src/isometric-3d';
+} from '../../remotion/src/kits/isometric-3d';
 import { createGeometryRecordingContext } from './_helpers/mock-canvas-recorder';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -58,7 +58,7 @@ test('ScenicCutoutMotifs exports all 5 painterly motifs from paper-diorama-3d an
   ]
     .map((rel) =>
       fs.readFileSync(
-        path.resolve(__dirname, '../../kits/src/paper-diorama-3d', rel),
+        path.resolve(__dirname, '../../remotion/src/kits/paper-diorama-3d', rel),
         'utf8'
       )
     )
@@ -302,11 +302,11 @@ test('computeScenicRoomTokens and IsometricScenicSet3D build 3 distinct architec
   assert.equal(kitsRoot.computeScenicRoomTokens, computeScenicRoomTokens);
 
   const scenicSrc = fs.readFileSync(
-    path.resolve(__dirname, '../../kits/src/isometric-3d/IsometricScenicSet3D.tsx'),
+    path.resolve(__dirname, '../../remotion/src/kits/isometric-3d/IsometricScenicSet3D.tsx'),
     'utf8'
   );
   const stageSrc = fs.readFileSync(
-    path.resolve(__dirname, '../../kits/src/isometric-3d/IsometricStage3D.tsx'),
+    path.resolve(__dirname, '../../remotion/src/kits/isometric-3d/IsometricStage3D.tsx'),
     'utf8'
   );
 

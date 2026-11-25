@@ -9,8 +9,8 @@ import {
   BUILT_IN_STYLE_IDS,
   BUILT_IN_STYLES,
   StyleProvider,
-} from '../../core/src/index';
-import * as kitsRoot from '../../kits/src/index';
+} from '../../remotion/src/index';
+import * as kitsRoot from '../../remotion/src/kits/index';
 import {
   EarthriseCutout3D,
   LunarCraterRidgeCutout3D,
@@ -23,7 +23,7 @@ import {
   drawStarryCosmosBackdropMotif,
   getPaperTextureCacheStats,
   resolveScenicCutoutPalette,
-} from '../../kits/src/paper-diorama-3d';
+} from '../../remotion/src/kits/paper-diorama-3d';
 import { createGeometryRecordingContext } from './_helpers/mock-canvas-recorder';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -47,7 +47,7 @@ test('Cosmic & Apollo 11 lunar cutout motifs are exported from paper-diorama-3d 
   ]
     .map((rel) =>
       fs.readFileSync(
-        path.resolve(__dirname, '../../kits/src/paper-diorama-3d', rel),
+        path.resolve(__dirname, '../../remotion/src/kits/paper-diorama-3d', rel),
         'utf8'
       )
     )
