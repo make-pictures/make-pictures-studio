@@ -6,6 +6,22 @@ The project adheres to [Semantic Versioning](https://semver.org/) and is release
 
 ---
 
+## [2.5.0] — 2026-11-25
+
+### Added
+- **ElevenLabs `eleven_v4` Default & Multi-Speaker Text-to-Dialogue (`@make-pictures/core`, `@make-pictures/cli`):** Upgraded `DEFAULT_ELEVENLABS_MODEL_ID` to `eleven_v4` (plus `eleven_v4_turbo`), added native multi-speaker `dialogueInputs` synthesis via `textToDialogue.convertWithTimestamps` returning unified audio with per-turn `voiceSegments` (for lip-sync, camera cuts, and proportional `--mock` synthesis), and extended SHA-256 caching and `phonetics-lint.ts` to validate expressive audio tags across every dialogue turn.
+- **Live Elastic-Cord 2D Diagram Primitives (`@make-pictures/kits/motion-diagrams-2d`):** Added `computeLiveNodePort` (exact center-origin `scale → rotate → translate` port anchor math) and `buildElasticCordPath` (spring-tethered elastic cubic Bézier curves that stay locked `0.00 px` to bouncing/tilting nodes while stretching taut or bowing naturally with whip follow-through).
+- **Overhauled Built-In Flagship Showcase (`examples/`, `docs/showcase/`):** Rebuilt `PaperDioramaDemo` (*Skyward: Paper Rocket Ascent* with Keplerian lunar slingshot and `540°` double-sided Moon flip), `IsometricDialogueDemo` (*Five Seconds to Air* with 6-turn `eleven_v4` Text-to-Dialogue, bouncing mug, and live LED countdown), `StarterStory` / `StarterStoryVertical` (*How a Bullet Train Never Spills a Cup* with 5-act editorial gouache panorama, sub-pixel `PinnedMediaStage`, and `AnimatedBarRace` in `16:9` + `9:16`), and `ProductPromo` (*One Tap to Your Door* with `PhoneFrame`, zero-jitter `MotionDiagramStage2D`, 27-point road/park trail `BrowserFrame` sync, and illustrated `2×2` finale), plus refreshed `docs/showcase/` GIF and hero gallery frames.
+
+### Fixed
+- **Zero-Jitter 2D Overlays & Motion Diagrams (`@make-pictures/core`, `@make-pictures/kits`):** Eliminated Chromium multi-worker sub-pixel text jitter across `<FloatingEditorialDisplay />`, `<PaperRibbonTimeline />`, `<DirectorCamera2D />` (default `handheldIntensity = 0`, settled identity `transform: 'none'`, integer snap on settled unit-zoom pans, omitting permanent `willChange`), `<SystemNode />`, `<DataFlowEdge />`, `<CodePayloadToast />`, and `<RetroPcWindowStage2D />`.
+- **Studio Web 60 FPS Live Playback Performance (`@make-pictures/studio`):** Isolated high-frequency playhead updates in an imperative `<TransportScrubber />`, memoized `<Player>` mounts, unmounted closed drawers, and removed redundant `translateZ(0)` compositor pinning for silky-smooth live preview playback.
+- **Canonical Skills & Rules Sync (`plugins/make-pictures/`, `skills/`, `.agents/plugins/make-pictures/`):** Updated all bundled agent skills and rulebooks (`sound-and-music-design`, `make-pictures-director`, `kit-motion-diagrams-2d`, `AGENTS.md`, `CLAUDE.md`) for `eleven_v4`, `dialogueInputs`, elastic cords, and zero-jargon storytelling copy.
+
+🔗 [GitHub Release `v2.5.0`](https://github.com/make-pictures/make-pictures-studio/releases/tag/v2.5.0)
+
+---
+
 ## [2.4.1] — 2026-11-22
 
 ### Fixed

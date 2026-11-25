@@ -445,7 +445,7 @@ export const HeroCard: React.FC<z.infer<typeof FilmSchema>> = ({ styleId, headli
 
 const FALLBACK_PLUGIN_JSON = {
   name: 'make-pictures',
-  version: '2.4.1',
+  version: '2.5.0',
   description:
     'make.pictures Studio — 60 FPS Video-as-Code skills, visual kits, Art Direction Style Lab, camera Shot DSL, and ElevenLabs AI Audio Studio.',
   author: {
@@ -648,7 +648,7 @@ export function syncBundledAiPluginToProject(
         {
           name: 'make-pictures',
           description: FALLBACK_PLUGIN_JSON.description,
-          version: '2.4.1',
+          version: '2.5.0',
         },
         null,
         2

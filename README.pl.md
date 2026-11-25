@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/create-make-pictures"><img src="https://img.shields.io/badge/npm-v2.4.1-2563EB?style=for-the-badge&labelColor=0F172A" alt="npm v2.4.1" /></a>
+  <a href="https://www.npmjs.com/package/create-make-pictures"><img src="https://img.shields.io/badge/npm-v2.5.0-2563EB?style=for-the-badge&labelColor=0F172A" alt="npm v2.5.0" /></a>
   <img src="https://img.shields.io/badge/Agenci-Antigravity_%26_Claude_Code-0096C7?style=for-the-badge&labelColor=0F172A" alt="Antigravity & Claude Code" />
   <img src="https://img.shields.io/badge/Audio-ElevenLabs_Głos_•_Muzyka_•_SFX-7209B7?style=for-the-badge&labelColor=0F172A" alt="ElevenLabs Audio" />
   <a href="./LICENSE"><img src="https://img.shields.io/badge/Licencja-MIT-FF2A85?style=for-the-badge&labelColor=0F172A" alt="Licencja MIT" /></a>
@@ -31,7 +31,7 @@ Przygotuj dla mnie studio filmowe make.pictures: uruchom `npx -y @make-pictures/
 
 ---
 
-## 🖥️ Studio Web i 🎨 Style Lab (`v2.4.1`)
+## 🖥️ Studio Web i 🎨 Style Lab (`v2.5.0`)
 
 <p align="center">
   <a href="https://make.pictures"><img src="./docs/showcase/showreel-preview.gif" alt="make.pictures Showreel 49 s — Jedna kartka, pięć światów: Tactile 3D, przepływ produktu 2D, wycinanki 2.5D, dialog Soft-Clay 3D i panorama redakcyjna" width="760" /></a>
@@ -99,7 +99,7 @@ npx skills add make-pictures/make-pictures-studio
 ```
 
 <details>
-<summary><strong>📦 Pakiety npm i ściąga komend CLI (<code>v2.4.1</code>)</strong></summary>
+<summary><strong>📦 Pakiety npm i ściąga komend CLI (<code>v2.5.0</code>)</strong></summary>
 
 <br />
 

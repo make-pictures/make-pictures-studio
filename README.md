@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/create-make-pictures"><img src="https://img.shields.io/badge/npm-v2.4.1-2563EB?style=for-the-badge&labelColor=0F172A" alt="npm v2.4.1" /></a>
+  <a href="https://www.npmjs.com/package/create-make-pictures"><img src="https://img.shields.io/badge/npm-v2.5.0-2563EB?style=for-the-badge&labelColor=0F172A" alt="npm v2.5.0" /></a>
   <img src="https://img.shields.io/badge/Agents-Antigravity_%26_Claude_Code-0096C7?style=for-the-badge&labelColor=0F172A" alt="Antigravity & Claude Code" />
   <img src="https://img.shields.io/badge/Audio-ElevenLabs_Voice_•_Music_•_SFX-7209B7?style=for-the-badge&labelColor=0F172A" alt="ElevenLabs Audio" />
   <a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-FF2A85?style=for-the-badge&labelColor=0F172A" alt="MIT License" /></a>
@@ -31,7 +31,7 @@ Set up make.pictures video studio for me: run `npx -y @make-pictures/cli@latest 
 
 ---
 
-## 🖥️ Studio Web & 🎨 Style Lab (`v2.4.1`)
+## 🖥️ Studio Web & 🎨 Style Lab (`v2.5.0`)
 
 <p align="center">
   <a href="https://make.pictures"><img src="./docs/showcase/showreel-preview.gif" alt="make.pictures 49s Showreel — One Page, Five Worlds: Tactile 3D, 2D Product Flow, 2.5D Paper Cutouts, Soft-Clay 3D Dialogue &amp; Editorial Panorama" width="760" /></a>
@@ -99,7 +99,7 @@ npx skills add make-pictures/make-pictures-studio
 ```
 
 <details>
-<summary><strong>📦 Packages &amp; CLI quick reference (<code>v2.4.1</code>)</strong></summary>
+<summary><strong>📦 Packages &amp; CLI quick reference (<code>v2.5.0</code>)</strong></summary>
 
 <br />
 

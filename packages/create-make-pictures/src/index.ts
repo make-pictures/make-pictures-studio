@@ -387,10 +387,10 @@ function buildPackageJson(projectName: string): Record<string, unknown> {
       typecheck: 'tsc --noEmit',
     },
     dependencies: {
-      '@make-pictures/core': '^2.4.1',
-      '@make-pictures/kits': '^2.4.1',
-      '@make-pictures/studio': '^2.4.1',
-      '@make-pictures/cli': '^2.4.1',
+      '@make-pictures/core': '^2.5.0',
+      '@make-pictures/kits': '^2.5.0',
+      '@make-pictures/studio': '^2.5.0',
+      '@make-pictures/cli': '^2.5.0',
       remotion: '^4.0.276',
       '@remotion/cli': '^4.0.276',
       '@remotion/bundler': '^4.0.276',
@@ -792,7 +792,7 @@ export const HeroCard: React.FC<z.infer<typeof FilmSchema>> = ({ styleId, headli
 
 const EMBEDDED_PLUGIN_JSON = {
   name: 'make-pictures',
-  version: '2.4.1',
+  version: '2.5.0',
   description:
     'make.pictures Studio — 60 FPS Video-as-Code skills, visual kits, Art Direction Style Lab, camera Shot DSL, and ElevenLabs AI Audio Studio.',
   author: {
@@ -2294,7 +2294,7 @@ function writeAiPluginAndAgentsMd(targetRoot: string): void {
         {
           name: 'make-pictures',
           description: EMBEDDED_PLUGIN_JSON.description,
-          version: '2.4.1',
+          version: '2.5.0',
         },
         null,
         2
@@ -2737,7 +2737,7 @@ export const SFX_MANIFEST: Record<string, ProductionSfxEntry> = {};
 
 function printCreateHelp(): void {
   console.log(`
-create-make-pictures (v2.4.1)
+create-make-pictures (v2.5.0)
 
 Usage:
   npx create-make-pictures@latest <project-directory> [options]
