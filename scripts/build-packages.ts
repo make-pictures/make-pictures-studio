@@ -367,43 +367,98 @@ async function buildPackage(spec: PackageBuildSpec): Promise<void> {
       entryPointsMap[entry.outSubpath] = path.join(pkgDir, entry.srcRelPath);
     }
 
+    const useSplitting = group.length > 1 && platform === 'browser';
+
     // 1. ESM (.mjs)
-    await esbuild.build({
+    const esmResult = await esbuild.build({
+      absWorkingDir: ROOT_DIR,
       entryPoints: entryPointsMap,
       outdir: distDir,
       outExtension: { '.js': '.mjs' },
       bundle: true,
-      splitting: group.length > 1 && platform === 'browser',
+      splitting: useSplitting,
       format: 'esm',
       platform,
       target: platform === 'node' ? 'node20' : 'es2022',
       jsx: 'automatic',
       packages: 'external',
       plugins: [crossPkgPlugin],
+      metafile: useSplitting,
       logLevel: 'silent',
     });
 
     // 2. CJS (.cjs)
     const cjsGroup = group.filter((e) => !e.esmOnly);
     if (cjsGroup.length > 0) {
-      const cjsEntryMap: Record<string, string> = {};
-      for (const entry of cjsGroup) {
-        cjsEntryMap[entry.outSubpath] = path.join(pkgDir, entry.srcRelPath);
-      }
+      if (useSplitting && esmResult.metafile) {
+        // Convert every ESM-split output (entries + shared `chunk-*.mjs` modules)
+        // into matching `.cjs` files so React contexts (StyleProvider, OpticalStage,
+        // CameraTelemetry) and registries remain singletons across CJS subpaths,
+        // while preserving exact ESM zero-three isolation.
+        const cjsEntryPoints: Record<string, string> = {};
+        const esmOnlyOutSubpaths = new Set(
+          group.filter((e) => e.esmOnly).map((e) => e.outSubpath)
+        );
+        for (const outRelFromRoot of Object.keys(esmResult.metafile.outputs)) {
+          if (!outRelFromRoot.endsWith('.mjs')) continue;
+          const absOut = path.resolve(ROOT_DIR, outRelFromRoot);
+          const relFromDist = path
+            .relative(distDir, absOut)
+            .replace(/\\/g, '/');
+          if (relFromDist.startsWith('..')) continue;
+          const outSubpath = relFromDist.slice(0, -'.mjs'.length);
+          if (esmOnlyOutSubpaths.has(outSubpath)) continue;
+          cjsEntryPoints[outSubpath] = absOut;
+        }
 
-      await esbuild.build({
-        entryPoints: cjsEntryMap,
-        outdir: distDir,
-        outExtension: { '.js': '.cjs' },
-        bundle: true,
-        format: 'cjs',
-        platform,
-        target: platform === 'node' ? 'node20' : 'es2022',
-        jsx: 'automatic',
-        packages: 'external',
-        plugins: [crossPkgPlugin],
-        logLevel: 'silent',
-      });
+        const rewriteRelativeMjsToCjsPlugin: EsbuildPlugin = {
+          name: 'make-pictures-relative-mjs-to-cjs',
+          setup(build) {
+            build.onResolve({ filter: /^\./ }, (args) => {
+              if (args.kind === 'entry-point') return null;
+              if (!args.path.endsWith('.mjs')) return null;
+              return {
+                path: args.path.replace(/\.mjs$/, '.cjs'),
+                external: true,
+              };
+            });
+          },
+        };
+
+        await esbuild.build({
+          absWorkingDir: ROOT_DIR,
+          entryPoints: cjsEntryPoints,
+          outdir: distDir,
+          outExtension: { '.js': '.cjs' },
+          bundle: true,
+          format: 'cjs',
+          platform,
+          target: 'es2022',
+          packages: 'external',
+          plugins: [rewriteRelativeMjsToCjsPlugin],
+          logLevel: 'silent',
+        });
+      } else {
+        const cjsEntryMap: Record<string, string> = {};
+        for (const entry of cjsGroup) {
+          cjsEntryMap[entry.outSubpath] = path.join(pkgDir, entry.srcRelPath);
+        }
+
+        await esbuild.build({
+          absWorkingDir: ROOT_DIR,
+          entryPoints: cjsEntryMap,
+          outdir: distDir,
+          outExtension: { '.js': '.cjs' },
+          bundle: true,
+          format: 'cjs',
+          platform,
+          target: platform === 'node' ? 'node20' : 'es2022',
+          jsx: 'automatic',
+          packages: 'external',
+          plugins: [crossPkgPlugin],
+          logLevel: 'silent',
+        });
+      }
     }
   }
 

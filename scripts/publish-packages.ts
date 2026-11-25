@@ -72,6 +72,24 @@ function isVersionAlreadyPublished(name: string, version: string): boolean {
   }
 }
 
+function ensurePackageLicenses(): void {
+  const rootLicense = path.join(ROOT_DIR, 'LICENSE');
+  if (!fs.existsSync(rootLicense)) {
+    throw new Error(`Missing root LICENSE file at ${rootLicense}`);
+  }
+  const rootContent = fs.readFileSync(rootLicense, 'utf8');
+  for (const target of RELEASE_PACKAGES_TOPOLOGICAL) {
+    const destLicense = path.join(ROOT_DIR, target.dir, 'LICENSE');
+    if (
+      !fs.existsSync(destLicense) ||
+      fs.readFileSync(destLicense, 'utf8') !== rootContent
+    ) {
+      fs.copyFileSync(rootLicense, destLicense);
+      console.log(`  ✓ Synced LICENSE -> ${target.dir}/LICENSE`);
+    }
+  }
+}
+
 async function main(): Promise<void> {
   const { dryRun, otp, skipBuild } = parseArgs();
   const isCi = process.env.GITHUB_ACTIONS === 'true';
@@ -98,6 +116,9 @@ async function main(): Promise<void> {
   } else {
     console.log('⏭️  Step 1/2: Build skipped (--skip-build).\n');
   }
+
+  // Ensure root LICENSE is present in every publishable package even with --skip-build
+  ensurePackageLicenses();
 
   // 2. Iterate in strict topological order
   console.log('🚀 Step 2/2: Publishing 3 packages in strict topological order…\n');

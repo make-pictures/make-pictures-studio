@@ -2,12 +2,12 @@ import React, { useMemo } from 'react';
 import {
   AbsoluteFill,
   interpolate,
+  interpolateColors,
   spring,
   useCurrentFrame,
   useVideoConfig,
 } from 'remotion';
 import { z } from 'zod';
-import { zColor } from '@remotion/zod-types';
 import { ClippedSurfaceChrome } from '../director';
 import { AnimatedBarRace } from '../kits/data-storytelling';
 import { EditorialMediaCard } from '../kits/editorial-collage';
@@ -29,6 +29,30 @@ import {
   type DimensionalSpace,
   type StylePreset,
 } from '../style';
+import { BUILTIN_VISUAL_KIT_IDS, type BuiltinVisualKitId } from '../types';
+
+/**
+ * Matches `@remotion/zod-types`'s `REMOTION_COLOR_BRAND` so Remotion Studio
+ * renders its native color picker without requiring optional peer
+ * `@remotion/zod-types` to be installed at bundle or runtime.
+ */
+const REMOTION_COLOR_BRAND = '__remotion-color';
+
+const optionalColorSchema = z
+  .string()
+  .refine(
+    (value) => {
+      try {
+        interpolateColors(0, [0, 1], [value, value]);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    { message: 'Invalid color' }
+  )
+  .describe(REMOTION_COLOR_BRAND)
+  .optional();
 
 export const StyleLabSchema = z.object({
   space: DimensionalSpaceSchema.describe(
@@ -37,9 +61,13 @@ export const StyleLabSchema = z.object({
   styleId: z
     .enum(BUILT_IN_STYLE_IDS)
     .describe('Style :: Art Direction Preset'),
+  kit: z
+    .enum(BUILTIN_VISUAL_KIT_IDS)
+    .optional()
+    .describe('Kit :: Visual Kit Focus'),
   headline: z.string().min(1).describe('Copy :: Specimen Headline'),
   subtitle: z.string().describe('Copy :: Specimen Subtitle'),
-  accentOverride: zColor().optional(),
+  accentOverride: optionalColorSchema,
 });
 
 export type StyleLabProps = z.infer<typeof StyleLabSchema>;
@@ -47,9 +75,16 @@ export type StyleLabProps = z.infer<typeof StyleLabSchema>;
 export const DEFAULT_STYLE_LAB_PROPS: StyleLabProps = {
   space: '2d',
   styleId: 'editorial-press',
+  kit: 'editorial-collage',
   headline: 'Editorial Craft in Motion',
   subtitle:
     'Preview 2D, 2.5D, and 3D art-direction presets live inside Remotion Studio.',
+};
+
+const DEFAULT_KIT_BY_SPACE: Record<DimensionalSpace, BuiltinVisualKitId> = {
+  '2d': 'editorial-collage',
+  '2.5d': 'paper-diorama-3d',
+  '3d': 'tactile-3d',
 };
 
 const SPACE_LABELS: Record<DimensionalSpace, string> = {
@@ -59,10 +94,11 @@ const SPACE_LABELS: Record<DimensionalSpace, string> = {
 };
 
 const Specimen2D: React.FC<{
+  kit: BuiltinVisualKitId;
   headline: string;
   subtitle: string;
   style: StylePreset;
-}> = ({ headline, subtitle, style }) => {
+}> = ({ kit, headline, subtitle, style }) => {
   const barItems = useMemo(
     () => [
       {
@@ -99,6 +135,7 @@ const Specimen2D: React.FC<{
   return (
     <div
       data-style-lab-specimen="2d"
+      data-style-lab-kit={kit}
       style={{
         display: 'grid',
         gridTemplateColumns: '1.05fr 1fr',
@@ -110,7 +147,7 @@ const Specimen2D: React.FC<{
     >
       <EditorialMediaCard
         caption={headline}
-        sourceTag={style.name}
+        sourceTag={`${style.name} · ${kit}`}
         startFrame={4}
         durationInFrames={240}
       />
@@ -126,12 +163,12 @@ const Specimen2D: React.FC<{
         <StoryCard2D
           title={style.name}
           subtitle={subtitle}
-          badge={style.typography.displayFont}
+          badge={`${kit} · ${style.typography.displayFont}`}
           startFrame={6}
           compact
         />
         <AnimatedBarRace
-          title="Motion & Contrast Scale"
+          title={`Motion & Contrast Scale · ${kit}`}
           items={barItems}
           valueSuffix="%"
           maxItems={3}
@@ -144,10 +181,11 @@ const Specimen2D: React.FC<{
 };
 
 const Specimen25D: React.FC<{
+  kit: BuiltinVisualKitId;
   headline: string;
   subtitle: string;
   style: StylePreset;
-}> = ({ headline, subtitle, style }) => {
+}> = ({ kit, headline, subtitle, style }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const optics = resolveStyleOptics(style);
@@ -165,6 +203,7 @@ const Specimen25D: React.FC<{
   return (
     <div
       data-style-lab-specimen="2.5d"
+      data-style-lab-kit={kit}
       style={{
         display: 'grid',
         gridTemplateColumns: '1.15fr 0.85fr',
@@ -321,7 +360,7 @@ const Specimen25D: React.FC<{
         <StoryCard2D
           title="Layered Paper Depth"
           subtitle="Tactile die-cut silhouettes with seeded grain and directional shadows."
-          badge="2.5D CRAFT"
+          badge={kit.toUpperCase()}
           startFrame={6}
         />
         <div
@@ -367,10 +406,11 @@ const Specimen25D: React.FC<{
 };
 
 const Specimen3D: React.FC<{
+  kit: BuiltinVisualKitId;
   headline: string;
   subtitle: string;
   style: StylePreset;
-}> = ({ headline, subtitle, style }) => {
+}> = ({ kit, headline, subtitle, style }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const material3d = resolveStyleMaterial3D(style);
@@ -393,6 +433,7 @@ const Specimen3D: React.FC<{
   return (
     <div
       data-style-lab-specimen="3d"
+      data-style-lab-kit={kit}
       style={{
         display: 'grid',
         gridTemplateColumns: '1.1fr 0.9fr',
@@ -556,7 +597,7 @@ const Specimen3D: React.FC<{
         <StoryCard2D
           title={headline}
           subtitle={subtitle}
-          badge={material3d.finish.toUpperCase()}
+          badge={`${kit.toUpperCase()} · ${material3d.finish.toUpperCase()}`}
           startFrame={6}
         />
         <div
@@ -591,8 +632,8 @@ const Specimen3D: React.FC<{
               color: style.palette.textSecondary,
             }}
           >
-            Pair with <code style={{ fontFamily: monoFont }}>@make-pictures/remotion/kits/isometric-3d</code> or{' '}
-            <code style={{ fontFamily: monoFont }}>tactile-3d</code> for full WebGL lighting.
+            Pair with <code style={{ fontFamily: monoFont }}>@make-pictures/remotion/kits/{kit}</code>{' '}
+            for full WebGL lighting.
           </div>
         </div>
       </div>
@@ -602,9 +643,10 @@ const Specimen3D: React.FC<{
 
 const StyleLabInner: React.FC<{
   space: DimensionalSpace;
+  kit: BuiltinVisualKitId;
   headline: string;
   subtitle: string;
-}> = ({ space, headline, subtitle }) => {
+}> = ({ space, kit, headline, subtitle }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const style = useStudioStyle();
@@ -690,7 +732,7 @@ const StyleLabInner: React.FC<{
               {SPACE_LABELS[space]}
             </span>
             <span style={{ color: style.palette.textSecondary }}>
-              {style.id} · {artWorld}
+              {style.id} · {artWorld} · {kit}
             </span>
           </div>
 
@@ -767,11 +809,11 @@ const StyleLabInner: React.FC<{
 
       {/* Live Dimensional Space Specimen */}
       {space === '2d' ? (
-        <Specimen2D headline={headline} subtitle={subtitle} style={style} />
+        <Specimen2D kit={kit} headline={headline} subtitle={subtitle} style={style} />
       ) : space === '2.5d' ? (
-        <Specimen25D headline={headline} subtitle={subtitle} style={style} />
+        <Specimen25D kit={kit} headline={headline} subtitle={subtitle} style={style} />
       ) : (
-        <Specimen3D headline={headline} subtitle={subtitle} style={style} />
+        <Specimen3D kit={kit} headline={headline} subtitle={subtitle} style={style} />
       )}
     </AbsoluteFill>
   );
@@ -780,10 +822,12 @@ const StyleLabInner: React.FC<{
 export const StyleLabComposition: React.FC<StyleLabProps> = ({
   space = DEFAULT_STYLE_LAB_PROPS.space,
   styleId = DEFAULT_STYLE_LAB_PROPS.styleId,
+  kit,
   headline = DEFAULT_STYLE_LAB_PROPS.headline,
   subtitle = DEFAULT_STYLE_LAB_PROPS.subtitle,
   accentOverride,
 }) => {
+  const effectiveKit = kit ?? DEFAULT_KIT_BY_SPACE[space];
   const effectiveStyle = useMemo<StylePreset>(() => {
     const base = resolveStudioStyle(styleId);
     if (!accentOverride || !accentOverride.trim()) {
@@ -800,7 +844,12 @@ export const StyleLabComposition: React.FC<StyleLabProps> = ({
 
   return (
     <StyleProvider style={effectiveStyle} renderBackdrop>
-      <StyleLabInner space={space} headline={headline} subtitle={subtitle} />
+      <StyleLabInner
+        space={space}
+        kit={effectiveKit}
+        headline={headline}
+        subtitle={subtitle}
+      />
     </StyleProvider>
   );
 };
