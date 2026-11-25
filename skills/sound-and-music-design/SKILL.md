@@ -1,111 +1,84 @@
 ---
 name: sound-and-music-design
 description: >-
-  Complete audio direction guide for make.pictures Studio: ElevenLabs voice
-  profiles, Polish/English phonetic spelling rules, VoiceAcousticPreset filters,
-  ElevenLabs Music score & compositionPlan sync, SmartMusicBed sidechain
-  auto-ducking, useMusicBeatPulse, ElevenLabs Sound Effects, word-synced
-  SoundCue foley, and -14 LUFS EBU R128 mastering. Use whenever writing scripts,
-  configuring production.json audio, or placing music and SFX in compositions.
+  Complete audio direction guide for @make-pictures/remotion/audio and
+  @make-pictures/cli: ElevenLabs eleven_v4 default & eleven_v3 discrete
+  stability, Text-to-Dialogue (dialogueInputs + voiceSegments), native PL/EN
+  voice casting, Polish/English phonetics (głoskowce "api" vs hyphenated
+  literowce "u-es-be"), acousticPresets, AI Music (SmartMusicBed sidechain
+  auto-ducking, useMusicBeatPulse), word-synced SoundCue foley, and -14 LUFS
+  EBU R128 mastering. Use whenever writing scripts, authoring audio.json, or
+  wiring voiceovers, music, and SFX into Remotion compositions.
 ---
 
-# Sound & Music Design (`@make-pictures/core` & `@make-pictures/cli`)
+# Sound & Music Design (`@make-pictures/remotion/audio` & `@make-pictures/cli`)
 
-Design broadcast-ready, `-14 LUFS` mastered soundtracks combining word-aligned **ElevenLabs TTS**, **AI Music Scores** with lookahead sidechain auto-ducking, and **word-synced AI Sound Effects (Foley)**—all powered by a single `ELEVENLABS_API_KEY`.
+> **Tandem Skills Contract (`remotion-dev/skills`):** Base Remotion audio mounting (`<Audio>`, `<Sequence>`, `staticFile()`, `@remotion/media-utils`) is covered in **`remotion-dev/skills`** (`npx remotion skills add`). Use this skill for `make.pictures` ElevenLabs TTS/Dialogue/Music/SFX generation (`audio.json`), Polish/English phonetics, sidechain ducking, audio pool hygiene, and `-14 LUFS` broadcast mastering.
+
+All audio generation (TTS, Text-to-Dialogue, AI Music, AI SFX) is powered by a single `ELEVENLABS_API_KEY` in `.env.local` (configured via `npx make-pictures onboard`; use `--mock` for zero-credit offline synthesis).
 
 ---
 
-## 1. ElevenLabs Voice Cast & Phonetic Spelling (`eleven_v4` Default)
+## 1. Phonetic Spelling Rules in `audio.json` (`eleven_v4` Default)
 
-### Phonetic Spelling Rules in `production.json` / `scenes.json`
-`eleven_v4` is the studio default (`DEFAULT_ELEVENLABS_MODEL_ID = 'eleven_v4'`) — delivering natural expressive intonation, inline acting tags, and native `languageCode` enforcement. Even with modern models, raw uppercase acronyms, digits, or brand/style slugs can be mispronounced in non-English scripts. Write natural phonetic spellings directly in `scene.text` (and in every turn of `scene.dialogueInputs`):
+`eleven_v4` is the studio default (`DEFAULT_ELEVENLABS_MODEL_ID = 'eleven_v4'`). Always write clean phonetic spellings directly inside `scene.text` and every turn of `scene.dialogueInputs`:
+
 - **Brand & style names (CRITICAL):**
-  - `make.pictures`: write **`mejk pikczers`** in Polish and **`make pictures`** in English (**NEVER** write literal punctuation words like *„mejk kropka pikczers”* or *“make dot pictures”*!).
-  - `retro-pc`: write **`retro pi si`** in Polish and **`retro pee see`** in English (never *„retro pe ce”* or raw `retro-pc`).
-  - Dimensional spaces & numbers: spell out naturally (`dwa de`, `dwa i pół de`, `trzy de`, `jedenaście` in PL; `two dee`, `two point five dee`, `three dee`, `eleven` in EN — zero raw digits or uppercase acronyms in `scene.text`).
-- **Polish technical acronyms — Głoskowce vs Literowce (CRITICAL — never confuse the two!):**
-  1. **Głoskowce (word-acronyms spoken as a single Polish word — NEVER lettered!):**
-     Write in lowercase as one cohesive word:
-     - `API` → **`"api"`** (**NEVER** `"a-pe-i"`, `"a pe i"`, or English `"ej-pi-aj"`!)
+  - `make.pictures` → **`"mejk pikczers"`** (PL) / **`"make pictures"`** (EN) — never *"mejk kropka pikczers"* or *"make dot pictures"*.
+  - `retro-pc` → **`"retro pi si"`** (PL) / **`"retro pee see"`** (EN) — never *"retro pe ce"* or raw `retro-pc`.
+  - Spell out dimensional spaces & numbers naturally (`dwa de`, `dwa i pół de`, `trzy de`, `jedenaście` in PL; `two dee`, `two point five dee`, `three dee` in EN).
+- **Polish Technical Acronyms — Głoskowce vs. Literowce (CRITICAL):**
+  1. **Głoskowce (spoken as one Polish word — NEVER lettered!):**
+     Write in lowercase as a single cohesive word:
+     - `API` → **`"api"`** (NEVER `"a-pe-i"` or English `"ej-pi-aj"`!)
      - `LED` → `"led"`, `RAM` → `"ram"`, `LAN` → `"lan"`, `PIN` → `"pin"`, `SIM` → `"sim"`, `CAD` → `"kad"`, `SaaS` → `"sas"`, `JSON` → `"dżejson"`.
-  2. **Literowce (lettered acronyms spelled with mandatory hyphens `-`, never spaces):**
-     Spaces between letters (`"e er p"`, `"es ku el"`) cause TTS models to slur adjacent syllables; always join letter names with hyphens (`-`):
+  2. **Literowce (lettered acronyms with mandatory hyphens `-`, never spaces):**
+     Spaces between letters slur syllables; always join letter names with hyphens:
      - `USB` → `"u-es-be"`, `SQL` → `"es-ku-el"`, `CRM` → `"ce-er-em"`, `ERP` → `"e-er-pe"`, `GSM` → `"gie-es-em"`, `PDF` → `"pe-de-ef"`, `HTML` → `"ha-te-em-el"`, `SDK` → `"es-de-ka"`, `HTTPS` → `"ha-te-te-pe-es"`, `CPU` → `"ce-pe-u"`.
-  3. **Colloquial engineering digit grouping in standards & norms:**
-     Group digits in pairs or single digits the way Polish engineers actually speak — never force long thousand-ordinals or literal `"kropka"`:
+  3. **Colloquial Engineering Digit Grouping:**
+     Group standard/norm numbers the way Polish engineers speak (zero literal `"kropka"`):
      - `ISO 8601` → `"izo osiemdziesiąt sześć zero jeden"`, `RFC 9110` → `"er-ef-ce dziewięćdziesiąt jeden dziesięć"`, `IEEE 802.11` → `"osiemset dwa jedenaście"`, `USB 3.2` → `"u-es-be trzy dwa"`, `HTTP 404` → `"błąd cztery-zero-cztery"`, `x86-64` → `"iks osiemdziesiąt sześć sześćdziesiąt cztery"`.
-     - Spell out all numerals in the proper grammatical case (*„poniżej dwudziestu milisekund”*).
-  4. **Zero catalog SKU / part numbers or engine-spec flexing in `scene.text`:**
-     Never read hardware SKUs (`DK-940X-TB4`, `PD-140W-G2`) or internal engine specs (`60 FPS`, `-14 LUFS`, `0 kolizji`, `GPU`, `PBR`) aloud — speak in warm, audience-focused language of creative outcomes and user benefits, and place model badges visually on cards when needed (`badge="Seria 940"`). `npx make-pictures audio` runs `lintManifestVoiceovers` (`phonetics-lint.ts`) automatically before synthesis.
-- **Context continuity (`previousText` / `nextText`):** Pass optional `previousText` and `nextText` (prefixed with `. ` or `... ` to prevent trailing phoneme bleed) on `SceneDefinition` so multi-scene monologues maintain seamless prosody across cuts.
+     - Spell out numerals in the proper grammatical case (*„poniżej dwudziestu milisekund”*).
+  4. **Zero Catalog SKUs or Engine-Spec Flexing in Spoken Copy:**
+     Never read part numbers (`DK-940X-TB4`) or internal specs (`60 FPS`, `-14 LUFS`, `0 kolizji`, `GPU`, `PBR`) aloud. `npx make-pictures audio` runs `lintManifestVoiceovers` automatically before synthesis.
+- **Prosody Continuity:** Pass optional `previousText` / `nextText` (prefixed with `. ` or `... `) on scenes in `audio.json` to preserve natural intonation across cuts.
 
-### Native Voice Selection Rule (CRITICAL — Never Use English Premade Voices for Polish!)
+---
 
-Default ElevenLabs premade voices (**Liam** `TX3LPaxmHKxFdv7VOQHJ`, **Sarah** `EXAVITQu4vr4xnSDxMaL`, **Brian** `nPczCjzI2devNBz1zQrb`, **George** `JBFqnCBsd6RMkjVDRZzb`, **Daniel** `onwK4e9ZLuTAKqWW03F9`, **Adam**, **Callum**, **Bill**) are **English-native voices** speaking Polish only via cross-lingual transfer — which produces foreign prosody and awkward accentuation on Polish numerals.
+## 2. Native Voice Selection (`voices --lang`) & Proven Profiles
 
-**Before choosing or changing a voice for any film:**
-1. Run **`npx make-pictures voices --lang=pl --json`** (or `--lang=en`, `--gender=female|male`, `--query="..."`) — this lists **curated native voices**, checks **the user's own ElevenLabs account voices first**, and searches the **ElevenLabs Voice Library** with free `previewUrl` samples (`0` credits).
-2. When testing a new voice on difficult text (e.g. long Polish numerals), audition **1 short sentence** before synthesizing the whole film:
+> **HARD RULE:** **Never use English premade voices** (**Liam** `TX3LPaxmHKxFdv7VOQHJ`, **Sarah** `EXAVITQu4vr4xnSDxMaL`, **Brian** `nPczCjzI2devNBz1zQrb`, **George** `JBFqnCBsd6RMkjVDRZzb`, **Daniel** `onwK4e9ZLuTAKqWW03F9`, **Adam**, **Callum**, **Bill**) **for Polish scripts** — cross-lingual transfer corrupts Polish prosody and numeral stress.
+
+1. Discover voices (curated + user account + Voice Library with 0-credit preview URLs):
+   `npx make-pictures voices --lang=pl --json` (or `--lang=en`, `--gender=female|male`, `--query="..."`).
+2. Audition **1 short sentence** before full synthesis:
    ```bash
-   npx make-pictures voices --voice=C8ZVSJxcymeT86xT429O --lang=pl --model=eleven_v4 --audition="Czterysta czterdzieści cztery tysiące pięćset pięćdziesiąt pięć."
+   npx make-pictures voices --voice=C8ZVSJxcymeT86xT429O --lang=pl --model=eleven_v4 --audition="[thoughtful] Ten detal zmienia wszystko… [warmly] i zaraz zobaczysz dlaczego."
    ```
-3. Set `modelId: "eleven_v4"` (default; or `"eleven_v4_turbo"` / `"eleven_v3"` — avoid legacy `"eleven_multilingual_v2"` unless explicitly requested) and `languageCode` (`"pl"` / `"en"`) per manifest or per scene in `production.json` (`languageCode` is automatically sent for `eleven_v4*`, `eleven_v3`, `eleven_turbo_v2_5`, and `eleven_flash_v2_5`, and skipped on legacy `eleven_multilingual_v2`). `lintManifestVoiceovers` automatically warns if a Polish scene or dialogue turn uses a known English-native premade voice.
+3. Keep natural **`voiceSettings.speed: 0.98–1.00`** (`0.99` CLI default) so Polish consonant endings never clip (`>= 1.10` rushes phrasing).
 
-### Proven Native Studio Voice Profiles & Natural `0.98–1.00` Speech Speed
+### Verified Native Polish (`lang: 'pl'`) Voices (`@make-pictures/remotion/audio/voices`)
+- **Luiza** (`C8ZVSJxcymeT86xT429O`, default PL female — warm storyteller/educator): `{ stability: 0.48, similarityBoost: 0.80, style: 0.30, speed: 0.99, useSpeakerBoost: true }`
+- **Asia** (`Bz1e1clEKwgN71Vx7cxj`, PL female — crisp SaaS/product presenter): `{ stability: 0.45, similarityBoost: 0.80, style: 0.32, speed: 0.99, useSpeakerBoost: true }`
+- **Arleta** (`F9eb9uZYeJuHuO7Uvs1R`, PL female — calm editorial/instructor): `{ stability: 0.56, similarityBoost: 0.82, style: 0.18, speed: 0.99, useSpeakerBoost: true }`
+- **Rafał** (`CLuTGacrAhcIhaJslbXt`, PL male — analytical/documentary; end sentences with `.`, never `!`): `{ stability: 0.58, similarityBoost: 0.80, style: 0.18, speed: 0.99, useSpeakerBoost: true }`
 
-Keep `voiceSettings.speed` in the natural **`0.98–1.00`** range (`0.99` CLI default) for Polish and English explainers, product presentations, and essays — speeds `>= 1.10` rush phrasing and clip Polish consonant endings.
+### Verified Native English (`lang: 'en'`) Voices (English Scripts ONLY!)
+- **Liam** (`TX3LPaxmHKxFdv7VOQHJ`, default EN male — tech/launch), **Sarah** (`EXAVITQu4vr4xnSDxMaL`, EN female — calm editorial/science), **Daniel** (`onwK4e9ZLuTAKqWW03F9`, EN male — broadcast documentary, zero `!`), **Brian** (`nPczCjzI2devNBz1zQrb`), **George** (`JBFqnCBsd6RMkjVDRZzb`), **Adam** (`pNInz6obpgDQGcFmaJgB`), **Callum** (`N2lVS1w4EtoT3dr4eOWO`), **Bill** (`pqHfZKP75CvOlQylNhV4`).
 
-#### Verified Native Polish (`lang: 'pl'`) Voices (`language: pl`, direct `voiceId` support)
-1. **Luiza — Warm Storyteller / Educator (PL female, default PL):** `C8ZVSJxcymeT86xT429O`
-   - `voiceSettings`: `{ stability: 0.48, similarityBoost: 0.80, style: 0.30, speed: 0.99, useSpeakerBoost: true }`
-   - Natural Polish penultimate stress even on complex multi-digit numerals; warm, engaging teaching and storytelling cadence.
-2. **Asia — Crisp Product & Tech Presenter (PL female):** `Bz1e1clEKwgN71Vx7cxj`
-   - `voiceSettings`: `{ stability: 0.45, similarityBoost: 0.80, style: 0.32, speed: 0.99, useSpeakerBoost: true }`
-   - Friendly, clear, upbeat native Polish for SaaS demos, product explainers, and tutorials.
-3. **Arleta — Calm Instructor / Editorial Anchor (PL female):** `F9eb9uZYeJuHuO7Uvs1R`
-   - `voiceSettings`: `{ stability: 0.56, similarityBoost: 0.82, style: 0.18, speed: 0.99, useSpeakerBoost: true }`
-   - Measured, crisp classroom/editorial diction for essays and structured guides.
-4. **Rafał — Calm Analytical / Documentary Narrator (PL male):** `CLuTGacrAhcIhaJslbXt`
-   - `voiceSettings`: `{ stability: 0.58, similarityBoost: 0.80, style: 0.18, speed: 0.99, useSpeakerBoost: true }`
-   - Natural, calm Polish male voice; always end sentences with periods (`.`), never `!`, to keep word endings unclipped.
+---
 
-#### Verified Native English (`lang: 'en'`) Voices (Use ONLY for English Scripts!)
-1. **Dynamic Narrator / Tech Launch (`Liam` — default EN):** `TX3LPaxmHKxFdv7VOQHJ`
-   - `voiceSettings`: `{ stability: 0.42, similarityBoost: 0.78, style: 0.45, speed: 0.99, useSpeakerBoost: true }`
-2. **Calm Editorial & Science Anchor (`Sarah` — EN female):** `EXAVITQu4vr4xnSDxMaL`
-   - `voiceSettings`: `{ stability: 0.54, similarityBoost: 0.80, style: 0.22, speed: 0.99, useSpeakerBoost: true }`
-3. **Broadcast Journalist / Documentary Anchor (`Daniel` — EN male):** `onwK4e9ZLuTAKqWW03F9`
-   - `voiceSettings`: `{ stability: 0.62, similarityBoost: 0.84, style: 0.22, speed: 1.00, useSpeakerBoost: true }`
-   - **Zero exclamation marks (`!`)** in news/documentary scripts—use periods (`.`) and em-dashes (`—`).
-4. **English Multi-Character Dialogue Ensemble:**
-   - `nPczCjzI2devNBz1zQrb` (*Brian* — warm documentary authority)
-   - `JBFqnCBsd6RMkjVDRZzb` (*George* — expressive storyteller)
-   - `pNInz6obpgDQGcFmaJgB` (*Adam* — director / narrator)
-   - `N2lVS1w4EtoT3dr4eOWO` (*Callum* — assistant / analyst)
-   - `pqHfZKP75CvOlQylNhV4` (*Bill* — elderly mentor)
+## 3. Expressive Direction (`eleven_v4` / `eleven_v3`), Micro-Segments & `dialogueInputs`
 
-### Expressive Acting Direction with `eleven_v4` (Default) & `eleven_v3` (Audio Tags & Micro-Segments)
-
-Every new film defaults to **`modelId: "eleven_v4"`** (or **`eleven_v3`** when targeting v3 explicitly) for expressive human intonation, inline acting tags, and crisp Polish/English prosody (audition 1 representative sentence first before committing full credits):
-
-```bash
-# 1-sentence audition before synthesizing the full production:
-npx make-pictures voices --voice=C8ZVSJxcymeT86xT429O --lang=pl --model=eleven_v4 --audition="[thoughtful] Ten detal zmienia wszystko… [warmly] i zaraz zobaczysz dlaczego."
-```
-
-1. **Inline Audio Tags (`eleven_v4` & `eleven_v3` Only):**
-   - Direct micro-shifts in delivery with concise bracketed cues right inside `scene.text` or `dialogueInputs[].text`: `[thoughtful]`, `[warmly]`, `[playful]`, `[amazed]`, `[excited]`, `[whispers]`, `[sighs]`, `[curious]`.
-   - Combine tags with natural **"thinking out loud" phrasing and gentle self-corrections** (e.g., *„…a właściwie jeszcze wcześniej, bo już w piętnastym wieku…”*) so the narration breathes like a real storyteller rather than a teleprompter.
-   - **Cross-Model Safety (`[v3-audio-tags]`):** Never leave `[thoughtful]` or other bracketed tags in a scene using legacy `eleven_multilingual_v2` — v2 will literally read the English tag aloud! `lintManifestVoiceovers` (`phonetics-lint.ts`) strips inline tags before Polish acronym checks and emits `[v3-audio-tags]` across both `pl` and `en` whenever tags appear on a non-v3/v4 model.
-2. **Discrete `stability` Constraint when Explicitly Using `eleven_v3` (`[v3-stability]`):**
-   - If a scene or manifest explicitly uses `eleven_v3`, note that `eleven_v3` accepts **strictly discrete `voiceSettings.stability` values: `0.0` (Creative), `0.5` (Natural — recommended default), or `1.0` (Robust)**. Intermediate values like `0.35` or `0.48` fail or degrade on `eleven_v3` — `lintManifestVoiceovers` automatically flags them with `[v3-stability]` (and the CLI snaps them automatically).
-3. **Micro-Segment Splitting (`a/b/c`) for Physical Pauses & Credit Efficiency:**
-   - Instead of one 25-second wall-of-text scene, split key narrative beats into short **micro-segments** (`s02a-setup`, `s02b-twist`, `s02c-resolve`) in `production.json` and space them on the visual timeline with explicit physical/SFX pauses (`0.6–1.4 s` for a sheet flip, reveal, or camera macro push).
-   - Because `npx make-pictures audio` caches each segment by SHA-256 hash, editing one sentence re-synthesizes **only that 3-second micro-segment** instead of paying to regenerate an entire 25-second monologue.
-
-### Multi-Speaker Dialogues via `dialogueInputs` (ElevenLabs Text-to-Dialogue `convertWithTimestamps`)
-
-Never stitch a 2-speaker conversation (podcast studio, interview, co-host banter) out of separate single-voice `.mp3` clips when natural turn-taking and conversational cadence matter. Declare **`dialogueInputs`** directly on the scene in `production.json` — `@make-pictures/cli` automatically routes any scene with `dialogueInputs.length >= 2` to **`elevenlabs.textToDialogue.convertWithTimestamps`**, producing **one cohesive conversational `.mp3`** with exact per-turn `voiceSegments` and word timestamps:
+1. **Inline Audio Tags (`eleven_v4` default & `eleven_v3` ONLY):**
+   - Use concise cues inside `text` or `dialogueInputs[].text`: `[thoughtful]`, `[warmly]`, `[playful]`, `[amazed]`, `[excited]`, `[whispers]`, `[sighs]`, `[curious]`.
+   - **Cross-Model Safety (`[v3-audio-tags]`):** Never leave `[tags]` on legacy `eleven_multilingual_v2` (v2 reads them aloud!). `lintManifestVoiceovers` flags this across `pl` and `en`.
+2. **Discrete `stability` on `eleven_v3` (`[v3-stability]`):**
+   - When explicitly targeting `eleven_v3`, `voiceSettings.stability` MUST be discrete: **`0.0` (Creative), `0.5` (Natural — default), or `1.0` (Robust)**.
+3. **Micro-Segment Splitting (`a/b/c`):**
+   - Split long acts into short scenes (`s02a-setup`, `s02b-twist`, `s02c-resolve`) in `audio.json` so physical pauses (`0.6–1.4 s`) breathe naturally and SHA-256 caching re-synthesizes only edited lines.
+4. **Multi-Speaker Text-to-Dialogue (`dialogueInputs` → `convertWithTimestamps` + `voiceSegments`):**
+   - For 2+ speaker conversations (podcast, interview, co-host banter), declare `dialogueInputs` directly on the scene in `audio.json` — `@make-pictures/cli` calls `elevenlabs.textToDialogue.convertWithTimestamps`, producing **one cohesive `.mp3`** with per-turn `voiceSegments` (`{ voiceId, speaker?, dialogueInputIndex, startTimeSeconds, endTimeSeconds }`) for exact lip-sync and camera cuts (and deterministic proportional `voiceSegments` under `--mock`):
 
 ```json
 {
@@ -114,64 +87,47 @@ Never stitch a 2-speaker conversation (podcast studio, interview, co-host banter
   "modelId": "eleven_v4",
   "languageCode": "pl",
   "voiceSettings": { "stability": 0.5, "speed": 0.99 },
-  "text": "[playful] Chcesz pogadać z widzem? Wskakujemy do studia trzy de! [warmly] Światło, uśmiech i dobra zabawa w jednym miejscu.",
+  "text": "[playful] Chcesz pogadać z widzem? [warmly] Światło i rozmowa w jednym miejscu.",
   "dialogueInputs": [
-    {
-      "speaker": "Luiza",
-      "voiceId": "C8ZVSJxcymeT86xT429O",
-      "text": "[playful] Chcesz pogadać z widzem? Wskakujemy prosto do ciepłego studia trzy de!"
-    },
-    {
-      "speaker": "Rafał",
-      "voiceId": "CLuTGacrAhcIhaJslbXt",
-      "text": "[warmly] Światło, uśmiech i dobra zabawa w jednym miejscu."
-    }
+    { "speaker": "Luiza", "voiceId": "C8ZVSJxcymeT86xT429O", "text": "[playful] Chcesz pogadać z widzem? Wskakujemy do ciepłego studia trzy de!" },
+    { "speaker": "Rafał", "voiceId": "CLuTGacrAhcIhaJslbXt", "text": "[warmly] Światło, uśmiech i dobra rozmowa w jednym miejscu." }
   ]
 }
 ```
 
-- **Unified Audio + Per-Turn `voiceSegments`:** Mount **one** `<VoiceoverTrack voiceover={VOICEOVER_MANIFEST['s4-studio-dialogue']} fromFrame={...} />`, and read `VOICEOVER_MANIFEST['s4-studio-dialogue'].voiceSegments` (`Array<{ voiceId, speaker?, dialogueInputIndex, startTimeSeconds, endTimeSeconds }>`) to drive exact lip-sync, listener head nods, speaking-host spotlights, and camera cuts without slicing or duplicating audio files.
-- **Linter & `--mock` Parity:** `lintManifestVoiceovers` automatically lints **every turn** in `dialogueInputs` (native Polish voice per turn, inline tags, discrete `eleven_v3` `stability`, Polish phonetics), and `--mock` synthesizes deterministic proportional `voiceSegments` for offline development.
-
-### Declarative Voice Acoustic Filters (`voiceEffect`)
-Never hardcode scene IDs in audio scripts. Set `voiceEffect?: VoiceAcousticPreset` directly on any scene in `production.json`:
-- `'clean'` (default — preserves `250 ms` `apad` silent tail so final consonants never clip)
-- `'telephone'` (bandpass `340–3200 Hz` + compressor)
-- `'radio-walkie'` (narrow band + subtle bitcrush + radio compression)
-- `'cathedral'` (spacious multi-tap acoustic echo)
-- `'megaphone'` (projected mid-band PA horn)
-- `'excitement-boost'` (crisp `4.2 kHz` presence lift + limiter)
+5. **Declarative Voice Acoustic Presets (`acousticPreset` / `voiceEffect`):**
+   `'clean'` (default, `250 ms` `apad` tail so final consonants never clip), `'telephone'`, `'radio-walkie'`, `'cathedral'`, `'megaphone'`, `'excitement-boost'`.
 
 ---
 
-## 2. AI Music Score & Sidechain Auto-Ducking (`<SmartMusicBed />`)
+## 4. AI Music (`<SmartMusicBed />`), Foley (`<SoundCue />`) & Audio Pool Hygiene
 
-### Declaring `score` in `production.json` (`MusicScoreSpec`)
-- **`mode: 'prompt'`:** Generates a custom instrumental track via ElevenLabs Music (`composeDetailed`) from `prompt`, `durationSeconds`, and `forceInstrumental: true`.
-- **`mode: 'composition-plan'`:** Maps musical intensity arcs directly to your story acts via `sections: ScoreSectionSpec[]` (`{ name, durationMs, positiveLocalStyles, negativeLocalStyles }`).
-- **`mode: 'procedural-fallback'` (or `--mock` offline mode):** Synthesizes clean loopable stereo beds across 7 named `moodPreset` options:
-  `'ambient-tech' | 'warm-story' | 'news-pulse' | 'cinematic-drone' | 'cinematic-epic' | 'paper-expedition' | 'upbeat-launch'`.
+### `<Html5Audio />` Pool Hygiene (CRITICAL)
+`@remotion/player` frees a shared audio tag only when its `<Audio />` unmounts. **Never** wrap `<Audio />` in an unbounded `<Sequence>` without `durationInFrames`.
+- Use **`<VoiceoverTrack />`** from `@make-pictures/remotion/audio` (automatically bounds `durationInFrames` to `durationInSeconds + 0.35s` safety tail).
+- Use **`<SoundCue />`** with `durationSeconds={sfx.durationSeconds}` (auto-bounds even if omitted, unless `loop`).
+- Pass `numberOfSharedAudioTags={32}` when mounting custom `<Player />` embeds.
+- **Sparse Foley Budget:** Place **at most `3–5` subtle cues** per `60–90 s` film at **`volume: 0.14–0.26`** (fallback presets: `'whoosh' | 'pop' | 'click' | 'chime' | 'wind' | 'impact' | 'ambient-hum'`).
 
-### Runtime Auto-Ducking & Beat-Reactive Visuals
+### Mounting Music, Voiceover & Word-Synced SFX
 
 ```tsx
 import { staticFile } from 'remotion';
 import {
   SmartMusicBed,
+  SoundCue,
+  VoiceoverTrack,
   useMusicBeatPulse,
-  productionAssetPath,
-} from '@make-pictures/core';
+} from '@make-pictures/remotion/audio';
+import { SFX_MANIFEST, VOICEOVER_MANIFEST } from './generated/audio-manifest';
 
-const scoreSrc = staticFile(productionAssetPath('my-film', 'music/main-score.mp3'));
+const scoreSrc = staticFile('audio/my-film/main-score.mp3');
 const beatPulse = useMusicBeatPulse(scoreSrc, { lowBinCount: 4, smoothingFrames: 3 });
 
 <SmartMusicBed
   src={scoreSrc}
-  dialogueSegments={[
-    { sceneId: 's1-hook', fromFrame: 42, durationInFrames: 210 },
-    { sceneId: 's2-reveal', fromFrame: 390, durationInFrames: 240 },
-  ]}
-  voiceoverManifest={AUDIO_MANIFEST}
+  dialogueSegments={[{ sceneId: 's1-hook', fromFrame: 42, durationInFrames: 210 }]}
+  voiceoverManifest={VOICEOVER_MANIFEST}
   baseVolume={0.25}
   duckedVolume={0.085}
   lookaheadFrames={12}
@@ -180,63 +136,27 @@ const beatPulse = useMusicBeatPulse(scoreSrc, { lowBinCount: 4, smoothingFrames:
   fadeOutFrames={90}
   loop
 />
-```
-
-- `<SmartMusicBed />` merges words within a sentence into continuous phrase spans, ramps down `12` frames **before** the first syllable (`lookaheadFrames`), holds steady across inter-word micro-pauses, and breathes back up (`releaseFrames: 28`) during real scene transitions (`> ~0.8 s`).
-- `useMusicBeatPulse(audioSrc)` returns a smooth `0..1` bass/kick transient envelope (safely returning `0` while loading or if `null`) for subtle glow or scale accents.
-
----
-
-## 3. Scene Voiceovers (`<VoiceoverTrack />`) & Word-Synced Foley (`<SoundCue />`)
-
-### `<Html5Audio />` Pool Hygiene (CRITICAL)
-`@remotion/player` only frees a shared `<Html5Audio />` slot when its `<Audio />` element **unmounts**. **Never** wrap `<Audio />` in an unbounded `<Sequence from={...}>` without `durationInFrames` — otherwise finished voiceovers and SFX stay mounted until the end of the film!
-- **For scene narration:** Mount `<VoiceoverTrack voiceover={VOICEOVER_MANIFEST[sceneId]} fromFrame={...} volume={...} />` from `@make-pictures/core` (it automatically computes finite `durationInFrames` from `voiceover.durationInSeconds + 0.35s` consonant safety tail).
-- **For Foley / SFX:** Mount `<SoundCue />` from `@make-pictures/core` and pass `durationSeconds={sfx.durationSeconds}` when available (even when omitted, `<SoundCue />` auto-unmounts after a finite `6s` window unless `loop` is set).
-- **Live Web Embeds:** When embedding compositions in your own custom `<Player />` from `@remotion/player`, pass `numberOfSharedAudioTags={32}` (Studio Web configures `STUDIO_SHARED_AUDIO_TAGS = 32` automatically).
-
-### Sparse Foley Budget (`3–5` Cues per Film at `volume: 0.14–0.26`) & `sfx` in `production.json`
-Never attach a whoosh or pop to every single card entrance or scene cut. Across a `60–90 s` explainer or product film, place **at most `3–5` subtle Foley accents** (chapter opening, key metric shift, closing resolve) mixed quietly at **`volume: 0.14–0.26`** so they never mask spoken consonants. Each entry in `sfx` generates a cached `.mp3` via ElevenLabs Text-to-Sound-Effects (`prompt`, `durationSeconds`, `loop?: boolean`, `promptInfluence?: number` default `0.35`) with offline `fallbackPreset` (`'whoosh' | 'pop' | 'click' | 'chime' | 'wind' | 'impact' | 'ambient-hum'`).
-
-### Mounting `<VoiceoverTrack />` & `<SoundCue />`
-
-```tsx
-import { SoundCue, VoiceoverTrack } from '@make-pictures/core';
-import { SFX_MANIFEST, VOICEOVER_MANIFEST } from '../generated/audio-manifest';
-
-{/* 1. Bounded scene voiceover starting after ~42f (0.7s) Pre-Speech Settle */}
-<VoiceoverTrack
-  voiceover={VOICEOVER_MANIFEST['s2-reveal']}
-  fromFrame={42}
-  volume={1.0}
-/>
-
-{/* 2. Subtle Foley cue mixed at 0.14..0.26 */}
-<SoundCue
-  src={staticFile(SFX_MANIFEST['page-slide'].audioFile)}
-  atFrame={38}
-  durationSeconds={SFX_MANIFEST['page-slide'].durationSeconds}
-  volume={0.20}
-/>
-
-{/* 3. SFX automatically synced to a spoken word in the voiceover! */}
+<VoiceoverTrack voiceover={VOICEOVER_MANIFEST['s1-hook']} fromFrame={42} volume={1.0} />
 <SoundCue
   src={staticFile(SFX_MANIFEST['chime-reveal'].audioFile)}
-  sceneId="s2-reveal"
+  sceneId="s1-hook"
   onWord="odkrycie"
   sceneStartFrame={42}
   offsetFrames={-3}
   fallbackFrame={60}
   durationSeconds={SFX_MANIFEST['chime-reveal'].durationSeconds}
   voiceoverManifest={VOICEOVER_MANIFEST}
-  volume={0.22}
+  volume={0.20}
 />
 ```
 
+- `score.mode` in `audio.json`: `'prompt'` (ElevenLabs Music `composeDetailed`, `forceInstrumental: true`), `'composition-plan'` (`sections: ScoreSectionSpec[]`), or `'procedural-fallback'` (`moodPreset`: `'ambient-tech' | 'warm-story' | 'news-pulse' | 'cinematic-drone' | 'cinematic-epic' | 'paper-expedition' | 'upbeat-launch'`).
+- Optional `<VoiceoverCaptionBar />` is also exported from `@make-pictures/remotion/audio` (omit bottom subtitles by default unless explicitly requested).
+
 ---
 
-## 4. Mandatory `.mp3` & Final Mastered `.mp4` (`-14 LUFS`) Audition Gate
+## 5. Mandatory `.mp3` & Final `-14 LUFS` `.mp4` Audition Gate
 
-1. **Generate & lint capsule audio:** `npx make-pictures audio --production=<slug>` (runs `lintManifestVoiceovers` automatically; pass `--mock` for zero-credit procedural dry runs).
-2. **Pre-render `.mp3` check:** Inspect every newly generated `assets/voiceovers/*.mp3` with `read_file` and recalculate each scene's `durationInFrames` with `computeSceneTimingFromVoiceover` (`~42f` pre-speech settle + `~96f` post-speech hold, `+144f` outro hold).
-3. **Broadcast EBU R128 Mastering (`-14 LUFS`) & Mandatory Final `.mp4` Audition:** `npx make-pictures render <CompositionId>` automatically runs `ffmpeg` `loudnorm=I=-14:TP=-1.5:LRA=11`. **Listening to `.mp3` voiceovers alone is not enough** — after rendering `.mp4`, always inspect the mastered `.mp4` mix to verify `<SmartMusicBed fadeOutFrames={90} />` ducking, `<SoundCue />` balance (`0.14–0.26`), Polish `"api"` vs `"u-es-be"` pronunciation, and unclipped outro tails.
+1. Generate & lint: `npx make-pictures audio <slug>` (or `--mock` offline).
+2. Listen to generated `public/audio/<slug>/*.mp3` files via `read_file` and compute scene durations with `computeSceneTimingFromVoiceover` (`~42f` pre-speech, `~96f` post-speech, `+144f` outro).
+3. Render via `npx make-pictures render <CompositionId>` (runs EBU R128 `ffmpeg loudnorm=I=-14:TP=-1.5:LRA=11` mastering automatically) and **audition the final `.mp4` mix** to verify ducking, SFX balance, Polish `"api"` vs `"u-es-be"` diction, and clean outro tails.
