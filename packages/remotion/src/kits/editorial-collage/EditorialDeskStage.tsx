@@ -127,7 +127,7 @@ export const EditorialDeskStage: React.FC<EditorialDeskStageProps> = ({
         startFrame={1}
       >
         {/* Plane z = -0.65: Background Passe-Partout Registration Sheet */}
-        <DepthPlane z={-0.65}>
+        <DepthPlane z={-0.65} disableFocusBlur>
           <AbsoluteFill style={{ pointerEvents: 'none' }}>
             <div
               style={{
@@ -168,7 +168,7 @@ export const EditorialDeskStage: React.FC<EditorialDeskStageProps> = ({
 
         {/* Plane z = +0.75: Out-of-Focus Edge Scale (Strictly Outside Safe Box) */}
         {foregroundAccents && (
-          <DepthPlane z={0.75}>
+          <DepthPlane z={0.75} disableFocusBlur>
             <div
               style={{
                 position: 'absolute',

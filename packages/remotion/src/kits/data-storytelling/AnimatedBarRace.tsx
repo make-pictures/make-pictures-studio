@@ -461,14 +461,11 @@ export const AnimatedBarRace: React.FC<AnimatedBarRaceProps> = ({
                         isLeader && grammar === 'risograph-poster'
                           ? color
                           : 'transparent',
-                      borderBottom:
-                        grammar !== 'risograph-poster'
-                          ? `2px solid ${isLeader ? color : borderColor}`
-                          : undefined,
-                      border:
-                        grammar === 'risograph-poster'
-                          ? `1.5px solid ${borderColor}`
-                          : undefined,
+                      ...(grammar === 'risograph-poster'
+                        ? { border: `1.5px solid ${borderColor}` }
+                        : {
+                            borderBottom: `2px solid ${isLeader ? color : borderColor}`,
+                          }),
                     }}
                   >
                     {String(rankBadge).padStart(2, '0')}
@@ -561,16 +558,13 @@ export const AnimatedBarRace: React.FC<AnimatedBarRaceProps> = ({
                             grammar === 'risograph-poster' && !isLeader
                               ? 'transparent'
                               : color,
-                          border:
-                            grammar === 'risograph-poster'
-                              ? `1.5px solid ${borderColor}`
-                              : undefined,
-                          borderRight:
-                            grammar === 'swiss-spatial' && isLeader
-                              ? `2.5px solid ${textPrimary}`
+                          ...(grammar === 'risograph-poster'
+                            ? { border: `1.5px solid ${borderColor}` }
+                            : grammar === 'swiss-spatial' && isLeader
+                              ? { borderRight: `2.5px solid ${textPrimary}` }
                               : grammar === 'optical-gate' && isLeader
-                                ? '2px solid #FFFFFF'
-                                : undefined,
+                                ? { borderRight: '2px solid #FFFFFF' }
+                                : {}),
                           boxShadow:
                             grammar === 'optical-gate' &&
                             isLeader &&
@@ -740,11 +734,16 @@ export const AnimatedBarRace: React.FC<AnimatedBarRaceProps> = ({
                           ? 'transparent'
                           : color,
                       opacity: isLeader ? 1 : 0.78,
-                      borderTop: `2.5px solid ${textPrimary}`,
-                      border:
-                        grammar === 'risograph-poster'
-                          ? `1.5px solid ${borderColor}`
-                          : undefined,
+                      ...(grammar === 'risograph-poster'
+                        ? {
+                            borderLeft: `1.5px solid ${borderColor}`,
+                            borderRight: `1.5px solid ${borderColor}`,
+                            borderBottom: `1.5px solid ${borderColor}`,
+                            borderTop: `2.5px solid ${textPrimary}`,
+                          }
+                        : {
+                            borderTop: `2.5px solid ${textPrimary}`,
+                          }),
                       overflow: 'hidden',
                     }}
                   >

@@ -125,6 +125,8 @@ export const OpticalStage2D: React.FC<OpticalStage2DProps> = ({
           style={{
             overflow: 'hidden',
             pointerEvents: 'none',
+            isolation: 'isolate',
+            contain: 'layout paint style',
             ...styleOverrides,
           }}
         >

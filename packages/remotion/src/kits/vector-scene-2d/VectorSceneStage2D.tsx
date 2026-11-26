@@ -126,7 +126,7 @@ export const VectorSceneStage2D: React.FC<VectorSceneStage2DProps> = ({
         startFrame={1}
       >
         {/* Plane z = -0.60: Subtle Modular Construction Axes */}
-        <DepthPlane z={-0.6}>
+        <DepthPlane z={-0.6} disableFocusBlur>
           <AbsoluteFill style={{ pointerEvents: 'none' }}>
             <div
               style={{
@@ -196,7 +196,7 @@ export const VectorSceneStage2D: React.FC<VectorSceneStage2DProps> = ({
 
         {/* Plane z = +0.72: Quiet Corner Registration Bracket (Strictly Outside 9:16 Safe Box) */}
         {foregroundAccents ? (
-          <DepthPlane z={0.72}>
+          <DepthPlane z={0.72} disableFocusBlur>
             <div
               style={{
                 position: 'absolute',

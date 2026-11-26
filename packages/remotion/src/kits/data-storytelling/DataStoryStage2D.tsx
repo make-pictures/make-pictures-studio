@@ -129,7 +129,7 @@ export const DataStoryStage2D: React.FC<DataStoryStage2DProps> = ({
         startFrame={1}
       >
         {/* Plane z = -0.58: Data Cartography Scale Sheet */}
-        <DepthPlane z={-0.58}>
+        <DepthPlane z={-0.58} disableFocusBlur>
           <AbsoluteFill style={{ pointerEvents: 'none' }}>
             <div
               style={{
@@ -203,7 +203,7 @@ export const DataStoryStage2D: React.FC<DataStoryStage2DProps> = ({
 
         {/* Plane z = +0.68: Edge Vernier Calibration Ticks (Outside 9:16 Safe Box) */}
         {foregroundAccents ? (
-          <DepthPlane z={0.68}>
+          <DepthPlane z={0.68} disableFocusBlur>
             <div
               style={{
                 position: 'absolute',

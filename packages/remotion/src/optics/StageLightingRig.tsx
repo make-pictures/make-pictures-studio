@@ -8,7 +8,6 @@ import {
   type StyleLightingRig,
   type StylePreset,
 } from '../style';
-import { createSeededRandom } from '../utils';
 import { useOpticalStage } from './OpticalStage2D';
 
 export interface StageLightingRigProps {
@@ -56,10 +55,7 @@ export const StageLightingRig: React.FC<StageLightingRigProps> = ({
   const angle = optics.lightAngleDeg;
   const halation = optics.halation;
 
-  // Deterministic subtle breathing & grain jitter per frame (seeded PRNG only)
-  const grainRng = createSeededRandom(`${seed}:f:${frame}`);
-  const grainOffsetX = Math.round(grainRng() * 11);
-  const grainOffsetY = Math.round(grainRng() * 11);
+  // Deterministic subtle breathing & light drift (zero 60Hz grain strobe or full-screen GPU blur)
   const goboDriftPx = Math.sin(frame * 0.014) * 18;
   const camShiftPct = opticalStage
     ? ((opticalStage.camera.x - opticalStage.stageWidth / 2) /
@@ -82,6 +78,8 @@ export const StageLightingRig: React.FC<StageLightingRigProps> = ({
         backgroundColor: renderBaseFill ? palette.bgCanvas : 'transparent',
         overflow: 'hidden',
         pointerEvents: 'none',
+        isolation: 'isolate',
+        contain: 'layout paint style',
       }}
     >
       {/* 1. Regime-Specific Directional Key Light & Gobo / Lightbox / Specular Layer */}
@@ -94,16 +92,14 @@ export const StageLightingRig: React.FC<StageLightingRigProps> = ({
                 : `linear-gradient(${lightGradientAngle}deg, rgba(255, 252, 244, 0.78) 0%, transparent 58%), radial-gradient(circle at 84% 88%, ${withStyleColorAlpha(palette.bgElevated, 0.8)} 0%, transparent 62%)`,
             }}
           />
-          {/* Soft penumbra window mullion / blind gobo bars */}
+          {/* Pre-feathered soft penumbra window mullion / blind gobo bars (zero GPU blur or blend readback) */}
           <AbsoluteFill
             style={{
-              opacity: surface.isDark ? 0.22 : 0.14,
-              mixBlendMode: surface.isDark ? 'screen' : 'multiply',
-              filter: 'blur(14px)',
+              opacity: surface.isDark ? 0.16 : 0.12,
               transform: `translate3d(${goboDriftPx.toFixed(2)}px, 0, 0) rotate(${angle * 0.55}deg) scale(1.22)`,
               backgroundImage: surface.isDark
-                ? `repeating-linear-gradient(90deg, rgba(255,255,255,0.12) 0px, rgba(255,255,255,0.12) 54px, transparent 54px, transparent 138px)`
-                : `repeating-linear-gradient(90deg, ${withStyleColorAlpha(palette.inkBorder, 0.53)} 0px, ${withStyleColorAlpha(palette.inkBorder, 0.53)} 46px, transparent 46px, transparent 136px)`,
+                ? `repeating-linear-gradient(90deg, transparent 0px, rgba(255,255,255,0.12) 22px, rgba(255,255,255,0.12) 56px, transparent 84px, transparent 138px)`
+                : `repeating-linear-gradient(90deg, transparent 0px, ${withStyleColorAlpha(palette.inkBorder, 0.42)} 22px, ${withStyleColorAlpha(palette.inkBorder, 0.42)} 50px, transparent 78px, transparent 136px)`,
             }}
           />
           <AbsoluteFill
@@ -132,7 +128,7 @@ export const StageLightingRig: React.FC<StageLightingRigProps> = ({
                   )} 0%, transparent 58%)`,
             }}
           />
-          {/* Anamorphic streak coupled to halation + camera velocity */}
+          {/* Pre-feathered anamorphic streak coupled to halation + camera velocity */}
           <AbsoluteFill
             style={{
               opacity: Math.min(0.85, 0.18 + halation * 0.42 + telemetry.velocity * 0.28),
@@ -140,7 +136,6 @@ export const StageLightingRig: React.FC<StageLightingRigProps> = ({
                 palette.accentPrimary,
                 0.15
               )} 48%, ${withStyleColorAlpha(palette.accentSecondary, 0.13)} 54%, transparent 92%)`,
-              filter: 'blur(22px)',
             }}
           />
           <AbsoluteFill
@@ -195,27 +190,25 @@ export const StageLightingRig: React.FC<StageLightingRigProps> = ({
                   )} 100%)`,
             }}
           />
-          {/* Moving softbox specular sweep */}
+          {/* Pre-feathered moving softbox specular sweep */}
           <AbsoluteFill
             style={{
-              opacity: surface.isDark ? 0.16 : 0.46,
-              backgroundImage: `linear-gradient(${108 + angle * 0.4}deg, transparent ${sweepProgress - 18}%, rgba(255, 255, 255, 0.72) ${sweepProgress}%, transparent ${sweepProgress + 18}%)`,
-              filter: 'blur(18px)',
+              opacity: surface.isDark ? 0.16 : 0.42,
+              backgroundImage: `linear-gradient(${108 + angle * 0.4}deg, transparent ${sweepProgress - 22}%, rgba(255, 255, 255, 0.65) ${sweepProgress}%, transparent ${sweepProgress + 22}%)`,
             }}
           />
         </>
       )}
 
-      {/* 2. Deterministic Per-Frame Analog Film Grain */}
+      {/* 2. Subtle Static Paper / Film Micro-Grain (zero 60Hz repaint or blend readback) */}
       {surface.grainOpacity > 0 && (
         <AbsoluteFill
           style={{
             opacity: surface.grainOpacity,
-            backgroundImage:
-              'radial-gradient(rgba(128, 128, 128, 0.48) 0.8px, transparent 0.8px)',
+            backgroundImage: surface.isDark
+              ? 'radial-gradient(rgba(255, 255, 255, 0.26) 0.8px, transparent 0.8px)'
+              : 'radial-gradient(rgba(24, 22, 21, 0.22) 0.8px, transparent 0.8px)',
             backgroundSize: '6px 6px',
-            backgroundPosition: `${grainOffsetX}px ${grainOffsetY}px`,
-            mixBlendMode: surface.isDark ? 'screen' : 'multiply',
           }}
         />
       )}

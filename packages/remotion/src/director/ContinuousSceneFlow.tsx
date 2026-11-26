@@ -309,6 +309,8 @@ export const ContinuousSceneFlow: React.FC<ContinuousSceneFlowProps> = ({
       style={{
         backgroundColor: studioStyle.palette.bgCanvas,
         overflow: 'hidden',
+        isolation: 'isolate',
+        contain: 'layout paint style',
         ...style,
       }}
     >

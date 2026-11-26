@@ -1,7 +1,6 @@
 import React, { memo, useMemo } from 'react';
 import {
   AbsoluteFill,
-  Sequence,
   spring,
   staticFile,
   useCurrentFrame,
@@ -1028,19 +1027,13 @@ const StarterStoryStageInner: React.FC<StarterStoryStageInnerProps> = memo(
         />
 
         {timing.voTimeline.map((seg) => (
-          <Sequence
+          <VoiceoverTrack
             key={seg.sceneId}
-            from={seg.fromFrame}
+            voiceover={VOICEOVER_MANIFEST[seg.sceneId]}
+            fromFrame={seg.fromFrame}
             durationInFrames={seg.durationInFrames}
-            layout="none"
-          >
-            <VoiceoverTrack
-              voiceover={VOICEOVER_MANIFEST[seg.sceneId]}
-              fromFrame={0}
-              durationInFrames={seg.durationInFrames}
-              volume={voiceoverVolume}
-            />
-          </Sequence>
+            volume={voiceoverVolume}
+          />
         ))}
 
         {SCORE_SRC && (
@@ -1055,19 +1048,13 @@ const StarterStoryStageInner: React.FC<StarterStoryStageInnerProps> = memo(
         )}
 
         {RESOLVED_SFX_BEATS.map((cue) => (
-          <Sequence
+          <SoundCue
             key={cue.key}
-            from={cue.fromFrame}
+            src={cue.src}
+            atFrame={cue.fromFrame}
             durationInFrames={cue.durationInFrames}
-            layout="none"
-          >
-            <SoundCue
-              src={cue.src}
-              atFrame={0}
-              durationInFrames={cue.durationInFrames}
-              volume={Math.min(1, cue.baseVolume * (sfxVolume / 0.2))}
-            />
-          </Sequence>
+            volume={Math.min(1, cue.baseVolume * (sfxVolume / 0.2))}
+          />
         ))}
 
         <CleanFrameZeroOverlay bgColor={outerStyle.palette.bgCanvas} />

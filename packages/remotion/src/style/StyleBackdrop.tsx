@@ -76,17 +76,22 @@ export const StyleBackdrop: React.FC<StyleBackdropProps> = ({
   return (
     <AbsoluteFill
       className={className}
-      style={{ backgroundColor: palette.bgCanvas, pointerEvents: 'none' }}
+      style={{
+        backgroundColor: palette.bgCanvas,
+        pointerEvents: 'none',
+        isolation: 'isolate',
+        contain: 'layout paint style',
+      }}
     >
       {patternLayer ? <AbsoluteFill style={patternLayer} /> : null}
       {surface.grainOpacity > 0 ? (
         <AbsoluteFill
           style={{
             opacity: surface.grainOpacity,
-            backgroundImage:
-              'radial-gradient(rgba(128,128,128,0.45) 0.75px, transparent 0.75px)',
+            backgroundImage: surface.isDark
+              ? 'radial-gradient(rgba(255,255,255,0.28) 0.75px, transparent 0.75px)'
+              : 'radial-gradient(rgba(24,22,21,0.24) 0.75px, transparent 0.75px)',
             backgroundSize: '5px 5px',
-            mixBlendMode: surface.isDark ? 'screen' : 'multiply',
           }}
         />
       ) : null}
