@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
+import { FillLayer } from '../FillLayer';
 import {
-  AbsoluteFill,
   interpolate,
   interpolateColors,
   spring,
@@ -676,7 +676,7 @@ const StyleLabInner: React.FC<{
   ];
 
   return (
-    <AbsoluteFill
+    <FillLayer
       style={{
         padding: '54px 76px',
         display: 'flex',
@@ -815,7 +815,7 @@ const StyleLabInner: React.FC<{
       ) : (
         <Specimen3D kit={kit} headline={headline} subtitle={subtitle} style={style} />
       )}
-    </AbsoluteFill>
+    </FillLayer>
   );
 };
 

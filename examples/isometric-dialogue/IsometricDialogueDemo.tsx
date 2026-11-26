@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo } from 'react';
 import {
-  AbsoluteFill,
   Sequence,
   getRemotionEnvironment,
   spring,
@@ -14,6 +13,7 @@ import { RoundedBox } from '@react-three/drei';
 import * as THREE from 'three';
 import { z } from 'zod';
 import {
+  FillLayer,
   SmartMusicBed,
   SoundCue,
   StyleProvider,
@@ -940,9 +940,9 @@ const StudioEditorialChrome: React.FC<{
     : `${state.countdownLabel}  •  ${copy.countdownSuffix}`;
 
   return (
-    <AbsoluteFill style={{ pointerEvents: 'none', boxSizing: 'border-box' }}>
+    <FillLayer style={{ pointerEvents: 'none', boxSizing: 'border-box' }}>
       {/* Subtle luminous cream top fade ensuring effortless typography legibility */}
-      <AbsoluteFill
+      <FillLayer
         style={{
           pointerEvents: 'none',
           boxSizing: 'border-box',
@@ -975,7 +975,7 @@ const StudioEditorialChrome: React.FC<{
           willChange: 'transform',
         }}
       />
-    </AbsoluteFill>
+    </FillLayer>
   );
 });
 
@@ -984,7 +984,7 @@ const CleanFrameZeroCover: React.FC<{ color: string }> = React.memo(
     const frame = useCurrentFrame();
     if (frame > 0) return null;
     return (
-      <AbsoluteFill
+      <FillLayer
         style={{ backgroundColor: color, zIndex: 50, pointerEvents: 'none' }}
       />
     );
@@ -1008,7 +1008,7 @@ const IsometricDialogueDemoInner: React.FC<IsometricDialogueDemoProps> =
       const { isRendering } = getRemotionEnvironment();
 
       return (
-        <AbsoluteFill style={{ boxSizing: 'border-box' }}>
+        <FillLayer style={{ boxSizing: 'border-box' }}>
           <ThreeCanvas
             width={width}
             height={height}
@@ -1086,7 +1086,7 @@ const IsometricDialogueDemoInner: React.FC<IsometricDialogueDemoProps> =
           ))}
 
           <CleanFrameZeroCover color={outerStyle.palette.bgCanvas} />
-        </AbsoluteFill>
+        </FillLayer>
       );
     }
   );

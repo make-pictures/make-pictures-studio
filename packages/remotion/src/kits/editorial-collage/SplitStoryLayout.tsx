@@ -1,6 +1,6 @@
 import React from 'react';
+import { FillLayer } from '../../FillLayer';
 import {
-  AbsoluteFill,
   interpolate,
   spring,
   useCurrentFrame,
@@ -108,7 +108,7 @@ export const SplitStoryLayout: React.FC<SplitStoryLayoutProps> = ({
     const bounds = computeSplitStoryVerticalBounds(width, height);
     return (
       <SplitStorySlotContext.Provider value={true}>
-        <AbsoluteFill style={{ pointerEvents: 'none' }}>
+        <FillLayer style={{ pointerEvents: 'none' }}>
           <div
             style={{
               position: 'absolute',
@@ -125,14 +125,14 @@ export const SplitStoryLayout: React.FC<SplitStoryLayoutProps> = ({
             <div style={primaryStyle}>{primary}</div>
             <div style={secondaryStyle}>{secondary}</div>
           </div>
-        </AbsoluteFill>
+        </FillLayer>
       </SplitStorySlotContext.Provider>
     );
   }
 
   return (
     <SplitStorySlotContext.Provider value={true}>
-      <AbsoluteFill
+      <FillLayer
         style={{
           boxSizing: 'border-box',
           justifyContent: 'center',
@@ -154,7 +154,7 @@ export const SplitStoryLayout: React.FC<SplitStoryLayoutProps> = ({
           <div style={primaryStyle}>{primary}</div>
           <div style={secondaryStyle}>{secondary}</div>
         </div>
-      </AbsoluteFill>
+      </FillLayer>
     </SplitStorySlotContext.Provider>
   );
 };

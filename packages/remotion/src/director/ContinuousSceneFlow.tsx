@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
+import { FillLayer } from '../FillLayer';
 import {
-  AbsoluteFill,
   Easing,
   Sequence,
   interpolate,
@@ -160,7 +160,7 @@ const OpticalCrossDissolveShell: React.FC<
 }) => {
   if (forceCleanFrameZero) {
     return (
-      <AbsoluteFill
+      <FillLayer
         className={className}
         style={{
           opacity: 1,
@@ -171,7 +171,7 @@ const OpticalCrossDissolveShell: React.FC<
         }}
       >
         {children}
-      </AbsoluteFill>
+      </FillLayer>
     );
   }
 
@@ -204,7 +204,7 @@ const OpticalCrossDissolveShell: React.FC<
     Math.abs(scale - 1) < 0.0002 ? 'scale(1)' : `scale(${scale.toFixed(4)})`;
 
   return (
-    <AbsoluteFill
+    <FillLayer
       className={className}
       data-optical-dissolve="true"
       style={{
@@ -216,7 +216,7 @@ const OpticalCrossDissolveShell: React.FC<
       }}
     >
       {children}
-    </AbsoluteFill>
+    </FillLayer>
   );
 };
 
@@ -304,7 +304,7 @@ export const ContinuousSceneFlow: React.FC<ContinuousSceneFlowProps> = ({
   const rawDissolve = Math.max(0, Math.round(crossDissolveFrames));
 
   return (
-    <AbsoluteFill
+    <FillLayer
       data-continuous-scene-flow="true"
       style={{
         backgroundColor: studioStyle.palette.bgCanvas,
@@ -413,7 +413,7 @@ export const ContinuousSceneFlow: React.FC<ContinuousSceneFlowProps> = ({
             studioStyle.palette.bgCanvas;
 
           return (
-            <AbsoluteFill
+            <FillLayer
               key={`veil-${prevScene.id}-${nextScene.id}`}
               data-optical-veil={`${prevScene.id}->${nextScene.id}`}
               style={{
@@ -426,7 +426,7 @@ export const ContinuousSceneFlow: React.FC<ContinuousSceneFlowProps> = ({
             />
           );
         })}
-    </AbsoluteFill>
+    </FillLayer>
   );
 };
 
@@ -467,13 +467,13 @@ export const SceneSubViewDissolve: React.FC<SceneSubViewDissolveProps> = ({
   );
 
   return (
-    <AbsoluteFill>
+    <FillLayer>
       {t < 1 && (
-        <AbsoluteFill style={{ opacity: 1 - t }}>{firstView}</AbsoluteFill>
+        <FillLayer style={{ opacity: 1 - t }}>{firstView}</FillLayer>
       )}
       {t > 0 && (
-        <AbsoluteFill style={{ opacity: t }}>{secondView}</AbsoluteFill>
+        <FillLayer style={{ opacity: t }}>{secondView}</FillLayer>
       )}
-    </AbsoluteFill>
+    </FillLayer>
   );
 };

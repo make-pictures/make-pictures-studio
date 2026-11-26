@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
+import { FillLayer } from '../../FillLayer';
 import {
-  AbsoluteFill,
   spring,
   useCurrentFrame,
   useVideoConfig,
@@ -219,7 +219,7 @@ export const ParticleField: React.FC<ParticleFieldProps> = ({
   const ampOpacity = Math.min(1.35, Math.max(0, intensity));
 
   return (
-    <AbsoluteFill
+    <FillLayer
       style={{
         pointerEvents: 'none',
         overflow: 'hidden',
@@ -336,6 +336,6 @@ export const ParticleField: React.FC<ParticleFieldProps> = ({
           );
         })}
       </svg>
-    </AbsoluteFill>
+    </FillLayer>
   );
 };

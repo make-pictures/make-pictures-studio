@@ -1,5 +1,6 @@
 import React from 'react';
-import { AbsoluteFill, useCurrentFrame } from 'remotion';
+import { FillLayer } from '../FillLayer';
+import { useCurrentFrame } from 'remotion';
 import { useDirectorCameraTelemetry } from '../camera/telemetry';
 import {
   resolveStyleOptics,
@@ -43,7 +44,7 @@ export const StageLightingRig: React.FC<StageLightingRigProps> = ({
   // Clean Frame 0 invariant: pure canvas color only.
   if (frame <= 0) {
     return renderBaseFill ? (
-      <AbsoluteFill
+      <FillLayer
         className={className}
         style={{ backgroundColor: palette.bgCanvas, pointerEvents: 'none' }}
       />
@@ -71,7 +72,7 @@ export const StageLightingRig: React.FC<StageLightingRigProps> = ({
   const lightGradientAngle = 135 + angle;
 
   return (
-    <AbsoluteFill
+    <FillLayer
       className={className}
       data-lighting-rig={activeRig}
       style={{
@@ -85,7 +86,7 @@ export const StageLightingRig: React.FC<StageLightingRigProps> = ({
       {/* 1. Regime-Specific Directional Key Light & Gobo / Lightbox / Specular Layer */}
       {activeRig === 'window-gobo' && (
         <>
-          <AbsoluteFill
+          <FillLayer
             style={{
               backgroundImage: surface.isDark
                 ? `linear-gradient(${lightGradientAngle}deg, ${withStyleColorAlpha(palette.bgElevated, 0.67)} 0%, transparent 62%), radial-gradient(circle at 22% 18%, ${withStyleColorAlpha(palette.accentPrimary, 0.12)} 0%, transparent 56%)`
@@ -93,7 +94,7 @@ export const StageLightingRig: React.FC<StageLightingRigProps> = ({
             }}
           />
           {/* Pre-feathered soft penumbra window mullion / blind gobo bars (zero GPU blur or blend readback) */}
-          <AbsoluteFill
+          <FillLayer
             style={{
               opacity: surface.isDark ? 0.16 : 0.12,
               transform: `translate3d(${goboDriftPx.toFixed(2)}px, 0, 0) rotate(${angle * 0.55}deg) scale(1.22)`,
@@ -102,7 +103,7 @@ export const StageLightingRig: React.FC<StageLightingRigProps> = ({
                 : `repeating-linear-gradient(90deg, transparent 0px, ${withStyleColorAlpha(palette.inkBorder, 0.42)} 22px, ${withStyleColorAlpha(palette.inkBorder, 0.42)} 50px, transparent 78px, transparent 136px)`,
             }}
           />
-          <AbsoluteFill
+          <FillLayer
             style={{
               backgroundImage: surface.isDark
                 ? 'radial-gradient(circle at 50% 48%, transparent 52%, rgba(0, 0, 0, 0.48) 100%)'
@@ -115,7 +116,7 @@ export const StageLightingRig: React.FC<StageLightingRigProps> = ({
       {activeRig === 'darkroom-halation' && (
         <>
           {/* Central lightbox / darkroom enlarger glow + edge falloff */}
-          <AbsoluteFill
+          <FillLayer
             style={{
               backgroundImage: surface.isDark
                 ? `radial-gradient(ellipse at 50% 46%, ${withStyleColorAlpha(palette.bgElevated, 0.9)} 0%, ${palette.bgCanvas} 76%), radial-gradient(circle at ${38 - angle * 0.25}% 34%, ${withStyleColorAlpha(
@@ -129,7 +130,7 @@ export const StageLightingRig: React.FC<StageLightingRigProps> = ({
             }}
           />
           {/* Pre-feathered anamorphic streak coupled to halation + camera velocity */}
-          <AbsoluteFill
+          <FillLayer
             style={{
               opacity: Math.min(0.85, 0.18 + halation * 0.42 + telemetry.velocity * 0.28),
               backgroundImage: `linear-gradient(${90 + angle * 0.2}deg, transparent 8%, ${withStyleColorAlpha(
@@ -138,7 +139,7 @@ export const StageLightingRig: React.FC<StageLightingRigProps> = ({
               )} 48%, ${withStyleColorAlpha(palette.accentSecondary, 0.13)} 54%, transparent 92%)`,
             }}
           />
-          <AbsoluteFill
+          <FillLayer
             style={{
               backgroundImage: surface.isDark
                 ? 'radial-gradient(circle at 50% 50%, transparent 44%, rgba(2, 4, 10, 0.68) 100%)'
@@ -153,7 +154,7 @@ export const StageLightingRig: React.FC<StageLightingRigProps> = ({
 
       {activeRig === 'studio-macro' && (
         <>
-          <AbsoluteFill
+          <FillLayer
             style={{
               backgroundImage: surface.isDark
                 ? `linear-gradient(${lightGradientAngle}deg, ${withStyleColorAlpha(
@@ -167,7 +168,7 @@ export const StageLightingRig: React.FC<StageLightingRigProps> = ({
             }}
           />
           {/* Soft studio cyclorama horizon gradient + gentle architectural vignette */}
-          <AbsoluteFill
+          <FillLayer
             data-cyclorama-horizon="true"
             style={{
               backgroundImage: surface.isDark
@@ -191,7 +192,7 @@ export const StageLightingRig: React.FC<StageLightingRigProps> = ({
             }}
           />
           {/* Pre-feathered moving softbox specular sweep */}
-          <AbsoluteFill
+          <FillLayer
             style={{
               opacity: surface.isDark ? 0.16 : 0.42,
               backgroundImage: `linear-gradient(${108 + angle * 0.4}deg, transparent ${sweepProgress - 22}%, rgba(255, 255, 255, 0.65) ${sweepProgress}%, transparent ${sweepProgress + 22}%)`,
@@ -202,7 +203,7 @@ export const StageLightingRig: React.FC<StageLightingRigProps> = ({
 
       {/* 2. Subtle Static Paper / Film Micro-Grain (zero 60Hz repaint or blend readback) */}
       {surface.grainOpacity > 0 && (
-        <AbsoluteFill
+        <FillLayer
           style={{
             opacity: surface.grainOpacity,
             backgroundImage: surface.isDark
@@ -212,6 +213,6 @@ export const StageLightingRig: React.FC<StageLightingRigProps> = ({
           }}
         />
       )}
-    </AbsoluteFill>
+    </FillLayer>
   );
 };

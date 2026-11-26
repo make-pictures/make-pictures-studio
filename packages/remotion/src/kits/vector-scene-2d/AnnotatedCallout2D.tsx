@@ -1,5 +1,6 @@
 import React from 'react';
-import { AbsoluteFill, spring, useCurrentFrame, useVideoConfig } from 'remotion';
+import { FillLayer } from '../../FillLayer';
+import { spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import {
   formatFontFamilyCss,
   getStyleSpringConfig,
@@ -91,7 +92,7 @@ export const AnnotatedCallout2D: React.FC<AnnotatedCallout2DProps> = ({
   const reticleR = 11 * progress;
 
   return (
-    <AbsoluteFill style={{ pointerEvents: 'none' }}>
+    <FillLayer style={{ pointerEvents: 'none' }}>
       <svg
         width={width}
         height={height}
@@ -223,6 +224,6 @@ export const AnnotatedCallout2D: React.FC<AnnotatedCallout2DProps> = ({
           </span>
         ) : null}
       </div>
-    </AbsoluteFill>
+    </FillLayer>
   );
 };

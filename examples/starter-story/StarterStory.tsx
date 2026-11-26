@@ -1,6 +1,5 @@
 import React, { memo, useMemo } from 'react';
 import {
-  AbsoluteFill,
   spring,
   staticFile,
   useCurrentFrame,
@@ -8,6 +7,7 @@ import {
 } from 'remotion';
 import { z } from 'zod';
 import {
+  FillLayer,
   ContinuousSceneFlow,
   SmartMusicBed,
   SoundCue,
@@ -455,7 +455,7 @@ const CleanFrameZeroOverlay: React.FC<{ bgColor: string }> = memo(
     const frame = useCurrentFrame();
     if (frame > 0) return null;
     return (
-      <AbsoluteFill
+      <FillLayer
         style={{
           backgroundColor: bgColor,
           zIndex: 9999,
@@ -483,7 +483,7 @@ const Act1EditorialOpener: React.FC<{
   isVertical: boolean;
   milestones: ReadonlyArray<PaperTimelineMilestone>;
 }> = memo(({ chapterLabel, headline, subline, isVertical, milestones }) => (
-  <AbsoluteFill style={{ boxSizing: 'border-box' }}>
+  <FillLayer style={{ boxSizing: 'border-box' }}>
     <EditorialDeskStage renderBaseFill={false} seed={2101}>
       {/* Constraining 16:9 measure + textWrap: balance prevents orphan widow words ("Cup") */}
       <div
@@ -513,7 +513,7 @@ const Act1EditorialOpener: React.FC<{
         enterFrame={10}
       />
     )}
-  </AbsoluteFill>
+  </FillLayer>
 ));
 Act1EditorialOpener.displayName = 'Act1EditorialOpener';
 
@@ -526,9 +526,9 @@ const Act2RailPanorama: React.FC<{
   milestones: ReadonlyArray<PaperTimelineMilestone>;
   items: ReadonlyArray<EditorialPanoramaItem>;
 }> = memo(({ durationInFrames, isVertical, milestones, items }) => (
-  <AbsoluteFill style={{ boxSizing: 'border-box' }}>
+  <FillLayer style={{ boxSizing: 'border-box' }}>
     <EditorialDeskStage renderBaseFill={false} seed={2102}>
-      <AbsoluteFill
+      <FillLayer
         style={{
           boxSizing: 'border-box',
           transformOrigin: isVertical ? '470px 800px' : '960px 540px',
@@ -544,7 +544,7 @@ const Act2RailPanorama: React.FC<{
           showScenicBackdrop={false}
           renderBaseFill={false}
         />
-      </AbsoluteFill>
+      </FillLayer>
     </EditorialDeskStage>
     {!isVertical && (
       <PaperRibbonTimeline
@@ -554,7 +554,7 @@ const Act2RailPanorama: React.FC<{
         enterFrame={6}
       />
     )}
-  </AbsoluteFill>
+  </FillLayer>
 ));
 Act2RailPanorama.displayName = 'Act2RailPanorama';
 
@@ -580,12 +580,12 @@ const Act3BulletAnatomy: React.FC<{
         });
 
   return (
-    <AbsoluteFill style={{ boxSizing: 'border-box' }}>
+    <FillLayer style={{ boxSizing: 'border-box' }}>
       <VectorSceneStage2D renderBaseFill={false} seed={2103}>
         {isVertical ? (
           // Pure layout offset (no translate3d jitter); maxWidth 720 + left -18 keeps
           // outer nose & suspension pills comfortably inside 9:16 Safe Box x in [40, 910]
-          <AbsoluteFill
+          <FillLayer
             style={{
               left: -18,
               top: 82,
@@ -620,9 +620,9 @@ const Act3BulletAnatomy: React.FC<{
               startFrame={6}
               pins={copy.pins}
             />
-          </AbsoluteFill>
+          </FillLayer>
         ) : (
-          <AbsoluteFill
+          <FillLayer
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -655,7 +655,7 @@ const Act3BulletAnatomy: React.FC<{
                 pins={copy.pins}
               />
             </div>
-          </AbsoluteFill>
+          </FillLayer>
         )}
       </VectorSceneStage2D>
 
@@ -680,7 +680,7 @@ const Act3BulletAnatomy: React.FC<{
           enterFrame={6}
         />
       )}
-    </AbsoluteFill>
+    </FillLayer>
   );
 });
 Act3BulletAnatomy.displayName = 'Act3BulletAnatomy';
@@ -728,9 +728,9 @@ const Act4SpeedBarRace: React.FC<{
   );
 
   return (
-    <AbsoluteFill style={{ boxSizing: 'border-box' }}>
+    <FillLayer style={{ boxSizing: 'border-box' }}>
       <DataStoryStage2D renderBaseFill={false} seed={2104}>
-        <AbsoluteFill
+        <FillLayer
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -752,7 +752,7 @@ const Act4SpeedBarRace: React.FC<{
             safeBox9x16
             style={{ width: isVertical ? 788 : 1420 }}
           />
-        </AbsoluteFill>
+        </FillLayer>
       </DataStoryStage2D>
 
       <FloatingEditorialDisplay
@@ -822,7 +822,7 @@ const Act4SpeedBarRace: React.FC<{
           enterFrame={6}
         />
       )}
-    </AbsoluteFill>
+    </FillLayer>
   );
 });
 Act4SpeedBarRace.displayName = 'Act4SpeedBarRace';
@@ -837,11 +837,11 @@ const Act5QuietSecrets: React.FC<{
   milestones: ReadonlyArray<PaperTimelineMilestone>;
   copy: ReturnType<typeof getStarterStoryCopy>['secrets'];
 }> = memo(({ closingHeadline, closingSubline, isVertical, milestones, copy }) => (
-  <AbsoluteFill style={{ boxSizing: 'border-box' }}>
+  <FillLayer style={{ boxSizing: 'border-box' }}>
     <VectorSceneStage2D renderBaseFill={false} seed={2105}>
       {isVertical ? (
         // Pure layout offset (no translate3d/scale jitter) cleanly inside 9:16 Safe Box
-        <AbsoluteFill
+        <FillLayer
           style={{
             top: 222,
             boxSizing: 'border-box',
@@ -854,9 +854,9 @@ const Act5QuietSecrets: React.FC<{
             maxWidth={790}
             styleOverrides={{ gap: 16 }}
           />
-        </AbsoluteFill>
+        </FillLayer>
       ) : (
-        <AbsoluteFill
+        <FillLayer
           style={{
             paddingTop: 152,
             paddingBottom: 92,
@@ -869,7 +869,7 @@ const Act5QuietSecrets: React.FC<{
             staggerFrames={10}
             maxWidth={1520}
           />
-        </AbsoluteFill>
+        </FillLayer>
       )}
     </VectorSceneStage2D>
 
@@ -894,7 +894,7 @@ const Act5QuietSecrets: React.FC<{
         enterFrame={6}
       />
     )}
-  </AbsoluteFill>
+  </FillLayer>
 ));
 Act5QuietSecrets.displayName = 'Act5QuietSecrets';
 
@@ -943,6 +943,7 @@ const StarterStoryStageInner: React.FC<StarterStoryStageInnerProps> = memo(
       return [
         {
           id: s1.id,
+          label: s1.title,
           durationInFrames: s2.startFrame - s1.startFrame,
           usesThree: false,
           render: () => (
@@ -957,6 +958,7 @@ const StarterStoryStageInner: React.FC<StarterStoryStageInnerProps> = memo(
         },
         {
           id: s2.id,
+          label: s2.title,
           durationInFrames: s3.startFrame - s2.startFrame,
           usesThree: false,
           render: () => (
@@ -970,6 +972,7 @@ const StarterStoryStageInner: React.FC<StarterStoryStageInnerProps> = memo(
         },
         {
           id: s3.id,
+          label: s3.title,
           durationInFrames: s4.startFrame - s3.startFrame,
           usesThree: false,
           render: () => (
@@ -982,6 +985,7 @@ const StarterStoryStageInner: React.FC<StarterStoryStageInnerProps> = memo(
         },
         {
           id: s4.id,
+          label: s4.title,
           durationInFrames: s5.startFrame - s4.startFrame,
           usesThree: false,
           render: () => (
@@ -995,6 +999,7 @@ const StarterStoryStageInner: React.FC<StarterStoryStageInnerProps> = memo(
         },
         {
           id: s5.id,
+          label: s5.title,
           durationInFrames: s5.durationInFrames,
           usesThree: false,
           render: () => (
@@ -1020,7 +1025,7 @@ const StarterStoryStageInner: React.FC<StarterStoryStageInnerProps> = memo(
     ]);
 
     return (
-      <AbsoluteFill style={{ boxSizing: 'border-box' }}>
+      <FillLayer style={{ boxSizing: 'border-box' }}>
         <ContinuousSceneFlow
           scenes={scenes}
           crossDissolveFrames={STARTER_CROSS_DISSOLVE_FRAMES}
@@ -1058,7 +1063,7 @@ const StarterStoryStageInner: React.FC<StarterStoryStageInnerProps> = memo(
         ))}
 
         <CleanFrameZeroOverlay bgColor={outerStyle.palette.bgCanvas} />
-      </AbsoluteFill>
+      </FillLayer>
     );
   }
 );

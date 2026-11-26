@@ -1,5 +1,6 @@
 import React from 'react';
-import { AbsoluteFill, useCurrentFrame } from 'remotion';
+import { FillLayer } from '../FillLayer';
+import { useCurrentFrame } from 'remotion';
 import { withStyleColorAlpha } from './interpolate';
 import type { StylePreset } from './schema';
 import { useStudioStyle } from './StyleProvider';
@@ -22,7 +23,7 @@ export const StyleBackdrop: React.FC<StyleBackdropProps> = ({
   // Clean Frame 0 invariant: frame 0 renders pure canvas background color.
   if (frame <= 0) {
     return (
-      <AbsoluteFill
+      <FillLayer
         className={className}
         style={{ backgroundColor: palette.bgCanvas }}
       />
@@ -74,7 +75,7 @@ export const StyleBackdrop: React.FC<StyleBackdropProps> = ({
   }
 
   return (
-    <AbsoluteFill
+    <FillLayer
       className={className}
       style={{
         backgroundColor: palette.bgCanvas,
@@ -83,9 +84,9 @@ export const StyleBackdrop: React.FC<StyleBackdropProps> = ({
         contain: 'layout paint style',
       }}
     >
-      {patternLayer ? <AbsoluteFill style={patternLayer} /> : null}
+      {patternLayer ? <FillLayer style={patternLayer} /> : null}
       {surface.grainOpacity > 0 ? (
-        <AbsoluteFill
+        <FillLayer
           style={{
             opacity: surface.grainOpacity,
             backgroundImage: surface.isDark
@@ -95,6 +96,6 @@ export const StyleBackdrop: React.FC<StyleBackdropProps> = ({
           }}
         />
       ) : null}
-    </AbsoluteFill>
+    </FillLayer>
   );
 };

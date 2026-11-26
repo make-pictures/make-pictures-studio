@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
-import { AbsoluteFill, useCurrentFrame, useVideoConfig } from 'remotion';
+import { FillLayer } from '../../FillLayer';
+import { useCurrentFrame, useVideoConfig } from 'remotion';
 import {
   DepthPlane,
   OpticalStage2D,
@@ -90,7 +91,7 @@ export const VectorSceneStage2D: React.FC<VectorSceneStage2DProps> = ({
   // Clean Frame 0 invariant
   if (frame <= 0) {
     return renderBaseFill ? (
-      <AbsoluteFill
+      <FillLayer
         style={{ backgroundColor: style.palette.bgCanvas, pointerEvents: 'none' }}
       />
     ) : null;
@@ -108,7 +109,7 @@ export const VectorSceneStage2D: React.FC<VectorSceneStage2DProps> = ({
   const insetBottom = isVertical ? 510 : 56;
 
   return (
-    <AbsoluteFill style={{ overflow: 'hidden', pointerEvents: 'none' }}>
+    <FillLayer style={{ overflow: 'hidden', pointerEvents: 'none' }}>
       <StageLightingRig
         style={style}
         seed={`vector-plate:${seed}`}
@@ -127,7 +128,7 @@ export const VectorSceneStage2D: React.FC<VectorSceneStage2DProps> = ({
       >
         {/* Plane z = -0.60: Subtle Modular Construction Axes */}
         <DepthPlane z={-0.6} disableFocusBlur>
-          <AbsoluteFill style={{ pointerEvents: 'none' }}>
+          <FillLayer style={{ pointerEvents: 'none' }}>
             <div
               style={{
                 position: 'absolute',
@@ -183,7 +184,7 @@ export const VectorSceneStage2D: React.FC<VectorSceneStage2DProps> = ({
                 <span>{cleanPlateCode}</span>
               </div>
             ) : null}
-          </AbsoluteFill>
+          </FillLayer>
         </DepthPlane>
 
         {/* Plane z = 0.0: Primary Crisp Graphic Plate */}
@@ -212,6 +213,6 @@ export const VectorSceneStage2D: React.FC<VectorSceneStage2DProps> = ({
           </DepthPlane>
         ) : null}
       </OpticalStage2D>
-    </AbsoluteFill>
+    </FillLayer>
   );
 };

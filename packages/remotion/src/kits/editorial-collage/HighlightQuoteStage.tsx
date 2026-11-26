@@ -1,6 +1,6 @@
 import React, { useContext } from 'react';
+import { FillLayer } from '../../FillLayer';
 import {
-  AbsoluteFill,
   interpolate,
   spring,
   useCurrentFrame,
@@ -241,7 +241,7 @@ export const HighlightQuoteStage: React.FC<HighlightQuoteStageProps> = ({
   }
 
   return (
-    <AbsoluteFill
+    <FillLayer
       style={{
         boxSizing: 'border-box',
         justifyContent: isVertical ? 'flex-start' : 'center',
@@ -253,6 +253,6 @@ export const HighlightQuoteStage: React.FC<HighlightQuoteStageProps> = ({
       }}
     >
       {quoteCard}
-    </AbsoluteFill>
+    </FillLayer>
   );
 };

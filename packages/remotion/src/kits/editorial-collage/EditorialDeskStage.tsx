@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
+import { FillLayer } from '../../FillLayer';
 import {
-  AbsoluteFill,
   useCurrentFrame,
   useVideoConfig,
 } from 'remotion';
@@ -89,7 +89,7 @@ export const EditorialDeskStage: React.FC<EditorialDeskStageProps> = ({
   // Clean Frame 0 invariant
   if (frame <= 0) {
     return renderBaseFill ? (
-      <AbsoluteFill
+      <FillLayer
         style={{ backgroundColor: style.palette.bgCanvas, pointerEvents: 'none' }}
       />
     ) : null;
@@ -106,7 +106,7 @@ export const EditorialDeskStage: React.FC<EditorialDeskStageProps> = ({
   const insetBottom = isVertical ? 496 : 48;
 
   return (
-    <AbsoluteFill style={{ overflow: 'hidden', pointerEvents: 'none' }}>
+    <FillLayer style={{ overflow: 'hidden', pointerEvents: 'none' }}>
       <StageLightingRig
         style={style}
         seed={`editorial-desk:${seed}`}
@@ -128,7 +128,7 @@ export const EditorialDeskStage: React.FC<EditorialDeskStageProps> = ({
       >
         {/* Plane z = -0.65: Background Passe-Partout Registration Sheet */}
         <DepthPlane z={-0.65} disableFocusBlur>
-          <AbsoluteFill style={{ pointerEvents: 'none' }}>
+          <FillLayer style={{ pointerEvents: 'none' }}>
             <div
               style={{
                 position: 'absolute',
@@ -160,7 +160,7 @@ export const EditorialDeskStage: React.FC<EditorialDeskStageProps> = ({
                 <span>{cleanSheetCode}</span>
               </div>
             ) : null}
-          </AbsoluteFill>
+          </FillLayer>
         </DepthPlane>
 
         {/* Plane z = 0.0: Primary Crisp Editorial Surface */}
@@ -194,6 +194,6 @@ export const EditorialDeskStage: React.FC<EditorialDeskStageProps> = ({
           </DepthPlane>
         )}
       </OpticalStage2D>
-    </AbsoluteFill>
+    </FillLayer>
   );
 };

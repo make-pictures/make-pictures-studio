@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import {
-  AbsoluteFill,
   Sequence,
   getRemotionEnvironment,
   spring,
@@ -13,6 +12,7 @@ import { useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { z } from 'zod';
 import {
+  FillLayer,
   SmartMusicBed,
   SoundCue,
   StyleProvider,
@@ -1617,7 +1617,7 @@ const SkyBackdropLayer: React.FC<{ durationInFrames: number }> = React.memo(
     const { sky } = evaluatePaperDioramaFrame(frame, durationInFrames);
 
     return (
-      <AbsoluteFill
+      <FillLayer
         style={{
           boxSizing: 'border-box',
           background: `linear-gradient(180deg, ${sky.skyTopColor} 0%, ${sky.skyBottomColor} 100%)`,
@@ -1625,7 +1625,7 @@ const SkyBackdropLayer: React.FC<{ durationInFrames: number }> = React.memo(
       >
         {/* Subtle warm sunlight bloom in lower atmosphere fading smoothly into space */}
         {sky.ambientIntensity > 0.45 ? (
-          <AbsoluteFill
+          <FillLayer
             style={{
               pointerEvents: 'none',
               opacity: Math.max(0, (sky.ambientIntensity - 0.45) * 1.15),
@@ -1634,7 +1634,7 @@ const SkyBackdropLayer: React.FC<{ durationInFrames: number }> = React.memo(
             }}
           />
         ) : null}
-      </AbsoluteFill>
+      </FillLayer>
     );
   }
 );
@@ -1669,7 +1669,7 @@ const SkywardEditorialChrome: React.FC<{
       : `${state.altitudeKm} KM  •  ${copy.chapterLabels[state.activeChapterId]}`;
 
   return (
-    <AbsoluteFill style={{ pointerEvents: 'none', boxSizing: 'border-box' }}>
+    <FillLayer style={{ pointerEvents: 'none', boxSizing: 'border-box' }}>
       <FloatingEditorialDisplay
         eyebrow={altTag}
         headline={headline}
@@ -1695,7 +1695,7 @@ const SkywardEditorialChrome: React.FC<{
           willChange: 'transform',
         }}
       />
-    </AbsoluteFill>
+    </FillLayer>
   );
 });
 
@@ -1704,7 +1704,7 @@ const CleanFrameZeroCover: React.FC<{ color: string }> = React.memo(
     const frame = useCurrentFrame();
     if (frame > 0) return null;
     return (
-      <AbsoluteFill
+      <FillLayer
         style={{ backgroundColor: color, zIndex: 50, pointerEvents: 'none' }}
       />
     );
@@ -1718,7 +1718,7 @@ const PaperDioramaDemoInner: React.FC<PaperDioramaDemoProps> = React.memo(
     const { isRendering } = getRemotionEnvironment();
 
     return (
-      <AbsoluteFill style={{ boxSizing: 'border-box' }}>
+      <FillLayer style={{ boxSizing: 'border-box' }}>
         <SkyBackdropLayer durationInFrames={durationInFrames} />
         <ThreeCanvas
           width={width}
@@ -1796,7 +1796,7 @@ const PaperDioramaDemoInner: React.FC<PaperDioramaDemoProps> = React.memo(
         ))}
 
         <CleanFrameZeroCover color={outerStyle.palette.bgCanvas} />
-      </AbsoluteFill>
+      </FillLayer>
     );
   }
 );

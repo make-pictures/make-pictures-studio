@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useMemo } from 'react';
-import { AbsoluteFill, spring, useCurrentFrame, useVideoConfig } from 'remotion';
+import { FillLayer } from '../../FillLayer';
+import { spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import {
   DirectorCamera2D,
   ScenicBackdropLayers,
@@ -275,7 +276,7 @@ export const MotionDiagramStage2D: React.FC<MotionDiagramStage2DProps> = ({
 
   return (
     <MotionDiagramFocusContext.Provider value={focusCtx}>
-      <AbsoluteFill
+      <FillLayer
         style={{
           backgroundColor: renderBaseFill ? resolvedBgCanvas : 'transparent',
           overflow: 'hidden',
@@ -305,7 +306,7 @@ export const MotionDiagramStage2D: React.FC<MotionDiagramStage2DProps> = ({
         >
           {children}
         </DirectorCamera2D>
-      </AbsoluteFill>
+      </FillLayer>
     </MotionDiagramFocusContext.Provider>
   );
 };

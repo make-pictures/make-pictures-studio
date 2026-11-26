@@ -1,6 +1,6 @@
 import React from 'react';
+import { FillLayer } from '../../FillLayer';
 import {
-  AbsoluteFill,
   Easing,
   interpolate,
   useCurrentFrame,
@@ -82,7 +82,7 @@ export const SceneTransition: React.FC<SceneTransitionProps> = ({
         ? Math.pow(u * 2, 2.2)
         : Math.pow(Math.max(0, 1 - (u - 0.5) * 2), 1.65);
     return (
-      <AbsoluteFill
+      <FillLayer
         style={{
           pointerEvents: 'none',
           zIndex,
@@ -103,7 +103,7 @@ export const SceneTransition: React.FC<SceneTransitionProps> = ({
     const ty = !isHorizontal ? sweep * sign * height : 0;
 
     return (
-      <AbsoluteFill
+      <FillLayer
         style={{
           pointerEvents: 'none',
           overflow: 'hidden',
@@ -124,14 +124,14 @@ export const SceneTransition: React.FC<SceneTransitionProps> = ({
             boxShadow: `0 0 80px ${accentColor}88`,
           }}
         />
-      </AbsoluteFill>
+      </FillLayer>
     );
   }
 
   if (type === 'paper-curtain') {
     const slidePct = (1 - coverProgress) * 104;
     return (
-      <AbsoluteFill
+      <FillLayer
         style={{
           pointerEvents: 'none',
           overflow: 'hidden',
@@ -166,7 +166,7 @@ export const SceneTransition: React.FC<SceneTransitionProps> = ({
             transform: `translate3d(${slidePct}%, 0, 0)`,
           }}
         />
-      </AbsoluteFill>
+      </FillLayer>
     );
   }
 
@@ -174,7 +174,7 @@ export const SceneTransition: React.FC<SceneTransitionProps> = ({
     const filterId = `mp-ink-wash-${Math.abs(seed)}`;
     const blobRadius = coverProgress * diagRadius * 1.22;
     return (
-      <AbsoluteFill
+      <FillLayer
         style={{
           pointerEvents: 'none',
           overflow: 'hidden',
@@ -215,7 +215,7 @@ export const SceneTransition: React.FC<SceneTransitionProps> = ({
             />
           </g>
         </svg>
-      </AbsoluteFill>
+      </FillLayer>
     );
   }
 
@@ -224,7 +224,7 @@ export const SceneTransition: React.FC<SceneTransitionProps> = ({
   const maskId = `mp-iris-mask-${Math.abs(seed)}-${atFrame}`;
 
   return (
-    <AbsoluteFill
+    <FillLayer
       style={{
         pointerEvents: 'none',
         overflow: 'hidden',
@@ -262,6 +262,6 @@ export const SceneTransition: React.FC<SceneTransitionProps> = ({
           />
         )}
       </svg>
-    </AbsoluteFill>
+    </FillLayer>
   );
 };

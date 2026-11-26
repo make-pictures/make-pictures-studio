@@ -1,6 +1,6 @@
 import React from 'react';
+import { FillLayer } from '../../FillLayer';
 import {
-  AbsoluteFill,
   interpolate,
   spring,
   useCurrentFrame,
@@ -60,7 +60,7 @@ export const ChapterTitleCard: React.FC<ChapterTitleCardProps> = ({
   const focusScale = interpolate(enter, [0, 1], [1.038, 1]);
 
   return (
-    <AbsoluteFill
+    <FillLayer
       style={{
         boxSizing: 'border-box',
         justifyContent: isVertical ? 'flex-start' : 'center',
@@ -172,6 +172,6 @@ export const ChapterTitleCard: React.FC<ChapterTitleCardProps> = ({
           </div>
         ) : null}
       </div>
-    </AbsoluteFill>
+    </FillLayer>
   );
 };

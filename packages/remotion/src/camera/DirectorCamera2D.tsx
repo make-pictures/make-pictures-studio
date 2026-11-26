@@ -1,6 +1,6 @@
 import React, { useLayoutEffect, useMemo } from 'react';
+import { FillLayer } from '../FillLayer';
 import {
-  AbsoluteFill,
   spring,
   useCurrentFrame,
   useVideoConfig,
@@ -399,7 +399,7 @@ export const DirectorCamera2D: React.FC<DirectorCamera2DProps> = ({
     return (
       <DirectorCameraTelemetryProvider telemetry={cam.telemetry}>
         {renderBaseFill ? (
-          <AbsoluteFill style={{ backgroundColor: resolvedBgCanvas }} />
+          <FillLayer style={{ backgroundColor: resolvedBgCanvas }} />
         ) : null}
       </DirectorCameraTelemetryProvider>
     );
@@ -455,7 +455,7 @@ export const DirectorCamera2D: React.FC<DirectorCamera2DProps> = ({
 
   return (
     <DirectorCameraTelemetryProvider telemetry={cam.telemetry}>
-      <AbsoluteFill
+      <FillLayer
         style={{
           backgroundColor: renderBaseFill ? resolvedBgCanvas : 'transparent',
           overflow: 'hidden',
@@ -469,7 +469,7 @@ export const DirectorCamera2D: React.FC<DirectorCamera2DProps> = ({
         {/* 2. Viewport-Pinned Infinite Technical Drafting Grid (Zero GPU Clipping) */}
         {showGrid && (
           <>
-            <AbsoluteFill
+            <FillLayer
               style={{
                 backgroundImage: `
                   linear-gradient(to right, ${gridLineColor} 1px, transparent 1px),
@@ -480,7 +480,7 @@ export const DirectorCamera2D: React.FC<DirectorCamera2DProps> = ({
                 pointerEvents: 'none',
               }}
             />
-            <AbsoluteFill
+            <FillLayer
               style={{
                 backgroundImage: `radial-gradient(${gridDotColor} 1.35px, transparent 1.35px)`,
                 backgroundSize: `${dotSpacing}px ${dotSpacing}px`,
@@ -511,7 +511,7 @@ export const DirectorCamera2D: React.FC<DirectorCamera2DProps> = ({
 
         {/* 4. Optional Viewport-Pinned Overlay Slot */}
         {overlay}
-      </AbsoluteFill>
+      </FillLayer>
     </DirectorCameraTelemetryProvider>
   );
 };

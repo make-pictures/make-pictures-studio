@@ -1,6 +1,6 @@
 import React from 'react';
+import { FillLayer } from '../../FillLayer';
 import {
-  AbsoluteFill,
   interpolate,
   spring,
   useCurrentFrame,
@@ -318,7 +318,7 @@ export const ComparisonSplit2D: React.FC<ComparisonSplit2DProps> = ({
   };
 
   return (
-    <AbsoluteFill style={{ pointerEvents: 'none' }}>
+    <FillLayer style={{ pointerEvents: 'none' }}>
       <div
         data-comparison-rack={rackMode}
         style={{
@@ -398,6 +398,6 @@ export const ComparisonSplit2D: React.FC<ComparisonSplit2DProps> = ({
           tiltDeg: rightTilt,
         })}
       </div>
-    </AbsoluteFill>
+    </FillLayer>
   );
 };

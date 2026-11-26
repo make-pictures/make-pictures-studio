@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
-import { AbsoluteFill, useCurrentFrame, useVideoConfig } from 'remotion';
+import { FillLayer } from '../../FillLayer';
+import { useCurrentFrame, useVideoConfig } from 'remotion';
 import {
   DirectorCamera2D,
   ScenicBackdropLayers,
@@ -156,7 +157,7 @@ export const EditorialPanoramaTrack: React.FC<EditorialPanoramaTrackProps> = ({
   const bodyFont = formatFontFamilyCss(style.typography.bodyFont, 'body');
 
   return (
-    <AbsoluteFill data-editorial-panorama="true">
+    <FillLayer data-editorial-panorama="true">
       {showScenicBackdrop && (
         <ScenicBackdropLayers
           seed={`panorama:${resolvedCards.map((c) => c.item.id).join(':')}`}
@@ -212,6 +213,6 @@ export const EditorialPanoramaTrack: React.FC<EditorialPanoramaTrackProps> = ({
           ))}
         </SplitStorySlotContext.Provider>
       </DirectorCamera2D>
-    </AbsoluteFill>
+    </FillLayer>
   );
 };

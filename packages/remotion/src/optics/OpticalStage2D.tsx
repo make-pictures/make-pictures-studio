@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useLayoutEffect, useMemo } from 'react';
-import { AbsoluteFill, useCurrentFrame, useVideoConfig } from 'remotion';
+import { FillLayer } from '../FillLayer';
+import { useCurrentFrame, useVideoConfig } from 'remotion';
 import {
   publishFrameCameraTelemetry,
   type CameraImpulse,
@@ -121,7 +122,7 @@ export const OpticalStage2D: React.FC<OpticalStage2DProps> = ({
   return (
     <DirectorCameraTelemetryProvider telemetry={camera.telemetry}>
       <OpticalStageContext.Provider value={contextVal}>
-        <AbsoluteFill
+        <FillLayer
           style={{
             overflow: 'hidden',
             pointerEvents: 'none',
@@ -132,7 +133,7 @@ export const OpticalStage2D: React.FC<OpticalStage2DProps> = ({
         >
           {children}
           {overlay}
-        </AbsoluteFill>
+        </FillLayer>
       </OpticalStageContext.Provider>
     </DirectorCameraTelemetryProvider>
   );
@@ -163,9 +164,9 @@ export const DepthPlane: React.FC<DepthPlaneProps> = ({
 
   if (!stage) {
     return (
-      <AbsoluteFill className={className} style={style}>
+      <FillLayer className={className} style={style}>
         {children}
-      </AbsoluteFill>
+      </FillLayer>
     );
   }
 
@@ -186,7 +187,7 @@ export const DepthPlane: React.FC<DepthPlaneProps> = ({
   const planeOpacity = computePlaneAtmosphericOpacity(z, camera.focalZ);
 
   return (
-    <AbsoluteFill
+    <FillLayer
       className={className}
       data-depth-z={z}
       style={{
@@ -199,6 +200,6 @@ export const DepthPlane: React.FC<DepthPlaneProps> = ({
       }}
     >
       {children}
-    </AbsoluteFill>
+    </FillLayer>
   );
 };

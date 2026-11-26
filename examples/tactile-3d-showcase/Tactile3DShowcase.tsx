@@ -1,7 +1,6 @@
 import React, { useMemo } from 'react';
 import { z } from 'zod';
 import {
-  AbsoluteFill,
   interpolate,
   useCurrentFrame,
   useVideoConfig,
@@ -9,6 +8,7 @@ import {
 import { ThreeCanvas } from '@remotion/three';
 import * as THREE from 'three';
 import {
+  FillLayer,
   StyleProvider,
   computeGlassLightingBlend,
   disneyEase,
@@ -783,11 +783,11 @@ const Tactile3DShowcaseInner: React.FC<Tactile3DShowcaseProps> = (props) => {
   const style = useStudioStyle();
 
   if (frame <= 0) {
-    return <AbsoluteFill style={{ backgroundColor: style.palette.bgCanvas }} />;
+    return <FillLayer style={{ backgroundColor: style.palette.bgCanvas }} />;
   }
 
   return (
-    <AbsoluteFill style={{ backgroundColor: style.palette.bgCanvas }}>
+    <FillLayer style={{ backgroundColor: style.palette.bgCanvas }}>
       <ThreeCanvas
         width={width}
         height={height}
@@ -819,7 +819,7 @@ const Tactile3DShowcaseInner: React.FC<Tactile3DShowcaseProps> = (props) => {
         position="bottom"
         milestones={TIMELINE_MILESTONES}
       />
-    </AbsoluteFill>
+    </FillLayer>
   );
 };
 

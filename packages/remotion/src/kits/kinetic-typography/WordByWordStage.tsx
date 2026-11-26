@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
+import { FillLayer } from '../../FillLayer';
 import {
-  AbsoluteFill,
   interpolate,
   spring,
   useCurrentFrame,
@@ -330,7 +330,7 @@ export const WordByWordStage: React.FC<WordByWordStageProps> = ({
   // 1. SWISS-SPATIAL GRAMMAR (Editorial Column + Rack-Focus Context + Ink Rule)
   if (resolvedGrammar === 'swiss-spatial') {
     return (
-      <AbsoluteFill
+      <FillLayer
         data-typography-grammar="swiss-spatial"
         style={{
           backgroundColor: resolvedBg,
@@ -451,7 +451,7 @@ export const WordByWordStage: React.FC<WordByWordStageProps> = ({
 
           {renderNeighborLine(nextBeat, 'next')}
         </div>
-      </AbsoluteFill>
+      </FillLayer>
     );
   }
 
@@ -462,7 +462,7 @@ export const WordByWordStage: React.FC<WordByWordStageProps> = ({
     const gateBlur = gateFlash * 1.6;
 
     return (
-      <AbsoluteFill
+      <FillLayer
         data-typography-grammar="optical-gate"
         style={{
           backgroundColor: resolvedBg,
@@ -623,7 +623,7 @@ export const WordByWordStage: React.FC<WordByWordStageProps> = ({
 
           {renderNeighborLine(nextBeat, 'next')}
         </div>
-      </AbsoluteFill>
+      </FillLayer>
     );
   }
 
@@ -631,7 +631,7 @@ export const WordByWordStage: React.FC<WordByWordStageProps> = ({
   const posterTiltDeg = (activeBeatIndex % 2 === 0 ? -1.1 : 1.1) * beatEnter;
 
   return (
-    <AbsoluteFill
+    <FillLayer
       data-typography-grammar="risograph-poster"
       style={{
         backgroundColor: resolvedBg,
@@ -725,6 +725,6 @@ export const WordByWordStage: React.FC<WordByWordStageProps> = ({
           })}
         </div>
       </div>
-    </AbsoluteFill>
+    </FillLayer>
   );
 };

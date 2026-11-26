@@ -1,5 +1,6 @@
 import React from 'react';
-import { AbsoluteFill, Img, OffthreadVideo } from 'remotion';
+import { FillLayer } from '../../FillLayer';
+import { Img, OffthreadVideo } from 'remotion';
 
 export interface FrameMediaProps {
   /** `.mp4` / `.webm` screen recording (rendered via Remotion `<OffthreadVideo />`) */
@@ -43,7 +44,7 @@ export const FrameMedia: React.FC<FrameMediaProps> = ({
   };
 
   return (
-    <AbsoluteFill style={{ overflow: 'hidden' }}>
+    <FillLayer style={{ overflow: 'hidden' }}>
       {videoSrc ? (
         <OffthreadVideo
           src={videoSrc}
@@ -58,8 +59,8 @@ export const FrameMedia: React.FC<FrameMediaProps> = ({
         <Img src={imageSrc} style={mediaStyle} />
       ) : null}
       {children ? (
-        <AbsoluteFill style={{ overflow: 'hidden' }}>{children}</AbsoluteFill>
+        <FillLayer style={{ overflow: 'hidden' }}>{children}</FillLayer>
       ) : null}
-    </AbsoluteFill>
+    </FillLayer>
   );
 };

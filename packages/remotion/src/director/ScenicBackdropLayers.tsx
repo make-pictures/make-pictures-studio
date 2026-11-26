@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
-import { AbsoluteFill, useCurrentFrame, useVideoConfig } from 'remotion';
+import { FillLayer } from '../FillLayer';
+import { useCurrentFrame, useVideoConfig } from 'remotion';
 import { useOpticalStage } from '../optics';
 import {
   resolveArtWorld,
@@ -87,7 +88,7 @@ export const ScenicBackdropLayers: React.FC<ScenicBackdropLayersProps> = ({
     const causticAngle = optics.lightAngleDeg + layoutTokens.causticTilt;
 
     return (
-      <AbsoluteFill
+      <FillLayer
         className={className}
         data-scenic-backdrop="atelier"
         style={{
@@ -205,7 +206,7 @@ export const ScenicBackdropLayers: React.FC<ScenicBackdropLayersProps> = ({
             fill={`url(#${uidPrefix}-pool)`}
           />
         </svg>
-      </AbsoluteFill>
+      </FillLayer>
     );
   }
 
@@ -220,7 +221,7 @@ export const ScenicBackdropLayers: React.FC<ScenicBackdropLayersProps> = ({
     const cloudShiftB = Math.sin(frame * 0.007) * 22;
 
     return (
-      <AbsoluteFill
+      <FillLayer
         className={className}
         data-scenic-backdrop="illustrative"
         style={{
@@ -338,7 +339,7 @@ export const ScenicBackdropLayers: React.FC<ScenicBackdropLayersProps> = ({
             />
           </g>
         </svg>
-      </AbsoluteFill>
+      </FillLayer>
     );
   }
 
@@ -347,7 +348,7 @@ export const ScenicBackdropLayers: React.FC<ScenicBackdropLayersProps> = ({
   const shadowSkew = clamp(optics.lightAngleDeg * 0.45, -26, 26);
 
   return (
-    <AbsoluteFill
+    <FillLayer
       className={className}
       data-scenic-backdrop="editorial-gallery"
       style={{
@@ -449,6 +450,6 @@ export const ScenicBackdropLayers: React.FC<ScenicBackdropLayersProps> = ({
           />
         </g>
       </svg>
-    </AbsoluteFill>
+    </FillLayer>
   );
 };

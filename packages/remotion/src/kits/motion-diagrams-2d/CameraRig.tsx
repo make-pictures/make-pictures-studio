@@ -1,6 +1,6 @@
 import React from 'react';
+import { FillLayer } from '../../FillLayer';
 import {
-  AbsoluteFill,
   spring,
   useCurrentFrame,
   useVideoConfig,
@@ -127,7 +127,7 @@ export const CameraRig: React.FC<CameraRigProps> = ({
         : studioStyle.palette.bgCanvas;
 
   if (frame <= 0) {
-    return <AbsoluteFill style={{ backgroundColor: resolvedBgCanvas }} />;
+    return <FillLayer style={{ backgroundColor: resolvedBgCanvas }} />;
   }
 
   const cam = evaluateCameraState(frame, fps, keyframes);
@@ -156,7 +156,7 @@ export const CameraRig: React.FC<CameraRigProps> = ({
       : `${studioStyle.palette.accentPrimary}2E`;
 
   return (
-    <AbsoluteFill
+    <FillLayer
       style={{
         backgroundColor: resolvedBgCanvas,
         overflow: 'hidden',
@@ -164,7 +164,7 @@ export const CameraRig: React.FC<CameraRigProps> = ({
     >
       <StageLightingRig renderBaseFill={false} seed="camera-rig-2d" />
 
-      <AbsoluteFill
+      <FillLayer
         style={{
           backgroundImage: `
             linear-gradient(to right, ${gridLineColor} 1px, transparent 1px),
@@ -175,7 +175,7 @@ export const CameraRig: React.FC<CameraRigProps> = ({
           pointerEvents: 'none',
         }}
       />
-      <AbsoluteFill
+      <FillLayer
         style={{
           backgroundImage: `radial-gradient(${gridDotColor} 1.35px, transparent 1.35px)`,
           backgroundSize: `${dotSpacing}px ${dotSpacing}px`,
@@ -198,6 +198,6 @@ export const CameraRig: React.FC<CameraRigProps> = ({
       >
         {children}
       </div>
-    </AbsoluteFill>
+    </FillLayer>
   );
 };

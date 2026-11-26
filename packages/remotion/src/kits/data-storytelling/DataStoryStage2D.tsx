@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
-import { AbsoluteFill, useCurrentFrame, useVideoConfig } from 'remotion';
+import { FillLayer } from '../../FillLayer';
+import { useCurrentFrame, useVideoConfig } from 'remotion';
 import {
   DepthPlane,
   OpticalStage2D,
@@ -86,7 +87,7 @@ export const DataStoryStage2D: React.FC<DataStoryStage2DProps> = ({
   // Clean Frame 0 invariant
   if (frame <= 0) {
     return renderBaseFill ? (
-      <AbsoluteFill
+      <FillLayer
         style={{ backgroundColor: style.palette.bgCanvas, pointerEvents: 'none' }}
       />
     ) : null;
@@ -111,7 +112,7 @@ export const DataStoryStage2D: React.FC<DataStoryStage2DProps> = ({
   ];
 
   return (
-    <AbsoluteFill style={{ overflow: 'hidden', pointerEvents: 'none' }}>
+    <FillLayer style={{ overflow: 'hidden', pointerEvents: 'none' }}>
       <StageLightingRig
         style={style}
         seed={`data-stage:${seed}`}
@@ -130,7 +131,7 @@ export const DataStoryStage2D: React.FC<DataStoryStage2DProps> = ({
       >
         {/* Plane z = -0.58: Data Cartography Scale Sheet */}
         <DepthPlane z={-0.58} disableFocusBlur>
-          <AbsoluteFill style={{ pointerEvents: 'none' }}>
+          <FillLayer style={{ pointerEvents: 'none' }}>
             <div
               style={{
                 position: 'absolute',
@@ -195,7 +196,7 @@ export const DataStoryStage2D: React.FC<DataStoryStage2DProps> = ({
                 <span>{cleanDatasetCode}</span>
               </div>
             ) : null}
-          </AbsoluteFill>
+          </FillLayer>
         </DepthPlane>
 
         {/* Plane z = 0.0: Primary Crisp Data Plane */}
@@ -232,6 +233,6 @@ export const DataStoryStage2D: React.FC<DataStoryStage2DProps> = ({
           </DepthPlane>
         ) : null}
       </OpticalStage2D>
-    </AbsoluteFill>
+    </FillLayer>
   );
 };

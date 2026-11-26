@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
-import { AbsoluteFill, useCurrentFrame, useVideoConfig } from 'remotion';
+import { FillLayer } from '../../FillLayer';
+import { useCurrentFrame, useVideoConfig } from 'remotion';
 import {
   createSeededRandom,
   useDirectorCameraTelemetry,
@@ -92,7 +93,7 @@ export const CinematicLensOverlay: React.FC<CinematicLensOverlayProps> = ({
   const fringePx = Math.round(ca * Math.max(width, height) * 0.018);
 
   return (
-    <AbsoluteFill
+    <FillLayer
       style={{
         pointerEvents: 'none',
         overflow: 'hidden',
@@ -101,7 +102,7 @@ export const CinematicLensOverlay: React.FC<CinematicLensOverlayProps> = ({
     >
       {/* 1. Velocity-Driven Lateral Chromatic Aberration (0 DOM cost when still) */}
       {ca > 0.015 && fringePx > 0 && (
-        <AbsoluteFill
+        <FillLayer
           style={{
             mixBlendMode: 'screen',
             opacity: clamp(ca * 0.78, 0, 0.72),
@@ -115,7 +116,7 @@ export const CinematicLensOverlay: React.FC<CinematicLensOverlayProps> = ({
 
       {/* 2. Organic Warm Anamorphic Light Leak */}
       {leak > 0.005 && (
-        <AbsoluteFill
+        <FillLayer
           style={{
             mixBlendMode: 'screen',
             opacity: clamp(leak * leakPulse, 0, 0.85),
@@ -129,7 +130,7 @@ export const CinematicLensOverlay: React.FC<CinematicLensOverlayProps> = ({
 
       {/* 3. Smooth Optical Vignette */}
       {vig > 0.005 && (
-        <AbsoluteFill
+        <FillLayer
           style={{
             backgroundImage: `radial-gradient(ellipse 76% 74% at 50% 50%, transparent 48%, rgba(9, 10, 18, ${(vig * 0.42).toFixed(3)}) 80%, rgba(5, 6, 12, ${(vig * 0.82).toFixed(3)}) 100%)`,
           }}
@@ -164,6 +165,6 @@ export const CinematicLensOverlay: React.FC<CinematicLensOverlayProps> = ({
           <rect width="100%" height="100%" filter={`url(#${filterId})`} />
         </svg>
       )}
-    </AbsoluteFill>
+    </FillLayer>
   );
 };

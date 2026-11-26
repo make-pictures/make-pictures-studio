@@ -1,7 +1,6 @@
 import React, { memo, useMemo } from 'react';
 import { Bike, Check, Clock, Home, Smartphone, Store } from 'lucide-react';
 import {
-  AbsoluteFill,
   Easing,
   Img,
   Sequence,
@@ -13,6 +12,7 @@ import {
 } from 'remotion';
 import { z } from 'zod';
 import {
+  FillLayer,
   ClippedSurfaceChrome,
   ContinuousSceneFlow,
   SmartMusicBed,
@@ -426,7 +426,7 @@ const CleanFrameZeroOverlay: React.FC<{ bgColor: string }> = memo(
     const frame = useCurrentFrame();
     if (frame > 0) return null;
     return (
-      <AbsoluteFill
+      <FillLayer
         style={{
           backgroundColor: bgColor,
           zIndex: 9999,
@@ -517,9 +517,9 @@ const Act1OneTapOrder: React.FC<{
         : `scale(${(0.94 + 0.06 * confirmPop).toFixed(4)})`;
 
   return (
-    <AbsoluteFill style={{ boxSizing: 'border-box' }}>
+    <FillLayer style={{ boxSizing: 'border-box' }}>
       <VectorSceneStage2D renderBaseFill={false} seed={5101}>
-        <AbsoluteFill
+        <FillLayer
           style={{
             display: 'grid',
             gridTemplateColumns: '1.15fr 0.85fr',
@@ -868,7 +868,7 @@ const Act1OneTapOrder: React.FC<{
               </div>
             </PhoneFrame>
           </div>
-        </AbsoluteFill>
+        </FillLayer>
       </VectorSceneStage2D>
 
       <PaperRibbonTimeline
@@ -877,7 +877,7 @@ const Act1OneTapOrder: React.FC<{
         position="bottom"
         enterFrame={8}
       />
-    </AbsoluteFill>
+    </FillLayer>
   );
 });
 Act1OneTapOrder.displayName = 'Act1OneTapOrder';
@@ -890,7 +890,7 @@ const Act2FourStepFlow: React.FC<{
   milestones: ReadonlyArray<PaperTimelineMilestone>;
   copy: ReturnType<typeof getProductPromoCopy>['act2'];
 }> = memo(({ durationInFrames, milestones, copy }) => (
-  <AbsoluteFill style={{ boxSizing: 'border-box' }}>
+  <FillLayer style={{ boxSizing: 'border-box' }}>
     <MotionDiagramStage2D
       renderBaseFill={false}
       seed={5102}
@@ -960,7 +960,7 @@ const Act2FourStepFlow: React.FC<{
       position="bottom"
       enterFrame={6}
     />
-  </AbsoluteFill>
+  </FillLayer>
 ));
 Act2FourStepFlow.displayName = 'Act2FourStepFlow';
 
@@ -1016,9 +1016,9 @@ const Act3LiveSyncTracker: React.FC<{
   const spotY = Math.max(14, Math.min(72, riderPt.y * 100 - 12));
 
   return (
-    <AbsoluteFill style={{ boxSizing: 'border-box' }}>
+    <FillLayer style={{ boxSizing: 'border-box' }}>
       <VectorSceneStage2D renderBaseFill={false} seed={5103}>
-        <AbsoluteFill
+        <FillLayer
           style={{
             display: 'flex',
             flexDirection: 'row',
@@ -1428,7 +1428,7 @@ const Act3LiveSyncTracker: React.FC<{
                 </div>
               </div>
             </PhoneFrame>
-          </AbsoluteFill>
+          </FillLayer>
         </VectorSceneStage2D>
 
         <FloatingEditorialDisplay
@@ -1449,7 +1449,7 @@ const Act3LiveSyncTracker: React.FC<{
           position="bottom"
           enterFrame={6}
         />
-      </AbsoluteFill>
+      </FillLayer>
     );
   });
   Act3LiveSyncTracker.displayName = 'Act3LiveSyncTracker';
@@ -1482,9 +1482,9 @@ const Act3LiveSyncTracker: React.FC<{
     const staggerFrames = 10;
 
     return (
-      <AbsoluteFill style={{ boxSizing: 'border-box' }}>
+      <FillLayer style={{ boxSizing: 'border-box' }}>
         <VectorSceneStage2D renderBaseFill={false} seed={5104}>
-          <AbsoluteFill
+          <FillLayer
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -1630,7 +1630,7 @@ const Act3LiveSyncTracker: React.FC<{
               );
             })}
           </div>
-        </AbsoluteFill>
+        </FillLayer>
       </VectorSceneStage2D>
 
       <FloatingEditorialDisplay
@@ -1651,7 +1651,7 @@ const Act3LiveSyncTracker: React.FC<{
         position="bottom"
         enterFrame={6}
       />
-    </AbsoluteFill>
+    </FillLayer>
   );
 });
 Act4MorningFinale.displayName = 'Act4MorningFinale';
@@ -1760,7 +1760,7 @@ const ProductPromoStageInner: React.FC<ProductPromoStageInnerProps> = memo(
     ]);
 
     return (
-      <AbsoluteFill style={{ boxSizing: 'border-box' }}>
+      <FillLayer style={{ boxSizing: 'border-box' }}>
         <ContinuousSceneFlow
           scenes={scenes}
           crossDissolveFrames={PROMO_CROSS_DISSOLVE_FRAMES}
@@ -1810,7 +1810,7 @@ const ProductPromoStageInner: React.FC<ProductPromoStageInnerProps> = memo(
         ))}
 
         <CleanFrameZeroOverlay bgColor={outerStyle.palette.bgCanvas} />
-      </AbsoluteFill>
+      </FillLayer>
     );
   }
 );
