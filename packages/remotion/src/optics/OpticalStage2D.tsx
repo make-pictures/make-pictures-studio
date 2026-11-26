@@ -185,6 +185,17 @@ export const DepthPlane: React.FC<DepthPlaneProps> = ({
     : computeCircleOfConfusionPx(z, camera.focalZ, camera.aperture);
   const filterCss = blurPx < 0.25 ? 'none' : `blur(${blurPx.toFixed(2)}px)`;
   const planeOpacity = computePlaneAtmosphericOpacity(z, camera.focalZ);
+  const hasVisibleRotate = Math.abs(planeRotate) >= 0.02;
+  const isIdentityTransform =
+    Math.abs(dx) < 0.05 &&
+    Math.abs(dy) < 0.05 &&
+    Math.abs(planeScale - 1) < 0.0002 &&
+    !hasVisibleRotate;
+  const transformCss = isIdentityTransform
+    ? 'none'
+    : hasVisibleRotate
+      ? `translate3d(${(-dx).toFixed(2)}px, ${(-dy).toFixed(2)}px, 0) scale(${planeScale.toFixed(4)}) rotate(${planeRotate.toFixed(3)}deg)`
+      : `translate3d(${(-dx).toFixed(2)}px, ${(-dy).toFixed(2)}px, 0) scale(${planeScale.toFixed(4)})`;
 
   return (
     <FillLayer
@@ -192,7 +203,8 @@ export const DepthPlane: React.FC<DepthPlaneProps> = ({
       data-depth-z={z}
       style={{
         transformOrigin: '50% 50%',
-        transform: `translate3d(${(-dx).toFixed(2)}px, ${(-dy).toFixed(2)}px, 0) scale(${planeScale.toFixed(4)}) rotate(${planeRotate.toFixed(3)}deg)`,
+        transform: transformCss,
+        backfaceVisibility: 'hidden',
         filter: filterCss,
         opacity: planeOpacity,
         pointerEvents: 'none',

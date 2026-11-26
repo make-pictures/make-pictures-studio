@@ -167,6 +167,8 @@ export const EditorialPanoramaTrack: React.FC<EditorialPanoramaTrackProps> = ({
         nodes={nodes}
         shots={shots}
         renderBaseFill={renderBaseFill}
+        renderLighting={renderBaseFill}
+        showGrid={renderBaseFill}
       >
         <SplitStorySlotContext.Provider value={isVertical}>
           {resolvedCards.map(({ item, node }, idx) => (

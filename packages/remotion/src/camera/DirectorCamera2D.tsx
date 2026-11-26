@@ -502,7 +502,7 @@ export const DirectorCamera2D: React.FC<DirectorCamera2DProps> = ({
             transformOrigin: '0 0',
             ...(isIdentityCamera || isCameraSettled
               ? {}
-              : { willChange: 'transform' }),
+              : { backfaceVisibility: 'hidden' as const }),
             transform: cameraTransform,
           }}
         >

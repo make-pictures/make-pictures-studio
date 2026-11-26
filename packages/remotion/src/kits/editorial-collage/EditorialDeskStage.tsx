@@ -61,7 +61,7 @@ export const EditorialDeskStage: React.FC<EditorialDeskStageProps> = ({
         x: cx,
         y: cy + 8,
         zoom: 1.0,
-        focalZ: 0.35,
+        focalZ: 0,
         transition: 'cut',
         label: 'Desk Rack In',
       },

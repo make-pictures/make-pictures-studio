@@ -279,6 +279,8 @@ export const OpticalCrossDissolve: React.FC<OpticalCrossDissolveProps> = (
 export interface ContinuousSceneFlowProps {
   scenes: ReadonlyArray<ContinuousSceneSpec>;
   crossDissolveFrames?: number;
+  /** Peak optical blur radius in px during scene cross-dissolves (default `0` for crisp, zero-flicker 60 FPS GPU compositing) */
+  crossDissolveBlurPx?: number;
   style?: React.CSSProperties;
 }
 
@@ -291,6 +293,7 @@ export interface ContinuousSceneFlowProps {
 export const ContinuousSceneFlow: React.FC<ContinuousSceneFlowProps> = ({
   scenes,
   crossDissolveFrames = DIRECTOR_PACING_BUDGET.defaultCrossDissolveFrames,
+  crossDissolveBlurPx = 0,
   style,
 }) => {
   const globalFrame = useCurrentFrame();
@@ -355,6 +358,7 @@ export const ContinuousSceneFlow: React.FC<ContinuousSceneFlowProps> = ({
             <OpticalCrossDissolve
               enterProgress={enterProgress}
               exitProgress={exitProgress}
+              maxBlurPx={crossDissolveBlurPx}
               forceCleanFrameZero={idx === 0 && globalFrame <= 0}
               style={{ zIndex: idx + 1 }}
             >

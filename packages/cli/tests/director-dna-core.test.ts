@@ -493,6 +493,7 @@ test('computeContinuousSceneWindows and ContinuousSceneFlow guarantee <= 1 WebGL
       React.createElement(ContinuousSceneFlow, {
         scenes: flowScenes,
         crossDissolveFrames: 54,
+        crossDissolveBlurPx: 4,
       })
     );
 

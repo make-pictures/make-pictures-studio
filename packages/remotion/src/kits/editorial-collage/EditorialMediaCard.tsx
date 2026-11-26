@@ -435,7 +435,8 @@ export const EditorialMediaCard: React.FC<EditorialMediaCardProps> = ({
               width: '100%',
               height: '100%',
               objectFit: 'cover',
-              transform: `scale(${scale}) translate(${tx}px, ${ty}px)`,
+              backfaceVisibility: 'hidden',
+              transform: `translate3d(${tx.toFixed(2)}px, ${ty.toFixed(2)}px, 0) scale(${scale.toFixed(4)})`,
             }}
           />
         ) : (

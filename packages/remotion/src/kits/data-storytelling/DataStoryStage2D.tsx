@@ -59,7 +59,7 @@ export const DataStoryStage2D: React.FC<DataStoryStage2DProps> = ({
         x: cx,
         y: cy + 6,
         zoom: 1.0,
-        focalZ: 0.34,
+        focalZ: 0,
         transition: 'cut',
         label: 'Data Sheet Rack In',
       },

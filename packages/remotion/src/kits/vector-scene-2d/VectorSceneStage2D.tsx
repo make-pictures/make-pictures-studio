@@ -63,7 +63,7 @@ export const VectorSceneStage2D: React.FC<VectorSceneStage2DProps> = ({
         x: cx,
         y: cy + 6,
         zoom: 1.0,
-        focalZ: 0.36,
+        focalZ: 0,
         transition: 'cut',
         label: 'Plate Rack In',
       },
